@@ -203,6 +203,10 @@ class ReportGenerator:
             if data.get('data', {}).get('verdict', {}).get('score', 0) > 0: is_risky = True
         elif service_name == 'greynoise':
              if data.get('classification') == 'malicious': is_risky = True
+        elif service_name == 'blacklistmaster':
+             if not (isinstance(data, dict) and data.get("_meta_msg") == "No content returned"):
+                 if "error" not in data and "_meta_error" not in (data if isinstance(data, dict) else {}):
+                     is_risky = True
         
         if is_risky:
             self.risk_counter += 1
@@ -421,6 +425,24 @@ class ReportGenerator:
                 logger.error(f"Error parsing UrlScan data: {e}")
                 lines.append(f"[yellow]Error parsing data[/]")
 
+        elif service == 'blacklistmaster':
+            try:
+                if isinstance(data, dict) and data.get("_meta_msg") == "No content returned":
+                    lines.append(f"• [green]Status: Clean (Not found on any blacklists)[/]")
+                elif isinstance(data, dict) and data.get("_meta_error"):
+                    pass # Handled above
+                else:
+                    lines.append(f"• [red]Status: Found on blacklists[/]")
+                    try:
+                        import json
+                        raw_str = json.dumps(data)
+                        if len(raw_str) > 150: raw_str = raw_str[:147] + "..."
+                        lines.append(f"  [dim]Data: {raw_str}[/]")
+                    except: pass
+            except Exception as e:
+                logger.error(f"Error parsing BlacklistMaster data: {e}")
+                lines.append(f"[yellow]Error parsing data[/]")
+
         return "\n".join(lines)
 
     def print_to_console(self):
@@ -450,7 +472,8 @@ class ReportGenerator:
                 'shodan': '🌐',
                 'alienvault': '👽',
                 'greynoise': '👻',
-                'urlscan': '🔗'
+                'urlscan': '🔗',
+                'blacklistmaster': '🏴'
             }
             icon = icon_map.get(service, 'mag')
             title = f"{icon} {service.capitalize()}"
@@ -491,6 +514,12 @@ class ReportGenerator:
                 if data.get('data', {}).get('attributes', {}).get('last_analysis_stats', {}).get('malicious', 0) > 0: border_color = "red"
             elif service == 'abuseipdb':
                  if data.get('data', {}).get('abuseConfidenceScore', 0) > 0: border_color = "red"
+            elif service == 'blacklistmaster':
+                 if not (isinstance(data, dict) and data.get("_meta_msg") == "No content returned"):
+                     if "error" not in data and "_meta_error" not in (data if isinstance(data, dict) else {}):
+                         border_color = "red"
+                 else:
+                     border_color = "white" # Or green if we prefer, using white to match others' default
             
             panels.append(Panel(content, title=f"[bold]{service.upper()}[/]", border_style=border_color))
 

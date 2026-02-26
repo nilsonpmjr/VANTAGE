@@ -65,6 +65,9 @@ def main():
             if client.services['greynoise']:
                 report.add_result('greynoise', client.query_greynoise(target))
                 
+            if client.services['blacklistmaster']:
+                report.add_result('blacklistmaster', client.query_blacklistmaster(target))
+                
         if target_type == 'domain':
             if client.services['urlscan']:
                 report.add_result('urlscan', client.query_urlscan(target))

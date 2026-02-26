@@ -1,7 +1,10 @@
 import os
 import requests
 import logging
+from dotenv import load_dotenv
 from typing import Dict, Any, Optional
+
+load_dotenv()
 
 from logging_config import get_logger
 
@@ -20,7 +23,8 @@ class ThreatIntelClient:
             'shodan': False,
             'alienvault': False,
             'greynoise': False,
-            'urlscan': False
+            'urlscan': False,
+            'blacklistmaster': False
         }
         self.api_keys = {}
         self._load_keys()
@@ -33,7 +37,8 @@ class ThreatIntelClient:
             'shodan': 'SHODAN_API_KEY',
             'alienvault': 'OTX_API_KEY',
             'greynoise': 'GREYNOISE_API_KEY',
-            'urlscan': 'URLSCAN_API_KEY'
+            'urlscan': 'URLSCAN_API_KEY',
+            'blacklistmaster': 'BLACKLISTMASTER_API_KEY'
         }
 
         for service, env_var in keys_map.items():
@@ -58,6 +63,8 @@ class ThreatIntelClient:
                 return {"_meta_error": "unauthorized", "_meta_msg": "Invalid API Key"}
                 
             response.raise_for_status()
+            if not response.text.strip():
+                return {"_meta_msg": "No content returned"}
             return response.json()
             
         except requests.exceptions.Timeout:
@@ -164,3 +171,13 @@ class ThreatIntelClient:
         params = {"q": f"domain:{domain}"}
         
         return self._safe_request("GET", url, headers=headers, params=params)
+
+    def query_blacklistmaster(self, ip: str) -> Optional[Dict[str, Any]]:
+        """Query BlacklistMaster API for IP blacklist status."""
+        if not self.services['blacklistmaster']:
+            return None
+
+        url = f"https://www.blacklistmaster.com/restapi/v1/ipbl/{ip}"
+        params = {"apikey": self.api_keys['blacklistmaster']}
+        
+        return self._safe_request("GET", url, params=params)

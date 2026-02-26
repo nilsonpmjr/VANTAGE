@@ -7,15 +7,17 @@ A powerful and efficient tool to aggregate threat intelligence from multiple sou
 
 ## ✨ Features
 
-- 🚀 **Parallel Queries** - Fast results (Soon with asyncio)
-- 🎨 **Rich Interface** - Elegant visualization with Rich library
+- 🚀 **Parallel Queries** - Fast results through highly concurrent APIs
+- 🎨 **Web Dashboard** - Premium Dark Mode / Glassmorphism UI built with React & Vite
+- 🧠 **Heuristic Analysis** - Automatic contextual summaries of targets
 - 🌍 **Multi-language Support** - Portuguese (PT-BR) and English (EN)
 - 🔒 **Robust Validation** - Protection against malicious inputs
-- 📊 **Multiple Views** - Console Report and Dashboard Grid
+- 📊 **Multiple Views** - Interactive Web Interface, Console Report, and Dashboards
 
 ## 📋 Requirements
 
-- Python 3.9+
+- Python 3.9+ (Backend)
+- Node.js 18+ (Frontend)
 - `pip install -r requirements.txt`
 
 ## 🚀 Installation
@@ -25,8 +27,14 @@ A powerful and efficient tool to aggregate threat intelligence from multiple sou
 git clone https://github.com/nilsonpmjr/Threat-Intelligence-Tool.git
 cd Threat-Intelligence-Tool
 
-# Install dependencies
+# Install Python backend dependencies
 pip install -r requirements.txt
+pip install fastapi uvicorn
+
+# Install Frontend dependencies
+cd web
+npm install
+cd ..
 ```
 
 ## ⚙️ Configuration
@@ -42,7 +50,26 @@ export GREYNOISE_API_KEY='your_key'
 export URLSCAN_API_KEY='your_key'
 ```
 
+```
+
 *Note: The tool gracefully handles missing keys by skipping those services.*
+
+## 📖 Usage
+
+### Web Interface (Recommended)
+
+Start the local servers to launch the unified SOC Dashboard:
+
+```bash
+# 1. Start the API Backend (Root directory)
+python -m uvicorn main:app --host 0.0.0.0 --port 8000
+
+# 2. Start the Frontend (Inside /web directory)
+cd web
+npm run dev
+```
+
+Navigate to `http://localhost:5173` to access the interactive Threat Intelligence Hub.
 
 ## 📖 Usage
 

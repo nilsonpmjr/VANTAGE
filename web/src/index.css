@@ -267,3 +267,156 @@ h4 {
   margin-bottom: 0.5rem;
   line-height: 1.6;
 }
+
+/* Integrations Marquee */
+.marquee-container {
+  width: 100%;
+  max-width: 900px;
+  margin: 0 auto;
+  overflow: hidden;
+  position: relative;
+  display: flex;
+  mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 10%, black 90%, transparent);
+}
+
+.marquee-content {
+  display: flex;
+  width: max-content;
+  gap: 1.5rem;
+  padding: 1rem 0;
+  animation: scroll 45s linear infinite;
+}
+
+.marquee-container:hover .marquee-content {
+  /* Slows down / parses on hover so the user can see */
+  animation-play-state: paused;
+}
+
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(calc(-50% - 0.75rem));
+  }
+}
+
+.provider-card {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--glass-shadow);
+  color: var(--text-primary);
+  opacity: 0.8;
+  transition: opacity 0.3s ease, transform 0.3s ease, border-color 0.3s ease;
+  white-space: nowrap;
+}
+
+.provider-card:hover {
+  opacity: 1;
+  transform: translateY(-2px);
+  border-color: var(--accent-border);
+}
+
+.provider-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+}
+
+/* Animated Layout Header */
+.app-header {
+  position: relative;
+  height: 35vh;
+  min-height: 250px;
+  transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+  margin-bottom: 2rem;
+  z-index: 10;
+}
+
+.app-header.active {
+  height: 80px;
+  min-height: 80px;
+}
+
+.header-left {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+  width: max-content;
+}
+
+.app-header.active .header-left {
+  top: 50%;
+  left: 0;
+  transform: translate(0, -50%);
+  flex-direction: row;
+}
+
+.app-logo {
+  height: 70px;
+  opacity: 0.9;
+  transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.app-header.active .app-logo {
+  height: 36px;
+}
+
+.app-subtitle {
+  color: var(--text-secondary);
+  font-size: 1.2rem;
+  margin: 0;
+  transition: all 0.4s ease;
+  white-space: nowrap;
+}
+
+.app-header.active .app-subtitle {
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.8);
+  position: absolute;
+}
+
+.header-center {
+  position: absolute;
+  top: 55%;
+  left: 50%;
+  transform: translate(-50%, 0);
+  width: 100%;
+  max-width: 600px;
+  transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.app-header.active .header-center {
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.header-right {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  opacity: 0.8;
+  transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.app-header.active .header-right {
+  top: 50%;
+  transform: translateY(-50%);
+}

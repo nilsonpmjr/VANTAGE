@@ -174,13 +174,13 @@ export default function App() {
               ))}
             </div>
 
-            {data.analysis_report && (
+            {(data.analysis_report || data.analysis_reports) && (
               <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>
                 <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
                   {t[lang].summary}
                 </h3>
                 <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.05rem' }}>
-                  <ReactMarkdown>{data.analysis_report}</ReactMarkdown>
+                  <ReactMarkdown>{data.analysis_reports ? data.analysis_reports[lang] : data.analysis_report}</ReactMarkdown>
                 </div>
               </div>
             )}

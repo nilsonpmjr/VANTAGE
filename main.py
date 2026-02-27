@@ -35,7 +35,7 @@ async def get_status():
     return {"status": "ok", "services": client.services}
 
 @app.get("/api/analyze")
-async def analyze_target(target: str = Query(..., description="IP address, Domain, or File Hash")):
+async def analyze_target(target: str = Query(..., description="IP address, Domain, or File Hash"), lang: str = Query("pt", description="Language (pt, en, es)")):
     """
     Analyzes a target using all configured Threat Intelligence services.
     Returns aggregated JSON data.
@@ -131,9 +131,18 @@ async def analyze_target(target: str = Query(..., description="IP address, Domai
         "verdict": "HIGH RISK" if risk_score >= 2 else ("SUSPICIOUS" if risk_score == 1 else "SAFE")
     }
 
-    # Generate heuristic report based on collected data
-    report_lines = generate_heuristic_report(sanitized, target_type, results["summary"], results["results"])
-    results["analysis_report"] = format_report_to_markdown(report_lines)
+    # Generate heuristic report for all supported languages dynamically
+    report_lines_pt = generate_heuristic_report(sanitized, target_type, results["summary"], results["results"], lang="pt")
+    report_lines_en = generate_heuristic_report(sanitized, target_type, results["summary"], results["results"], lang="en")
+    report_lines_es = generate_heuristic_report(sanitized, target_type, results["summary"], results["results"], lang="es")
+    
+    # Store both the legacy default string and the new multi-language dict
+    results["analysis_report"] = format_report_to_markdown(report_lines_pt if lang == 'pt' else (report_lines_en if lang == 'en' else report_lines_es))
+    results["analysis_reports"] = {
+        "pt": format_report_to_markdown(report_lines_pt),
+        "en": format_report_to_markdown(report_lines_en),
+        "es": format_report_to_markdown(report_lines_es)
+    }
 
     return results
 

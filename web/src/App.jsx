@@ -115,7 +115,7 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main style={{ flexGrow: 1, paddingBottom: '4rem' }}>
+      <main style={{ flexGrow: 1, paddingBottom: '2rem' }}>
         {error && (
           <div className="fade-in" style={{
             marginTop: '2rem',
@@ -132,9 +132,9 @@ export default function App() {
 
         {!data && !error && (
           <div className="fade-in" style={{
-            marginTop: hasSearched ? '2rem' : '4rem',
+            marginTop: hasSearched ? '1rem' : '2rem',
             textAlign: 'center',
-            transition: 'margin-top 0.7s cubic-bezier(0.25, 1, 0.5, 1)'
+            transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)'
           }}>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {t[lang].services}

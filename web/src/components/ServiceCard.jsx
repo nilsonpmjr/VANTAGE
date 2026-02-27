@@ -169,7 +169,19 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
             }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     <HeaderIcon size={18} color={iconColor} />
-                    <h3 style={{ margin: 0, textTransform: 'capitalize', fontSize: '1.1rem' }}>{name}</h3>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem' }}>
+                        {
+                            {
+                                'virustotal': 'VirusTotal',
+                                'abuseipdb': 'AbuseIPDB',
+                                'alienvault': 'AlienVault OTX',
+                                'urlscan': 'UrlScan.io',
+                                'shodan': 'Shodan',
+                                'greynoise': 'GreyNoise',
+                                'blacklistmaster': 'BlacklistMaster'
+                            }[name] || name
+                        }
+                    </h3>
                 </div>
                 {!isError && <Info size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} />}
             </div>

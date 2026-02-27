@@ -90,7 +90,7 @@ export default function App() {
         </div>
 
         <div className="header-center">
-          <SearchBar onSearch={handleSearch} loading={loading} lang={lang} />
+          <SearchBar key={hasSearched ? 'active' : 'initial'} onSearch={handleSearch} loading={loading} lang={lang} />
         </div>
 
         <div className="header-right">

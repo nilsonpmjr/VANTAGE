@@ -333,8 +333,8 @@ h4 {
 /* Animated Layout Header */
 .app-header {
   position: relative;
-  height: 35vh;
-  min-height: 200px;
+  height: 40vh;
+  min-height: 250px;
   transition: all 0.7s cubic-bezier(0.25, 1, 0.5, 1);
   margin-bottom: 1rem;
   z-index: 10;
@@ -347,7 +347,7 @@ h4 {
 
 .header-left {
   position: absolute;
-  top: 50%;
+  top: 60%;
   left: 50%;
   transform: translate(-50%, -100%);
   display: flex;
@@ -392,7 +392,7 @@ h4 {
 
 .header-center {
   position: absolute;
-  top: 75%;
+  top: 85%;
   left: 50%;
   transform: translate(-50%, 0);
   width: 100%;

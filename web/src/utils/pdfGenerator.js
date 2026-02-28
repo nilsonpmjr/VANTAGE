@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 // Helper to format dates
 const formatDate = () => {
@@ -115,7 +115,7 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
 
             if (rows.length === 0) return; // Skip if no meaningful data to print
 
-            doc.autoTable({
+            autoTable(doc, {
                 startY: currentY + 10,
                 head: [[serviceName.toUpperCase(), 'Details']],
                 body: rows.slice(0, 40), // Limiting to top 40 rows to avoid insanely large unreadable dumps
@@ -129,10 +129,21 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
                 }
             });
 
-            currentY = doc.lastAutoTable.finalY;
+            currentY = doc.lastAutoTable ? doc.lastAutoTable.finalY : currentY;
         });
     }
 
-    // Save the PDF
-    doc.save(`iTeam_ThreatReport_${data.target.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`);
+    // Generate raw Blob from PDF
+    const blob = doc.output('blob');
+    const fileName = `iTeam_ThreatReport_${data.target.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`;
+
+    // Force Download via Anchor Tag to bypass browser Blob naming issues
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };

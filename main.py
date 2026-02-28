@@ -57,6 +57,12 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             headers={"WWW-Authenticate": "Bearer"},
         )
         
+    if user.get("is_active", True) is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account"
+        )
+        
     access_token = create_access_token(
         data={"sub": user["username"], "role": user.get("role", "tech")}
     )
@@ -78,6 +84,7 @@ class UserUpdate(BaseModel):
     password: str = None
     role: str = None
     name: str = None
+    is_active: bool = None
 
 class UserPreferencesUpdate(BaseModel):
     password: str = None
@@ -113,6 +120,7 @@ async def create_user(user: UserCreate, current_user: dict = Depends(require_rol
         "role": user.role,
         "name": user.name,
         "preferred_lang": "pt",
+        "is_active": True,
         "created_at": datetime.now(timezone.utc)
     }
     
@@ -156,6 +164,10 @@ async def update_user(username: str, user_update: UserUpdate, current_user: dict
         update_data["role"] = user_update.role
     if user_update.password is not None and len(user_update.password) >= 6:
         update_data["password_hash"] = get_password_hash(user_update.password)
+    if user_update.is_active is not None:
+        if current_user["username"] == username and user_update.is_active is False:
+             raise HTTPException(status_code=400, detail="You cannot suspend your own account")
+        update_data["is_active"] = user_update.is_active
         
     if not update_data:
         return {"status": "success", "message": "No fields to update"}

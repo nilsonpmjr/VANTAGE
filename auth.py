@@ -54,11 +54,18 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     if user is None:
         raise credentials_exception
         
+    if user.get("is_active", True) is False:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Inactive user account"
+        )
+        
     return {
         "username": user["username"],
         "role": user.get("role", "tech"),
         "name": user.get("name", ""),
-        "preferred_lang": user.get("preferred_lang", "pt")
+        "preferred_lang": user.get("preferred_lang", "pt"),
+        "is_active": user.get("is_active", True)
     }
 
 def require_role(allowed_roles: list):

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Trash2, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X } from 'lucide-react';
+import { UserPlus, Trash2, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power } from 'lucide-react';
 import '../index.css';
 
 export const RoleBadge = ({ role }) => {
@@ -118,25 +118,33 @@ export default function Settings() {
         setNewRole('tech');
     };
 
-    const handleDeleteUser = async (username) => {
-        if (username === user.username) {
-            alert("Ação Negada: Você não pode deletar a si mesmo enquanto estiver logado.");
+    const handleToggleActive = async (userToToggle) => {
+        if (userToToggle.username === user.username) {
+            alert("Ação Negada: Você não pode suspender a si mesmo enquanto estiver logado.");
             return;
         }
 
-        if (!window.confirm(`Tem certeza que deseja Revogar o acesso do usuário '${username}'?`)) {
+        const newStatus = userToToggle.is_active !== false ? false : true;
+        const actionText = newStatus ? 'Ativar' : 'Suspender';
+
+        if (!window.confirm(`Tem certeza que deseja ${actionText} o acesso do usuário '${userToToggle.username}'?`)) {
             return;
         }
 
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8000/api/users/${username}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await fetch(`http://localhost:8000/api/users/${userToToggle.username}`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ is_active: newStatus })
             });
 
             if (!response.ok) {
-                throw new Error('Erro ao deletar usuário');
+                const err = await response.json();
+                throw new Error(err.detail || `Erro ao ${actionText} usuário`);
             }
 
             fetchUsers();
@@ -249,32 +257,36 @@ export default function Settings() {
                                 )}
                                 {filteredUsers.map((u, idx) => (
                                     <tr key={u.username} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
-                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)' }}>{u.name}</td>
-                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{u.username}</td>
-                                        <td style={{ padding: '1rem 1.5rem' }}><RoleBadge role={u.role} /></td>
+                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', opacity: u.is_active === false ? 0.5 : 1 }}>
+                                            {u.name}
+                                            {u.is_active === false && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>Suspenso</span>}
+                                        </td>
+                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontFamily: 'monospace', opacity: u.is_active === false ? 0.5 : 1 }}>{u.username}</td>
+                                        <td style={{ padding: '1rem 1.5rem', opacity: u.is_active === false ? 0.5 : 1 }}><RoleBadge role={u.role} /></td>
                                         <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
                                             <button
                                                 onClick={() => startEdit(u)}
+                                                disabled={u.is_active === false}
                                                 style={{
-                                                    background: 'transparent', border: 'none', cursor: 'pointer',
-                                                    color: 'var(--text-secondary)',
+                                                    background: 'transparent', border: 'none', cursor: u.is_active === false ? 'not-allowed' : 'pointer',
+                                                    color: u.is_active === false ? 'var(--glass-border)' : 'var(--text-secondary)',
                                                     padding: '0.4rem', borderRadius: '4px', marginRight: '0.5rem'
                                                 }}
-                                                title="Editar Usuário"
+                                                title={u.is_active === false ? "Restaure o usuário para editar" : "Editar Usuário"}
                                             >
                                                 <Edit2 size={18} />
                                             </button>
                                             <button
-                                                onClick={() => handleDeleteUser(u.username)}
+                                                onClick={() => handleToggleActive(u)}
                                                 disabled={u.username === user.username}
                                                 style={{
                                                     background: 'transparent', border: 'none', cursor: u.username === user.username ? 'not-allowed' : 'pointer',
-                                                    color: u.username === user.username ? 'var(--glass-border)' : 'var(--red)',
+                                                    color: u.username === user.username ? 'var(--glass-border)' : (u.is_active === false ? 'var(--green)' : 'var(--red)'),
                                                     padding: '0.4rem', borderRadius: '4px'
                                                 }}
-                                                title={u.username === user.username ? 'Você não pode revogar a si próprio' : 'Revogar Acesso'}
+                                                title={u.username === user.username ? 'Você não pode suspender a si próprio' : (u.is_active === false ? 'Reativar Usuário' : 'Suspender Usuário')}
                                             >
-                                                <Trash2 size={18} />
+                                                <Power size={18} />
                                             </button>
                                         </td>
                                     </tr>

@@ -8,14 +8,14 @@ export default function Sidebar({ currentView, setCurrentView }) {
     if (!user) return null;
 
     const NAV_ITEMS = [
-        { id: 'scanner', label: 'Scanner', icon: Search, roles: ['admin', 'manager', 'tech'] },
+        { id: 'home', label: 'Home', icon: Search, roles: ['admin', 'manager', 'tech'] },
         { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'manager'] },
         { id: 'settings', label: 'Configurações', icon: Settings, roles: ['admin'] }
     ];
 
     const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
 
-    const [isCollapsed, setIsCollapsed] = useState(false);
+    const [isCollapsed, setIsCollapsed] = useState(true);
 
     return (
         <aside style={{
@@ -31,7 +31,8 @@ export default function Sidebar({ currentView, setCurrentView }) {
             overflow: 'hidden',
             flexShrink: 0
         }}>
-            <div style={{ padding: '0.5rem', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', marginBottom: '2rem' }}>
+            <div style={{ padding: '0.5rem', display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                {!isCollapsed && <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.2rem', letterSpacing: '0.5px' }}>Menu Principal</span>}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
@@ -75,7 +76,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                                 }
                             }}
                         >
-                            <Icon size={20} color={isActive ? "var(--primary)" : "currentColor"} style={{ flexShrink: 0 }} />
+                            <Icon size={20} style={{ flexShrink: 0 }} />
                             {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
                         </button>
                     )

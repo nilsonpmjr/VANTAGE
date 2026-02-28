@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { UserPlus, Trash2, Loader, Shield, User, Terminal } from 'lucide-react';
+import { UserPlus, Trash2, Loader, Shield, User, Terminal, Settings as SettingsIcon } from 'lucide-react';
 import '../index.css';
 
 export const RoleBadge = ({ role }) => {
@@ -126,7 +126,7 @@ export default function Settings() {
         <div className="fade-in" style={{ padding: '0 2rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
             <header style={{ marginBottom: '2rem', marginTop: '1rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <Settings size={28} color="var(--primary)" />
+                    <SettingsIcon size={28} color="var(--primary)" />
                     Painel de Configurações
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Gerenciamento de Identidade e Acessos do iT.eam SOC.</p>

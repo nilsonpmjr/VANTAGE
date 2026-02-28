@@ -74,11 +74,10 @@ export default function Login() {
 
                     <button
                         type="submit"
-                        className="search-button"
+                        className="btn-primary"
                         disabled={isSubmitting}
-                        style={{ width: '100%', display: 'flex', justifyContent: 'center', padding: '0.875rem' }}
                     >
-                        {isSubmitting ? <Loader className="spin" size={20} /> : 'Entrar no Sistema'}
+                        {isSubmitting ? <Loader className="spin" size={20} /> : 'Entrar'}
                     </button>
                 </form>
 

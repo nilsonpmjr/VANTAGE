@@ -156,6 +156,44 @@ h4 {
   padding: 0.5rem;
 }
 
+/* Premium Primary Button */
+.btn-primary {
+  background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
+  color: #ffffff;
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  padding: 0.8rem 1.5rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.btn-primary:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px 0 rgba(56, 189, 248, 0.4);
+  background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%);
+  border-color: rgba(56, 189, 248, 0.8);
+}
+
+.btn-primary:active {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--bg-card);
+  border-color: var(--glass-border);
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
 /* Buttons */
 .btn {
   display: inline-flex;

@@ -100,9 +100,6 @@ export default function App() {
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
-
-        {currentView === 'settings' && <Settings />}
-
         {currentView === 'dashboard' && (
           <div className="fade-in" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
             <h2>Manager Dashboard</h2>

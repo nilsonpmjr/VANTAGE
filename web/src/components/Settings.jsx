@@ -169,7 +169,7 @@ export default function Settings() {
                             </select>
                         </div>
 
-                        <button type="submit" disabled={isCreating} className="search-button" style={{ marginTop: '0.5rem', padding: '0.75rem', display: 'flex', justifyContent: 'center' }}>
+                        <button type="submit" disabled={isCreating} className="btn-primary" style={{ marginTop: '0.5rem' }}>
                             {isCreating ? <Loader className="spin" size={18} /> : 'Conceder Acesso'}
                         </button>
                     </form>

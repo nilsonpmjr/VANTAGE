@@ -74,6 +74,11 @@ class UserCreate(BaseModel):
     role: str
     name: str
 
+class UserUpdate(BaseModel):
+    password: str = None
+    role: str = None
+    name: str = None
+
 @app.get("/api/users")
 async def list_users(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
@@ -123,6 +128,36 @@ async def delete_user(username: str, current_user: dict = Depends(require_role([
         raise HTTPException(status_code=404, detail="User not found")
         
     return {"status": "success", "message": f"User {username} deleted successfully"}
+
+@app.put("/api/users/{username}")
+async def update_user(username: str, user_update: UserUpdate, current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    existing = await db.users.find_one({"username": username})
+    if not existing:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    update_data = {}
+    if user_update.name is not None:
+        update_data["name"] = user_update.name
+    if user_update.role is not None:
+        if user_update.role not in ["admin", "manager", "tech"]:
+            raise HTTPException(status_code=400, detail="Invalid role specified")
+        # Prevent self-demotion from admin role
+        if current_user["username"] == username and existing.get("role") == "admin" and user_update.role != "admin":
+             raise HTTPException(status_code=400, detail="You cannot demote your own admin account")
+        update_data["role"] = user_update.role
+    if user_update.password is not None and len(user_update.password) >= 6:
+        update_data["password_hash"] = get_password_hash(user_update.password)
+        
+    if not update_data:
+        return {"status": "success", "message": "No fields to update"}
+        
+    await db.users.update_one({"username": username}, {"$set": update_data})
+    
+    return {"status": "success", "message": f"User {username} updated successfully"}
 
 @app.get("/api/status")
 async def get_status(current_user: dict = Depends(get_current_user)):

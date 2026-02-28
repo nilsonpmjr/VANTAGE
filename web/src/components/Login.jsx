@@ -32,13 +32,12 @@ export default function Login() {
                     <img
                         src="/logo.svg"
                         alt="iT.eam Logo"
-                        style={{ width: '120px', height: 'auto', marginBottom: '0.5rem' }}
+                        style={{ width: '200px', height: 'auto', marginBottom: '0.5rem' }}
                         onError={(e) => { e.target.style.display = 'none'; }}
                     />
                 </div>
 
-                <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>iT.eam SOC</h2>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>Centro de Operações de Segurança</p>
+                <h2 style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>Centro de Operações de Segurança</h2>
 
                 {error && (
                     <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>

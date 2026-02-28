@@ -4,7 +4,7 @@ import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle } from 'lucide-r
 import '../index.css';
 
 export default function Profile() {
-    const { user, login } = useAuth();
+    const { user, login, updateUserContext } = useAuth();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -87,7 +87,9 @@ export default function Profile() {
             // Update local user context
             const updatedUser = { ...user, preferred_lang: language, avatar_base64: avatarBase64 };
             localStorage.setItem('user', JSON.stringify(updatedUser)); // Hacky but works for instant sync
-            // Ideally authContext should have an update method, but we can simulate it by reloading or trusting next login
+            if (updateUserContext) {
+                updateUserContext(updatedUser);
+            }
 
             setMessage({ type: 'success', text: 'Preferências salvas com sucesso!' });
             setPassword('');

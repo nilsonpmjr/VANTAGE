@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SearchBar from './components/SearchBar';
 import VerdictPanel from './components/VerdictPanel';
 import ServiceCard from './components/ServiceCard';
@@ -33,6 +33,12 @@ export default function App() {
   const [lang, setLang] = useState('pt');
   const [hasSearched, setHasSearched] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+
+  useEffect(() => {
+    if (user?.preferred_lang) {
+      setLang(user.preferred_lang);
+    }
+  }, [user?.preferred_lang]);
 
   const t = {
     pt: {

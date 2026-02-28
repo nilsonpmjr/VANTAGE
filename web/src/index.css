@@ -8,6 +8,9 @@
   --text-muted: #64748b;
 
   /* Brand accents */
+  --primary: #38bdf8;
+  --red: #ef4444;
+  --green: #10b981;
   --accent-glow: rgba(56, 189, 248, 0.15);
   /* sky-400 with opacity */
   --accent-border: rgba(56, 189, 248, 0.3);

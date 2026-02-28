@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { t } from '../utils/translations';
 import '../index.css';
 
 export default function Dashboard({ onSearch }) {
@@ -9,6 +10,8 @@ export default function Dashboard({ onSearch }) {
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    const lang = user?.preferred_lang || 'pt';
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -84,9 +87,9 @@ export default function Dashboard({ onSearch }) {
             <header style={{ marginBottom: '2rem', marginTop: '3rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <LayoutDashboard size={28} color="var(--primary)" />
-                    Dashboard Gerencial
+                    {t('dashboard.title', lang)}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>Métricas de Inteligência e Escaneamentos do SOC.</p>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('dashboard.subtitle', lang)}</p>
             </header>
 
             {/* Top Cards */}
@@ -96,7 +99,7 @@ export default function Dashboard({ onSearch }) {
                         <Activity size={32} />
                     </div>
                     <div>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Total de Escaneamentos</p>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.total_scans', lang)}</p>
                         <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>{stats?.totalScans || 0}</h3>
                     </div>
                 </div>
@@ -106,7 +109,7 @@ export default function Dashboard({ onSearch }) {
                         <ShieldAlert size={32} />
                     </div>
                     <div>
-                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Ameaças Detectadas</p>
+                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.threats', lang)}</p>
                         <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>
                             {stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}
                         </h3>
@@ -119,7 +122,7 @@ export default function Dashboard({ onSearch }) {
                 <div className="glass-panel" style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
                     <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                         <TrendingUp size={20} color="var(--primary)" />
-                        Proporção de Casos (Veredito)
+                        {t('dashboard.proportion', lang)}
                     </h3>
 
                     <div style={{ flexGrow: 1, minHeight: '300px' }}>
@@ -148,7 +151,7 @@ export default function Dashboard({ onSearch }) {
                             </ResponsiveContainer>
                         ) : (
                             <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                Sem dados suficientes.
+                                {t('dashboard.no_data', lang)}
                             </div>
                         )}
                     </div>
@@ -168,7 +171,7 @@ export default function Dashboard({ onSearch }) {
                     <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                         <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                             <Target size={20} color="var(--primary)" />
-                            Top 5 Artefatos Mais Perigosos/Consultados
+                            {t('dashboard.top_artifacts', lang)}
                         </h3>
                     </div>
 
@@ -176,15 +179,15 @@ export default function Dashboard({ onSearch }) {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead style={{ background: 'var(--bg-main)' }}>
                                 <tr>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>ARTEFATO</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>TIPO</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'center' }}>PESQUISAS</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>ÚLTIMO RISCO</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact', lang)}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.type', lang)}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'center' }}>{t('dashboard.searches', lang)}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.last_risk', lang)}</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {!stats?.topTargets || stats.topTargets.length === 0 ? (
-                                    <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum artefato registrado.</td></tr>
+                                    <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_artifacts', lang)}</td></tr>
                                 ) : (
                                     stats.topTargets.map((item, idx) => (
                                         <tr key={item.target} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
@@ -224,7 +227,7 @@ export default function Dashboard({ onSearch }) {
                 <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                     <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                         <History size={20} color="var(--primary)" />
-                        Histórico Recente de Buscas
+                        {t('dashboard.recent_history', lang)}
                     </h3>
                 </div>
 
@@ -232,15 +235,15 @@ export default function Dashboard({ onSearch }) {
                     <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead style={{ background: 'var(--bg-main)' }}>
                             <tr>
-                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>ANALISTA</th>
-                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>DATA / HORA</th>
-                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>ARTEFATO</th>
-                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>VEREDITO</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst', lang)}</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime', lang)}</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact', lang)}</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict', lang)}</th>
                             </tr>
                         </thead>
                         <tbody>
                             {!stats?.recentScans || stats.recentScans.length === 0 ? (
-                                <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma busca recente registrada.</td></tr>
+                                <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history', lang)}</td></tr>
                             ) : (
                                 stats.recentScans.map((scan, idx) => (
                                     <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>

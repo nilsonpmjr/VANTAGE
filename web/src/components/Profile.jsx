@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle } from 'lucide-react';
+import { t } from '../utils/translations';
 import '../index.css';
 
 export default function Profile() {
@@ -8,7 +9,8 @@ export default function Profile() {
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const [language, setLanguage] = useState(user?.preferred_lang || 'pt');
+    const lang = user?.preferred_lang || 'pt';
+    const [language, setLanguage] = useState(lang);
     const [avatarBase64, setAvatarBase64] = useState(user?.avatar_base64 || '');
 
     const [loading, setLoading] = useState(false);
@@ -91,7 +93,7 @@ export default function Profile() {
                 updateUserContext(updatedUser);
             }
 
-            setMessage({ type: 'success', text: 'Preferências salvas com sucesso! Recarregando...' });
+            setMessage({ type: 'success', text: t('profile.success', lang) });
             setPassword('');
             setConfirmPassword('');
 
@@ -115,9 +117,9 @@ export default function Profile() {
             <header style={{ marginBottom: '3rem', marginTop: '3rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <User size={28} color="var(--primary)" />
-                    Meu Perfil
+                    {t('profile.title', lang)}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>Gerencie suas preferências, senha e foto de exibição.</p>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('profile.subtitle', lang)}</p>
             </header>
 
             {message.text && (
@@ -154,8 +156,8 @@ export default function Profile() {
                             </div>
                         </div>
                         <div>
-                            <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>Foto de Perfil</h3>
-                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Clique na imagem para alterar. Máximo 1MB (JPG/PNG).</p>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>{t('profile.photo', lang)}</h3>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.photo_sub', lang)}</p>
                             <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/png, image/jpeg" style={{ display: 'none' }} />
                         </div>
                     </div>
@@ -165,9 +167,9 @@ export default function Profile() {
                     {/* Language Settings */}
                     <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                            <Webhook size={18} color="var(--primary)" /> Idioma Principal
+                            <Webhook size={18} color="var(--primary)" /> {t('profile.lang', lang)}
                         </label>
-                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Define o idioma padrão das inferências do módulo de inteligência.</p>
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.lang_sub', lang)}</p>
                         <select
                             value={language}
                             onChange={e => setLanguage(e.target.value)}
@@ -185,13 +187,13 @@ export default function Profile() {
                     {/* Security Settings */}
                     <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                            <Lock size={18} color="var(--primary)" /> Segurança (Senha)
+                            <Lock size={18} color="var(--primary)" /> {t('profile.security', lang)}
                         </label>
-                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Deixe em branco se não deseja alterar sua senha.</p>
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.security_sub', lang)}</p>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Nova Senha</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.new_pass', lang)}</label>
                                 <input
                                     type="password"
                                     value={password}
@@ -202,7 +204,7 @@ export default function Profile() {
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Confirmar Nova Senha</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.confirm_pass', lang)}</label>
                                 <input
                                     type="password"
                                     value={confirmPassword}
@@ -218,7 +220,7 @@ export default function Profile() {
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
                         <button type="submit" disabled={loading} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {loading ? <Loader className="spin" size={18} /> : <Save size={18} />}
-                            Salvar Preferências
+                            {t('profile.save', lang)}
                         </button>
                     </div>
                 </form>

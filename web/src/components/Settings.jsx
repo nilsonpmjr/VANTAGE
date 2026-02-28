@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, Trash2, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power } from 'lucide-react';
+import { t } from '../utils/translations';
 import '../index.css';
 
 export const RoleBadge = ({ role }) => {
@@ -25,6 +26,7 @@ export default function Settings() {
     const [usersList, setUsersList] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const lang = user?.preferred_lang || 'pt';
 
     // Create User Form State
     const [isCreating, setIsCreating] = useState(false);
@@ -165,9 +167,9 @@ export default function Settings() {
             <header style={{ marginBottom: '3rem', marginTop: '3rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <SettingsIcon size={28} color="var(--primary)" />
-                    Painel de Configurações
+                    {t('settings.title', lang)}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>Gerenciamento de Identidade e Acessos do iT.eam SOC.</p>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('settings.subtitle', lang)}</p>
             </header>
 
             {error && (
@@ -183,7 +185,7 @@ export default function Settings() {
                     <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {editingUser ? <Edit2 size={20} color="var(--primary)" /> : <UserPlus size={20} color="var(--primary)" />}
-                            {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                            {editingUser ? t('settings.edit', lang) : t('settings.new_user', lang)}
                         </span>
                         {editingUser && (
                             <button onClick={cancelEdit} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem' }} title="Cancelar Edição">
@@ -194,28 +196,28 @@ export default function Settings() {
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Nome Completo</label>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('settings.name', lang)}</label>
                             <input type="text" value={newName} onChange={e => setNewName(e.target.value)} required className="search-input" style={{ width: '100%', padding: '0.6rem', background: 'var(--bg-main)' }} placeholder="Ex: João Silva" />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Username (Login)</label>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('settings.user', lang)}</label>
                             <input type="text" value={newUsername} onChange={e => setNewUsername(e.target.value)} required disabled={!!editingUser} className="search-input" style={{ width: '100%', padding: '0.6rem', background: 'var(--bg-main)', opacity: editingUser ? 0.5 : 1, cursor: editingUser ? 'not-allowed' : 'text' }} placeholder="joao.silva" />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{editingUser ? 'Nova Senha (Opcional)' : 'Senha de Acesso'}</label>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{editingUser ? t('settings.pass_placeholder', lang) : 'Senha de Acesso'}</label>
                             <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required={!editingUser} minLength={6} className="search-input" style={{ width: '100%', padding: '0.6rem', background: 'var(--bg-main)' }} placeholder="••••••••" />
                         </div>
                         <div>
-                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>Perfil de Acesso (RBAC)</label>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('settings.role', lang)}</label>
                             <select value={newRole} onChange={e => setNewRole(e.target.value)} className="lang-select" style={{ width: '100%', padding: '0.6rem' }}>
-                                <option value="tech">Técnico (Apenas Scanner)</option>
-                                <option value="manager">Gerente (Scanner + Dashboard)</option>
-                                <option value="admin">Administrador (Total)</option>
+                                <option value="tech">{t('settings.tech', lang)}</option>
+                                <option value="manager">{t('settings.manager', lang)}</option>
+                                <option value="admin">{t('settings.admin', lang)}</option>
                             </select>
                         </div>
 
                         <button type="submit" disabled={isCreating} className="btn-primary" style={{ marginTop: '0.5rem' }}>
-                            {isCreating ? <Loader className="spin" size={18} /> : (editingUser ? 'Salvar Alterações' : 'Conceder Acesso')}
+                            {isCreating ? <Loader className="spin" size={18} /> : (editingUser ? t('settings.edit', lang) : t('settings.save', lang))}
                         </button>
                     </form>
                 </div>
@@ -224,7 +226,7 @@ export default function Settings() {
                 <div className="glass-panel" style={{ padding: '0', borderRadius: '12px', overflow: 'hidden' }}>
                     <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                         <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                            Usuários Ativos SOC
+                            {t('settings.users', lang)}
                             {loading && <Loader className="spin" size={18} color="var(--primary)" />}
                         </h3>
 
@@ -232,7 +234,7 @@ export default function Settings() {
                             <Search size={16} color="var(--text-muted)" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
                             <input
                                 type="text"
-                                placeholder="Buscar usuários..."
+                                placeholder={t('settings.search', lang)}
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
                                 className="search-input"
@@ -245,10 +247,10 @@ export default function Settings() {
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                             <thead style={{ background: 'var(--bg-main)' }}>
                                 <tr>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>NOME</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>USERNAME</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>PERFIL</th>
-                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>AÇÕES</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('settings.name', lang).toUpperCase()}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('settings.user', lang).toUpperCase()}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('settings.role', lang).toUpperCase()}</th>
+                                    <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('settings.actions', lang).toUpperCase()}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -259,7 +261,7 @@ export default function Settings() {
                                     <tr key={u.username} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
                                         <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', opacity: u.is_active === false ? 0.5 : 1 }}>
                                             {u.name}
-                                            {u.is_active === false && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>Suspenso</span>}
+                                            {u.is_active === false && <span style={{ marginLeft: '0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>{t('settings.suspended', lang)}</span>}
                                         </td>
                                         <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontFamily: 'monospace', opacity: u.is_active === false ? 0.5 : 1 }}>{u.username}</td>
                                         <td style={{ padding: '1rem 1.5rem', opacity: u.is_active === false ? 0.5 : 1 }}><RoleBadge role={u.role} /></td>

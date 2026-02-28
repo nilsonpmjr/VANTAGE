@@ -11,6 +11,8 @@ import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
+import Profile from './components/Profile';
+import { t } from './utils/translations';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -40,32 +42,6 @@ export default function App() {
     }
   }, [user?.preferred_lang]);
 
-  const t = {
-    pt: {
-      title: 'Threat Intelligence Hub',
-      services: 'Serviços Integrados',
-      scanning: 'Consultando múltiplas fontes de inteligência...',
-      summary: 'Resumo',
-      error: 'Erro:',
-      download: 'Baixar Relatório (PDF)'
-    },
-    en: {
-      title: 'Threat Intelligence Hub',
-      services: 'Integrated Services',
-      scanning: 'Scanning multiple intelligence sources...',
-      summary: 'Summary',
-      error: 'Error:',
-      download: 'Download Report (PDF)'
-    },
-    es: {
-      title: 'Centro de Inteligencia de Amenazas',
-      services: 'Servicios Integrados',
-      scanning: 'Consultando múltiples fuentes de inteligencia...',
-      summary: 'Resumen',
-      error: 'Error:',
-      download: 'Descargar Informe (PDF)'
-    }
-  };
 
   const handleSearch = async (query) => {
     setHasSearched(true);
@@ -95,7 +71,7 @@ export default function App() {
   };
 
   if (authLoading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>Carregando Segurança...</div>;
+    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>{t('app.loading', lang)}</div>;
   }
 
   if (!user) {
@@ -125,7 +101,7 @@ export default function App() {
                   }}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
-                <p className="app-subtitle" style={{ marginLeft: 0 }}>{t[lang].title}</p>
+                <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title', lang)}</p>
               </div>
 
               <div className="header-center">
@@ -138,7 +114,7 @@ export default function App() {
                     onClick={() => generatePDFReport(data, data.analysis_reports?.[lang], lang)}
                     className="fade-in"
                     style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    title={t[lang].download}
+                    title={t('app.download', lang)}
                     onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', borderColor: 'var(--accent-border)' })}
                     onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
                   >
@@ -172,7 +148,7 @@ export default function App() {
                   borderRadius: 'var(--radius-md)',
                   textAlign: 'center'
                 }}>
-                  <p><strong>{t[lang].error}</strong> {error}</p>
+                  <p><strong>{t('app.error', lang)}</strong> {error}</p>
                 </div>
               )}
 
@@ -183,7 +159,7 @@ export default function App() {
                   transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)'
                 }}>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {t[lang].services}
+                    {t('app.services', lang)}
                   </p>
                   <div className="marquee-container">
                     <div className="marquee-content">
@@ -206,7 +182,7 @@ export default function App() {
               {loading && !data && (
                 <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
-                  <p>{t[lang].scanning}</p>
+                  <p>{t('app.scanning', lang)}</p>
                 </div>
               )}
 
@@ -223,7 +199,7 @@ export default function App() {
                   {(data.analysis_report || data.analysis_reports) && (
                     <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>
                       <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
-                        {t[lang].summary}
+                        {t('app.summary', lang)}
                       </h3>
                       <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.05rem' }}>
                         <ReactMarkdown>{data.analysis_reports ? data.analysis_reports[lang] : data.analysis_report}</ReactMarkdown>

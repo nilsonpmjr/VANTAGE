@@ -3,7 +3,8 @@ import SearchBar from './components/SearchBar';
 import VerdictPanel from './components/VerdictPanel';
 import ServiceCard from './components/ServiceCard';
 import ReactMarkdown from 'react-markdown';
-import { Globe } from 'lucide-react';
+import { Globe, Download } from 'lucide-react';
+import { generatePDFReport } from './utils/pdfGenerator';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -31,21 +32,24 @@ export default function App() {
       services: 'Serviços Integrados',
       scanning: 'Consultando múltiplas fontes de inteligência...',
       summary: 'Resumo',
-      error: 'Erro:'
+      error: 'Erro:',
+      download: 'Baixar Relatório (PDF)'
     },
     en: {
       title: 'Threat Intelligence Hub',
       services: 'Integrated Services',
       scanning: 'Scanning multiple intelligence sources...',
       summary: 'Summary',
-      error: 'Error:'
+      error: 'Error:',
+      download: 'Download Report (PDF)'
     },
     es: {
       title: 'Centro de Inteligencia de Amenazas',
       services: 'Servicios Integrados',
       scanning: 'Consultando múltiples fuentes de inteligencia...',
       summary: 'Resumen',
-      error: 'Error:'
+      error: 'Error:',
+      download: 'Descargar Informe (PDF)'
     }
   };
 
@@ -96,6 +100,19 @@ export default function App() {
         </div>
 
         <div className="header-right">
+          {data && (
+            <button
+              onClick={() => generatePDFReport(data, data.analysis_reports?.[lang], lang)}
+              className="fade-in"
+              style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
+              title={t[lang].download}
+              onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', borderColor: 'var(--accent-border)' })}
+              onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
+            >
+              <Download size={18} />
+              <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>PDF</span>
+            </button>
+          )}
           <Globe size={18} color="var(--text-muted)" />
           <select
             value={lang}

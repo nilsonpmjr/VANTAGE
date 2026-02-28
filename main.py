@@ -1,15 +1,18 @@
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Depends, status
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
-from typing import Dict, Any
+from typing import Dict, Any, List
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+from pydantic import BaseModel
 
 from api_client import ThreatIntelClient
 from validators import validate_target, ValidationError
 from logging_config import setup_logging, get_logger
 from analyzer import generate_heuristic_report, format_report_to_markdown
 from db import db_manager
+from auth import verify_password, get_password_hash, create_access_token, get_current_user, require_role
 
 logger = get_logger("WebAPI")
 setup_logging(level="INFO")
@@ -40,13 +43,98 @@ app.add_middleware(
 # Global client initialization
 client = ThreatIntelClient()
 
+@app.post("/api/auth/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    user = await db.users.find_one({"username": form_data.username})
+    if not user or not verify_password(form_data.password, user["password_hash"]):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect username or password",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+        
+    access_token = create_access_token(
+        data={"sub": user["username"], "role": user.get("role", "tech")}
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/api/auth/me")
+async def read_users_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
+# --- User Management (Admin Only) ---
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+    role: str
+    name: str
+
+@app.get("/api/users")
+async def list_users(current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    
+    users_cursor = db.users.find({}, {"password_hash": 0, "_id": 0})
+    users = await users_cursor.to_list(length=100)
+    return users
+
+@app.post("/api/users")
+async def create_user(user: UserCreate, current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    existing = await db.users.find_one({"username": user.username})
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists")
+        
+    if user.role not in ["admin", "manager", "tech"]:
+        raise HTTPException(status_code=400, detail="Invalid role specified")
+        
+    new_user = {
+        "username": user.username,
+        "password_hash": get_password_hash(user.password),
+        "role": user.role,
+        "name": user.name,
+        "preferred_lang": "pt",
+        "created_at": datetime.now(timezone.utc)
+    }
+    
+    await db.users.insert_one(new_user)
+    return {"status": "success", "message": f"User {user.username} created successfully"}
+
+@app.delete("/api/users/{username}")
+async def delete_user(username: str, current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    if current_user["username"] == username:
+        raise HTTPException(status_code=400, detail="You cannot delete yourself")
+        
+    result = await db.users.delete_one({"username": username})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    return {"status": "success", "message": f"User {username} deleted successfully"}
+
 @app.get("/api/status")
-async def get_status():
+async def get_status(current_user: dict = Depends(get_current_user)):
     """Returns the initialization status of all services based on API keys."""
     return {"status": "ok", "services": client.services}
 
 @app.get("/api/analyze")
-async def analyze_target(target: str = Query(..., description="IP address, Domain, or File Hash"), lang: str = Query("pt", description="Language (pt, en, es)")):
+async def analyze_target(
+    target: str = Query(..., description="IP address, Domain, or File Hash"), 
+    lang: str = Query("pt", description="Language (pt, en, es)"),
+    current_user: dict = Depends(get_current_user)
+):
     """
     Analyzes a target using all configured Threat Intelligence services.
     Returns aggregated JSON data.

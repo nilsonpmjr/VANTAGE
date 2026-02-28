@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { saveAs } from 'file-saver';
 
 // Helper to format dates
 const formatDate = () => {
@@ -137,6 +138,7 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
     const safeTarget = data.target.replace(/[^a-zA-Z0-9]/g, '_');
     const fileName = `iTeam_ThreatReport_${safeTarget}.pdf`;
 
-    // Save the PDF
-    doc.save(fileName);
+    // Save the PDF using FileSaver to enforce the filename in all browsers
+    const pdfBlob = doc.output('blob');
+    saveAs(pdfBlob, fileName);
 };

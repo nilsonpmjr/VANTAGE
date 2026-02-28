@@ -27,7 +27,7 @@ const INTEGRATIONS = [
 ];
 
 export default function App() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isTransitioning, isFadingOut } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -73,12 +73,18 @@ export default function App() {
     return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>{t('app.loading', lang)}</div>;
   }
 
-  if (!user) {
+  if (!user && !isTransitioning) {
     return <Login />;
   }
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
+      {isTransitioning && (
+        <div className={`login-transition-overlay ${isFadingOut ? 'fading-out' : ''}`}>
+          <img src="/logo.svg" alt="iT.eam Logo" className="flying-logo" />
+        </div>
+      )}
+
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>

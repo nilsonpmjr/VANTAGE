@@ -77,6 +77,9 @@ export const AuthProvider = ({ children }) => {
         };
     }, [user]);
 
+    const [isTransitioning, setIsTransitioning] = useState(false);
+    const [isFadingOut, setIsFadingOut] = useState(false);
+
     const login = async (username, password) => {
         try {
             const formData = new URLSearchParams();
@@ -105,7 +108,24 @@ export const AuthProvider = ({ children }) => {
                 }
             });
             const userData = await userResponse.json();
+
+            // Trigger transition before setting the user (which unmounts Login UI)
+            setIsTransitioning(true);
+
+            // Set user immediately so App.jsx renders the Home Layout in the background
             setUser(userData);
+
+            // Wait 200ms to allow Home to render, then start fade out animation
+            setTimeout(() => {
+                setIsFadingOut(true);
+            }, 200);
+
+            // Wait for logo flight and fade to complete (1.2s total), then remove overlay
+            setTimeout(() => {
+                setIsTransitioning(false);
+                setIsFadingOut(false);
+            }, 1400);
+
             return true;
         } catch (error) {
             console.error('Login error:', error);
@@ -123,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     };
 
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading, updateUserContext }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, updateUserContext, isTransitioning, isFadingOut }}>
             {children}
         </AuthContext.Provider>
     );

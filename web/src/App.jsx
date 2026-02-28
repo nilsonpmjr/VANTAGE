@@ -136,7 +136,7 @@ export default function App() {
             </header>
 
             {/* Main Content Area */}
-            <main style={{ flexGrow: 1, paddingBottom: '2rem' }}>
+            <main style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
               {error && (
                 <div className="fade-in" style={{
                   marginTop: '2rem',
@@ -145,7 +145,8 @@ export default function App() {
                   border: '1px solid var(--status-risk)',
                   color: 'var(--status-risk)',
                   borderRadius: 'var(--radius-md)',
-                  textAlign: 'center'
+                  textAlign: 'center',
+                  flexShrink: 0
                 }}>
                   <p><strong>{t('app.error', lang)}</strong> {error}</p>
                 </div>
@@ -155,7 +156,8 @@ export default function App() {
                 <div className="fade-in" style={{
                   marginTop: hasSearched ? '1rem' : '2rem',
                   textAlign: 'center',
-                  transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)'
+                  transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
+                  flexShrink: 0
                 }}>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {t('app.services', lang)}
@@ -179,14 +181,14 @@ export default function App() {
               )}
 
               {loading && !data && (
-                <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
                   <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
                   <p>{t('app.scanning', lang)}</p>
                 </div>
               )}
 
               {data && (
-                <div className="fade-in">
+                <div className="fade-in" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '2rem', paddingTop: '1rem' }}>
                   <VerdictPanel target={data.target} type={data.type} summary={data.summary} lang={lang} />
 
                   <div className="grid-dashboard">

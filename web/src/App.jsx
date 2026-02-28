@@ -210,7 +210,7 @@ export default function App() {
             </main>
 
             {/* Footer */}
-            <footer style={{ marginTop: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', paddingTop: '2rem' }}>
+            <footer style={{ marginTop: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', paddingTop: '2rem', flexShrink: 0 }}>
               <p>&copy; {new Date().getFullYear()} iT.eam Next Generation SOC. All rights reserved.</p>
             </footer>
           </div>

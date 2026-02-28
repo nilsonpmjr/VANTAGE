@@ -98,14 +98,7 @@ export default function App() {
           <select
             value={lang}
             onChange={(e) => setLang(e.target.value)}
-            style={{
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              border: 'none',
-              outline: 'none',
-              cursor: 'pointer',
-              fontSize: '0.9rem'
-            }}
+            className="lang-select"
           >
             <option value="pt">Português</option>
             <option value="en">English</option>

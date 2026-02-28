@@ -29,9 +29,12 @@ export default function Login() {
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                    <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '1rem', borderRadius: '50%' }}>
-                        <ShieldAlert size={48} color="var(--primary)" />
-                    </div>
+                    <img
+                        src="/logo.svg"
+                        alt="iT.eam Logo"
+                        style={{ width: '120px', height: 'auto', marginBottom: '0.5rem' }}
+                        onError={(e) => { e.target.style.display = 'none'; }}
+                    />
                 </div>
 
                 <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem' }}>iT.eam SOC</h2>

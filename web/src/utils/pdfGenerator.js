@@ -39,9 +39,9 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
     let currentY = 15;
 
     const t = {
-        pt: { title: 'Relatório Consolidado de Inteligência de Ameaças', target: 'Alvo', type: 'Tipo', verdict: 'Veredito Global', error: 'Nenhum dado válido encontrado.' },
-        en: { title: 'Consolidated Threat Intelligence Report', target: 'Target', type: 'Type', verdict: 'Global Verdict', error: 'No valid data found.' },
-        es: { title: 'Informe Consolidado de Inteligencia de Amenazas', target: 'Objetivo', type: 'Tipo', verdict: 'Veredicto Global', error: 'No se encontraron datos válidos.' }
+        pt: { title: 'Relatório Consolidado de Inteligência de Ameaças', target: 'Alvo', type: 'Tipo', verdict: 'Veredito Global', error: 'Nenhum dado válido encontrado.', summary: 'Resumo da Análise' },
+        en: { title: 'Consolidated Threat Intelligence Report', target: 'Target', type: 'Type', verdict: 'Global Verdict', error: 'No valid data found.', summary: 'Analysis Summary' },
+        es: { title: 'Informe Consolidado de Inteligencia de Amenazas', target: 'Objetivo', type: 'Tipo', verdict: 'Veredicto Global', error: 'No se encontraron datos válidos.', summary: 'Resumen de Análisis' }
     };
 
     const loc = t[lang];
@@ -89,7 +89,7 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
         currentY += 15;
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
-        doc.text('Analysis Summary', 15, currentY);
+        doc.text(loc.summary, 15, currentY);
 
         currentY += 7;
         doc.setFontSize(10);

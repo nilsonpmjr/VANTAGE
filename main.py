@@ -14,15 +14,36 @@ from analyzer import generate_heuristic_report, format_report_to_markdown
 from db import db_manager
 from auth import verify_password, get_password_hash, create_access_token, get_current_user, require_role
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from worker import scan_safe_targets_job
+
 logger = get_logger("WebAPI")
 setup_logging(level="INFO")
+
+# Initialize global scheduler
+scheduler = AsyncIOScheduler()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Connect to MongoDB
     await db_manager.connect_db()
+    
+    # Setup Background Worker
+    # Schedule job to run once a day (e.g., at midnight, or upon server start interval)
+    scheduler.add_job(
+        scan_safe_targets_job, 
+        trigger='interval', 
+        hours=24,
+        id='scan_safe_targets_daily'
+    )
+    # Start the scheduler
+    scheduler.start()
+    logger.info("Background Worker (APScheduler) started.")
+    
     yield
-    # Shutdown: Close MongoDB connection
+    
+    # Shutdown: Stop scheduler and DB
+    scheduler.shutdown()
     await db_manager.close_db()
 
 app = FastAPI(

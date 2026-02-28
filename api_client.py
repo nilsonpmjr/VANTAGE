@@ -191,7 +191,7 @@ class ThreatIntelClient:
             return None
 
         url = "https://threatfox-api.abuse.ch/api/v1/"
-        headers = {"API-KEY": self.api_keys['abusech']}
+        headers = {"Auth-Key": self.api_keys['abusech']}
         payload = {"query": "search_ioc", "search_term": target}
         
         return self._safe_request("POST", url, headers=headers, json=payload)

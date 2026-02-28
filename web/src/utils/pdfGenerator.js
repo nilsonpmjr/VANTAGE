@@ -19,7 +19,13 @@ const flattenObjectToRows = (obj, prefix = '') => {
             if (val !== null && typeof val === 'object' && !Array.isArray(val)) {
                 rows = rows.concat(flattenObjectToRows(val, newKey));
             } else if (Array.isArray(val)) {
-                rows.push([newKey, val.map(v => typeof v === 'object' ? JSON.stringify(v) : v).join(', ')]);
+                const formattedArray = val.map(v => {
+                    if (typeof v === 'object' && v !== null) {
+                        return JSON.stringify(v, null, 2).replace(/[{}"]/g, '').trim();
+                    }
+                    return String(v);
+                }).join('\n\n');
+                rows.push([newKey, formattedArray || '[]']);
             } else {
                 rows.push([newKey, String(val)]);
             }
@@ -88,8 +94,11 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
         currentY += 7;
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
+        // Remove markdown asterisks and replace backticks with single quotes
+        const cleanSummary = summaryText.replace(/\*/g, '').replace(/`/g, "'");
+
         // Split text to fit page width
-        const splitText = doc.splitTextToSize(summaryText, 180);
+        const splitText = doc.splitTextToSize(cleanSummary, 180);
         doc.text(splitText, 15, currentY);
         currentY += (splitText.length * 5) + 5;
     } else {

@@ -133,17 +133,10 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
         });
     }
 
-    // Generate raw Blob from PDF
-    const blob = doc.output('blob');
-    const fileName = `iTeam_ThreatReport_${data.target.replace(/[^a-zA-Z0-9.-]/g, '_')}.pdf`;
+    // Format filename safely (replacing dots with underscores to prevent browser extension confusion)
+    const safeTarget = data.target.replace(/[^a-zA-Z0-9]/g, '_');
+    const fileName = `iTeam_ThreatReport_${safeTarget}.pdf`;
 
-    // Force Download via Anchor Tag to bypass browser Blob naming issues
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // Save the PDF
+    doc.save(fileName);
 };

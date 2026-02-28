@@ -17,7 +17,7 @@ export default function Login() {
 
         try {
             await login(username, password);
-        } catch (err) {
+        } catch (_) {
             setError('Acesso negado. Credenciais inválidas.');
         } finally {
             setIsSubmitting(false);

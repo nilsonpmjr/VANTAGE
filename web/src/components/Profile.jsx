@@ -5,7 +5,7 @@ import { t } from '../utils/translations';
 import '../index.css';
 
 export default function Profile() {
-    const { user, login, updateUserContext } = useAuth();
+    const { user, updateUserContext } = useAuth();
 
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');

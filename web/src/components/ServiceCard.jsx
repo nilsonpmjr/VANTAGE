@@ -85,7 +85,7 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
                             <div className="flex-row"><span>{loc.categories}</span> <span>{[...new Set(Object.values(data.data.attributes.categories))].join(', ')}</span></div>
                         )}
                         {data.data?.attributes?.last_dns_records && data.data.attributes.last_dns_records.length > 0 && (
-                            <div className="flex-row"><span>{loc.dnsIp}</span> <span>{data.data.attributes.last_dns_records.map(r => r.value).filter(v => v.match(/[\d\.]+/)).slice(0, 3).join(', ')}</span></div>
+                            <div className="flex-row"><span>{loc.dnsIp}</span> <span>{data.data.attributes.last_dns_records.map(r => r.value).filter(v => v.match(/[\d.]+/)).slice(0, 3).join(', ')}</span></div>
                         )}
 
                         {/* IP Specific Info */}

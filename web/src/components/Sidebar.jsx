@@ -6,18 +6,8 @@ import { t } from '../utils/translations';
 export default function Sidebar({ currentView, setCurrentView }) {
     const { user, logout } = useAuth();
 
-    if (!user) return null;
-
-    const NAV_ITEMS = [
-        { id: 'home', label: t('sidebar.home', user.preferred_lang), icon: Search, roles: ['admin', 'manager', 'tech'] },
-        { id: 'dashboard', label: t('sidebar.dashboard', user.preferred_lang), icon: LayoutDashboard, roles: ['admin', 'manager'] },
-        { id: 'settings', label: t('sidebar.settings', user.preferred_lang), icon: Settings, roles: ['admin'] }
-    ];
-
-    const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
-
     const [isCollapsed, setIsCollapsed] = useState(true);
-    const [profileImg, setProfileImg] = useState(user.avatar_base64);
+    const [profileImg, setProfileImg] = useState(user?.avatar_base64 || '');
 
     useEffect(() => {
         const handleProfileUpdate = () => {
@@ -33,6 +23,16 @@ export default function Sidebar({ currentView, setCurrentView }) {
         window.addEventListener('userProfileUpdated', handleProfileUpdate);
         return () => window.removeEventListener('userProfileUpdated', handleProfileUpdate);
     }, []);
+
+    if (!user) return null;
+
+    const NAV_ITEMS = [
+        { id: 'home', label: t('sidebar.home', user.preferred_lang), icon: Search, roles: ['admin', 'manager', 'tech'] },
+        { id: 'dashboard', label: t('sidebar.dashboard', user.preferred_lang), icon: LayoutDashboard, roles: ['admin', 'manager'] },
+        { id: 'settings', label: t('sidebar.settings', user.preferred_lang), icon: Settings, roles: ['admin'] }
+    ];
+
+    const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
 
     return (
         <aside style={{

@@ -127,7 +127,7 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
     }
 
     // --- FILTER OUT ERRORS & GENERATE TABLES ---
-    const validServices = Object.entries(data.results || {}).filter(([name, resultData]) => {
+    const validServices = Object.entries(data.results || {}).filter(([_name, resultData]) => {
         // Exclude strings (like empty messages) or objects containing error flags
         if (!resultData || typeof resultData !== 'object') return false;
         if (resultData.error || resultData._meta_error) return false;

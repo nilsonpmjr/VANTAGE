@@ -79,6 +79,11 @@ class UserUpdate(BaseModel):
     role: str = None
     name: str = None
 
+class UserPreferencesUpdate(BaseModel):
+    password: str = None
+    preferred_lang: str = None
+    avatar_base64: str = None
+
 @app.get("/api/users")
 async def list_users(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
@@ -158,6 +163,29 @@ async def update_user(username: str, user_update: UserUpdate, current_user: dict
     await db.users.update_one({"username": username}, {"$set": update_data})
     
     return {"status": "success", "message": f"User {username} updated successfully"}
+
+@app.put("/api/users/me")
+async def update_my_preferences(prefs: UserPreferencesUpdate, current_user: dict = Depends(get_current_user)):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    username = current_user["username"]
+    
+    update_data = {}
+    if prefs.preferred_lang is not None:
+        update_data["preferred_lang"] = prefs.preferred_lang
+    if prefs.avatar_base64 is not None:
+        update_data["avatar_base64"] = prefs.avatar_base64
+    if prefs.password is not None and len(prefs.password) >= 6:
+        update_data["password_hash"] = get_password_hash(prefs.password)
+        
+    if not update_data:
+        return {"status": "success", "message": "No fields to update"}
+        
+    await db.users.update_one({"username": username}, {"$set": update_data})
+    
+    return {"status": "success", "message": "Preferences updated successfully"}
 
 @app.get("/api/status")
 async def get_status(current_user: dict = Depends(get_current_user)):

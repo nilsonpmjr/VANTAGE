@@ -10,6 +10,7 @@ import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
+import Profile from './components/Profile';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -236,6 +237,7 @@ export default function App() {
 
         {currentView === 'dashboard' && <Dashboard />}
         {currentView === 'settings' && <Settings />}
+        {currentView === 'profile' && <Profile />}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,6 +16,22 @@ export default function Sidebar({ currentView, setCurrentView }) {
     const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
 
     const [isCollapsed, setIsCollapsed] = useState(true);
+    const [profileImg, setProfileImg] = useState(user.avatar_base64);
+
+    useEffect(() => {
+        const handleProfileUpdate = () => {
+            try {
+                const updatedUser = JSON.parse(localStorage.getItem('user'));
+                if (updatedUser && updatedUser.avatar_base64) {
+                    setProfileImg(updatedUser.avatar_base64);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        };
+        window.addEventListener('userProfileUpdated', handleProfileUpdate);
+        return () => window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+    }, []);
 
     return (
         <aside style={{
@@ -84,9 +100,19 @@ export default function Sidebar({ currentView, setCurrentView }) {
             </nav>
 
             <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', marginTop: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem' }}>
-                    <div style={{ background: 'var(--glass-bg)', padding: '0.5rem', borderRadius: '50%', border: '1px solid var(--primary)', flexShrink: 0 }}>
-                        <ShieldCheck size={18} color="var(--primary)" />
+                <div
+                    onClick={() => setCurrentView('profile')}
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem', cursor: 'pointer', borderRadius: '8px', transition: 'background 0.2s' }}
+                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    title="Meu Perfil"
+                >
+                    <div style={{ width: '36px', height: '36px', background: 'var(--glass-bg)', borderRadius: '50%', border: '1px solid var(--primary)', flexShrink: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                        {profileImg ? (
+                            <img src={profileImg} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ) : (
+                            <ShieldCheck size={18} color="var(--primary)" />
+                        )}
                     </div>
                     {!isCollapsed && (
                         <div style={{ overflow: 'hidden' }}>

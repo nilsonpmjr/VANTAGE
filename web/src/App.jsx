@@ -241,7 +241,7 @@ export default function App() {
           </div>
         )}
 
-        {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'dashboard' && <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} />}
         {currentView === 'settings' && <Settings />}
         {currentView === 'profile' && <Profile />}
       </div>

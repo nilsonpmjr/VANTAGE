@@ -355,6 +355,7 @@ async def analyze_target(
                 "timestamp": datetime.now(timezone.utc),
                 "risk_score": risk_score,
                 "verdict": results["summary"]["verdict"],
+                "analyst": current_user["username"],
                 "data": results
             }
             # Fire and forget insertion so we don't block the user response
@@ -410,10 +411,15 @@ async def get_dashboard_stats(current_user: dict = Depends(require_role(["admin"
             for item in targets_distribution
         ]
         
+        # Recent Scans History (last 20)
+        recent_scans_cursor = db.scans.find({}, {"_id": 0, "data": 0}).sort("timestamp", -1).limit(20)
+        recent_scans = await recent_scans_cursor.to_list(length=20)
+        
         return {
             "totalScans": total_scans,
             "verdictDistribution": verdict_result,
-            "topTargets": top_targets_result
+            "topTargets": top_targets_result,
+            "recentScans": recent_scans
         }
         
     except Exception as e:

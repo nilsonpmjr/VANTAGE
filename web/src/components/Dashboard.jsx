@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import '../index.css';
 
-export default function Dashboard() {
+export default function Dashboard({ onSearch }) {
     const { user } = useAuth();
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -188,7 +188,16 @@ export default function Dashboard() {
                                 ) : (
                                     stats.topTargets.map((item, idx) => (
                                         <tr key={item.target} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.95rem' }}>{item.target}</td>
+                                            <td
+                                                onClick={() => onSearch && onSearch(item.target)}
+                                                style={{
+                                                    padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.95rem',
+                                                    cursor: 'pointer', maxWidth: '300px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                                }}
+                                                title={item.target}
+                                            >
+                                                <span style={{ textDecoration: 'underline' }}>{item.target}</span>
+                                            </td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.8rem' }}>{item.type}</td>
                                             <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)', textAlign: 'center', fontWeight: 600 }}>{item.count}</td>
                                             <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
@@ -207,6 +216,70 @@ export default function Dashboard() {
                             </tbody>
                         </table>
                     </div>
+                </div>
+            </div>
+
+            {/* Recent Scans History Table */}
+            <div className="glass-panel" style={{ padding: '0', overflow: 'hidden', marginTop: '2rem' }}>
+                <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+                    <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                        <History size={20} color="var(--primary)" />
+                        Histórico Recente de Buscas
+                    </h3>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                        <thead style={{ background: 'var(--bg-main)' }}>
+                            <tr>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>ANALISTA</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>DATA / HORA</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>ARTEFATO</th>
+                                <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>VEREDITO</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {!stats?.recentScans || stats.recentScans.length === 0 ? (
+                                <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhuma busca recente registrada.</td></tr>
+                            ) : (
+                                stats.recentScans.map((scan, idx) => (
+                                    <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
+                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold' }}>
+                                                    {scan.analyst ? scan.analyst.substring(0, 2).toUpperCase() : 'SYS'}
+                                                </div>
+                                                {scan.analyst || 'Sistema'}
+                                            </div>
+                                        </td>
+                                        <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                            {new Date(scan.timestamp).toLocaleString('pt-BR')}
+                                        </td>
+                                        <td
+                                            onClick={() => onSearch && onSearch(scan.target)}
+                                            style={{
+                                                padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem',
+                                                cursor: 'pointer', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'
+                                            }}
+                                            title={scan.target}
+                                        >
+                                            <span style={{ textDecoration: 'underline' }}>{scan.target}</span>
+                                        </td>
+                                        <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                            <span style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                                color: getVerdictColor(scan.verdict),
+                                                fontSize: '0.8rem', fontWeight: 600,
+                                                background: 'var(--glass-bg)', padding: '0.3rem 0.6rem', borderRadius: '1rem', border: `1px solid ${getVerdictColor(scan.verdict)}`
+                                            }}>
+                                                {getVerdictIcon(scan.verdict)} {scan.verdict || 'N/A'}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                ))
+                            )}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>

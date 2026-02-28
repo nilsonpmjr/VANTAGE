@@ -288,6 +288,62 @@ async def analyze_target(
 
     return results
 
+# --- Manager Dashboard Endpoint ---
+
+@app.get("/api/stats")
+async def get_dashboard_stats(current_user: dict = Depends(require_role(["admin", "manager"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+        
+    try:
+        # Total Scans
+        total_scans = await db.scans.count_documents({})
+        
+        # Verdict Distribution
+        verdict_pipeline = [
+            {"$group": {"_id": "$verdict", "count": {"$sum": 1}}}
+        ]
+        verdict_cursor = db.scans.aggregate(verdict_pipeline)
+        verdict_distribution = await verdict_cursor.to_list(length=None)
+        
+        # Transform _id to verdict
+        verdict_result = [{"name": item["_id"], "value": item["count"]} for item in verdict_distribution]
+        
+        # Top 5 most queried targets
+        top_targets_pipeline = [
+            {"$group": {
+                "_id": {"target": "$target", "type": "$type"},
+                "count": {"$sum": 1},
+                "last_verdict": {"$last": "$verdict"}
+            }},
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        targets_cursor = db.scans.aggregate(top_targets_pipeline)
+        targets_distribution = await targets_cursor.to_list(length=None)
+        
+        # Flatten top targets
+        top_targets_result = [
+            {
+                "target": item["_id"]["target"],
+                "type": item["_id"]["type"],
+                "count": item["count"],
+                "verdict": item["last_verdict"]
+            }
+            for item in targets_distribution
+        ]
+        
+        return {
+            "totalScans": total_scans,
+            "verdictDistribution": verdict_result,
+            "topTargets": top_targets_result
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to aggregate stats from MongoDB: {e}")
+        raise HTTPException(status_code=500, detail="Internal DB Aggregation Error")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

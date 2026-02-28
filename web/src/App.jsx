@@ -9,6 +9,7 @@ import { useAuth } from './context/AuthContext';
 import Login from './components/Login';
 import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
+import Dashboard from './components/Dashboard';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -241,6 +242,9 @@ export default function App() {
             </footer>
           </div>
         )}
+
+        {currentView === 'dashboard' && <Dashboard />}
+        {currentView === 'settings' && <Settings />}
       </div>
     </div>
   );

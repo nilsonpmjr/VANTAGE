@@ -136,7 +136,7 @@ export default function App() {
             </header>
 
             {/* Main Content Area */}
-            <main style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <main style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
               {error && (
                 <div className="fade-in" style={{
                   marginTop: '2rem',
@@ -188,7 +188,7 @@ export default function App() {
               )}
 
               {data && (
-                <div className="fade-in" style={{ flexGrow: 1, overflowY: 'auto', paddingBottom: '2rem', paddingTop: '1rem' }}>
+                <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
                   <VerdictPanel target={data.target} type={data.type} summary={data.summary} lang={lang} />
 
                   <div className="grid-dashboard">

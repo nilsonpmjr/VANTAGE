@@ -523,7 +523,7 @@ h4 {
 }
 
 .login-transition-overlay.fading-out .flying-logo {
-  /* Translate to the approximate position of the Home logo in the upper left header */
-  transform: translate(-30vw, -40vh) scale(0.35);
+  /* Translate straight up towards the top center before fading out */
+  transform: translateY(-25vh) scale(0.6);
   opacity: 0;
 }

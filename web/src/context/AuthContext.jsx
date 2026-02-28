@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 
 const AuthContext = createContext(null);
 
@@ -30,6 +30,51 @@ export const AuthProvider = ({ children }) => {
         };
         initAuth();
     }, []);
+
+    // IAM Auto-Logout on Inactivity (15 minutes)
+    const inactivityTimeoutRef = useRef(null);
+
+    useEffect(() => {
+        const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
+
+        const resetInactivityTimeout = () => {
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+            }
+            if (user) {
+                inactivityTimeoutRef.current = setTimeout(() => {
+                    console.warn("Sessão expirada por inatividade. Forçando logoff (IAM Policy).");
+                    logout();
+                    alert("Sua sessão expirou por inatividade. Por favor, faça login novamente.");
+                }, INACTIVITY_LIMIT_MS);
+            }
+        };
+
+        const handleActivity = () => {
+            resetInactivityTimeout();
+        };
+
+        // Attach listeners only if user is logged in
+        if (user) {
+            window.addEventListener('mousemove', handleActivity);
+            window.addEventListener('keypress', handleActivity);
+            window.addEventListener('click', handleActivity);
+            window.addEventListener('scroll', handleActivity);
+
+            // Start the timer
+            resetInactivityTimeout();
+        }
+
+        return () => {
+            window.removeEventListener('mousemove', handleActivity);
+            window.removeEventListener('keypress', handleActivity);
+            window.removeEventListener('click', handleActivity);
+            window.removeEventListener('scroll', handleActivity);
+            if (inactivityTimeoutRef.current) {
+                clearTimeout(inactivityTimeoutRef.current);
+            }
+        };
+    }, [user]);
 
     const login = async (username, password) => {
         try {

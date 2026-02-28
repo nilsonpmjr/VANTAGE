@@ -34,7 +34,7 @@ const flattenObjectToRows = (obj, prefix = '') => {
     return rows;
 };
 
-export const generatePDFReport = async (data, summaryText, lang = 'pt') => {
+export const generatePDFReport = (data, summaryText, lang = 'pt') => {
     const doc = new jsPDF();
     let currentY = 15;
 
@@ -55,41 +55,10 @@ export const generatePDFReport = async (data, summaryText, lang = 'pt') => {
     doc.setFillColor(56, 189, 248); // sky-400
     doc.rect(0, 30, 210, 2, 'F');
 
-    // Load header branding dynamically
-    const addHeaderContent = async () => {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0);
-                const dataUrl = canvas.toDataURL('image/png');
-
-                // Add Logo
-                doc.addImage(dataUrl, 'PNG', 15, 8, 14, 14);
-
-                // Add Text
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text('iT.eam SOC', 32, 18);
-                resolve();
-            };
-            img.onerror = () => {
-                // Fallback
-                doc.setTextColor(255, 255, 255);
-                doc.setFontSize(16);
-                doc.setFont('helvetica', 'bold');
-                doc.text('iT.eam SOC', 15, 20);
-                resolve();
-            };
-            img.src = '/favicon.png';
-        });
-    };
-
-    await addHeaderContent();
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('iT.eam SOC', 15, 20);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');

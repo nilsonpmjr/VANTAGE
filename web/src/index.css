@@ -2,7 +2,7 @@
   /* Premium Dark Theme Core */
   --bg-base: #020617;
   /* slate-950 */
-  --bg-gradient: radial-gradient(circle at 50% 0%, #1e293b 0%, #020617 70%);
+  --bg-gradient: radial-gradient(circle at calc(50% + 40px) 0%, #1e293b 0%, #020617 70%);
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;

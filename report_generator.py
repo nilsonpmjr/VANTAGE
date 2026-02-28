@@ -207,6 +207,12 @@ class ReportGenerator:
              if not (isinstance(data, dict) and data.get("_meta_msg") == "No content returned"):
                  if "error" not in data and "_meta_error" not in (data if isinstance(data, dict) else {}):
                      is_risky = True
+        elif service_name == 'abusech':
+             if data.get('query_status') == 'ok' and isinstance(data.get('data'), list) and len(data['data']) > 0:
+                 is_risky = True
+        elif service_name == 'pulsedive':
+             if data.get('risk') in ['high', 'critical']:
+                 is_risky = True
         
         if is_risky:
             self.risk_counter += 1
@@ -443,6 +449,28 @@ class ReportGenerator:
                 logger.error(f"Error parsing BlacklistMaster data: {e}")
                 lines.append(f"[yellow]Error parsing data[/]")
 
+        elif service == 'abusech':
+            try:
+                if data.get('query_status') == 'ok' and isinstance(data.get('data'), list) and len(data['data']) > 0:
+                    threat = data['data'][0]
+                    lines.append(f"• [red]Threat: {threat.get('threat_type', 'Unknown')}[/]")
+                    lines.append(f"• Confidence: {threat.get('confidence_level', 0)}%")
+                else:
+                    lines.append(f"• [green]Status: Clean (Not found in active threats)[/]")
+            except Exception as e:
+                logger.error(f"Error parsing Abuse.ch data: {e}")
+                lines.append(f"[yellow]Error parsing data[/]")
+
+        elif service == 'pulsedive':
+            try:
+                risk = data.get('risk', 'none')
+                color = "red" if risk in ['high', 'critical'] else "green"
+                lines.append(f"• Risk Level: [{color}]{risk.upper()}[/]")
+                lines.append(f"• Feeds: {len(data.get('feeds', [])) if data.get('feeds') else 0}")
+            except Exception as e:
+                logger.error(f"Error parsing Pulsedive data: {e}")
+                lines.append(f"[yellow]Error parsing data[/]")
+
         return "\n".join(lines)
 
     def print_to_console(self):
@@ -473,7 +501,9 @@ class ReportGenerator:
                 'alienvault': '👽',
                 'greynoise': '👻',
                 'urlscan': '🔗',
-                'blacklistmaster': '🏴'
+                'blacklistmaster': '🏴',
+                'abusech': '🦇',
+                'pulsedive': '📉'
             }
             icon = icon_map.get(service, 'mag')
             title = f"{icon} {service.capitalize()}"
@@ -520,6 +550,10 @@ class ReportGenerator:
                          border_color = "red"
                  else:
                      border_color = "white" # Or green if we prefer, using white to match others' default
+            elif service == 'abusech':
+                if data.get('query_status') == 'ok' and isinstance(data.get('data'), list) and len(data['data']) > 0: border_color = "red"
+            elif service == 'pulsedive':
+                if data.get('risk') in ['high', 'critical']: border_color = "red"
             
             panels.append(Panel(content, title=f"[bold]{service.upper()}[/]", border_style=border_color))
 

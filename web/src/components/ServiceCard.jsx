@@ -14,6 +14,8 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
         if (name === 'urlscan' && data.data?.verdict?.score > 0) isRisky = true;
         if (name === 'greynoise' && data.classification === 'malicious') isRisky = true;
         if (name === 'blacklistmaster' && data._meta_msg !== "No content returned") isRisky = true;
+        if (name === 'abusech' && data.query_status === 'ok' && data.data?.length > 0) isRisky = true;
+        if (name === 'pulsedive' && ['high', 'critical'].includes(data.risk)) isRisky = true;
     }
 
     const borderColor = isError ? 'var(--status-suspicious)' : (isRisky ? 'var(--status-risk)' : 'var(--glass-border)');
@@ -30,7 +32,8 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
             pulses: "Pulsos de Ameaça:", whois: "Registro WHOIS:", asn: "ASN:", provider: "Provedor:",
             classif: "Classificação:", noise: "Ruído de Fundo:", actor: "Ator:", yes: "Sim", no: "Não",
             totalScans: "Total de Scans:", server: "Servidor:", pageTitle: "Título da Página:", resIp: "IP Resolvido:", location: "Localização:",
-            cleanBl: "Limpo - Não encontrado em blacklists", foundBl: "Encontrado em blacklists", none: "Nenhum", unknown: "Desconhecido"
+            cleanBl: "Limpo - Não encontrado em blacklists", foundBl: "Encontrado em blacklists", none: "Nenhum", unknown: "Desconhecido",
+            threat: "Ameaça:", conf: "Confiança:", riskLevel: "Risco:", feeds: "Feeds:"
         },
         en: {
             apiError: "API Error",
@@ -41,7 +44,8 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
             pulses: "Threat Pulses:", whois: "WHOIS Reg:", asn: "ASN:", provider: "Provider:",
             classif: "Classification:", noise: "Background Noise:", actor: "Actor:", yes: "Yes", no: "No",
             totalScans: "Total Scans:", server: "Server:", pageTitle: "Page Title:", resIp: "Resolved IP:", location: "Location:",
-            cleanBl: "Clean - Not found on blacklists", foundBl: "Found on blacklists", none: "None", unknown: "Unknown"
+            cleanBl: "Clean - Not found on blacklists", foundBl: "Found on blacklists", none: "None", unknown: "Unknown",
+            threat: "Threat:", conf: "Confidence:", riskLevel: "Risk:", feeds: "Feeds:"
         },
         es: {
             apiError: "Error de API",
@@ -52,7 +56,8 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
             pulses: "Pulsos de Amenaza:", whois: "Registro WHOIS:", asn: "ASN:", provider: "Proveedor:",
             classif: "Clasificación:", noise: "Ruido de Fondo:", actor: "Actor:", yes: "Sí", no: "No",
             totalScans: "Total de Scans:", server: "Servidor:", pageTitle: "Título de Página:", resIp: "IP Resuelta:", location: "Ubicación:",
-            cleanBl: "Limpio - No encontrado en blacklists", foundBl: "Encontrado en blacklists", none: "Ninguno", unknown: "Desconocido"
+            cleanBl: "Limpio - No encontrado en blacklists", foundBl: "Encontrado en blacklists", none: "Ninguno", unknown: "Desconocido",
+            threat: "Amenaza:", conf: "Confianza:", riskLevel: "Riesgo:", feeds: "Feeds:"
         }
     };
     const loc = t[lang];
@@ -153,6 +158,24 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
                         )}
                     </>
                 )}
+                {name === 'abusech' && (
+                    <>
+                        {data.data && data.data.length > 0 ? (
+                            <>
+                                <div className="flex-row"><span>{loc.threat}</span> <span className="risk">{data.data[0].threat_type}</span></div>
+                                <div className="flex-row"><span>{loc.conf}</span> <span>{data.data[0].confidence_level}%</span></div>
+                            </>
+                        ) : (
+                            <div className="flex-row"><span className="safe">{loc.none}</span></div>
+                        )}
+                    </>
+                )}
+                {name === 'pulsedive' && (
+                    <>
+                        <div className="flex-row"><span>{loc.riskLevel}</span> <span className={isRisky ? 'risk' : 'safe'} style={{ textTransform: 'capitalize' }}>{data.risk || loc.none}</span></div>
+                        <div className="flex-row"><span>{loc.feeds}</span> <span>{data.feeds ? Object.keys(data.feeds).length : 0}</span></div>
+                    </>
+                )}
             </div>
         );
     };
@@ -178,7 +201,9 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
                                 'urlscan': 'UrlScan.io',
                                 'shodan': 'Shodan',
                                 'greynoise': 'GreyNoise',
-                                'blacklistmaster': 'BlacklistMaster'
+                                'blacklistmaster': 'BlacklistMaster',
+                                'abusech': 'Abuse.ch',
+                                'pulsedive': 'Pulsedive'
                             }[name] || name
                         }
                     </h3>

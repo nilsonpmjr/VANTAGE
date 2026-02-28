@@ -55,6 +55,12 @@ def main():
             result = client.query_alienvault(target, otx_type)
             report.add_result('alienvault', result)
             
+        if client.services['abusech']:
+            report.add_result('abusech', client.query_abusech(target))
+            
+        if client.services['pulsedive']:
+            report.add_result('pulsedive', client.query_pulsedive(target))
+            
         if target_type == 'ip':
             if client.services['abuseipdb']:
                 report.add_result('abuseipdb', client.query_abuseipdb(target))

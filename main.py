@@ -76,6 +76,12 @@ async def analyze_target(target: str = Query(..., description="IP address, Domai
         otx_type = 'file' if target_type == 'hash' else target_type
         tasks.append(fetch_service('alienvault', client.query_alienvault, sanitized, otx_type))
         
+    if client.services['abusech']:
+        tasks.append(fetch_service('abusech', client.query_abusech, sanitized))
+        
+    if client.services['pulsedive']:
+        tasks.append(fetch_service('pulsedive', client.query_pulsedive, sanitized))
+        
     if target_type == 'ip':
         if client.services['abuseipdb']:
             tasks.append(fetch_service('abuseipdb', client.query_abuseipdb, sanitized))
@@ -122,6 +128,12 @@ async def analyze_target(target: str = Query(..., description="IP address, Domai
              if data.get('classification') == 'malicious': risk_score += 1
         elif svc == 'blacklistmaster':
             if not isinstance(data, dict) or data.get("_meta_msg") != "No content returned":
+                risk_score += 1
+        elif svc == 'abusech':
+            if data.get('query_status') == 'ok' and isinstance(data.get('data'), list) and len(data['data']) > 0:
+                risk_score += 1
+        elif svc == 'pulsedive':
+            if data.get('risk') in ['high', 'critical']:
                 risk_score += 1
                 
     results["summary"] = {

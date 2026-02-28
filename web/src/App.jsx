@@ -13,7 +13,9 @@ const INTEGRATIONS = [
   { name: 'UrlScan.io', domain: 'urlscan.io' },
   { name: 'Shodan', domain: 'shodan.io' },
   { name: 'GreyNoise', domain: 'greynoise.io' },
-  { name: 'BlacklistMaster', domain: 'blacklistmaster.com' }
+  { name: 'BlacklistMaster', domain: 'blacklistmaster.com' },
+  { name: 'Abuse.ch', domain: 'abuse.ch' },
+  { name: 'Pulsedive', domain: 'pulsedive.com' }
 ];
 
 export default function App() {

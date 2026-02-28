@@ -35,6 +35,8 @@ def generate_heuristic_report(target: str, target_type: str, summary: dict, resu
             'urlscan': "- **UrlScan:** O domínio costuma ser hospedado no IP `{ip}` sob a infraestrutura/servidor '{server}'.",
             'grey_mal': "- **GreyNoise:** Identificado ativamente escaneando a internet com intenções maliciosas conhecidas.",
             'grey_ben': "- **GreyNoise:** Identificado como um serviço de background benigno não atrelado a ataques focionais.",
+            'abusech_bad': "- **Abuse.ch (ThreatFox):** Indicador listado na base de dados de ameaças ativas (Nível: {confidence}%, Ameaça: {threat_type}).",
+            'pulsedive_bad': "- **Pulsedive:** Risco reportado como {risk}. Detectado através de {feeds} feeds de inteligência.",
             'summary_title': "### Resumo das Fontes Técnicas:"
         },
         'en': {
@@ -58,6 +60,8 @@ def generate_heuristic_report(target: str, target_type: str, summary: dict, resu
             'urlscan': "- **UrlScan:** The domain is typically hosted on IP `{ip}` under the '{server}' infrastructure/server.",
             'grey_mal': "- **GreyNoise:** Actively identified scanning the internet with known malicious intent.",
             'grey_ben': "- **GreyNoise:** Identified as a benign background service not linked to targeted attacks.",
+            'abusech_bad': "- **Abuse.ch (ThreatFox):** Indicator listed in the active threats database (Confidence: {confidence}%, Threat: {threat_type}).",
+            'pulsedive_bad': "- **Pulsedive:** Risk reported as {risk}. Found via {feeds} intelligence feeds.",
             'summary_title': "### Technical Sources Summary:"
         },
         'es': {
@@ -81,6 +85,8 @@ def generate_heuristic_report(target: str, target_type: str, summary: dict, resu
             'urlscan': "- **UrlScan:** El dominio suele estar alojado en la IP `{ip}` bajo la infraestructura/servidor '{server}'.",
             'grey_mal': "- **GreyNoise:** Identificado activamente escaneando internet con intenciones maliciosas conocidas.",
             'grey_ben': "- **GreyNoise:** Identificado como un servicio de fondo benigno no vinculado a ataques focalizados.",
+            'abusech_bad': "- **Abuse.ch (ThreatFox):** Indicador listado en la base de datos de amenazas activas (Nivel: {confidence}%, Amenaza: {threat_type}).",
+            'pulsedive_bad': "- **Pulsedive:** Riesgo reportado como {risk}. Encontrado a través de {feeds} feeds de inteligencia.",
             'summary_title': "### Resumen de las Fuentes Técnicas:"
         }
     }
@@ -171,6 +177,22 @@ def generate_heuristic_report(target: str, target_type: str, summary: dict, resu
             details.append(loc['grey_mal'])
         elif classification == 'benign':
              details.append(loc['grey_ben'])
+
+    abusech_data = results_data.get('abusech', {})
+    if abusech_data and not abusech_data.get('error') and abusech_data.get('query_status') == 'ok':
+        data_list = abusech_data.get('data', [])
+        if data_list:
+            first = data_list[0]
+            confidence = first.get('confidence_level', 0)
+            threat_type = first.get('threat_type', 'unknown')
+            details.append(loc['abusech_bad'].format(confidence=confidence, threat_type=threat_type))
+
+    pulsedive_data = results_data.get('pulsedive', {})
+    if pulsedive_data and not pulsedive_data.get('error') and not pulsedive_data.get('_meta_error'):
+        risk = pulsedive_data.get('risk', 'none')
+        if risk in ['high', 'critical']:
+            feeds = pulsedive_data.get('feeds', [])
+            details.append(loc['pulsedive_bad'].format(risk=risk.upper(), feeds=len(feeds) if hasattr(feeds, '__len__') else 0))
 
     if details:
         report.append(loc['summary_title'])

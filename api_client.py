@@ -23,7 +23,9 @@ class ThreatIntelClient:
             'alienvault': False,
             'greynoise': False,
             'urlscan': False,
-            'blacklistmaster': False
+            'blacklistmaster': False,
+            'abusech': False,
+            'pulsedive': False
         }
         self.api_keys = {}
         self._load_keys()
@@ -37,7 +39,9 @@ class ThreatIntelClient:
             'alienvault': 'OTX_API_KEY',
             'greynoise': 'GREYNOISE_API_KEY',
             'urlscan': 'URLSCAN_API_KEY',
-            'blacklistmaster': 'BLACKLISTMASTER_API_KEY'
+            'blacklistmaster': 'BLACKLISTMASTER_API_KEY',
+            'abusech': 'ABUSECH_API_KEY',
+            'pulsedive': 'PULSEDIVE_API_KEY'
         }
 
         for service, env_var in keys_map.items():
@@ -178,5 +182,29 @@ class ThreatIntelClient:
 
         url = f"https://www.blacklistmaster.com/restapi/v1/ipbl/{ip}"
         params = {"apikey": self.api_keys['blacklistmaster']}
+        
+        return self._safe_request("GET", url, params=params)
+
+    def query_abusech(self, target: str) -> Optional[Dict[str, Any]]:
+        """Query Abuse.ch (ThreatFox) API."""
+        if not self.services['abusech']:
+            return None
+
+        url = "https://threatfox-api.abuse.ch/api/v1/"
+        headers = {"API-KEY": self.api_keys['abusech']}
+        payload = {"query": "search_ioc", "search_term": target}
+        
+        return self._safe_request("POST", url, headers=headers, json=payload)
+
+    def query_pulsedive(self, target: str) -> Optional[Dict[str, Any]]:
+        """Query Pulsedive API for comprehensive intelligence."""
+        if not self.services['pulsedive']:
+            return None
+
+        url = "https://pulsedive.com/api/info.php"
+        params = {
+            "indicator": target,
+            "key": self.api_keys['pulsedive']
+        }
         
         return self._safe_request("GET", url, params=params)

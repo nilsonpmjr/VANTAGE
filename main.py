@@ -2,18 +2,30 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 from typing import Dict, Any
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
 
 from api_client import ThreatIntelClient
 from validators import validate_target, ValidationError
 from logging_config import setup_logging, get_logger
 from analyzer import generate_heuristic_report, format_report_to_markdown
+from db import db_manager
 
 logger = get_logger("WebAPI")
 setup_logging(level="INFO")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Connect to MongoDB
+    await db_manager.connect_db()
+    yield
+    # Shutdown: Close MongoDB connection
+    await db_manager.close_db()
+
 app = FastAPI(
     title="Threat Intelligence API", 
-    description="API for scanning IPs, Domains, and Hashes against multiple Threat Intel sources."
+    description="API for scanning IPs, Domains, and Hashes against multiple Threat Intel sources.",
+    lifespan=lifespan
 )
 
 # Configure CORS for the frontend (Vite default is 5173, but we allow all for MVP)
@@ -49,7 +61,22 @@ async def analyze_target(target: str = Query(..., description="IP address, Domai
     except ValidationError as e:
         logger.warning(f"Validation error for target '{target}': {e}")
         raise HTTPException(status_code=400, detail=str(e))
-        
+
+    # Check MongoDB Cache for Recent Scans (last 24 hours)
+    if db_manager.db is not None:
+        try:
+            one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+            cached_scan = await db_manager.db.scans.find_one({
+                "target": sanitized,
+                "timestamp": {"$gte": one_day_ago}
+            }, sort=[("timestamp", -1)])
+            
+            if cached_scan and "data" in cached_scan:
+                logger.info(f"Returning CACHED result for: {sanitized}")
+                return cached_scan["data"]
+        except Exception as e:
+            logger.error(f"Failed to check MongoDB cache: {e}")
+            
     results: Dict[str, Any] = {
         "target": sanitized,
         "type": target_type,
@@ -154,6 +181,22 @@ async def analyze_target(target: str = Query(..., description="IP address, Domai
         "en": format_report_to_markdown(report_lines_en),
         "es": format_report_to_markdown(report_lines_es)
     }
+
+    # Asynchronously save to MongoDB if connected
+    if db_manager.db is not None:
+        try:
+            document = {
+                "target": sanitized,
+                "type": target_type,
+                "timestamp": datetime.now(timezone.utc),
+                "risk_score": risk_score,
+                "verdict": results["summary"]["verdict"],
+                "data": results
+            }
+            # Fire and forget insertion so we don't block the user response
+            asyncio.create_task(db_manager.db.scans.insert_one(document))
+        except Exception as e:
+            logger.error(f"Failed to save scan to MongoDB: {e}")
 
     return results
 

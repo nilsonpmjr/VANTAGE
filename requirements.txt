@@ -2,3 +2,5 @@ requests
 rich
 python-dotenv
 tzdata
+motor
+pymongo

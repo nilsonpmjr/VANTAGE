@@ -3,8 +3,10 @@ import SearchBar from './components/SearchBar';
 import VerdictPanel from './components/VerdictPanel';
 import ServiceCard from './components/ServiceCard';
 import ReactMarkdown from 'react-markdown';
-import { Globe, Download } from 'lucide-react';
+import { Globe, Download, LogOut } from 'lucide-react';
 import { generatePDFReport } from './utils/pdfGenerator';
+import { useAuth } from './context/AuthContext';
+import Login from './components/Login';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -20,6 +22,7 @@ const INTEGRATIONS = [
 ];
 
 export default function App() {
+  const { user, logout, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -59,7 +62,12 @@ export default function App() {
     setError(null);
     setData(null);
     try {
-      const response = await fetch(`http://localhost:8000/api/analyze?target=${encodeURIComponent(query)}&lang=${lang}`);
+      const token = localStorage.getItem('token');
+      const response = await fetch(`http://localhost:8000/api/analyze?target=${encodeURIComponent(query)}&lang=${lang}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
 
       const result = await response.json();
 
@@ -74,6 +82,14 @@ export default function App() {
       setLoading(false);
     }
   };
+
+  if (authLoading) {
+    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>Carregando Segurança...</div>;
+  }
+
+  if (!user) {
+    return <Login />;
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
@@ -113,6 +129,20 @@ export default function App() {
               <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>PDF</span>
             </button>
           )}
+
+          <button
+            onClick={logout}
+            style={{
+              marginLeft: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem',
+              color: 'var(--red)', border: '1px solid rgba(239, 68, 68, 0.3)', background: 'transparent',
+              padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s'
+            }}
+            title="Sair do Sistema"
+          >
+            <LogOut size={18} />
+            <span className="button-text">Sair</span>
+          </button>
+
           <Globe size={18} color="var(--text-muted)" />
           <select
             value={lang}

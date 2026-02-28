@@ -3,6 +3,23 @@ import { useAuth } from '../context/AuthContext';
 import { UserPlus, Trash2, Loader, Shield, User, Terminal } from 'lucide-react';
 import '../index.css';
 
+export const RoleBadge = ({ role }) => {
+    let icon, color, bg, label;
+    if (role === 'admin') {
+        icon = <Shield size={14} />; color = 'var(--primary)'; bg = 'rgba(56, 189, 248, 0.1)'; label = 'Admin';
+    } else if (role === 'manager') {
+        icon = <User size={14} />; color = 'var(--text-primary)'; bg = 'var(--glass-border)'; label = 'Manager';
+    } else {
+        icon = <Terminal size={14} />; color = 'var(--text-secondary)'; bg = 'var(--bg-card)'; label = 'Tech';
+    }
+
+    return (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: bg, color: color, padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', border: `1px solid ${color}` }}>
+            {icon} {label}
+        </span>
+    );
+};
+
 export default function Settings() {
     const { user } = useAuth();
     const [usersList, setUsersList] = useState([]);
@@ -103,22 +120,7 @@ export default function Settings() {
         }
     };
 
-    const RoleBadge = ({ role }) => {
-        let icon, color, bg, label;
-        if (role === 'admin') {
-            icon = <Shield size={14} />; color = 'var(--primary)'; bg = 'rgba(56, 189, 248, 0.1)'; label = 'Admin';
-        } else if (role === 'manager') {
-            icon = <User size={14} />; color = 'var(--text-primary)'; bg = 'var(--glass-border)'; label = 'Manager';
-        } else {
-            icon = <Terminal size={14} />; color = 'var(--text-secondary)'; bg = 'var(--bg-card)'; label = 'Tech';
-        }
-
-        return (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: bg, color: color, padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.8rem', border: `1px solid ${color}` }}>
-                {icon} {label}
-            </span>
-        )
-    };
+    // RoleBadge removed from here
 
     return (
         <div className="fade-in" style={{ padding: '0 2rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
@@ -191,10 +193,10 @@ export default function Settings() {
                                 </tr>
                             </thead>
                             <tbody>
-                                {usersList.length === 0 && !loading && (
+                                {(!Array.isArray(usersList) || usersList.length === 0) && !loading && (
                                     <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum usuário encontrado.</td></tr>
                                 )}
-                                {usersList.map((u, idx) => (
+                                {Array.isArray(usersList) && usersList.map((u, idx) => (
                                     <tr key={u.username} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
                                         <td style={{ padding: '1rem 1.5rem', color: 'var(--text-primary)' }}>{u.name}</td>
                                         <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{u.username}</td>

@@ -114,6 +114,18 @@ export default function App() {
             {/* Animated Header */}
             <header className={`app-header ${hasSearched ? 'active' : ''}`}>
               <div className="header-left">
+                <img
+                  src="/logo.svg"
+                  alt="iT.eam Logo"
+                  className="app-logo"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    setHasSearched(false);
+                    setData(null);
+                    setError(null);
+                  }}
+                  onError={(e) => { e.target.style.display = 'none'; }}
+                />
                 <p className="app-subtitle" style={{ marginLeft: 0 }}>{t[lang].title}</p>
               </div>
 

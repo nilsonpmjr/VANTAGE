@@ -1,5 +1,5 @@
-import React from 'react';
-import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar({ currentView, setCurrentView }) {
@@ -15,24 +15,30 @@ export default function Sidebar({ currentView, setCurrentView }) {
 
     const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
 
+    const [isCollapsed, setIsCollapsed] = useState(false);
+
     return (
         <aside style={{
-            width: '260px',
+            width: isCollapsed ? '80px' : '260px',
             background: 'var(--bg-card)',
             borderRight: '1px solid var(--glass-border)',
             display: 'flex',
             flexDirection: 'column',
-            padding: '1.5rem 1rem',
+            padding: '1.5rem 0.75rem',
             minHeight: '100vh',
-            boxShadow: '2px 0 10px rgba(0,0,0,0.2)'
+            boxShadow: '2px 0 10px rgba(0,0,0,0.2)',
+            transition: 'width 0.3s ease',
+            overflow: 'hidden',
+            flexShrink: 0
         }}>
-            <div style={{ padding: '0 0.5rem 2rem 0.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                <img
-                    src="/logo.svg"
-                    alt="iT.eam Logo"
-                    style={{ width: '130px', height: 'auto' }}
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                />
+            <div style={{ padding: '0.5rem', display: 'flex', justifyContent: isCollapsed ? 'center' : 'flex-end', marginBottom: '2rem' }}>
+                <button
+                    onClick={() => setIsCollapsed(!isCollapsed)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
+                    title="Toggle Menu"
+                >
+                    <Menu size={24} />
+                </button>
             </div>
 
             <nav style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -53,7 +59,8 @@ export default function Sidebar({ currentView, setCurrentView }) {
                                 cursor: 'pointer',
                                 transition: 'all 0.2s ease',
                                 textAlign: 'left',
-                                fontWeight: isActive ? 500 : 400
+                                fontWeight: isActive ? 500 : 400,
+                                justifyContent: isCollapsed ? 'center' : 'flex-start'
                             }}
                             onMouseOver={(e) => {
                                 if (!isActive) {
@@ -68,22 +75,24 @@ export default function Sidebar({ currentView, setCurrentView }) {
                                 }
                             }}
                         >
-                            <Icon size={20} color={isActive ? "var(--primary)" : "currentColor"} />
-                            {item.label}
+                            <Icon size={20} color={isActive ? "var(--primary)" : "currentColor"} style={{ flexShrink: 0 }} />
+                            {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
                         </button>
                     )
                 })}
             </nav>
 
             <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', marginTop: 'auto' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem' }}>
-                    <div style={{ background: 'var(--glass-bg)', padding: '0.5rem', borderRadius: '50%', border: '1px solid var(--primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem' }}>
+                    <div style={{ background: 'var(--glass-bg)', padding: '0.5rem', borderRadius: '50%', border: '1px solid var(--primary)', flexShrink: 0 }}>
                         <ShieldCheck size={18} color="var(--primary)" />
                     </div>
-                    <div>
-                        <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500 }}>{user.name || user.username}</p>
-                        <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{user.role}</p>
-                    </div>
+                    {!isCollapsed && (
+                        <div style={{ overflow: 'hidden' }}>
+                            <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: 500, whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{user.name || user.username}</p>
+                            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{user.role}</p>
+                        </div>
+                    )}
                 </div>
                 <button
                     onClick={logout}
@@ -96,13 +105,14 @@ export default function Sidebar({ currentView, setCurrentView }) {
                         borderRadius: 'var(--radius-md)',
                         cursor: 'pointer',
                         transition: 'all 0.2s',
-                        textAlign: 'left'
+                        textAlign: 'left',
+                        justifyContent: isCollapsed ? 'center' : 'flex-start'
                     }}
                     onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.2)' })}
                     onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.1)' })}
                 >
-                    <LogOut size={20} />
-                    Sair do Sistema
+                    <LogOut size={20} style={{ flexShrink: 0 }} />
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Sair do Sistema</span>}
                 </button>
             </div>
         </aside>

@@ -154,8 +154,8 @@ export default function Settings() {
 
     return (
         <div className="fade-in" style={{ padding: '0 2rem', maxWidth: '1000px', margin: '0 auto', width: '100%' }}>
-            <header style={{ marginBottom: '2rem', marginTop: '1rem' }}>
-                <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <header className="glass-panel" style={{ marginBottom: '2rem', marginTop: '1rem', padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', borderRadius: '12px' }}>
+                <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', justifyContent: 'center' }}>
                     <SettingsIcon size={28} color="var(--primary)" />
                     Painel de Configurações
                 </h2>

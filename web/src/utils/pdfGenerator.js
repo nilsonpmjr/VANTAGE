@@ -97,10 +97,31 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
         // Remove markdown asterisks and replace backticks with single quotes
         const cleanSummary = summaryText.replace(/\*/g, '').replace(/`/g, "'");
 
-        // Split text to fit page width
-        const splitText = doc.splitTextToSize(cleanSummary, 180);
-        doc.text(splitText, 15, currentY);
-        currentY += (splitText.length * 5) + 5;
+        // Parse lines to apply bold formatting to markdown headers
+        const lines = cleanSummary.split('\n');
+
+        lines.forEach(line => {
+            if (line.startsWith('### ')) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(11);
+                currentY += 2; // Extra padding before header
+
+                const headerText = line.replace('### ', '');
+                const splitHeader = doc.splitTextToSize(headerText, 180);
+                doc.text(splitHeader, 15, currentY);
+
+                currentY += (splitHeader.length * 5) + 2; // Extra padding after header
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(10);
+            } else if (line.trim() !== '') {
+                const splitText = doc.splitTextToSize(line, 180);
+                doc.text(splitText, 15, currentY);
+                currentY += (splitText.length * 5);
+            } else {
+                currentY += 3; // Emulate empty margin
+            }
+        });
+        currentY += 5;
     } else {
         currentY += 10;
     }

@@ -1,8 +1,14 @@
 import React, { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 
-export default function SearchBar({ onSearch, loading }) {
+export default function SearchBar({ onSearch, loading, lang = 'pt' }) {
     const [query, setQuery] = useState('');
+
+    const placeholders = {
+        pt: "Digite um IP, Domínio ou Hash...",
+        en: "Enter IP, Domain, or Hash...",
+        es: "Ingrese una IP, Dominio o Hash..."
+    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -18,7 +24,7 @@ export default function SearchBar({ onSearch, loading }) {
                 <input
                     type="text"
                     className="search-input"
-                    placeholder="Enter IP, Domain, or Hash..."
+                    placeholder={placeholders[lang]}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     disabled={loading}

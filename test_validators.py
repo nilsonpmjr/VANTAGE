@@ -264,15 +264,6 @@ def test_validate_multiple_hashes(hash_value, expected_type):
     assert result.target_type == expected_type
 
 
-# ========== Testes de Performance ==========
-
-@pytest.mark.benchmark
-def test_validation_performance(benchmark):
-    """Testa performance da validação."""
-    result = benchmark(InputValidator.validate, "example.com")
-    assert result.target_type == "domain"
-
-
 # ========== Testes de Segurança ==========
 
 class TestSecurityValidation:

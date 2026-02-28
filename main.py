@@ -1,7 +1,6 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 import asyncio
-import concurrent.futures
 from typing import Dict, Any
 
 from api_client import ThreatIntelClient

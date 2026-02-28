@@ -113,7 +113,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                     onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.1)' })}
                 >
                     <LogOut size={20} style={{ flexShrink: 0 }} />
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Sair do Sistema</span>}
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>Sair</span>}
                 </button>
             </div>
         </aside>

@@ -30,7 +30,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [lang, setLang] = useState('pt');
   const [hasSearched, setHasSearched] = useState(false);
-  const [currentView, setCurrentView] = useState('scanner');
+  const [currentView, setCurrentView] = useState('home');
 
   const t = {
     pt: {
@@ -109,7 +109,7 @@ export default function App() {
           </div>
         )}
 
-        {currentView === 'scanner' && (
+        {currentView === 'home' && (
           <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
             {/* Animated Header */}
             <header className={`app-header ${hasSearched ? 'active' : ''}`}>

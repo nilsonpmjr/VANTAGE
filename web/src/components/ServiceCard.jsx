@@ -160,7 +160,7 @@ export default function ServiceCard({ name, data, lang = 'pt' }) {
                 )}
                 {name === 'abusech' && (
                     <>
-                        {data.data && data.data.length > 0 ? (
+                        {data.query_status === 'ok' && Array.isArray(data.data) && data.data.length > 0 ? (
                             <>
                                 <div className="flex-row"><span>{loc.threat}</span> <span className="risk">{data.data[0].threat_type}</span></div>
                                 <div className="flex-row"><span>{loc.conf}</span> <span>{data.data[0].confidence_level}%</span></div>

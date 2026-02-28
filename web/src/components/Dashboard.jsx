@@ -81,12 +81,12 @@ export default function Dashboard() {
 
     return (
         <div className="fade-in" style={{ padding: '0 2rem', maxWidth: '1200px', margin: '0 auto', width: '100%', paddingBottom: '3rem' }}>
-            <header style={{ marginBottom: '2rem', marginTop: '1rem' }}>
+            <header style={{ marginBottom: '2rem', marginTop: '3rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <LayoutDashboard size={28} color="var(--primary)" />
                     Dashboard Gerencial
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: 0 }}>Métricas de Inteligência e Escaneamentos do SOC.</p>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>Métricas de Inteligência e Escaneamentos do SOC.</p>
             </header>
 
             {/* Top Cards */}

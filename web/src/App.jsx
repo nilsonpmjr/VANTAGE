@@ -136,7 +136,7 @@ export default function App() {
             </header>
 
             {/* Main Content Area */}
-            <main style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', paddingBottom: '2rem' }}>
+            <main style={{ paddingBottom: '2rem', flexGrow: 1 }}>
               {error && (
                 <div className="fade-in" style={{
                   marginTop: '2rem',

@@ -11,7 +11,6 @@ import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
-import Profile from './components/Profile';
 import { t } from './utils/translations';
 import './index.css';
 

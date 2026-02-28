@@ -91,12 +91,17 @@ export default function Profile() {
                 updateUserContext(updatedUser);
             }
 
-            setMessage({ type: 'success', text: 'Preferências salvas com sucesso!' });
+            setMessage({ type: 'success', text: 'Preferências salvas com sucesso! Recarregando...' });
             setPassword('');
             setConfirmPassword('');
 
             // Dispatch a custom event so Sidebar can catch the avatar update immediately
             window.dispatchEvent(new Event('userProfileUpdated'));
+
+            // Force a hard reload to ensure the new language state populates the entire App tree from the Context
+            setTimeout(() => {
+                window.location.reload();
+            }, 800);
 
         } catch (err) {
             setMessage({ type: 'error', text: err.message });

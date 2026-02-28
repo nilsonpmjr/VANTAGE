@@ -7,15 +7,15 @@ import { Globe } from 'lucide-react';
 import './index.css';
 
 const INTEGRATIONS = [
-  { name: 'VirusTotal', domain: 'virustotal.com' },
-  { name: 'AbuseIPDB', domain: 'abuseipdb.com' },
-  { name: 'AlienVault OTX', domain: 'alienvault.com' },
-  { name: 'UrlScan.io', domain: 'urlscan.io' },
-  { name: 'Shodan', domain: 'shodan.io' },
-  { name: 'GreyNoise', domain: 'greynoise.io' },
-  { name: 'BlacklistMaster', domain: 'blacklistmaster.com' },
-  { name: 'Abuse.ch', domain: 'abuse.ch' },
-  { name: 'Pulsedive', domain: 'pulsedive.com' }
+  { id: 'virustotal', name: 'VirusTotal', domain: 'virustotal.com' },
+  { id: 'abuseipdb', name: 'AbuseIPDB', domain: 'abuseipdb.com' },
+  { id: 'alienvault', name: 'AlienVault OTX', domain: 'alienvault.com' },
+  { id: 'urlscan', name: 'UrlScan.io', domain: 'urlscan.io' },
+  { id: 'shodan', name: 'Shodan', domain: 'shodan.io' },
+  { id: 'greynoise', name: 'GreyNoise', domain: 'greynoise.io' },
+  { id: 'blacklistmaster', name: 'BlacklistMaster', domain: 'blacklistmaster.com' },
+  { id: 'abusech', name: 'Abuse.ch', domain: 'abuse.ch' },
+  { id: 'pulsedive', name: 'Pulsedive', domain: 'pulsedive.com' }
 ];
 
 export default function App() {

@@ -84,7 +84,11 @@ class ReportGenerator:
             'bot': "Bot/Malware",
             'page_title': "Título da Página",
             'server': "Servidor",
-            'pulse_names': "Pulsos Recentes"
+            'pulse_names': "Pulsos Recentes",
+            'threat': "Ameaça",
+            'risk_level': "Nível de Risco",
+            'feeds': "Feeds",
+            'clean_threats': "Status: Limpo (Não encontrado em ameaças ativas)"
         },
         'en': {
             'title': "THREAT INTELLIGENCE REPORT",
@@ -147,7 +151,11 @@ class ReportGenerator:
             'bot': "Bot/Malware",
             'page_title': "Page Title",
             'server': "Server",
-            'pulse_names': "Recent Pulses"
+            'pulse_names': "Recent Pulses",
+            'threat': "Threat",
+            'risk_level': "Risk Level",
+            'feeds': "Feeds",
+            'clean_threats': "Status: Clean (Not found in active threats)"
         }
     }
     
@@ -453,10 +461,10 @@ class ReportGenerator:
             try:
                 if data.get('query_status') == 'ok' and isinstance(data.get('data'), list) and len(data['data']) > 0:
                     threat = data['data'][0]
-                    lines.append(f"• [red]Threat: {threat.get('threat_type', 'Unknown')}[/]")
-                    lines.append(f"• Confidence: {threat.get('confidence_level', 0)}%")
+                    lines.append(f"• [red]{self.t['threat']}: {threat.get('threat_type', 'Unknown')}[/]")
+                    lines.append(f"• {self.t['confidence']}: {threat.get('confidence_level', 0)}%")
                 else:
-                    lines.append(f"• [green]Status: Clean (Not found in active threats)[/]")
+                    lines.append(f"• [green]{self.t['clean_threats']}[/]")
             except Exception as e:
                 logger.error(f"Error parsing Abuse.ch data: {e}")
                 lines.append(f"[yellow]Error parsing data[/]")
@@ -465,8 +473,8 @@ class ReportGenerator:
             try:
                 risk = data.get('risk', 'none')
                 color = "red" if risk in ['high', 'critical'] else "green"
-                lines.append(f"• Risk Level: [{color}]{risk.upper()}[/]")
-                lines.append(f"• Feeds: {len(data.get('feeds', [])) if data.get('feeds') else 0}")
+                lines.append(f"• {self.t['risk_level']}: [{color}]{risk.upper()}[/]")
+                lines.append(f"• {self.t['feeds']}: {len(data.get('feeds', [])) if data.get('feeds') else 0}")
             except Exception as e:
                 logger.error(f"Error parsing Pulsedive data: {e}")
                 lines.append(f"[yellow]Error parsing data[/]")

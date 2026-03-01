@@ -494,36 +494,25 @@ h4 {
 }
 
 /* --- Login to Home Transition Layout --- */
-.login-transition-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: var(--bg-main);
-  background-image: var(--bg-gradient);
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  transition: opacity 1s cubic-bezier(0.25, 1, 0.5, 1), visibility 1s;
+.app-header.from-login .header-left {
+  position: absolute;
+  top: 45vh;
+  left: 50%;
+  transform: translate(-50%, -50%);
 }
 
-.login-transition-overlay.fading-out {
+.app-header.from-login .app-logo {
+  height: 90px;
+}
+
+.app-header.from-login .app-subtitle,
+.app-header.from-login .header-center,
+.app-header.from-login .header-right {
   opacity: 0;
   visibility: hidden;
-  pointer-events: none;
+  transform: translateY(20px);
 }
 
-.login-transition-overlay .flying-logo {
-  width: 200px;
-  height: auto;
-  transition: all 1.2s cubic-bezier(0.25, 1, 0.5, 1);
-}
-
-.login-transition-overlay.fading-out .flying-logo {
-  /* Translate directly to the App.jsx Logo Component Bounds */
-  transform: translate(var(--target-x, -30vw), var(--target-y, -40vh)) scale(0.46);
-  opacity: 0.1;
+.login-transition-overlay {
+  display: none;
 }

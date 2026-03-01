@@ -79,19 +79,6 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
-      {isTransitioning && (
-        <div className={`login-transition-overlay ${isFadingOut ? 'fading-out' : ''}`}>
-          <img
-            src="/logo.svg"
-            alt="iT.eam Logo"
-            className="flying-logo"
-            style={{
-              '--target-x': 'calc(328px - 50vw + 100px)',
-              '--target-y': 'calc(74px - 50vh + 45px)'
-            }}
-          />
-        </div>
-      )}
 
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
@@ -100,7 +87,8 @@ export default function App() {
         {currentView === 'home' && (
           <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
             {/* Animated Header */}
-            <header className={`app-header ${hasSearched ? 'active' : ''}`}>
+            <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
+
               <div className="header-left">
                 <img
                   src="/logo.svg"

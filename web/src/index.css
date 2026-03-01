@@ -523,7 +523,7 @@ h4 {
 }
 
 .login-transition-overlay.fading-out .flying-logo {
-  /* Translate straight up towards the top center before fading out */
-  transform: translateY(-25vh) scale(0.6);
-  opacity: 0;
+  /* Translate directly to the App.jsx Logo Component Bounds */
+  transform: translate(var(--target-x, -30vw), var(--target-y, -40vh)) scale(0.46);
+  opacity: 0.1;
 }

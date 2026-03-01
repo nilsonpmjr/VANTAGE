@@ -81,7 +81,15 @@ export default function App() {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
       {isTransitioning && (
         <div className={`login-transition-overlay ${isFadingOut ? 'fading-out' : ''}`}>
-          <img src="/logo.svg" alt="iT.eam Logo" className="flying-logo" />
+          <img
+            src="/logo.svg"
+            alt="iT.eam Logo"
+            className="flying-logo"
+            style={{
+              '--target-x': 'calc(328px - 50vw + 100px)',
+              '--target-y': 'calc(74px - 50vh + 45px)'
+            }}
+          />
         </div>
       )}
 

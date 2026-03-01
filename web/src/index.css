@@ -83,6 +83,8 @@ h4 {
   box-shadow: var(--glass-shadow);
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+  transform: translateZ(0);
+  will-change: transform, backdrop-filter;
 }
 
 .glass-panel:hover {

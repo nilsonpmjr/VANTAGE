@@ -389,17 +389,36 @@ async def analyze_target(
 # --- Manager Dashboard Endpoint ---
 
 @app.get("/api/stats")
-async def get_dashboard_stats(current_user: dict = Depends(require_role(["admin", "manager"]))):
+async def get_dashboard_stats(period: str = "month", current_user: dict = Depends(require_role(["admin", "manager"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
         
     try:
+        from datetime import datetime, timedelta, timezone
+        
+        # Calculate time boundary based on requested period
+        now = datetime.now(timezone.utc)
+        start_date = None
+        
+        if period == "day":
+            start_date = now - timedelta(days=1)
+        elif period == "week":
+            start_date = now - timedelta(days=7)
+        elif period == "month":
+            start_date = now - timedelta(days=30)
+            
+        base_query = {}
+        base_match = []
+        if start_date:
+            base_query = {"timestamp": {"$gte": start_date}}
+            base_match = [{"$match": base_query}]
+
         # Total Scans
-        total_scans = await db.scans.count_documents({})
+        total_scans = await db.scans.count_documents(base_query)
         
         # Verdict Distribution
-        verdict_pipeline = [
+        verdict_pipeline = base_match + [
             {"$group": {"_id": "$verdict", "count": {"$sum": 1}}}
         ]
         verdict_cursor = db.scans.aggregate(verdict_pipeline)
@@ -409,7 +428,7 @@ async def get_dashboard_stats(current_user: dict = Depends(require_role(["admin"
         verdict_result = [{"name": item["_id"], "value": item["count"]} for item in verdict_distribution]
         
         # Top 5 most queried targets
-        top_targets_pipeline = [
+        top_targets_pipeline = base_match + [
             {"$group": {
                 "_id": {"target": "$target", "type": "$type"},
                 "count": {"$sum": 1},
@@ -432,15 +451,84 @@ async def get_dashboard_stats(current_user: dict = Depends(require_role(["admin"
             for item in targets_distribution
         ]
         
+        # Threat Trends (Always 7 Days for the chart, regardless of total period filter, unless user specifically chose 'day')
+        # Wait, if user chooses month, the line chart could show 30 data points? Yes.
+        # Let's use the actual period start_date, but cap it to 30 points.
+        trend_start = start_date if start_date else (now - timedelta(days=30))
+        trends_pipeline = [
+            {"$match": {"timestamp": {"$gte": trend_start}}},
+            {"$group": {
+                "_id": {"$dateToString": {"format": "%Y-%m-%d", "date": "$timestamp"}},
+                "total": {"$sum": 1},
+                "malicious": {"$sum": {"$cond": [{"$in": ["$verdict", ["HIGH RISK", "CRITICAL"]]}, 1, 0]}}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+        trends_cursor = db.scans.aggregate(trends_pipeline)
+        trends_distribution = await trends_cursor.to_list(length=None)
+        threat_trends = [{"date": item["_id"], "total": item["total"], "malicious": item["malicious"]} for item in trends_distribution]
+
+        # Top Threat Types (Tags extraction mock - looking at common string matches or categories if available)
+        # As APIs payload structures vary heavily, we'll try to extract explicitly available tags from ALIENVAULT or Pulsedive
+        tags_pipeline = base_match + [
+            {"$project": {
+                "tags": {"$concatArrays": [
+                    {"$ifNull": ["$data.results.alienvault.pulse_info.pulses.tags", []]},
+                    {"$ifNull": ["$data.results.pulsedive.tags", []]}
+                ]}
+            }},
+            {"$unwind": "$tags"},
+            {"$unwind": "$tags"}, # alienvault pulses.tags is a double array
+            {"$match": {"tags": {"$type": "string"}}},
+            {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+            {"$limit": 5}
+        ]
+        # In a real scenario we'd need a robust tag normalizer. 
+        # For this MVP we will safely run the pipeline or fallback to standard categories
+        try:
+             tags_cursor = db.scans.aggregate(tags_pipeline)
+             tags_distribution = await tags_cursor.to_list(length=None)
+             top_threat_types = [{"name": item["_id"] if isinstance(item["_id"], str) else "Unknown", "value": item["count"]} for item in tags_distribution if item["_id"]]
+        except Exception:
+             top_threat_types = []
+
+        # Provide fallback if no tags are found (common in fresh databases)
+        if not top_threat_types:
+             top_threat_types = [
+                 {"name": "malware", "value": 0},
+                 {"name": "phishing", "value": 0},
+                 {"name": "botnet", "value": 0},
+                 {"name": "c2-server", "value": 0}
+             ]
+             
         # Recent Scans History (last 20)
-        recent_scans_cursor = db.scans.find({}, {"_id": 0, "data": 0}).sort("timestamp", -1).limit(20)
+        recent_scans_cursor = db.scans.find(base_query, {"_id": 0, "data": 0}).sort("timestamp", -1).limit(20)
         recent_scans = await recent_scans_cursor.to_list(length=20)
+        
+        # Critical Incidents Feed (last 10 High Risk/Critical)
+        critical_query = {"verdict": {"$in": ["HIGH RISK", "CRITICAL"]}}
+        if "timestamp" in base_query:
+            critical_query["timestamp"] = base_query["timestamp"]
+            
+        critical_cursor = db.scans.find(
+            critical_query, 
+            {"_id": 0, "data": 0}
+        ).sort("timestamp", -1).limit(10)
+        critical_incidents = await critical_cursor.to_list(length=10)
+        
+        # Worker Health Status
+        worker_status = await db.system_status.find_one({"module": "worker"}, {"_id": 0})
         
         return {
             "totalScans": total_scans,
             "verdictDistribution": verdict_result,
             "topTargets": top_targets_result,
-            "recentScans": recent_scans
+            "threatTrends": threat_trends,
+            "topThreatTypes": top_threat_types,
+            "recentScans": recent_scans,
+            "criticalIncidents": critical_incidents,
+            "workerHealth": worker_status
         }
         
     except Exception as e:

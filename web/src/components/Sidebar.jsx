@@ -46,7 +46,8 @@ export default function Sidebar({ currentView, setCurrentView }) {
             boxShadow: '2px 0 10px rgba(0,0,0,0.2)',
             transition: 'width 0.3s ease',
             overflow: 'hidden',
-            flexShrink: 0
+            flexShrink: 0,
+            willChange: 'width'
         }}>
             <div style={{ padding: '0.5rem', display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 {!isCollapsed && <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.2rem', letterSpacing: '0.5px' }}>{t('sidebar.menu', user.preferred_lang)}</span>}

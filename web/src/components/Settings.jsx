@@ -46,7 +46,7 @@ export default function Settings() {
             const response = await fetch('http://localhost:8000/api/users', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
-            if (!response.ok) throw new Error('Falha ao carregar usuários.');
+            if (!response.ok) throw new Error(t('settings.err_load', lang));
             const data = await response.json();
             setUsersList(data);
         } catch (err) {
@@ -91,7 +91,7 @@ export default function Settings() {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || 'Erro ao salvar usuário');
+                throw new Error(errData.detail || t('settings.err_save', lang));
             }
 
             // Reset form and reload list
@@ -122,14 +122,17 @@ export default function Settings() {
 
     const handleToggleActive = async (userToToggle) => {
         if (userToToggle.username === user.username) {
-            alert("Ação Negada: Você não pode suspender a si mesmo enquanto estiver logado.");
+            alert(t('settings.deny_self', lang));
             return;
         }
 
         const newStatus = userToToggle.is_active !== false ? false : true;
-        const actionText = newStatus ? 'Ativar' : 'Suspender';
 
-        if (!window.confirm(`Tem certeza que deseja ${actionText} o acesso do usuário '${userToToggle.username}'?`)) {
+        let confirmMsg = newStatus
+            ? t('settings.confirm_activate', lang).replace('{{user}}', userToToggle.username)
+            : t('settings.confirm_suspend', lang).replace('{{user}}', userToToggle.username);
+
+        if (!window.confirm(confirmMsg)) {
             return;
         }
 
@@ -146,7 +149,7 @@ export default function Settings() {
 
             if (!response.ok) {
                 const err = await response.json();
-                throw new Error(err.detail || `Erro ao ${actionText} usuário`);
+                throw new Error(err.detail || t('settings.err_action', lang));
             }
 
             fetchUsers();

@@ -58,7 +58,21 @@ const translations = {
             datetime: 'DATA / HORA',
             verdict: 'VEREDITO',
             no_history: 'Nenhuma busca recente registrada.',
-            sys: 'Sistema'
+            sys: 'Sistema',
+            time_day: 'Últimas 24h',
+            time_week: 'Últimos 7 dias',
+            time_month: 'Últimos 30 dias',
+            time_all: 'Todo o Período',
+            export_active: 'Exportando...',
+            export_idle: 'Export PDF',
+            worker_mon: 'Monitoramento (Worker)',
+            offline: 'Offline',
+            healthy: 'Saudável',
+            seen_at: 'Visto em',
+            threat_trends: 'Tendências de Ameaça (7 Dias)',
+            top_typologies: 'Principais Tipologias de Ameaça',
+            crit_incident: 'Feed de Incidentes Críticos',
+            no_crits: 'Sem incidentes críticos'
         },
         settings: {
             title: 'Configurações',
@@ -81,7 +95,13 @@ const translations = {
             tech: 'Analista (API Only)',
             pass_placeholder: 'Mantenha em branco para não alterar',
             suspended: 'Suspenso',
-            active: 'Ativo'
+            active: 'Ativo',
+            err_load: 'Falha ao carregar usuários.',
+            err_save: 'Erro ao salvar usuário',
+            deny_self: 'Ação Negada: Você não pode suspender a si mesmo enquanto estiver logado.',
+            confirm_suspend: "Tem certeza que deseja Suspender o acesso do usuário '{{user}}'?",
+            confirm_activate: "Tem certeza que deseja Ativar o acesso do usuário '{{user}}'?",
+            err_action: 'Erro na ação contra este usuário'
         },
         profile: {
             title: 'Meu Perfil',
@@ -95,7 +115,13 @@ const translations = {
             new_pass: 'Nova Senha',
             confirm_pass: 'Confirmar Nova Senha',
             save: 'Salvar Preferências',
-            success: 'Preferências salvas com sucesso! Recarregando...'
+            success: 'Preferências salvas com sucesso! Recarregando...',
+            err_img_invalid: 'Por favor, selecione um arquivo de imagem válido.',
+            err_img_size: 'A imagem deve ter no máximo 1MB.',
+            err_pass_match: 'As senhas não coincidem.',
+            err_pass_len: 'A senha deve ter pelo menos 6 caracteres.',
+            err_no_change: 'Nenhuma alteração foi feita.',
+            err_update: 'Erro ao atualizar preferências.'
         }
     },
     en: {
@@ -134,7 +160,21 @@ const translations = {
             datetime: 'DATE / TIME',
             verdict: 'VERDICT',
             no_history: 'No recent searches recorded.',
-            sys: 'System'
+            sys: 'System',
+            time_day: 'Last 24h',
+            time_week: 'Last 7 Days',
+            time_month: 'Last 30 Days',
+            time_all: 'All Time',
+            export_active: 'Exporting...',
+            export_idle: 'Export PDF',
+            worker_mon: 'Monitoring (Worker)',
+            offline: 'Offline',
+            healthy: 'Healthy',
+            seen_at: 'Seen at',
+            threat_trends: 'Threat Trends (7 Days)',
+            top_typologies: 'Top Threat Typologies',
+            crit_incident: 'Critical Incident Feed',
+            no_crits: 'No critical incidents'
         },
         settings: {
             title: 'Settings',
@@ -157,7 +197,13 @@ const translations = {
             tech: 'Analyst (API Only)',
             pass_placeholder: 'Leave blank to keep current',
             suspended: 'Suspended',
-            active: 'Active'
+            active: 'Active',
+            err_load: 'Failed to load users.',
+            err_save: 'Error saving user',
+            deny_self: 'Action Denied: You cannot suspend yourself while logged in.',
+            confirm_suspend: "Are you sure you want to Suspend access for user '{{user}}'?",
+            confirm_activate: "Are you sure you want to Activate access for user '{{user}}'?",
+            err_action: 'Error performing action on this user'
         },
         profile: {
             title: 'My Profile',
@@ -171,7 +217,13 @@ const translations = {
             new_pass: 'New Password',
             confirm_pass: 'Confirm New Password',
             save: 'Save Preferences',
-            success: 'Preferences saved successfully! Reloading...'
+            success: 'Preferences saved successfully! Reloading...',
+            err_img_invalid: 'Please select a valid image file.',
+            err_img_size: 'The image size must be max 1MB.',
+            err_pass_match: 'Passwords do not match.',
+            err_pass_len: 'Password must have at least 6 characters.',
+            err_no_change: 'No changes were made.',
+            err_update: 'Error updating preferences.'
         }
     },
     es: {
@@ -210,7 +262,21 @@ const translations = {
             datetime: 'FECHA / HORA',
             verdict: 'VEREDICTO',
             no_history: 'No hay búsquedas recientes registradas.',
-            sys: 'Sistema'
+            sys: 'Sistema',
+            time_day: 'Últimas 24h',
+            time_week: 'Últimos 7 días',
+            time_month: 'Últimos 30 días',
+            time_all: 'Todo el Período',
+            export_active: 'Exportando...',
+            export_idle: 'Export PDF',
+            worker_mon: 'Monitoreo (Worker)',
+            offline: 'Fuera de línea',
+            healthy: 'Saludable',
+            seen_at: 'Visto en',
+            threat_trends: 'Tendencias de Amenazas (7 Días)',
+            top_typologies: 'Principales Tipologías de Amenazas',
+            crit_incident: 'Feed de Incidentes Críticos',
+            no_crits: 'No hay incidentes críticos'
         },
         settings: {
             title: 'Configuraciones',
@@ -233,7 +299,13 @@ const translations = {
             tech: 'Analista (Solo API)',
             pass_placeholder: 'Dejar en blanco para no modificar',
             suspended: 'Suspendido',
-            active: 'Activo'
+            active: 'Activo',
+            err_load: 'Error al cargar usuarios.',
+            err_save: 'Error al guardar usuario',
+            deny_self: 'Acción Denegada: No puede suspenderse a sí mismo mientras está conectado.',
+            confirm_suspend: "¿Está seguro de que desea Suspender el acceso al usuario '{{user}}'?",
+            confirm_activate: "¿Está seguro de que desea Activar el acceso al usuario '{{user}}'?",
+            err_action: 'Error en la acción contra este usuario'
         },
         profile: {
             title: 'Mi Perfil',
@@ -247,7 +319,13 @@ const translations = {
             new_pass: 'Nueva Contraseña',
             confirm_pass: 'Confirmar Nueva Contraseña',
             save: 'Guardar Preferencias',
-            success: '¡Preferencias guardadas con éxito! Recargando...'
+            success: '¡Preferencias guardadas con éxito! Recargando...',
+            err_img_invalid: 'Por favor, seleccione un archivo de imagen válido.',
+            err_img_size: 'La imagen debe tener como máximo 1MB.',
+            err_pass_match: 'Las contraseñas no coinciden.',
+            err_pass_len: 'La contraseña debe tener al menos 6 caracteres.',
+            err_no_change: 'No se realizaron cambios.',
+            err_update: 'Error al actualizar preferencias.'
         }
     }
 };

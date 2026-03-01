@@ -69,6 +69,20 @@ async def scan_safe_targets_job():
             # Short sleep between batches to preserve rate limiting
             await asyncio.sleep(2)
             
+    # Record health metrics for the Dashboard
+    try:
+        await db.system_status.update_one(
+            {"module": "worker"},
+            {"$set": {
+                "last_run": datetime.now(timezone.utc),
+                "altered_targets": altered_targets_count,
+                "status": "Healthy"
+            }},
+            upsert=True
+        )
+    except Exception as e:
+        logger.error(f"Failed to update worker system status: {e}")
+        
     logger.info(f"Scheduled background scan completed. {altered_targets_count} targets changed status to HIGH RISK or CRITICAL.")
 
 

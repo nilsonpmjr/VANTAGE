@@ -23,12 +23,12 @@ export default function Profile() {
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
-            setMessage({ type: 'error', text: 'Por favor, selecione um arquivo de imagem válido.' });
+            setMessage({ type: 'error', text: t('profile.err_img_invalid', lang) });
             return;
         }
 
         if (file.size > 1024 * 1024) { // 1MB limit for base64
-            setMessage({ type: 'error', text: 'A imagem deve ter no máximo 1MB.' });
+            setMessage({ type: 'error', text: t('profile.err_img_size', lang) });
             return;
         }
 
@@ -48,12 +48,12 @@ export default function Profile() {
         setMessage({ type: '', text: '' });
 
         if (password && password !== confirmPassword) {
-            setMessage({ type: 'error', text: 'As senhas não coincidem.' });
+            setMessage({ type: 'error', text: t('profile.err_pass_match', lang) });
             return;
         }
 
         if (password && password.length < 6) {
-            setMessage({ type: 'error', text: 'A senha deve ter pelo menos 6 caracteres.' });
+            setMessage({ type: 'error', text: t('profile.err_pass_len', lang) });
             return;
         }
 
@@ -67,7 +67,7 @@ export default function Profile() {
             if (avatarBase64 !== user?.avatar_base64) payload.avatar_base64 = avatarBase64;
 
             if (Object.keys(payload).length === 0) {
-                setMessage({ type: 'error', text: 'Nenhuma alteração foi feita.' });
+                setMessage({ type: 'error', text: t('profile.err_no_change', lang) });
                 setLoading(false);
                 return;
             }
@@ -83,7 +83,7 @@ export default function Profile() {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || 'Erro ao atualizar preferências.');
+                throw new Error(errData.detail || t('profile.err_update', lang));
             }
 
             // Update local user context

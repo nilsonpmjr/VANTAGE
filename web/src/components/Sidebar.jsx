@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { t } from '../utils/translations';
+import { useTranslation } from 'react-i18next';
 
 export default function Sidebar({ currentView, setCurrentView }) {
+    const { t } = useTranslation();
     const { user, logout } = useAuth();
 
     const [isCollapsed, setIsCollapsed] = useState(true);
@@ -27,9 +28,9 @@ export default function Sidebar({ currentView, setCurrentView }) {
     if (!user) return null;
 
     const NAV_ITEMS = [
-        { id: 'home', label: t('sidebar.home', user.preferred_lang), icon: Search, roles: ['admin', 'manager', 'tech'] },
-        { id: 'dashboard', label: t('sidebar.dashboard', user.preferred_lang), icon: LayoutDashboard, roles: ['admin', 'manager'] },
-        { id: 'settings', label: t('sidebar.settings', user.preferred_lang), icon: Settings, roles: ['admin'] }
+        { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
+        { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager'] },
+        { id: 'settings', label: t('sidebar.settings'), icon: Settings, roles: ['admin'] }
     ];
 
     const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
@@ -50,7 +51,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
             willChange: 'width'
         }}>
             <div style={{ padding: '0.5rem', display: 'flex', justifyContent: isCollapsed ? 'center' : 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-                {!isCollapsed && <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.2rem', letterSpacing: '0.5px' }}>{t('sidebar.menu', user.preferred_lang)}</span>}
+                {!isCollapsed && <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1.2rem', letterSpacing: '0.5px' }}>{t('sidebar.menu')}</span>}
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
@@ -141,7 +142,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                     onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.1)' })}
                 >
                     <LogOut size={20} style={{ flexShrink: 0 }} />
-                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{t('sidebar.logout', user.preferred_lang)}</span>}
+                    {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{t('sidebar.logout')}</span>}
                 </button>
             </div>
         </aside>

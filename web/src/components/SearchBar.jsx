@@ -1,14 +1,10 @@
 import React, { useState } from 'react';
 import { Search, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-export default function SearchBar({ onSearch, loading, lang = 'pt' }) {
+export default function SearchBar({ onSearch, loading }) {
+    const { t } = useTranslation();
     const [query, setQuery] = useState('');
-
-    const placeholders = {
-        pt: "Digite um IP, Domínio ou Hash...",
-        en: "Enter IP, Domain, or Hash...",
-        es: "Ingrese una IP, Dominio o Hash..."
-    };
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -24,7 +20,7 @@ export default function SearchBar({ onSearch, loading, lang = 'pt' }) {
                 <input
                     type="text"
                     className="search-input"
-                    placeholder={placeholders[lang]}
+                    placeholder={t('search.placeholder')}
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     disabled={loading}

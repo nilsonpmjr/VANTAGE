@@ -1,32 +1,29 @@
 import React from 'react';
 import { Shield, ShieldAlert, Skull, Activity } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
-export default function VerdictPanel({ target, type, summary, lang = 'pt' }) {
+export default function VerdictPanel({ target, type, summary }) {
+    const { t } = useTranslation();
+
     if (!summary) return null;
 
     const { verdict, risk_sources, total_sources } = summary;
 
-    const t = {
-        pt: { safe: 'SEGURO', risk: 'ALTO RISCO', susp: 'SUSPEITO', flagged: `Negativado por ${risk_sources} de ${total_sources} fontes` },
-        en: { safe: 'SAFE', risk: 'HIGH RISK', susp: 'SUSPICIOUS', flagged: `Flagged by ${risk_sources} of ${total_sources} sources` },
-        es: { safe: 'SEGURO', risk: 'ALTO RIESGO', susp: 'SOSPECHOSO', flagged: `Marcado por ${risk_sources} de ${total_sources} fuentes` }
-    };
-
     let colorVar = 'var(--status-safe)';
     let bgVar = 'var(--status-safe-bg)';
     let Icon = Shield;
-    let text = t[lang].safe;
+    let text = t('verdict.safe');
 
     if (verdict === 'HIGH RISK') {
         colorVar = 'var(--status-risk)';
         bgVar = 'var(--status-risk-bg)';
         Icon = Skull;
-        text = t[lang].risk;
+        text = t('verdict.risk');
     } else if (verdict === 'SUSPICIOUS') {
         colorVar = 'var(--status-suspicious)';
         bgVar = 'var(--status-suspicious-bg)';
         Icon = ShieldAlert;
-        text = t[lang].susp;
+        text = t('verdict.susp');
     }
 
     return (
@@ -50,7 +47,7 @@ export default function VerdictPanel({ target, type, summary, lang = 'pt' }) {
                         {text}
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '1.1rem' }}>
-                        {t[lang].flagged}
+                        {t('verdict.flagged', { risk: risk_sources, total: total_sources })}
                     </p>
                 </div>
             </div>

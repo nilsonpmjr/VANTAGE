@@ -12,11 +12,13 @@
   "dependencies": {
     "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",
+    "i18next": "^25.8.13",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-i18next": "^16.5.4",
     "react-markdown": "^10.1.0",
     "recharts": "^3.7.0"
   },

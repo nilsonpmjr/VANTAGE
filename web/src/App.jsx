@@ -11,7 +11,7 @@ import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
-import { t } from './utils/translations';
+import { useTranslation } from 'react-i18next';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -35,11 +35,14 @@ export default function App() {
   const [hasSearched, setHasSearched] = useState(false);
   const [currentView, setCurrentView] = useState('home');
 
+  const { t, i18n } = useTranslation();
+
   useEffect(() => {
     if (user?.preferred_lang) {
       setLang(user.preferred_lang);
+      i18n.changeLanguage(user.preferred_lang);
     }
-  }, [user?.preferred_lang]);
+  }, [user?.preferred_lang, i18n]);
 
 
   const handleSearch = async (query) => {
@@ -70,7 +73,7 @@ export default function App() {
   };
 
   if (authLoading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>{t('app.loading', lang)}</div>;
+    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>{t('app.loading')}</div>;
   }
 
   if (!user && !isTransitioning) {
@@ -82,7 +85,7 @@ export default function App() {
 
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
-      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
+      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'scroll' }}>
 
         {currentView === 'home' && (
           <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
@@ -102,7 +105,7 @@ export default function App() {
                   }}
                   onError={(e) => { e.target.style.display = 'none'; }}
                 />
-                <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title', lang)}</p>
+                <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title')}</p>
               </div>
 
               <div className="header-center">
@@ -115,7 +118,7 @@ export default function App() {
                     onClick={() => generatePDFReport(data, data.analysis_reports?.[lang], lang)}
                     className="fade-in"
                     style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    title={t('app.download', lang)}
+                    title={t('app.download')}
                     onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', borderColor: 'var(--accent-border)' })}
                     onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
                   >
@@ -150,7 +153,7 @@ export default function App() {
                   textAlign: 'center',
                   flexShrink: 0
                 }}>
-                  <p><strong>{t('app.error', lang)}</strong> {error}</p>
+                  <p><strong>{t('app.error')}</strong> {error}</p>
                 </div>
               )}
 
@@ -162,7 +165,7 @@ export default function App() {
                   flexShrink: 0
                 }}>
                   <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {t('app.services', lang)}
+                    {t('app.services')}
                   </p>
                   <div className="marquee-container">
                     <div className="marquee-content">
@@ -185,7 +188,7 @@ export default function App() {
               {loading && !data && (
                 <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
                   <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
-                  <p>{t('app.scanning', lang)}</p>
+                  <p>{t('app.scanning')}</p>
                 </div>
               )}
 
@@ -202,7 +205,7 @@ export default function App() {
                   {(data.analysis_report || data.analysis_reports) && (
                     <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>
                       <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
-                        {t('app.summary', lang)}
+                        {t('app.summary')}
                       </h3>
                       <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.05rem' }}>
                         <ReactMarkdown>{data.analysis_reports ? data.analysis_reports[lang] : data.analysis_report}</ReactMarkdown>
@@ -214,7 +217,7 @@ export default function App() {
             </main>
 
             {/* Footer */}
-            <footer style={{ marginTop: 'auto', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', paddingTop: '2rem', flexShrink: 0 }}>
+            <footer style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0 }}>
               <p>&copy; {new Date().getFullYear()} iT.eam Next Generation SOC. All rights reserved.</p>
             </footer>
           </div>

@@ -1,16 +1,19 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle } from 'lucide-react';
-import { t } from '../utils/translations';
+import { useTranslation } from 'react-i18next';
 import '../index.css';
 
 export default function Profile() {
     const { user, updateUserContext } = useAuth();
 
+    const { t } = useTranslation();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
-    const lang = user?.preferred_lang || 'pt';
-    const [language, setLanguage] = useState(lang);
+
+    // The language UI state should still reflect the DB user context, 
+    // but the system will render using the global i18n
+    const [language, setLanguage] = useState(user?.preferred_lang || 'pt');
     const [avatarBase64, setAvatarBase64] = useState(user?.avatar_base64 || '');
 
     const [loading, setLoading] = useState(false);
@@ -23,12 +26,12 @@ export default function Profile() {
         if (!file) return;
 
         if (!file.type.startsWith('image/')) {
-            setMessage({ type: 'error', text: t('profile.err_img_invalid', lang) });
+            setMessage({ type: 'error', text: t('profile.err_img_invalid') });
             return;
         }
 
         if (file.size > 1024 * 1024) { // 1MB limit for base64
-            setMessage({ type: 'error', text: t('profile.err_img_size', lang) });
+            setMessage({ type: 'error', text: t('profile.err_img_size') });
             return;
         }
 
@@ -48,12 +51,12 @@ export default function Profile() {
         setMessage({ type: '', text: '' });
 
         if (password && password !== confirmPassword) {
-            setMessage({ type: 'error', text: t('profile.err_pass_match', lang) });
+            setMessage({ type: 'error', text: t('profile.err_pass_match') });
             return;
         }
 
         if (password && password.length < 6) {
-            setMessage({ type: 'error', text: t('profile.err_pass_len', lang) });
+            setMessage({ type: 'error', text: t('profile.err_pass_len') });
             return;
         }
 
@@ -67,7 +70,7 @@ export default function Profile() {
             if (avatarBase64 !== user?.avatar_base64) payload.avatar_base64 = avatarBase64;
 
             if (Object.keys(payload).length === 0) {
-                setMessage({ type: 'error', text: t('profile.err_no_change', lang) });
+                setMessage({ type: 'error', text: t('profile.err_no_change') });
                 setLoading(false);
                 return;
             }
@@ -83,7 +86,7 @@ export default function Profile() {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || t('profile.err_update', lang));
+                throw new Error(errData.detail || t('profile.err_update'));
             }
 
             // Update local user context
@@ -93,7 +96,7 @@ export default function Profile() {
                 updateUserContext(updatedUser);
             }
 
-            setMessage({ type: 'success', text: t('profile.success', lang) });
+            setMessage({ type: 'success', text: t('profile.success') });
             setPassword('');
             setConfirmPassword('');
 
@@ -117,9 +120,9 @@ export default function Profile() {
             <header style={{ marginBottom: '3rem', marginTop: '3rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     <User size={28} color="var(--primary)" />
-                    {t('profile.title', lang)}
+                    {t('profile.title')}
                 </h2>
-                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('profile.subtitle', lang)}</p>
+                <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('profile.subtitle')}</p>
             </header>
 
             {message.text && (
@@ -156,8 +159,8 @@ export default function Profile() {
                             </div>
                         </div>
                         <div>
-                            <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>{t('profile.photo', lang)}</h3>
-                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.photo_sub', lang)}</p>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-primary)' }}>{t('profile.photo')}</h3>
+                            <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.photo_sub')}</p>
                             <input type="file" ref={fileInputRef} onChange={handleImageChange} accept="image/png, image/jpeg" style={{ display: 'none' }} />
                         </div>
                     </div>
@@ -167,9 +170,9 @@ export default function Profile() {
                     {/* Language Settings */}
                     <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                            <Webhook size={18} color="var(--primary)" /> {t('profile.lang', lang)}
+                            <Webhook size={18} color="var(--primary)" /> {t('profile.lang')}
                         </label>
-                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.lang_sub', lang)}</p>
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.lang_sub')}</p>
                         <select
                             value={language}
                             onChange={e => setLanguage(e.target.value)}
@@ -187,13 +190,13 @@ export default function Profile() {
                     {/* Security Settings */}
                     <div>
                         <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                            <Lock size={18} color="var(--primary)" /> {t('profile.security', lang)}
+                            <Lock size={18} color="var(--primary)" /> {t('profile.security')}
                         </label>
-                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.security_sub', lang)}</p>
+                        <p style={{ margin: '0 0 1rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('profile.security_sub')}</p>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.new_pass', lang)}</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.new_pass')}</label>
                                 <input
                                     type="password"
                                     value={password}
@@ -204,7 +207,7 @@ export default function Profile() {
                                 />
                             </div>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.confirm_pass', lang)}</label>
+                                <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('profile.confirm_pass')}</label>
                                 <input
                                     type="password"
                                     value={confirmPassword}
@@ -220,7 +223,7 @@ export default function Profile() {
                     <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem' }}>
                         <button type="submit" disabled={loading} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                             {loading ? <Loader className="spin" size={18} /> : <Save size={18} />}
-                            {t('profile.save', lang)}
+                            {t('profile.save')}
                         </button>
                     </div>
                 </form>

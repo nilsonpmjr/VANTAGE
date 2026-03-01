@@ -9,10 +9,6 @@ export default function Login() {
     const [error, setError] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // Transition states
-    const [isTransitioning, setIsTransitioning] = useState(false);
-    const [isFadingOut, setIsFadingOut] = useState(false);
-
     const { login } = useAuth();
 
     const handleLogin = async (e) => {
@@ -27,7 +23,7 @@ export default function Login() {
             // or simply render this overlay in App.jsx. Let's render the overlay here and delay the user setting.
             // Wait, useAuth sets user immediately, which unmounts <Login/>.
             // It's better to lift this overlay to App.jsx. I will undo this and do it in App.jsx.
-        } catch (_) {
+        } catch {
             setError('Acesso negado. Credenciais inválidas.');
             setIsSubmitting(false); // Only stop loading on error, on success we transition
         }

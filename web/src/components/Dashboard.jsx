@@ -4,10 +4,12 @@ import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
-import { t } from '../utils/translations';
+import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import '../index.css';
 
 export default function Dashboard({ onSearch }) {
+    const { t } = useTranslation();
     const { user } = useAuth();
     const [stats, setStats] = useState(null);
     const [period, setPeriod] = useState('month');
@@ -15,8 +17,6 @@ export default function Dashboard({ onSearch }) {
     const [error, setError] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const dashboardRef = useRef(null);
-
-    const lang = user?.preferred_lang || 'pt';
 
     const handleExportPDF = async () => {
         if (!dashboardRef.current) return;
@@ -120,9 +120,9 @@ export default function Dashboard({ onSearch }) {
                 <div>
                     <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <LayoutDashboard size={28} color="var(--primary)" />
-                        {t('dashboard.title', lang)}
+                        {t('dashboard.title')}
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('dashboard.subtitle', lang)}</p>
+                    <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('dashboard.subtitle')}</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -135,10 +135,10 @@ export default function Dashboard({ onSearch }) {
                             cursor: 'pointer', outline: 'none', fontWeight: 500
                         }}
                     >
-                        <option value="day">{t('dashboard.time_day', lang)}</option>
-                        <option value="week">{t('dashboard.time_week', lang)}</option>
-                        <option value="month">{t('dashboard.time_month', lang)}</option>
-                        <option value="all">{t('dashboard.time_all', lang)}</option>
+                        <option value="day">{t('dashboard.time_day')}</option>
+                        <option value="week">{t('dashboard.time_week')}</option>
+                        <option value="month">{t('dashboard.time_month')}</option>
+                        <option value="all">{t('dashboard.time_all')}</option>
                     </select>
 
                     <button
@@ -151,7 +151,7 @@ export default function Dashboard({ onSearch }) {
                         onMouseOut={(e) => { if (!isExporting) Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' }) }}
                     >
                         {isExporting ? <Activity size={18} className="spin" /> : <Download size={18} />}
-                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{isExporting ? t('dashboard.export_active', lang) : t('dashboard.export_idle', lang)}</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>{isExporting ? t('dashboard.export_active') : t('dashboard.export_idle')}</span>
                     </button>
                 </div>
             </header>
@@ -164,7 +164,7 @@ export default function Dashboard({ onSearch }) {
                             <Activity size={32} />
                         </div>
                         <div>
-                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.total_scans', lang)}</p>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.total_scans')}</p>
                             <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>{stats?.totalScans || 0}</h3>
                         </div>
                     </div>
@@ -174,7 +174,7 @@ export default function Dashboard({ onSearch }) {
                             <ShieldAlert size={32} />
                         </div>
                         <div>
-                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.threats', lang)}</p>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.threats')}</p>
                             <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>
                                 {stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}
                             </h3>
@@ -186,13 +186,13 @@ export default function Dashboard({ onSearch }) {
                             <ShieldCheck size={32} />
                         </div>
                         <div>
-                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.worker_mon', lang)}</p>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.worker_mon')}</p>
                             <h3 style={{ margin: '0.2rem 0 0 0', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600 }}>
-                                {stats?.workerHealth?.status === 'Healthy' ? t('dashboard.healthy', lang) : t('dashboard.offline', lang)}
+                                {stats?.workerHealth?.status === 'Healthy' ? t('dashboard.healthy') : t('dashboard.offline')}
                             </h3>
                             {stats?.workerHealth?.last_run && (
                                 <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                    {t('dashboard.seen_at', lang)}: {new Date(stats.workerHealth.last_run).toLocaleString(lang === 'en' ? 'en-US' : (lang === 'es' ? 'es-ES' : 'pt-BR'), { dateStyle: 'short', timeStyle: 'short' })}
+                                    {t('dashboard.seen_at')}: {new Date(stats.workerHealth.last_run).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'), { dateStyle: 'short', timeStyle: 'short' })}
                                 </p>
                             )}
                         </div>
@@ -204,7 +204,7 @@ export default function Dashboard({ onSearch }) {
                     <div className="glass-panel" style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                             <TrendingUp size={20} color="var(--primary)" />
-                            {t('dashboard.proportion', lang)}
+                            {t('dashboard.proportion')}
                         </h3>
 
                         <div style={{ flexGrow: 1, minHeight: '300px' }}>
@@ -233,7 +233,7 @@ export default function Dashboard({ onSearch }) {
                                 </ResponsiveContainer>
                             ) : (
                                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                    {t('dashboard.no_data', lang)}
+                                    {t('dashboard.no_data')}
                                 </div>
                             )}
                         </div>
@@ -252,7 +252,7 @@ export default function Dashboard({ onSearch }) {
                     <div className="glass-panel" style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                             <Activity size={20} color="var(--primary)" />
-                            {t('dashboard.threat_trends', lang)}
+                            {t('dashboard.threat_trends')}
                         </h3>
 
                         <div style={{ flexGrow: 1, minHeight: '300px' }}>
@@ -273,7 +273,7 @@ export default function Dashboard({ onSearch }) {
                                 </ResponsiveContainer>
                             ) : (
                                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                    {t('dashboard.no_data', lang)}
+                                    {t('dashboard.no_data')}
                                 </div>
                             )}
                         </div>
@@ -285,7 +285,7 @@ export default function Dashboard({ onSearch }) {
                     <div className="glass-panel" style={{ padding: '1.5rem', height: '100%', display: 'flex', flexDirection: 'column' }}>
                         <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                             <AlignLeft size={20} color="var(--primary)" />
-                            {t('dashboard.top_typologies', lang)}
+                            {t('dashboard.top_typologies')}
                         </h3>
 
                         <div style={{ flexGrow: 1, minHeight: '300px' }}>
@@ -308,7 +308,7 @@ export default function Dashboard({ onSearch }) {
                                 </ResponsiveContainer>
                             ) : (
                                 <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
-                                    {t('dashboard.no_data', lang)}
+                                    {t('dashboard.no_data')}
                                 </div>
                             )}
                         </div>
@@ -319,7 +319,7 @@ export default function Dashboard({ onSearch }) {
                         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                             <h3 style={{ margin: 0, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <AlertTriangle size={20} color="var(--red)" />
-                                {t('dashboard.crit_incident', lang)}
+                                {t('dashboard.crit_incident')}
                             </h3>
                         </div>
 
@@ -327,19 +327,19 @@ export default function Dashboard({ onSearch }) {
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead style={{ background: 'var(--bg-main)' }}>
                                     <tr>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict', lang)}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {!stats?.criticalIncidents || stats.criticalIncidents.length === 0 ? (
-                                        <tr><td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_crits', lang)}</td></tr>
+                                        <tr><td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_crits')}</td></tr>
                                     ) : (
                                         stats.criticalIncidents.map((scan, idx) => (
                                             <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {new Date(scan.timestamp).toLocaleString(lang === 'en' ? 'en-US' : (lang === 'es' ? 'es-ES' : 'pt-BR'))}
+                                                    {new Date(scan.timestamp).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                                 </td>
                                                 <td
                                                     onClick={() => onSearch && onSearch(scan.target)}
@@ -376,7 +376,7 @@ export default function Dashboard({ onSearch }) {
                         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                             <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <Target size={20} color="var(--primary)" />
-                                {t('dashboard.top_artifacts', lang)}
+                                {t('dashboard.top_artifacts')}
                             </h3>
                         </div>
 
@@ -384,15 +384,15 @@ export default function Dashboard({ onSearch }) {
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead style={{ background: 'var(--bg-main)' }}>
                                     <tr>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.type', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'center' }}>{t('dashboard.searches', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.last_risk', lang)}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.type')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'center' }}>{t('dashboard.searches')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.last_risk')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {!stats?.topTargets || stats.topTargets.length === 0 ? (
-                                        <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_artifacts', lang)}</td></tr>
+                                        <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_artifacts')}</td></tr>
                                     ) : (
                                         stats.topTargets.map((item, idx) => (
                                             <tr key={item.target} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
@@ -433,7 +433,7 @@ export default function Dashboard({ onSearch }) {
                         <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
                             <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <History size={20} color="var(--primary)" />
-                                {t('dashboard.recent_history', lang)}
+                                {t('dashboard.recent_history')}
                             </h3>
                         </div>
 
@@ -441,15 +441,15 @@ export default function Dashboard({ onSearch }) {
                             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                                 <thead style={{ background: 'var(--bg-main)' }}>
                                     <tr>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact', lang)}</th>
-                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict', lang)}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
+                                        <th style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {!stats?.recentScans || stats.recentScans.length === 0 ? (
-                                        <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history', lang)}</td></tr>
+                                        <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history')}</td></tr>
                                     ) : (
                                         stats.recentScans.map((scan, idx) => (
                                             <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>

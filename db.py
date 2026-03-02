@@ -1,8 +1,9 @@
-import os
-from motor.motor_asyncio import AsyncIOMotorClient
 import logging
+from motor.motor_asyncio import AsyncIOMotorClient
+from config import settings
 
 logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
     client: AsyncIOMotorClient = None
@@ -11,13 +12,13 @@ class DatabaseManager:
     @classmethod
     async def connect_db(cls):
         """Create database connection."""
-        mongo_url = os.getenv("MONGO_URI", "mongodb://admin:iteam_secure_password@localhost:27017/")
+        mongo_url = settings.mongo_uri
         logger.info(f"Connecting to MongoDB at {mongo_url}")
         try:
             cls.client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
-            cls.db = cls.client.threat_intel
-            
-            # verify connection
+            cls.db = cls.client[settings.mongo_db_name]
+
+            # Verify connection
             await cls.client.server_info()
             logger.info("Successfully connected to MongoDB.")
         except Exception as e:
@@ -32,7 +33,9 @@ class DatabaseManager:
             logger.info("Closing MongoDB connection.")
             cls.client.close()
 
+
 db_manager = DatabaseManager()
+
 
 async def get_db():
     return db_manager.db

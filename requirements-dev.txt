@@ -1,0 +1,10 @@
+-r requirements.txt
+
+# Testing
+pytest==9.0.2
+pytest-asyncio
+httpx
+mongomock-motor
+
+# Linting
+flake8==7.3.0

@@ -22,6 +22,7 @@ fastapi==0.133.1
 fastapi-cli==0.0.24
 fastapi-cloud-cli==0.14.0
 fastar==0.8.0
+flake8==7.3.0
 Flask==3.1.2
 frozenlist==1.8.0
 greenlet==3.3.1
@@ -46,7 +47,9 @@ motor==3.7.1
 multidict==6.7.1
 packaging==26.0
 passlib==1.7.4
+playwright==1.58.0
 pluggy==1.6.0
+plyer==2.1.0
 propcache==0.4.1
 pycodestyle==2.14.0
 pycparser==3.0
@@ -60,6 +63,7 @@ Pygments==2.19.2
 PyJWT==2.11.0
 pymongo==4.16.0
 pypdf==6.7.3
+pytest==9.0.2
 python-dotenv==1.2.1
 python-multipart==0.0.22
 PyYAML==6.0.3
@@ -82,4 +86,3 @@ watchfiles==1.1.1
 websockets==16.0
 Werkzeug==3.1.5
 yarl==1.22.0
-slowapi==0.1.9

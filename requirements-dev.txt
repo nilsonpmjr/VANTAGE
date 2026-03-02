@@ -8,3 +8,6 @@ mongomock-motor
 
 # Linting
 flake8==7.3.0
+
+# E2E / Browser Testing (optional)
+playwright==1.58.0

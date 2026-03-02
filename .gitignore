@@ -2,6 +2,9 @@ __pycache__/
 *.pyc
 .env
 .DS_Store
+.venv/
+node_modules/
+*.egg-info/
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md

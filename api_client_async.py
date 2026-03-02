@@ -163,6 +163,21 @@ class AsyncThreatIntelClient:
             'base_url': 'https://urlscan.io/api/v1',
             'rate_limit': (10, 60),
         },
+        'blacklistmaster': {
+            'env_var': 'BLACKLISTMASTER_API_KEY',
+            'base_url': 'https://www.blacklistmaster.com/restapi/v1',
+            'rate_limit': (10, 60),
+        },
+        'abusech': {
+            'env_var': 'ABUSECH_API_KEY',
+            'base_url': 'https://threatfox-api.abuse.ch/api/v1',
+            'rate_limit': (10, 60),
+        },
+        'pulsedive': {
+            'env_var': 'PULSEDIVE_API_KEY',
+            'base_url': 'https://pulsedive.com/api',
+            'rate_limit': (10, 60),
+        },
     }
     
     def __init__(
@@ -194,8 +209,9 @@ class AsyncThreatIntelClient:
         
         # Carregar chaves API
         self.api_keys = self._load_api_keys()
+        # Check key existence (not value) so empty-string keys for public APIs still enable the service
         self.services = {
-            service: bool(self.api_keys.get(service))
+            service: (service in self.api_keys)
             for service in self.SERVICES_CONFIG.keys()
         }
         
@@ -204,15 +220,18 @@ class AsyncThreatIntelClient:
     def _load_api_keys(self) -> Dict[str, str]:
         """Carrega chaves API das variáveis de ambiente."""
         keys = {}
-        
+
         for service, config in self.SERVICES_CONFIG.items():
             key = os.getenv(config['env_var'])
             if key:
                 keys[service] = key
                 logger.debug(f"{service} API key loaded")
+            elif config.get('optional_key'):
+                keys[service] = ''  # Enabled even without a key (public API)
+                logger.debug(f"{service} enabled (public API, no key required)")
             else:
                 logger.warning(f"{service} disabled - missing {config['env_var']}")
-        
+
         return keys
     
     async def __aenter__(self):
@@ -418,7 +437,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         cache_key = self._get_cache_key('shodan', ip)
         if cache_key in self.cache:
             return APIResponse(
@@ -427,16 +446,34 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         url = f"{self.SERVICES_CONFIG['shodan']['base_url']}/shodan/host/{ip}"
         params = {'key': self.api_keys['shodan']}
-        
-        response = await self._safe_request('shodan', 'GET', url, params=params)
-        
-        if response.success and response.data:
-            self.cache[cache_key] = response.data
-        
-        return response
+
+        # Override generic 403 handling: Shodan free/oss plan returns 403
+        # for IPs not in the open dataset — not an auth error.
+        try:
+            await self.rate_limiters['shodan'].wait_if_needed('shodan')
+            async with self.session.request('GET', url, params=params,
+                                            timeout=self.timeout) as resp:
+                if resp.status == 404:
+                    return APIResponse(service='shodan', data=None, success=False,
+                                       error="Not found in Shodan database")
+                if resp.status == 403:
+                    return APIResponse(service='shodan', data=None, success=False,
+                                       error="IP not available on current Shodan plan")
+                if resp.status == 401:
+                    return APIResponse(service='shodan', data=None, success=False,
+                                       error="Invalid Shodan API key")
+                resp.raise_for_status()
+                data = await resp.json()
+        except Exception as e:
+            return APIResponse(service='shodan', data=None, success=False, error=str(e))
+
+        if data:
+            self.cache[cache_key] = data
+
+        return APIResponse(service='shodan', data=data, success=True)
     
     async def query_alienvault(self, target: str, type_hint: str) -> APIResponse:
         """Consulta AlienVault OTX API."""
@@ -540,6 +577,67 @@ class AsyncThreatIntelClient:
         
         return response
     
+    async def query_blacklistmaster(self, ip: str) -> APIResponse:
+        """Consulta BlacklistMaster API."""
+        if not self.services.get('blacklistmaster'):
+            return APIResponse(service='blacklistmaster', data=None, success=False, error="Service not available")
+
+        cache_key = self._get_cache_key('blacklistmaster', ip)
+        if cache_key in self.cache:
+            return APIResponse(service='blacklistmaster', data=self.cache[cache_key], success=True, cached=True)
+
+        # Auth via ?apikey= query parameter (Bearer header returns 401)
+        url = f"{self.SERVICES_CONFIG['blacklistmaster']['base_url']}/blacklistcheck/ip/{ip}"
+        params = {"apikey": self.api_keys.get('blacklistmaster', '')}
+
+        response = await self._safe_request('blacklistmaster', 'GET', url, params=params)
+
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
+
+        return response
+
+    async def query_abusech(self, target: str) -> APIResponse:
+        """Consulta Abuse.ch ThreatFox API com PAT (Auth-Key header obrigatório)."""
+        if not self.services.get('abusech'):
+            return APIResponse(service='abusech', data=None, success=False, error="Service not available")
+
+        cache_key = self._get_cache_key('abusech', target)
+        if cache_key in self.cache:
+            return APIResponse(service='abusech', data=self.cache[cache_key], success=True, cached=True)
+
+        url = f"{self.SERVICES_CONFIG['abusech']['base_url']}/"
+        headers = {"Auth-Key": self.api_keys.get('abusech', '')}
+        response = await self._safe_request(
+            'abusech', 'POST', url,
+            headers=headers,
+            json={"query": "search_ioc", "search_term": target},
+        )
+
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
+
+        return response
+
+    async def query_pulsedive(self, target: str) -> APIResponse:
+        """Consulta Pulsedive API."""
+        if not self.services.get('pulsedive'):
+            return APIResponse(service='pulsedive', data=None, success=False, error="Service not available")
+
+        cache_key = self._get_cache_key('pulsedive', target)
+        if cache_key in self.cache:
+            return APIResponse(service='pulsedive', data=self.cache[cache_key], success=True, cached=True)
+
+        url = f"{self.SERVICES_CONFIG['pulsedive']['base_url']}/info.php"
+        params = {"indicator": target, "pretty": 1, "key": self.api_keys.get('pulsedive', '')}
+
+        response = await self._safe_request('pulsedive', 'GET', url, params=params)
+
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
+
+        return response
+
     async def query_all(self, target: str, target_type: str) -> Dict[str, APIResponse]:
         """
         Consulta todas as APIs disponíveis em paralelo.
@@ -554,29 +652,39 @@ class AsyncThreatIntelClient:
         tasks = []
         
         # VirusTotal e AlienVault suportam todos os tipos
-        if self.services['virustotal']:
+        if self.services.get('virustotal'):
             vt_type = 'file' if target_type == 'hash' else target_type
             tasks.append(('virustotal', self.query_virustotal(target, vt_type)))
-        
-        if self.services['alienvault']:
+
+        if self.services.get('alienvault'):
             otx_type = 'file' if target_type == 'hash' else target_type
             tasks.append(('alienvault', self.query_alienvault(target, otx_type)))
-        
+
         # Serviços específicos para IP
         if target_type == 'ip':
-            if self.services['abuseipdb']:
+            if self.services.get('abuseipdb'):
                 tasks.append(('abuseipdb', self.query_abuseipdb(target)))
-            
-            if self.services['shodan']:
+
+            if self.services.get('shodan'):
                 tasks.append(('shodan', self.query_shodan(target)))
-            
-            if self.services['greynoise']:
+
+            if self.services.get('greynoise'):
                 tasks.append(('greynoise', self.query_greynoise(target)))
         
         # URLScan para domínios
-        if target_type == 'domain' and self.services['urlscan']:
+        if target_type == 'domain' and self.services.get('urlscan'):
             tasks.append(('urlscan', self.query_urlscan(target)))
-        
+
+        # Abuse.ch e Pulsedive — suportam todos os tipos
+        if self.services.get('abusech'):
+            tasks.append(('abusech', self.query_abusech(target)))
+        if self.services.get('pulsedive'):
+            tasks.append(('pulsedive', self.query_pulsedive(target)))
+
+        # BlacklistMaster — apenas IPs
+        if target_type == 'ip' and self.services.get('blacklistmaster'):
+            tasks.append(('blacklistmaster', self.query_blacklistmaster(target)))
+
         # Executar todas as consultas em paralelo
         results = {}
         if tasks:

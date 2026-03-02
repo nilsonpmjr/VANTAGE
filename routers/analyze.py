@@ -43,11 +43,12 @@ _semaphore = asyncio.Semaphore(20)
 def _compute_risk_score(service_results: Dict[str, Any]) -> tuple:
     """Compute (risk_score, total_sources) from aggregated API results."""
     risk_score = 0
-    total_sources = len(service_results)
+    total_sources = 0
 
     for svc, data in service_results.items():
         if not data or "error" in data or "_meta_error" in data:
             continue
+        total_sources += 1
         if svc == "virustotal":
             malicious = (
                 data.get("data", {})

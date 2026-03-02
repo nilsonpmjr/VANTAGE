@@ -58,10 +58,11 @@ class ReportGenerator:
             data = {"error": "API returned no data (Check logs or API Status)"}
 
         self.results[service_name] = data
-        self.total_sources += 1
 
-        if "error" in data:
+        if "error" in data or "_meta_error" in data:
             return
+
+        self.total_sources += 1
 
         is_risky = False
         if service_name == 'virustotal':
@@ -144,7 +145,11 @@ class ReportGenerator:
         self.console.print(self._get_verdict_panel())
         self.console.print()
 
+        skipped = []
         for service, data in self.results.items():
+            if isinstance(data, dict) and (data.get("error") or data.get("_meta_error")):
+                skipped.append((service, data))
+                continue
             icon = SERVICE_ICONS.get(service, '🔎')
             title = f"{icon} {service.capitalize()}"
             content = self._build_service_content(service, data)
@@ -153,6 +158,14 @@ class ReportGenerator:
             self.console.print()
 
         self.console.print(f"[dim]{'-' * 60}[/]")
+
+        if skipped:
+            lines = []
+            for svc, d in skipped:
+                reason = d.get("_meta_error") or d.get("error", "unknown")
+                lines.append(f"  [dim]• {svc}: {reason}[/]")
+            self.console.print(Panel("\n".join(lines), title="⚠ Serviços Indisponíveis", border_style="dim"))
+
         self.console.print(f"[dim]{self.t['end_report']}[/]")
 
     def print_dashboard(self) -> None:
@@ -169,9 +182,10 @@ class ReportGenerator:
         self.console.print(self._get_verdict_panel())
 
         panels = []
+        skipped = []
         for service, data in self.results.items():
-            # Skip forbidden errors (e.g. quota exceeded) from dashboard view
-            if isinstance(data, dict) and data.get("_meta_error") == "forbidden":
+            if isinstance(data, dict) and (data.get("error") or data.get("_meta_error")):
+                skipped.append((service, data))
                 continue
 
             content = self._build_service_content(service, data)
@@ -179,3 +193,12 @@ class ReportGenerator:
             panels.append(Panel(content, title=f"[bold]{service.upper()}[/]", border_style=color))
 
         self.console.print(Columns(panels, expand=True))
+
+        if skipped:
+            lines = []
+            for svc, d in skipped:
+                reason = d.get("_meta_error") or d.get("error", "unknown")
+                lines.append(f"  [dim]• {svc}: {reason}[/]")
+            self.console.print()
+            self.console.print(Panel("\n".join(lines), title="⚠ Serviços Indisponíveis", border_style="dim"))
+

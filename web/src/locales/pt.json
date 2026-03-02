@@ -158,5 +158,12 @@
         "conf": "Confiança:",
         "riskLevel": "Risco:",
         "feeds": "Feeds:"
+    },
+    "toast": {
+        "title": "{{count}} serviço(s) indisponível(is)",
+        "rateLimit": "Limite de requisições",
+        "planLimit": "Limitação de plano",
+        "apiError": "Erro na API",
+        "dismiss": "Fechar"
     }
 }

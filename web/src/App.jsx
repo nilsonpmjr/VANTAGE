@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import SearchBar from './components/SearchBar';
 import VerdictPanel from './components/VerdictPanel';
 import ServiceCard from './components/ServiceCard';
+import ToastNotification from './components/ToastNotification';
 import ReactMarkdown from 'react-markdown';
 import { Globe, Download, LogOut } from 'lucide-react';
 import { generatePDFReport } from './utils/pdfGenerator';
@@ -192,13 +193,29 @@ export default function App() {
 
               {data && (
                 <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
-                  <VerdictPanel target={data.target} type={data.type} summary={data.summary} lang={lang} />
+                  {/* Recalculate source counts from actual results (fixes cached data with stale counts) */}
+                  {(() => {
+                    const successEntries = Object.entries(data.results).filter(([, d]) => !d.error && !d._meta_error);
+                    const correctedSummary = {
+                      ...data.summary,
+                      total_sources: successEntries.length,
+                    };
+                    return <VerdictPanel target={data.target} type={data.type} summary={correctedSummary} lang={lang} />;
+                  })()}
 
                   <div className="grid-dashboard">
-                    {Object.entries(data.results).map(([serviceName, serviceData]) => (
-                      <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} />
-                    ))}
+                    {Object.entries(data.results)
+                      .filter(([, d]) => !d.error && !d._meta_error)
+                      .map(([serviceName, serviceData]) => (
+                        <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} />
+                      ))}
                   </div>
+
+                  <ToastNotification
+                    errors={Object.entries(data.results)
+                      .filter(([, d]) => d.error || d._meta_error)
+                      .map(([name, d]) => ({ name, type: d._meta_error_type || 'api_error', message: d._meta_error || d.error }))}
+                  />
 
                   {(data.analysis_report || data.analysis_reports) && (
                     <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>

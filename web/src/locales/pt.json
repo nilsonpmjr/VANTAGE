@@ -10,7 +10,14 @@
     },
     "login": {
         "subtitle": "Centro de Operações de Segurança",
-        "error_credentials": "Acesso negado. Credenciais inválidas."
+        "error_credentials": "Acesso negado. Credenciais inválidas.",
+        "username": "Usuário",
+        "password": "Senha",
+        "submit": "Entrar",
+        "username_placeholder": "Digite seu usuário..."
+    },
+    "auth": {
+        "session_expired": "Sua sessão expirou por inatividade. Por favor, faça login novamente."
     },
     "sidebar": {
         "menu": "Menu",

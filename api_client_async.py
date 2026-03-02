@@ -466,33 +466,12 @@ class AsyncThreatIntelClient:
         url = f"{self.SERVICES_CONFIG['shodan']['base_url']}/shodan/host/{ip}"
         params = {'key': self.api_keys['shodan']}
 
-        # Override generic 403 handling: Shodan free/oss plan returns 403
-        # for IPs not in the open dataset — not an auth error.
-        try:
-            await self.rate_limiters['shodan'].wait_if_needed('shodan')
-            async with self.session.request('GET', url, params=params,
-                                            timeout=self.timeout) as resp:
-                if resp.status == 404:
-                    return APIResponse(service='shodan', data=None, success=False,
-                                       error="Not found in Shodan database",
-                                       error_type="not_found")
-                if resp.status == 403:
-                    return APIResponse(service='shodan', data=None, success=False,
-                                       error="IP not available on current Shodan plan",
-                                       error_type="plan_limitation")
-                if resp.status == 401:
-                    return APIResponse(service='shodan', data=None, success=False,
-                                       error="Invalid Shodan API key",
-                                       error_type="api_error")
-                resp.raise_for_status()
-                data = await resp.json()
-        except Exception as e:
-            return APIResponse(service='shodan', data=None, success=False, error=str(e))
+        response = await self._safe_request('shodan', 'GET', url, params=params)
 
-        if data:
-            self.cache[cache_key] = data
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
 
-        return APIResponse(service='shodan', data=data, success=True)
+        return response
 
     async def query_alienvault(self, target: str, type_hint: str) -> APIResponse:
         """Consulta AlienVault OTX API."""

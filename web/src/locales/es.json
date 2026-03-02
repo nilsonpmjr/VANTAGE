@@ -10,7 +10,14 @@
     },
     "login": {
         "subtitle": "Centro de Operaciones de Seguridad",
-        "error_credentials": "Acceso denegado. Credenciales inválidas."
+        "error_credentials": "Acceso denegado. Credenciales inválidas.",
+        "username": "Usuario",
+        "password": "Contraseña",
+        "submit": "Iniciar Sesión",
+        "username_placeholder": "Ingrese su usuario..."
+    },
+    "auth": {
+        "session_expired": "Su sesión ha expirado por inactividad. Por favor, inicie sesión nuevamente."
     },
     "sidebar": {
         "menu": "Menú",

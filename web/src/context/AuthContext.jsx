@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import API_URL from '../config';
 
 const AuthContext = createContext(null);
@@ -32,6 +33,7 @@ async function fetchCurrentUser() {
 }
 
 export const AuthProvider = ({ children }) => {
+    const { t } = useTranslation();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
@@ -69,7 +71,7 @@ export const AuthProvider = ({ children }) => {
                 inactivityTimeoutRef.current = setTimeout(() => {
                     console.warn('Session expired due to inactivity. Forcing logout (IAM Policy).');
                     logout();
-                    alert('Sua sessão expirou por inatividade. Por favor, faça login novamente.');
+                    alert(t('auth.session_expired', 'Your session has expired due to inactivity. Please log in again.'));
                 }, INACTIVITY_LIMIT_MS);
             }
         };

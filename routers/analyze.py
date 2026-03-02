@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Query, Depends, Request
 from api_client_async import AsyncThreatIntelClient
 from validators import validate_target, ValidationError
 from analyzer import generate_heuristic_report, format_report_to_markdown
+from scoring import compute_risk_score, compute_verdict
 from db import db_manager
 from auth import get_current_user
 from limiters import limiter
@@ -40,51 +41,12 @@ def _sanitize_for_mongo(obj: Any) -> Any:
 _semaphore = asyncio.Semaphore(20)
 
 
-def _compute_risk_score(service_results: Dict[str, Any]) -> tuple:
-    """Compute (risk_score, total_sources) from aggregated API results."""
-    risk_score = 0
-    total_sources = 0
-
-    for svc, data in service_results.items():
-        if not data or "error" in data or "_meta_error" in data:
-            continue
-        total_sources += 1
-        if svc == "virustotal":
-            malicious = (
-                data.get("data", {})
-                .get("attributes", {})
-                .get("last_analysis_stats", {})
-                .get("malicious", 0)
-            )
-            if malicious >= 3:
-                risk_score += 1
-        elif svc == "abuseipdb":
-            if data.get("data", {}).get("abuseConfidenceScore", 0) >= 25:
-                risk_score += 1
-        elif svc == "alienvault":
-            if data.get("pulse_info", {}).get("count", 0) > 0:
-                risk_score += 1
-        elif svc == "urlscan":
-            if data.get("data", {}).get("verdict", {}).get("score", 0) > 0:
-                risk_score += 1
-        elif svc == "greynoise":
-            if data.get("classification") == "malicious":
-                risk_score += 1
-        elif svc == "blacklistmaster":
-            if not isinstance(data, dict) or data.get("_meta_msg") != "No content returned":
-                risk_score += 1
-        elif svc == "abusech":
-            if (
-                data.get("query_status") == "ok"
-                and isinstance(data.get("data"), list)
-                and len(data["data"]) > 0
-            ):
-                risk_score += 1
-        elif svc == "pulsedive":
-            if data.get("risk") in ["high", "critical"]:
-                risk_score += 1
-
-    return risk_score, total_sources
+def _fire_and_log(coro, description: str):
+    """Schedule an async task and log errors instead of silently swallowing them."""
+    task = asyncio.create_task(coro)
+    task.add_done_callback(
+        lambda t: logger.error(f"{description}: {t.exception()}") if t.exception() else None
+    )
 
 
 @router.get("/status")
@@ -148,8 +110,8 @@ async def analyze_target(
     if not service_results:
         logger.warning("No services available or no API keys configured.")
 
-    risk_score, total_sources = _compute_risk_score(service_results)
-    verdict = "HIGH RISK" if risk_score >= 2 else ("SUSPICIOUS" if risk_score == 1 else "SAFE")
+    risk_score, total_sources = compute_risk_score(service_results)
+    verdict = compute_verdict(risk_score)
 
     summary = {
         "risk_sources": risk_score,
@@ -190,9 +152,12 @@ async def analyze_target(
                 "analyst": current_user["username"],
                 "data": _sanitize_for_mongo(results),
             }
-            asyncio.ensure_future(db_manager.db.scans.insert_one(document))
+            _fire_and_log(
+                db_manager.db.scans.insert_one(document),
+                f"Failed to persist scan for {sanitized}",
+            )
             ip = request.client.host if request.client else ""
-            asyncio.ensure_future(
+            _fire_and_log(
                 log_action(
                     db_manager.db,
                     user=current_user["username"],
@@ -200,7 +165,8 @@ async def analyze_target(
                     target=sanitized,
                     ip=ip,
                     result=verdict.lower().replace(" ", "_"),
-                )
+                ),
+                f"Failed to log audit for {sanitized}",
             )
         except Exception as e:
             logger.error(f"Failed to persist scan: {e}")

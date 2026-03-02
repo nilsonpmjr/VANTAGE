@@ -39,7 +39,7 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         secure=_SECURE,
         samesite="strict",
         max_age=settings.refresh_token_expire_days * 86400,
-        path="/auth/refresh",  # restricted path for extra security
+        path="/api/auth/refresh",
     )
 
 
@@ -151,7 +151,7 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
 
     response = JSONResponse(content={"message": "Logged out successfully"})
     response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token", path="/auth/refresh")
+    response.delete_cookie("refresh_token", path="/api/auth/refresh")
     logger.info(f"Logout: {current_user['username']}")
     ip = request.client.host if request.client else ""
     if db is not None:

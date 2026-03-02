@@ -6,49 +6,10 @@ from typing import Dict, Any
 from db import db_manager
 from api_client_async import AsyncThreatIntelClient
 from analyzer import generate_heuristic_report, format_report_to_markdown
+from scoring import compute_risk_score, compute_verdict
 
 logger = logging.getLogger("Worker")
 
-
-def _compute_verdict(clean_results: Dict[str, Any]) -> dict:
-    """
-    Compute a summary verdict from clean API results.
-    Mirrors the risk-scoring logic in main.py so the worker stays consistent.
-    """
-    risk_score = 0
-    total_sources = len(clean_results)
-
-    for svc, data in clean_results.items():
-        if not data or "error" in data or "_meta_error" in data:
-            continue
-        if svc == "virustotal":
-            malicious = data.get("data", {}).get("attributes", {}).get("last_analysis_stats", {}).get("malicious", 0)
-            if malicious >= 3:
-                risk_score += 1
-        elif svc == "abuseipdb":
-            if data.get("data", {}).get("abuseConfidenceScore", 0) >= 25:
-                risk_score += 1
-        elif svc == "alienvault":
-            if data.get("pulse_info", {}).get("count", 0) > 0:
-                risk_score += 1
-        elif svc == "urlscan":
-            if data.get("data", {}).get("verdict", {}).get("score", 0) > 0:
-                risk_score += 1
-        elif svc == "greynoise":
-            if data.get("classification") == "malicious":
-                risk_score += 1
-        elif svc == "blacklistmaster":
-            if not isinstance(data, dict) or data.get("_meta_msg") != "No content returned":
-                risk_score += 1
-        elif svc == "abusech":
-            if data.get("query_status") == "ok" and isinstance(data.get("data"), list) and len(data["data"]) > 0:
-                risk_score += 1
-        elif svc == "pulsedive":
-            if data.get("risk") in ["high", "critical"]:
-                risk_score += 1
-
-    verdict = "HIGH RISK" if risk_score >= 2 else ("SUSPICIOUS" if risk_score == 1 else "SAFE")
-    return {"verdict": verdict, "risk_sources": risk_score, "total_sources": total_sources}
 
 
 async def scan_safe_targets_job():
@@ -146,8 +107,9 @@ async def process_single_target(
         }
 
         # 2. Compute aggregated verdict
-        summary = _compute_verdict(clean_results)
-        verdict = summary["verdict"]
+        risk_score, total_sources = compute_risk_score(clean_results)
+        verdict = compute_verdict(risk_score)
+        summary = {"verdict": verdict, "risk_sources": risk_score, "total_sources": total_sources}
 
         # 3. Generate heuristic reports for all supported languages
         report_pt = generate_heuristic_report(target, target_type, summary, clean_results, lang="pt")
@@ -158,7 +120,7 @@ async def process_single_target(
         update_doc = {
             "results": clean_results,
             "verdict": verdict,
-            "risk_score": summary["risk_sources"],
+            "risk_score": risk_score,
             "analysis_report": format_report_to_markdown(report_pt),
             "analysis_reports": {
                 "pt": format_report_to_markdown(report_pt),

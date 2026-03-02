@@ -48,6 +48,7 @@ export default function Dashboard({ onSearch }) {
 
     useEffect(() => {
         const fetchStats = async () => {
+            setLoading(true);
             try {
                 const response = await fetch(`${API_URL}/api/stats?period=${period}`, {
                     credentials: 'include',
@@ -462,7 +463,7 @@ export default function Dashboard({ onSearch }) {
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {new Date(scan.timestamp).toLocaleString('pt-BR')}
+                                                    {new Date(scan.timestamp).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                                 </td>
                                                 <td
                                                     onClick={() => onSearch && onSearch(scan.target)}

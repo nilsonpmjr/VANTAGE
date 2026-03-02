@@ -97,8 +97,7 @@ async def get_dashboard_stats(
                     {"$ifNull": ["$data.results.pulsedive.tags", []]},
                 ]}
             }},
-            {"$unwind": "$tags"},
-            {"$unwind": "$tags"},
+            {"$unwind": {"path": "$tags", "preserveNullAndEmptyArrays": False}},
             {"$match": {"tags": {"$type": "string"}}},
             {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},

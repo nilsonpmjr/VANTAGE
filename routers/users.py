@@ -84,7 +84,9 @@ async def update_my_preferences(
         update_data["preferred_lang"] = prefs.preferred_lang
     if prefs.avatar_base64 is not None:
         update_data["avatar_base64"] = prefs.avatar_base64
-    if prefs.password is not None and len(prefs.password) >= 6:
+    if prefs.password is not None:
+        if len(prefs.password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
         update_data["password_hash"] = get_password_hash(prefs.password)
 
     if not update_data:

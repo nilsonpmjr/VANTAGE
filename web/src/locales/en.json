@@ -10,7 +10,14 @@
     },
     "login": {
         "subtitle": "Security Operations Center",
-        "error_credentials": "Access denied. Invalid credentials."
+        "error_credentials": "Access denied. Invalid credentials.",
+        "username": "Username",
+        "password": "Password",
+        "submit": "Sign In",
+        "username_placeholder": "Enter your username..."
+    },
+    "auth": {
+        "session_expired": "Your session has expired due to inactivity. Please log in again."
     },
     "sidebar": {
         "menu": "Menu",

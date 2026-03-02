@@ -95,6 +95,10 @@ class InputValidator:
         if len(target) < 3:
             raise ValidationError("Target is too short (minimum 3 characters)")
 
+        # Validação de caracteres permitidos (segurança contra injeção)
+        if not cls.ALLOWED_CHARS_PATTERN.fullmatch(target) and not cls.DOMAIN_PATTERN.fullmatch(target):
+            raise ValidationError("Target contains invalid characters")
+
         # Tenta identificar o tipo
         target_type = cls._identify_type(target)
 

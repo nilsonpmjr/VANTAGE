@@ -54,7 +54,7 @@ export default function Login() {
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ textAlign: 'left' }}>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>Usuário</label>
+                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>{t('login.username')}</label>
                         <input
                             type="text"
                             value={username}
@@ -62,12 +62,12 @@ export default function Login() {
                             required
                             className="search-input"
                             style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
-                            placeholder="Digite seu usuário..."
+                            placeholder={t('login.username_placeholder', 'Enter your username...')}
                         />
                     </div>
 
                     <div style={{ textAlign: 'left', marginBottom: '1rem' }}>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>Senha</label>
+                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>{t('login.password')}</label>
                         <input
                             type="password"
                             value={password}
@@ -84,7 +84,7 @@ export default function Login() {
                         className="btn-primary"
                         disabled={isSubmitting}
                     >
-                        {isSubmitting ? <Loader className="spin" size={20} /> : 'Entrar'}
+                        {isSubmitting ? <Loader className="spin" size={20} /> : t('login.submit')}
                     </button>
                 </form>
 

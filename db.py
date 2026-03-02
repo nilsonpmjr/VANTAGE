@@ -1,8 +1,14 @@
+import re
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _mask_uri(uri: str) -> str:
+    """Redact password from a MongoDB URI for safe logging."""
+    return re.sub(r"://([^:]+):([^@]+)@", r"://\1:****@", uri)
 
 
 class DatabaseManager:
@@ -13,7 +19,7 @@ class DatabaseManager:
     async def connect_db(cls):
         """Create database connection."""
         mongo_url = settings.mongo_uri
-        logger.info(f"Connecting to MongoDB at {mongo_url}")
+        logger.info(f"Connecting to MongoDB at {_mask_uri(mongo_url)}")
         try:
             cls.client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000)
             cls.db = cls.client[settings.mongo_db_name]

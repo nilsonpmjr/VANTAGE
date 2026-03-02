@@ -1,6 +1,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.gzip import GZipMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -81,8 +82,18 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 @app.middleware("http")
 async def content_size_limit(request: Request, call_next):
     content_length = request.headers.get("content-length")
-    if content_length and int(content_length) > 1_000_000:
-        return Response("Request body too large (max 1MB)", status_code=413)
+    if content_length:
+        try:
+            if int(content_length) > 1_000_000:
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": "Request body too large (max 1MB)"},
+                )
+        except ValueError:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid Content-Length header"},
+            )
     return await call_next(request)
 
 # CORS — restrict to known origins; never use "*" in production

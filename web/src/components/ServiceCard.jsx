@@ -1,9 +1,14 @@
 import React from 'react';
-import { ExternalLink, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Info, Clock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export default function ServiceCard({ name, data }) {
     const isError = data.error || data._meta_error;
+    const errorType = data._meta_error_type || (isError ? 'api_error' : null);
+    const isRateLimit = errorType === 'rate_limited';
+    const isPlanLimit = errorType === 'plan_limitation';
+    // Soft errors: don't show as warnings — they're expected limitations
+    const isSoftError = isRateLimit || isPlanLimit;
 
     // Decide Border color based on generic risk heuristics
     let isRisky = false;
@@ -19,18 +24,31 @@ export default function ServiceCard({ name, data }) {
         if (name === 'pulsedive' && ['high', 'critical'].includes(data.risk)) isRisky = true;
     }
 
-    const borderColor = isError ? 'var(--status-suspicious)' : (isRisky ? 'var(--status-risk)' : 'var(--glass-border)');
-    const HeaderIcon = isError ? AlertTriangle : (isRisky ? AlertTriangle : CheckCircle);
-    const iconColor = isError ? 'var(--status-suspicious)' : (isRisky ? 'var(--status-risk)' : 'var(--status-safe)');
+    const borderColor = isError
+        ? (isSoftError ? 'var(--glass-border)' : 'var(--status-suspicious)')
+        : (isRisky ? 'var(--status-risk)' : 'var(--glass-border)');
+    const HeaderIcon = isError
+        ? (isSoftError ? (isRateLimit ? Clock : Info) : AlertTriangle)
+        : (isRisky ? AlertTriangle : CheckCircle);
+    const iconColor = isError
+        ? (isSoftError ? 'var(--text-muted)' : 'var(--status-suspicious)')
+        : (isRisky ? 'var(--status-risk)' : 'var(--status-safe)');
 
     const { t } = useTranslation();
     const loc = key => t(`service_card.${key}`);
 
     const renderContent = () => {
         if (isError) {
+            const message = isRateLimit
+                ? loc('rateLimitError')
+                : isPlanLimit
+                    ? loc('planLimitError')
+                    : (data.error || data._meta_msg || loc('apiError'));
+            const color = isSoftError ? 'var(--text-muted)' : 'var(--status-suspicious)';
+            const bg = isSoftError ? 'rgba(255,255,255,0.02)' : 'rgba(234, 179, 8, 0.05)';
             return (
-                <div style={{ color: 'var(--status-suspicious)', padding: '1rem', background: 'rgba(234, 179, 8, 0.05)', borderRadius: 'var(--radius-sm)' }}>
-                    <p style={{ margin: 0, fontSize: '0.9rem' }}>{data.error || data._meta_msg || loc('apiError')}</p>
+                <div style={{ color, padding: '1rem', background: bg, borderRadius: 'var(--radius-sm)' }}>
+                    <p style={{ margin: 0, fontSize: '0.9rem' }}>{message}</p>
                 </div>
             );
         }

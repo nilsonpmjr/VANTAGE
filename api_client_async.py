@@ -47,11 +47,17 @@ class APIResponse:
     data: Optional[Dict[str, Any]]
     success: bool
     error: Optional[str] = None
+    error_type: Optional[str] = None  # 'rate_limited' | 'plan_limitation' | 'not_found' | 'api_error'
     cached: bool = False
-    
+
     def is_error(self) -> bool:
         """Retorna True se a resposta é um erro."""
         return not self.success or self.error is not None
+
+
+# Module-level cooldown: once a service returns 429, skip it for this period
+# so subsequent requests don't waste time retrying an exhausted quota.
+_service_cooldown: Dict[str, datetime] = {}
 
 
 class RateLimiter:
@@ -267,70 +273,80 @@ class AsyncThreatIntelClient:
         Returns:
             APIResponse com resultado
         """
-        # Verificar rate limit
+        # Check module-level cooldown: skip service immediately if recently rate-limited
+        if service in _service_cooldown and datetime.now() < _service_cooldown[service]:
+            remaining = int((_service_cooldown[service] - datetime.now()).total_seconds())
+            logger.debug(f"{service} in cooldown for {remaining}s more, skipping")
+            return APIResponse(
+                service=service, data=None, success=False,
+                error="Rate limit cooldown active",
+                error_type="rate_limited"
+            )
+
+        # Verificar rate limit interno (por minuto)
         await self.rate_limiters[service].wait_if_needed(service)
-        
-        # Tentar com retry
+
+        # Tentar com retry (apenas para erros transitórios — nunca para 429/403/401)
         last_error = None
-        
+
         for attempt in range(self.max_retries):
             try:
                 async with self.session.request(method, url, **kwargs) as response:
-                    # Tratamento de status codes
                     if response.status == 404:
                         return APIResponse(
-                            service=service,
-                            data=None,
-                            success=False,
-                            error="Not found in database"
+                            service=service, data=None, success=False,
+                            error="Not found in database",
+                            error_type="not_found"
                         )
-                    
+
                     if response.status == 403:
                         return APIResponse(
-                            service=service,
-                            data=None,
-                            success=False,
-                            error="Access denied - Check quota/API key"
+                            service=service, data=None, success=False,
+                            error="Access denied - Check quota/API key",
+                            error_type="plan_limitation"
                         )
-                    
+
                     if response.status == 401:
                         raise AuthenticationError("Invalid API key")
-                    
+
                     if response.status == 429:
-                        wait_time = min(2 ** attempt, 32)  # Exponential backoff
-                        logger.warning(f"Rate limited, waiting {wait_time}s")
-                        await asyncio.sleep(wait_time)
-                        continue
-                    
+                        # Fail fast — no retry. Set 1-hour cooldown so subsequent
+                        # requests skip this service without timeout overhead.
+                        _service_cooldown[service] = datetime.now() + timedelta(hours=1)
+                        logger.warning(f"{service} rate-limited (429). Cooldown set for 1h.")
+                        return APIResponse(
+                            service=service, data=None, success=False,
+                            error="Rate limit exceeded",
+                            error_type="rate_limited"
+                        )
+
                     response.raise_for_status()
                     data = await response.json()
-                    
-                    return APIResponse(
-                        service=service,
-                        data=data,
-                        success=True
-                    )
-                    
+
+                    # Clear any previous cooldown on success
+                    _service_cooldown.pop(service, None)
+
+                    return APIResponse(service=service, data=data, success=True)
+
             except asyncio.TimeoutError:
                 last_error = "Request timeout"
                 logger.warning(f"Timeout on attempt {attempt + 1}/{self.max_retries}")
-                await asyncio.sleep(2 ** attempt)  # Exponential backoff
-                
+                await asyncio.sleep(2 ** attempt)
+
             except aiohttp.ClientError as e:
                 last_error = str(e)
                 logger.error(f"Client error on attempt {attempt + 1}: {e}")
                 await asyncio.sleep(2 ** attempt)
-                
+
             except Exception as e:
                 last_error = str(e)
                 logger.error(f"Unexpected error: {e}")
                 break
-        
+
         return APIResponse(
-            service=service,
-            data=None,
-            success=False,
-            error=last_error or "Unknown error"
+            service=service, data=None, success=False,
+            error=last_error or "Unknown error",
+            error_type="api_error"
         )
     
     async def query_virustotal(self, target: str, type_hint: str) -> APIResponse:
@@ -458,13 +474,16 @@ class AsyncThreatIntelClient:
                                             timeout=self.timeout) as resp:
                 if resp.status == 404:
                     return APIResponse(service='shodan', data=None, success=False,
-                                       error="Not found in Shodan database")
+                                       error="Not found in Shodan database",
+                                       error_type="not_found")
                 if resp.status == 403:
                     return APIResponse(service='shodan', data=None, success=False,
-                                       error="IP not available on current Shodan plan")
+                                       error="IP not available on current Shodan plan",
+                                       error_type="plan_limitation")
                 if resp.status == 401:
                     return APIResponse(service='shodan', data=None, success=False,
-                                       error="Invalid Shodan API key")
+                                       error="Invalid Shodan API key",
+                                       error_type="api_error")
                 resp.raise_for_status()
                 data = await resp.json()
         except Exception as e:

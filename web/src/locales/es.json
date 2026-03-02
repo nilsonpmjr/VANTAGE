@@ -115,6 +115,8 @@
     },
     "service_card": {
         "apiError": "Error de API",
+        "rateLimitError": "Límite de solicitudes alcanzado",
+        "planLimitError": "No disponible en el plan actual",
         "malVendors": "Motores maliciosos:",
         "totalVendors": "Total de motores:",
         "filename": "Nombre de archivo:",

@@ -115,6 +115,8 @@
     },
     "service_card": {
         "apiError": "API Error",
+        "rateLimitError": "Request quota exceeded",
+        "planLimitError": "Not available on current plan",
         "malVendors": "Malicious vendors:",
         "totalVendors": "Total vendors:",
         "filename": "Filename:",

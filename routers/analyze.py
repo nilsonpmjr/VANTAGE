@@ -138,7 +138,10 @@ async def analyze_target(
         if resp.success and resp.data is not None:
             service_results[svc] = resp.data
         else:
-            service_results[svc] = {"_meta_error": resp.error or "service unavailable"}
+            service_results[svc] = {
+                "_meta_error": resp.error or "service unavailable",
+                "_meta_error_type": resp.error_type or "api_error",
+            }
 
     if not service_results:
         logger.warning("No services available or no API keys configured.")

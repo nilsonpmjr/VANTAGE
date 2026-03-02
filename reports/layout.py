@@ -201,4 +201,3 @@ class ReportGenerator:
                 lines.append(f"  [dim]• {svc}: {reason}[/]")
             self.console.print()
             self.console.print(Panel("\n".join(lines), title="⚠ Serviços Indisponíveis", border_style="dim"))
-

@@ -12,6 +12,7 @@ import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
 import { useTranslation } from 'react-i18next';
+import API_URL from './config';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -51,11 +52,8 @@ export default function App() {
     setError(null);
     setData(null);
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch(`http://localhost:8000/api/analyze?target=${encodeURIComponent(query)}&lang=${lang}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const response = await fetch(`${API_URL}/api/analyze?target=${encodeURIComponent(query)}&lang=${lang}`, {
+        credentials: 'include',
       });
 
       const result = await response.json();

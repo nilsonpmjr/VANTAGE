@@ -8,6 +8,10 @@
         "download": "Baixar Relatório (PDF)",
         "loading": "Carregando Segurança..."
     },
+    "login": {
+        "subtitle": "Centro de Operações de Segurança",
+        "error_credentials": "Acesso negado. Credenciais inválidas."
+    },
     "sidebar": {
         "menu": "Menu",
         "home": "Home",
@@ -80,7 +84,8 @@
         "deny_self": "Ação Negada: Você não pode suspender a si mesmo enquanto estiver logado.",
         "confirm_suspend": "Tem certeza que deseja Suspender o acesso do usuário '{{user}}'?",
         "confirm_activate": "Tem certeza que deseja Ativar o acesso do usuário '{{user}}'?",
-        "err_action": "Erro na ação contra este usuário"
+        "err_action": "Erro na ação contra este usuário",
+        "no_users_found": "Nenhum usuário encontrado."
     },
     "profile": {
         "title": "Meu Perfil",
@@ -94,7 +99,7 @@
         "new_pass": "Nova Senha",
         "confirm_pass": "Confirmar Nova Senha",
         "save": "Salvar Preferências",
-        "success": "Preferências salvas com sucesso! Recarregando...",
+        "success": "Preferências salvas com sucesso!",
         "err_img_invalid": "Por favor, selecione um arquivo de imagem válido.",
         "err_img_size": "A imagem deve ter no máximo 1MB.",
         "err_pass_match": "As senhas não coincidem.",

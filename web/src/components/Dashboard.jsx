@@ -6,6 +6,7 @@ import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
+import API_URL from '../config';
 import '../index.css';
 
 export default function Dashboard({ onSearch }) {
@@ -48,9 +49,8 @@ export default function Dashboard({ onSearch }) {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`http://localhost:8000/api/stats?period=${period}`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
+                const response = await fetch(`${API_URL}/api/stats?period=${period}`, {
+                    credentials: 'include',
                 });
 
                 if (!response.ok) {

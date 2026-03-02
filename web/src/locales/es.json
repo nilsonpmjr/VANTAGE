@@ -8,6 +8,10 @@
         "download": "Descargar Informe (PDF)",
         "loading": "Cargando Seguridad..."
     },
+    "login": {
+        "subtitle": "Centro de Operaciones de Seguridad",
+        "error_credentials": "Acceso denegado. Credenciales inválidas."
+    },
     "sidebar": {
         "menu": "Menú",
         "home": "Inicio",
@@ -50,7 +54,7 @@
         "seen_at": "Visto en",
         "threat_trends": "Tendencias de Amenazas (7 Días)",
         "top_typologies": "Principales Tipologías de Amenazas",
-        "crit_incident": "Funte de Incidentes Críticos",
+        "crit_incident": "Fuente de Incidentes Críticos",
         "no_crits": "Sin incidentes críticos"
     },
     "settings": {
@@ -80,7 +84,8 @@
         "deny_self": "Acción Denegada: No puede suspenderse a sí mismo mientras está conectado.",
         "confirm_suspend": "¿Está seguro de que desea Suspender el acceso para el usuario '{{user}}'?",
         "confirm_activate": "¿Está seguro de que desea Activar el acceso para el usuario '{{user}}'?",
-        "err_action": "Error al realizar acción en este usuario"
+        "err_action": "Error al realizar acción en este usuario",
+        "no_users_found": "No se encontraron usuarios."
     },
     "profile": {
         "title": "Mi Perfil",
@@ -94,7 +99,7 @@
         "new_pass": "Nueva Contraseña",
         "confirm_pass": "Confirmar Nueva Contraseña",
         "save": "Guardar Preferencias",
-        "success": "¡Preferencias guardadas exitosamente! Recargando...",
+        "success": "¡Preferencias guardadas exitosamente!",
         "err_img_invalid": "Por favor, seleccione un archivo de imagen válido.",
         "err_img_size": "La imagen debe tener un máximo de 1MB.",
         "err_pass_match": "Las contraseñas no coinciden.",

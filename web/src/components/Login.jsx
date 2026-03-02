@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { ShieldAlert, Loader } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import '../index.css';
 
 export default function Login() {
@@ -10,6 +11,7 @@ export default function Login() {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const { login } = useAuth();
+    const { t } = useTranslation();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -24,7 +26,7 @@ export default function Login() {
             // Wait, useAuth sets user immediately, which unmounts <Login/>.
             // It's better to lift this overlay to App.jsx. I will undo this and do it in App.jsx.
         } catch {
-            setError('Acesso negado. Credenciais inválidas.');
+            setError(t('login.error_credentials'));
             setIsSubmitting(false); // Only stop loading on error, on success we transition
         }
     };
@@ -42,7 +44,7 @@ export default function Login() {
                     />
                 </div>
 
-                <h2 style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>Centro de Operações de Segurança</h2>
+                <h2 style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>{t('login.subtitle')}</h2>
 
                 {error && (
                     <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>

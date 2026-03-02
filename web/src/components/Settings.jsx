@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, Trash2, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import API_URL from '../config';
 import '../index.css';
 
 export const RoleBadge = ({ role }) => {
@@ -42,9 +43,8 @@ export default function Settings() {
     const fetchUsers = async () => {
         try {
             setLoading(true);
-            const token = localStorage.getItem('token');
-            const response = await fetch('http://localhost:8000/api/users', {
-                headers: { 'Authorization': `Bearer ${token}` }
+            const response = await fetch(`${API_URL}/api/users`, {
+                credentials: 'include',
             });
             if (!response.ok) throw new Error(t('settings.err_load'));
             const data = await response.json();
@@ -64,8 +64,7 @@ export default function Settings() {
         e.preventDefault();
         setIsCreating(true);
         try {
-            const token = localStorage.getItem('token');
-            const url = editingUser ? `http://localhost:8000/api/users/${newUsername}` : 'http://localhost:8000/api/users';
+            const url = editingUser ? `${API_URL}/api/users/${newUsername}` : `${API_URL}/api/users`;
             const method = editingUser ? 'PUT' : 'POST';
 
             const payload = {
@@ -77,15 +76,13 @@ export default function Settings() {
                 payload.username = newUsername;
                 payload.password = newPassword;
             } else if (newPassword) {
-                payload.password = newPassword; // Only send password if editing and it's filled
+                payload.password = newPassword;
             }
 
             const response = await fetch(url, {
                 method: method,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
@@ -129,21 +126,18 @@ export default function Settings() {
         const newStatus = userToToggle.is_active !== false ? false : true;
 
         let confirmMsg = newStatus
-            ? t('settings.confirm_activate').replace('{{user}}', userToToggle.username)
-            : t('settings.confirm_suspend').replace('{{user}}', userToToggle.username);
+            ? t('settings.confirm_activate', { user: userToToggle.username })
+            : t('settings.confirm_suspend', { user: userToToggle.username });
 
         if (!window.confirm(confirmMsg)) {
             return;
         }
 
         try {
-            const token = localStorage.getItem('token');
-            const response = await fetch(`http://localhost:8000/api/users/${userToToggle.username}`, {
+            const response = await fetch(`${API_URL}/api/users/${userToToggle.username}`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ is_active: newStatus })
             });
 
@@ -258,7 +252,7 @@ export default function Settings() {
                             </thead>
                             <tbody>
                                 {filteredUsers.length === 0 && !loading && (
-                                    <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Nenhum usuário encontrado.</td></tr>
+                                    <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('settings.no_users_found')}</td></tr>
                                 )}
                                 {filteredUsers.map((u, idx) => (
                                     <tr key={u.username} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>

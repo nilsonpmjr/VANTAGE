@@ -8,6 +8,10 @@
         "download": "Download Report (PDF)",
         "loading": "Loading Security..."
     },
+    "login": {
+        "subtitle": "Security Operations Center",
+        "error_credentials": "Access denied. Invalid credentials."
+    },
     "sidebar": {
         "menu": "Menu",
         "home": "Home",
@@ -80,7 +84,8 @@
         "deny_self": "Action Denied: You cannot suspend yourself while logged in.",
         "confirm_suspend": "Are you sure you want to Suspend access for user '{{user}}'?",
         "confirm_activate": "Are you sure you want to Activate access for user '{{user}}'?",
-        "err_action": "Error performing action on this user"
+        "err_action": "Error performing action on this user",
+        "no_users_found": "No users found."
     },
     "profile": {
         "title": "My Profile",
@@ -94,7 +99,7 @@
         "new_pass": "New Password",
         "confirm_pass": "Confirm New Password",
         "save": "Save Preferences",
-        "success": "Preferences saved successfully! Reloading...",
+        "success": "Preferences saved successfully!",
         "err_img_invalid": "Please select a valid image file.",
         "err_img_size": "Image must be at most 1MB.",
         "err_pass_match": "Passwords do not match.",

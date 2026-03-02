@@ -2,12 +2,13 @@ import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import API_URL from '../config';
 import '../index.css';
 
 export default function Profile() {
     const { user, updateUserContext } = useAuth();
 
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
 
@@ -62,7 +63,6 @@ export default function Profile() {
 
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
             const payload = {};
 
             if (password) payload.password = password;
@@ -75,12 +75,10 @@ export default function Profile() {
                 return;
             }
 
-            const response = await fetch('http://localhost:8000/api/users/me', {
+            const response = await fetch(`${API_URL}/api/users/me`, {
                 method: 'PUT',
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
-                },
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             });
 
@@ -89,24 +87,24 @@ export default function Profile() {
                 throw new Error(errData.detail || t('profile.err_update'));
             }
 
-            // Update local user context
+            // Update user context and language immediately — no page reload needed
             const updatedUser = { ...user, preferred_lang: language, avatar_base64: avatarBase64 };
-            localStorage.setItem('user', JSON.stringify(updatedUser)); // Hacky but works for instant sync
             if (updateUserContext) {
                 updateUserContext(updatedUser);
             }
 
-            setMessage({ type: 'success', text: t('profile.success') });
+            // Translate the success message in the target language BEFORE switching
+            const successMsg = i18n.t('profile.success', { lng: language });
+
+            // Switch UI language immediately via react-i18next
+            i18n.changeLanguage(language);
+
+            setMessage({ type: 'success', text: successMsg });
             setPassword('');
             setConfirmPassword('');
 
-            // Dispatch a custom event so Sidebar can catch the avatar update immediately
+            // Notify Sidebar to refresh avatar
             window.dispatchEvent(new Event('userProfileUpdated'));
-
-            // Force a hard reload to ensure the new language state populates the entire App tree from the Context
-            setTimeout(() => {
-                window.location.reload();
-            }, 800);
 
         } catch (err) {
             setMessage({ type: 'error', text: err.message });

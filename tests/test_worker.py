@@ -3,7 +3,7 @@ Tests for worker.py — ensuring the rescan job targets the correct DB collectio
 """
 
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 
 
@@ -40,8 +40,13 @@ async def test_process_single_target_uses_scans_collection():
     mock_client.__aenter__ = AsyncMock(return_value=mock_client)
     mock_client.__aexit__ = AsyncMock(return_value=False)
 
-    with patch("worker.AsyncThreatIntelClient", return_value=mock_client):
-        await process_single_target(mock_scan, mock_db)
+    await process_single_target(
+        mock_client,
+        mock_db,
+        mock_scan["target"],
+        mock_scan["type"],
+        mock_scan["_id"],
+    )
 
     # Verify update_one was called on db.scans (not db.analyses)
     mock_db.scans.update_one.assert_called_once()

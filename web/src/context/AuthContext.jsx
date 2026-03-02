@@ -45,6 +45,18 @@ export const AuthProvider = ({ children }) => {
             .finally(() => setLoading(false));
     }, []);
 
+    const logout = async () => {
+        try {
+            await fetch(`${API_URL}/api/auth/logout`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch {
+            // Best-effort: clear local state regardless
+        }
+        setUser(null);
+    };
+
     // IAM Auto-Logout on Inactivity (15 minutes)
     const inactivityTimeoutRef = useRef(null);
 
@@ -101,18 +113,6 @@ export const AuthProvider = ({ children }) => {
         }, 1400);
 
         return true;
-    };
-
-    const logout = async () => {
-        try {
-            await fetch(`${API_URL}/api/auth/logout`, {
-                method: 'POST',
-                credentials: 'include',
-            });
-        } catch {
-            // Best-effort: clear local state regardless
-        }
-        setUser(null);
     };
 
     const updateUserContext = (newUser) => setUser(newUser);

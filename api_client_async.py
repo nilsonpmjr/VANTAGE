@@ -13,7 +13,7 @@ Features:
 import os
 import asyncio
 import logging
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from collections import defaultdict
@@ -63,10 +63,10 @@ _service_cooldown: Dict[str, datetime] = {}
 class RateLimiter:
     """
     Implementa rate limiting por serviço.
-    
+
     Usa algoritmo de sliding window para limitar requisições.
     """
-    
+
     def __init__(self, calls: int = 4, period: int = 60):
         """
         Args:
@@ -76,67 +76,67 @@ class RateLimiter:
         self.calls = calls
         self.period = period
         self.requests = defaultdict(list)
-    
+
     async def acquire(self, key: str) -> bool:
         """
         Tenta adquirir permissão para fazer uma requisição.
-        
+
         Args:
             key: Chave identificadora (normalmente o serviço)
-            
+
         Returns:
             True se permitido, False caso contrário
         """
         now = datetime.now()
         cutoff = now - timedelta(seconds=self.period)
-        
+
         # Remove requisições antigas
         self.requests[key] = [
             req_time for req_time in self.requests[key]
             if req_time > cutoff
         ]
-        
+
         if len(self.requests[key]) < self.calls:
             self.requests[key].append(now)
             return True
-        
+
         return False
-    
+
     async def wait_if_needed(self, key: str, max_wait: int = 60) -> None:
         """
         Aguarda se necessário até que rate limit permita.
-        
+
         Args:
             key: Chave identificadora
             max_wait: Tempo máximo de espera em segundos
-            
+
         Raises:
             RateLimitError: Se tempo de espera exceder max_wait
         """
         start_time = datetime.now()
-        
+
         while not await self.acquire(key):
             elapsed = (datetime.now() - start_time).total_seconds()
-            
+
             if elapsed > max_wait:
                 raise RateLimitError(f"Rate limit exceeded for {key}")
-            
+
             await asyncio.sleep(1)
 
 
 class AsyncThreatIntelClient:
     """
     Cliente assíncrono para consultas de Threat Intelligence.
-    
+
     Suporta múltiplas APIs com cache, rate limiting e retry logic.
-    
+
     Example:
         >>> async with AsyncThreatIntelClient() as client:
         ...     results = await client.query_all("8.8.8.8", "ip")
         ...     for service, response in results.items():
         ...         print(f"{service}: {response.success}")
     """
-    
+
     # Configuração de serviços
     SERVICES_CONFIG = {
         'virustotal': {
@@ -185,7 +185,7 @@ class AsyncThreatIntelClient:
             'rate_limit': (10, 60),
         },
     }
-    
+
     def __init__(
         self,
         timeout: int = 10,
@@ -203,16 +203,16 @@ class AsyncThreatIntelClient:
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.max_retries = max_retries
         self.session: Optional[aiohttp.ClientSession] = None
-        
+
         # Cache
         self.cache = TTLCache(maxsize=cache_size, ttl=cache_ttl)
-        
+
         # Rate limiters por serviço
         self.rate_limiters = {
             service: RateLimiter(*config['rate_limit'])
             for service, config in self.SERVICES_CONFIG.items()
         }
-        
+
         # Carregar chaves API
         self.api_keys = self._load_api_keys()
         # Check key existence (not value) so empty-string keys for public APIs still enable the service
@@ -220,9 +220,9 @@ class AsyncThreatIntelClient:
             service: (service in self.api_keys)
             for service in self.SERVICES_CONFIG.keys()
         }
-        
+
         logger.info(f"Initialized client with {sum(self.services.values())} active services")
-    
+
     def _load_api_keys(self) -> Dict[str, str]:
         """Carrega chaves API das variáveis de ambiente."""
         keys = {}
@@ -239,21 +239,21 @@ class AsyncThreatIntelClient:
                 logger.warning(f"{service} disabled - missing {config['env_var']}")
 
         return keys
-    
+
     async def __aenter__(self):
         """Context manager entry."""
         self.session = aiohttp.ClientSession(timeout=self.timeout)
         return self
-    
+
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit."""
         if self.session:
             await self.session.close()
-    
+
     def _get_cache_key(self, service: str, target: str, endpoint: str = "") -> str:
         """Gera chave de cache."""
         return f"{service}:{target}:{endpoint}"
-    
+
     async def _safe_request(
         self,
         service: str,
@@ -263,13 +263,13 @@ class AsyncThreatIntelClient:
     ) -> APIResponse:
         """
         Faz requisição com retry, rate limiting e cache.
-        
+
         Args:
             service: Nome do serviço
             method: Método HTTP
             url: URL da requisição
             **kwargs: Argumentos adicionais para aiohttp
-            
+
         Returns:
             APIResponse com resultado
         """
@@ -348,15 +348,15 @@ class AsyncThreatIntelClient:
             error=last_error or "Unknown error",
             error_type="api_error"
         )
-    
+
     async def query_virustotal(self, target: str, type_hint: str) -> APIResponse:
         """
         Consulta VirusTotal API.
-        
+
         Args:
             target: IP, Domain, ou Hash
             type_hint: 'ip', 'domain', ou 'file'
-            
+
         Returns:
             APIResponse com resultado
         """
@@ -367,7 +367,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         # Verificar cache
         cache_key = self._get_cache_key('virustotal', target, type_hint)
         if cache_key in self.cache:
@@ -378,13 +378,13 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         endpoint_map = {
             'ip': 'ip_addresses',
             'domain': 'domains',
             'file': 'files'
         }
-        
+
         endpoint = endpoint_map.get(type_hint)
         if not endpoint:
             return APIResponse(
@@ -393,18 +393,18 @@ class AsyncThreatIntelClient:
                 success=False,
                 error=f"Invalid type_hint: {type_hint}"
             )
-        
+
         url = f"{self.SERVICES_CONFIG['virustotal']['base_url']}/{endpoint}/{target}"
         headers = {"x-apikey": self.api_keys['virustotal']}
-        
+
         response = await self._safe_request('virustotal', 'GET', url, headers=headers)
-        
+
         # Adicionar ao cache se sucesso
         if response.success and response.data:
             self.cache[cache_key] = response.data
-        
+
         return response
-    
+
     async def query_abuseipdb(self, ip: str) -> APIResponse:
         """Consulta AbuseIPDB API."""
         if not self.services.get('abuseipdb'):
@@ -414,7 +414,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         cache_key = self._get_cache_key('abuseipdb', ip)
         if cache_key in self.cache:
             return APIResponse(
@@ -423,7 +423,7 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         url = f"{self.SERVICES_CONFIG['abuseipdb']['base_url']}/check"
         headers = {
             'Key': self.api_keys['abuseipdb'],
@@ -433,17 +433,17 @@ class AsyncThreatIntelClient:
             'ipAddress': ip,
             'maxAgeInDays': '90'
         }
-        
+
         response = await self._safe_request(
             'abuseipdb', 'GET', url,
             headers=headers, params=params
         )
-        
+
         if response.success and response.data:
             self.cache[cache_key] = response.data
-        
+
         return response
-    
+
     async def query_shodan(self, ip: str) -> APIResponse:
         """Consulta Shodan API."""
         if not self.services.get('shodan'):
@@ -493,7 +493,7 @@ class AsyncThreatIntelClient:
             self.cache[cache_key] = data
 
         return APIResponse(service='shodan', data=data, success=True)
-    
+
     async def query_alienvault(self, target: str, type_hint: str) -> APIResponse:
         """Consulta AlienVault OTX API."""
         if not self.services.get('alienvault'):
@@ -503,10 +503,10 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         # Map type hints
         otx_type = 'IPv4' if type_hint == 'ip' else type_hint
-        
+
         if otx_type not in ['IPv4', 'domain', 'file']:
             return APIResponse(
                 service='alienvault',
@@ -514,7 +514,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error=f"Invalid type_hint: {type_hint}"
             )
-        
+
         cache_key = self._get_cache_key('alienvault', target, otx_type)
         if cache_key in self.cache:
             return APIResponse(
@@ -523,17 +523,17 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         url = f"{self.SERVICES_CONFIG['alienvault']['base_url']}/indicators/{otx_type}/{target}/general"
         headers = {"X-OTX-API-KEY": self.api_keys['alienvault']}
-        
+
         response = await self._safe_request('alienvault', 'GET', url, headers=headers)
-        
+
         if response.success and response.data:
             self.cache[cache_key] = response.data
-        
+
         return response
-    
+
     async def query_greynoise(self, ip: str) -> APIResponse:
         """Consulta GreyNoise Community API."""
         if not self.services.get('greynoise'):
@@ -543,7 +543,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         cache_key = self._get_cache_key('greynoise', ip)
         if cache_key in self.cache:
             return APIResponse(
@@ -552,17 +552,17 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         url = f"{self.SERVICES_CONFIG['greynoise']['base_url']}/community/{ip}"
         headers = {"key": self.api_keys['greynoise']}
-        
+
         response = await self._safe_request('greynoise', 'GET', url, headers=headers)
-        
+
         if response.success and response.data:
             self.cache[cache_key] = response.data
-        
+
         return response
-    
+
     async def query_urlscan(self, domain: str) -> APIResponse:
         """Consulta URLScan.io API."""
         if not self.services.get('urlscan'):
@@ -572,7 +572,7 @@ class AsyncThreatIntelClient:
                 success=False,
                 error="Service not available"
             )
-        
+
         cache_key = self._get_cache_key('urlscan', domain)
         if cache_key in self.cache:
             return APIResponse(
@@ -581,21 +581,21 @@ class AsyncThreatIntelClient:
                 success=True,
                 cached=True
             )
-        
+
         url = f"{self.SERVICES_CONFIG['urlscan']['base_url']}/search/"
         headers = {"API-Key": self.api_keys['urlscan']}
         params = {"q": f"domain:{domain}"}
-        
+
         response = await self._safe_request(
             'urlscan', 'GET', url,
             headers=headers, params=params
         )
-        
+
         if response.success and response.data:
             self.cache[cache_key] = response.data
-        
+
         return response
-    
+
     async def query_blacklistmaster(self, ip: str) -> APIResponse:
         """Consulta BlacklistMaster API."""
         if not self.services.get('blacklistmaster'):
@@ -660,16 +660,16 @@ class AsyncThreatIntelClient:
     async def query_all(self, target: str, target_type: str) -> Dict[str, APIResponse]:
         """
         Consulta todas as APIs disponíveis em paralelo.
-        
+
         Args:
             target: Alvo da consulta
             target_type: Tipo do alvo ('ip', 'domain', 'hash')
-            
+
         Returns:
             Dicionário com respostas de cada serviço
         """
         tasks = []
-        
+
         # VirusTotal e AlienVault suportam todos os tipos
         if self.services.get('virustotal'):
             vt_type = 'file' if target_type == 'hash' else target_type
@@ -689,7 +689,7 @@ class AsyncThreatIntelClient:
 
             if self.services.get('greynoise'):
                 tasks.append(('greynoise', self.query_greynoise(target)))
-        
+
         # URLScan para domínios
         if target_type == 'domain' and self.services.get('urlscan'):
             tasks.append(('urlscan', self.query_urlscan(target)))
@@ -709,5 +709,5 @@ class AsyncThreatIntelClient:
         if tasks:
             responses = await asyncio.gather(*[task for _, task in tasks])
             results = {service: response for (service, _), response in zip(tasks, responses)}
-        
+
         return results

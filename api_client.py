@@ -3,11 +3,12 @@ import requests
 from dotenv import load_dotenv
 from typing import Dict, Any, Optional
 
-load_dotenv()
-
 from logging_config import get_logger
 
+load_dotenv()
+
 logger = get_logger(__name__)
+
 
 class ThreatIntelClient:
     """
@@ -57,19 +58,19 @@ class ThreatIntelClient:
     def _safe_request(self, method: str, url: str, **kwargs) -> Optional[Dict[str, Any]]:
         try:
             response = requests.request(method, url, timeout=10, **kwargs)
-            
+
             if response.status_code == 404:
                 return {"_meta_error": "not_found", "_meta_msg": "Not found in database"}
             if response.status_code == 403:
                 return {"_meta_error": "forbidden", "_meta_msg": "Access Denied (Check Quota/Key)"}
             if response.status_code == 401:
                 return {"_meta_error": "unauthorized", "_meta_msg": "Invalid API Key"}
-                
+
             response.raise_for_status()
             if not response.text.strip():
                 return {"_meta_msg": "No content returned"}
             return response.json()
-            
+
         except requests.exceptions.Timeout:
             logger.error(f"Timeout querying {url}")
             return {"_meta_error": "timeout", "_meta_msg": "Request Timed Out"}
@@ -77,8 +78,8 @@ class ThreatIntelClient:
             logger.error(f"Error querying {url}: {e}")
             return {"_meta_error": "generic", "_meta_msg": str(e)}
         except Exception as e:
-             logger.error(f"Unexpected error {url}: {e}")
-             return {"_meta_error": "generic", "_meta_msg": str(e)}
+            logger.error(f"Unexpected error {url}: {e}")
+            return {"_meta_error": "generic", "_meta_msg": str(e)}
 
     def query_virustotal(self, target: str, type_hint: str) -> Optional[Dict[str, Any]]:
         """
@@ -94,7 +95,7 @@ class ThreatIntelClient:
             'domain': 'domains',
             'file': 'files'
         }
-        
+
         endpoint = endpoint_map.get(type_hint)
         if not endpoint:
             logger.error(f"Invalid type_hint '{type_hint}' for VirusTotal")
@@ -102,7 +103,7 @@ class ThreatIntelClient:
 
         url = f"https://www.virustotal.com/api/v3/{endpoint}/{target}"
         headers = {"x-apikey": self.api_keys['virustotal']}
-        
+
         return self._safe_request("GET", url, headers=headers)
 
     def query_abuseipdb(self, ip: str) -> Optional[Dict[str, Any]]:
@@ -119,7 +120,7 @@ class ThreatIntelClient:
             'ipAddress': ip,
             'maxAgeInDays': '90'
         }
-        
+
         return self._safe_request("GET", url, headers=headers, params=params)
 
     def query_shodan(self, ip: str) -> Optional[Dict[str, Any]]:
@@ -129,7 +130,7 @@ class ThreatIntelClient:
 
         url = f"https://api.shodan.io/shodan/host/{ip}"
         params = {'key': self.api_keys['shodan']}
-        
+
         return self._safe_request("GET", url, params=params)
 
     def query_alienvault(self, target: str, type_hint: str) -> Optional[Dict[str, Any]]:
@@ -142,16 +143,17 @@ class ThreatIntelClient:
 
         # Map generic hints to OTX specific types if necessary
         otx_type = type_hint
-        if type_hint == 'ip': otx_type = 'IPv4'
-        
+        if type_hint == 'ip':
+            otx_type = 'IPv4'
+
         valid_types = ['IPv4', 'domain', 'file']
         if otx_type not in valid_types:
-             # Fallback or strict check
-             return None
+            # Fallback or strict check
+            return None
 
         url = f"https://otx.alienvault.com/api/v1/indicators/{otx_type}/{target}/general"
         headers = {"X-OTX-API-KEY": self.api_keys['alienvault']}
-        
+
         return self._safe_request("GET", url, headers=headers)
 
     def query_greynoise(self, ip: str) -> Optional[Dict[str, Any]]:
@@ -161,7 +163,7 @@ class ThreatIntelClient:
 
         url = f"https://api.greynoise.io/v3/community/{ip}"
         headers = {"key": self.api_keys['greynoise']}
-        
+
         return self._safe_request("GET", url, headers=headers)
 
     def query_urlscan(self, domain: str) -> Optional[Dict[str, Any]]:
@@ -172,7 +174,7 @@ class ThreatIntelClient:
         url = "https://urlscan.io/api/v1/search/"
         headers = {"API-Key": self.api_keys['urlscan']}
         params = {"q": f"domain:{domain}"}
-        
+
         return self._safe_request("GET", url, headers=headers, params=params)
 
     def query_blacklistmaster(self, ip: str) -> Optional[Dict[str, Any]]:
@@ -182,7 +184,7 @@ class ThreatIntelClient:
 
         url = f"https://www.blacklistmaster.com/restapi/v1/ipbl/{ip}"
         params = {"apikey": self.api_keys['blacklistmaster']}
-        
+
         return self._safe_request("GET", url, params=params)
 
     def query_abusech(self, target: str) -> Optional[Dict[str, Any]]:
@@ -193,7 +195,7 @@ class ThreatIntelClient:
         url = "https://threatfox-api.abuse.ch/api/v1/"
         headers = {"Auth-Key": self.api_keys['abusech']}
         payload = {"query": "search_ioc", "search_term": target}
-        
+
         return self._safe_request("POST", url, headers=headers, json=payload)
 
     def query_pulsedive(self, target: str) -> Optional[Dict[str, Any]]:
@@ -206,5 +208,5 @@ class ThreatIntelClient:
             "indicator": target,
             "key": self.api_keys['pulsedive']
         }
-        
+
         return self._safe_request("GET", url, params=params)

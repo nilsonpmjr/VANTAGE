@@ -5,7 +5,6 @@ from typing import Dict, Any
 
 from db import db_manager
 from api_client_async import AsyncThreatIntelClient
-from validators import validate_target
 from analyzer import generate_heuristic_report, format_report_to_markdown
 
 logger = logging.getLogger("Worker")

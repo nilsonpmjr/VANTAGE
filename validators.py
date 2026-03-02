@@ -7,7 +7,6 @@ de ameaça (IoCs - Indicators of Compromise).
 
 import re
 import ipaddress
-from typing import Tuple
 from dataclasses import dataclass
 
 
@@ -101,8 +100,8 @@ class InputValidator:
 
         if target_type == 'unknown':
             raise ValidationError(
-                f"Could not identify target type. "
-                f"Supported types: IPv4/IPv6, Domain, Hash (MD5/SHA1/SHA256)"
+                "Could not identify target type. "
+                "Supported types: IPv4/IPv6, Domain, Hash (MD5/SHA1/SHA256)"
             )
 
         # Sanitização baseada no tipo

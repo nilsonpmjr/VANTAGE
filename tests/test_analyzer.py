@@ -2,7 +2,6 @@
 Unit tests for analyzer.py — heuristic report generation.
 """
 
-import pytest
 from analyzer import generate_heuristic_report, format_report_to_markdown
 
 
@@ -58,7 +57,6 @@ def test_generate_report_en():
 
 def test_generate_report_es():
     report = generate_heuristic_report("1.2.3.4", "ip", SUMMARY_HIGH_RISK, MOCK_RESULTS, lang="es")
-    full_text = "\n".join(report)
     assert isinstance(report, list)
 
 

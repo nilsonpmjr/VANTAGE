@@ -7,16 +7,17 @@ from db import db_manager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DB_Seeder")
 
+
 async def seed_admin_user():
     await db_manager.connect_db()
     db = db_manager.db
-    
+
     if db is None:
         logger.error("Failed to connect to database.")
         return
-        
+
     admin_exists = await db.users.find_one({"username": "admin"})
-    
+
     if not admin_exists:
         logger.info("Initializing default Admin user...")
         admin_doc = {
@@ -29,7 +30,7 @@ async def seed_admin_user():
         }
         await db.users.insert_one(admin_doc)
         logger.info("Default Admin user created successfully. [admin / iteam123]")
-        
+
         # Test: create a standard tech user
         tech_doc = {
             "username": "tech",
@@ -43,7 +44,7 @@ async def seed_admin_user():
         logger.info("Default Tech user created successfully. [tech / tech123]")
     else:
         logger.info("Admin user already exists. Skipping seed.")
-        
+
     await db_manager.close_db()
 
 if __name__ == "__main__":

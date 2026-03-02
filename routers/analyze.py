@@ -35,6 +35,7 @@ def _sanitize_for_mongo(obj: Any) -> Any:
         return str(obj)
     return obj
 
+
 # Semaphore limits concurrent external API bursts to avoid server exhaustion
 _semaphore = asyncio.Semaphore(20)
 

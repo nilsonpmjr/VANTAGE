@@ -76,6 +76,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # GZip responses ≥ 1 KB
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+
 # Content-size guard: reject bodies > 1 MB before they reach business logic
 @app.middleware("http")
 async def content_size_limit(request: Request, call_next):

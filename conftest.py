@@ -5,7 +5,6 @@ Shared pytest fixtures for backend tests.
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from datetime import datetime, timezone, timedelta
 
 from main import app
 from auth import get_password_hash, create_access_token

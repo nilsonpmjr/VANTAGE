@@ -242,8 +242,9 @@ def generate_heuristic_report(
 
     # UrlScan
     urlscan_data = results_data.get("urlscan", {})
-    if urlscan_data and not urlscan_data.get("error"):
-        page = urlscan_data.get("results", [{}])[0].get("page", {})
+    if urlscan_data and not urlscan_data.get("error") and not urlscan_data.get("_meta_error"):
+        results_list = urlscan_data.get("results", [])
+        page = results_list[0].get("page", {}) if results_list else {}
         if page:
             server = page.get("server", loc["unknown"])
             ip = page.get("ip", loc["unknown"])

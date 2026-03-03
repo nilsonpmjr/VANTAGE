@@ -67,12 +67,12 @@ export default function Dashboard({ onSearch }) {
             }
         };
 
-        if (user && (user.role === 'admin' || user.role === 'manager')) {
+        if (user) {
             fetchStats();
         }
     }, [user, period]);
 
-    if (!user || user.role === 'tech') return null;
+    if (!user) return null;
 
     if (loading) {
         return (

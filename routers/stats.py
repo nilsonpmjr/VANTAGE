@@ -15,7 +15,7 @@ router = APIRouter(prefix="", tags=["stats"])
 async def get_dashboard_stats(
     period: str = "month",
     limit: int = Query(20, ge=1, le=100, description="Max recent scans to return"),
-    current_user: dict = Depends(require_role(["admin", "manager"])),
+    current_user: dict = Depends(require_role(["admin", "manager", "tech"])),
 ):
     """Aggregated threat intelligence statistics for the SOC Dashboard."""
     db = db_manager.db

@@ -112,7 +112,10 @@
         "err_pass_match": "Passwords do not match.",
         "err_pass_len": "Password must be at least 6 characters long.",
         "err_no_change": "No changes were made.",
-        "err_update": "Error updating preferences."
+        "err_update": "Error updating preferences.",
+        "restart_tour": "Guided Tour",
+        "restart_tour_sub": "Review the interactive walkthrough of the platform features.",
+        "restart_tour_btn": "Restart Tour"
     },
     "verdict": {
         "safe": "SAFE",
@@ -172,5 +175,23 @@
         "planLimit": "Plan limitation",
         "apiError": "API error",
         "dismiss": "Dismiss"
+    },
+    "tour": {
+        "search_title": "Search Bar",
+        "search_desc": "Search IPs, domains or hashes to query multiple intelligence sources simultaneously.",
+        "lang_title": "Report Language",
+        "lang_desc": "Choose the language for generated reports. We support Portuguese, English and Spanish.",
+        "sidebar_title": "Navigation Menu",
+        "sidebar_desc": "Use the side menu to navigate between the application screens.",
+        "profile_title": "Your Profile",
+        "profile_desc": "Access your profile to change password, default language and photo.",
+        "dashboard_title": "Dashboard",
+        "dashboard_desc": "SOC metrics, search history and real-time threat trends.",
+        "settings_title": "Settings",
+        "settings_desc": "Manage user accounts, access profiles and integrations.",
+        "next": "Next",
+        "prev": "Back",
+        "skip": "Skip Tour",
+        "finish": "Finish"
     }
 }

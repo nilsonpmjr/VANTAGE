@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useTour } from '../context/TourContext';
 import { useTranslation } from 'react-i18next';
 
 export default function Sidebar({ currentView, setCurrentView }) {
     const { t } = useTranslation();
     const { user, logout } = useAuth();
+    const { isTourActive, currentStep } = useTour();
 
     const [isCollapsed, setIsCollapsed] = useState(true);
     const [profileImg, setProfileImg] = useState(user?.avatar_base64 || '');
@@ -25,11 +27,18 @@ export default function Sidebar({ currentView, setCurrentView }) {
         return () => window.removeEventListener('userProfileUpdated', handleProfileUpdate);
     }, []);
 
+    // Auto-expand sidebar when tour requires it
+    useEffect(() => {
+        if (isTourActive && currentStep?.sidebarMustOpen && isCollapsed) {
+            setIsCollapsed(false);
+        }
+    }, [isTourActive, currentStep, isCollapsed]);
+
     if (!user) return null;
 
     const NAV_ITEMS = [
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
-        { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager'] },
+        { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
         { id: 'settings', label: t('sidebar.settings'), icon: Settings, roles: ['admin'] }
     ];
 
@@ -56,6 +65,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
                     title="Toggle Menu"
+                    data-tour="sidebar-toggle"
                 >
                     <Menu size={24} />
                 </button>
@@ -68,6 +78,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                     return (
                         <button
                             key={item.id}
+                            data-tour={`sidebar-${item.id}`}
                             onClick={() => setCurrentView(item.id)}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '0.75rem',
@@ -105,6 +116,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
             <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', marginTop: 'auto' }}>
                 <div
                     onClick={() => setCurrentView('profile')}
+                    data-tour="sidebar-profile"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem', cursor: 'pointer', borderRadius: '8px', transition: 'background 0.2s' }}
                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                     onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}

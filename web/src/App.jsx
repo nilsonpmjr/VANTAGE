@@ -12,6 +12,7 @@ import Sidebar from './components/Sidebar';
 import Settings from './components/Settings';
 import Dashboard from './components/Dashboard';
 import Profile from './components/Profile';
+import TourOverlay from './components/TourOverlay';
 import { useTranslation } from 'react-i18next';
 import API_URL from './config';
 import './index.css';
@@ -107,7 +108,7 @@ export default function App() {
                 <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title')}</p>
               </div>
 
-              <div className="header-center">
+              <div className="header-center" data-tour="search-bar">
                 <SearchBar key={hasSearched ? 'active' : 'initial'} onSearch={handleSearch} loading={loading} lang={lang} />
               </div>
 
@@ -131,6 +132,7 @@ export default function App() {
                   value={lang}
                   onChange={(e) => setLang(e.target.value)}
                   className="lang-select"
+                  data-tour="lang-select"
                 >
                   <option value="pt">Português</option>
                   <option value="en">English</option>
@@ -242,6 +244,8 @@ export default function App() {
         {currentView === 'settings' && <Settings />}
         {currentView === 'profile' && <Profile />}
       </div>
+
+      <TourOverlay />
     </div>
   );
 }

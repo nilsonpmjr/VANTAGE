@@ -1,12 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle } from 'lucide-react';
+import { useTour } from '../context/TourContext';
+import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../config';
 import '../index.css';
 
 export default function Profile() {
     const { user, updateUserContext } = useAuth();
+    const { restartTour } = useTour();
 
     const { t, i18n } = useTranslation();
     const [password, setPassword] = useState('');
@@ -225,6 +227,32 @@ export default function Profile() {
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* Restart Tour */}
+            <div className="glass-panel" style={{ padding: '1.25rem 2rem', borderRadius: '12px', marginTop: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                    <h3 style={{ margin: '0 0 0.25rem 0', color: 'var(--text-primary)', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <RotateCcw size={16} color="var(--primary)" />
+                        {t('profile.restart_tour')}
+                    </h3>
+                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('profile.restart_tour_sub')}</p>
+                </div>
+                <button
+                    onClick={restartTour}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '0.4rem',
+                        padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)',
+                        background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
+                        color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem',
+                        fontWeight: 500, transition: 'all 0.2s', whiteSpace: 'nowrap'
+                    }}
+                    onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--primary)', color: '#0a0f1a' })}
+                    onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', color: 'var(--text-primary)' })}
+                >
+                    <RotateCcw size={14} />
+                    {t('profile.restart_tour_btn')}
+                </button>
             </div>
         </div>
     );

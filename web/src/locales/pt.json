@@ -112,7 +112,10 @@
         "err_pass_match": "As senhas não coincidem.",
         "err_pass_len": "A senha deve ter pelo menos 6 caracteres.",
         "err_no_change": "Nenhuma alteração foi feita.",
-        "err_update": "Erro ao atualizar preferências."
+        "err_update": "Erro ao atualizar preferências.",
+        "restart_tour": "Tour Guiado",
+        "restart_tour_sub": "Reveja o tutorial interativo das funcionalidades da plataforma.",
+        "restart_tour_btn": "Refazer Tour"
     },
     "verdict": {
         "safe": "SEGURO",
@@ -172,5 +175,23 @@
         "planLimit": "Limitação de plano",
         "apiError": "Erro na API",
         "dismiss": "Fechar"
+    },
+    "tour": {
+        "search_title": "Barra de Busca",
+        "search_desc": "Pesquise IPs, domínios ou hashes para consultar múltiplas fontes de inteligência simultaneamente.",
+        "lang_title": "Idioma dos Relatórios",
+        "lang_desc": "Escolha o idioma dos relatórios gerados. Suportamos Português, Inglês e Espanhol.",
+        "sidebar_title": "Menu de Navegação",
+        "sidebar_desc": "Use o menu lateral para navegar entre as telas da aplicação.",
+        "profile_title": "Seu Perfil",
+        "profile_desc": "Acesse seu perfil para alterar senha, idioma padrão e foto.",
+        "dashboard_title": "Dashboard",
+        "dashboard_desc": "Métricas do SOC, histórico de buscas e tendências de ameaça em tempo real.",
+        "settings_title": "Configurações",
+        "settings_desc": "Gerencie contas de usuários, perfis de acesso e integrações.",
+        "next": "Próximo",
+        "prev": "Anterior",
+        "skip": "Pular Tour",
+        "finish": "Concluir"
     }
 }

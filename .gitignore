@@ -3,11 +3,15 @@ __pycache__/
 .env
 .DS_Store
 .venv/
+venv/
 node_modules/
 *.egg-info/
+*.log
+docker_build.log
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md
 GUIA_CORRECOES.md
 README_IMPROVED.md
 .gemini/
+.docs/

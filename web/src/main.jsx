@@ -5,7 +5,7 @@ import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 import { TourProvider } from './context/TourContext.jsx'
 import { ToastProvider } from './context/ToastContext.jsx'
-import ErrorBoundary from './components/ErrorBoundary.jsx'
+import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import './i18n';
 
 createRoot(document.getElementById('root')).render(

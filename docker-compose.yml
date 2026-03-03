@@ -33,7 +33,7 @@ services:
 
   backend:
     build:
-      context: .
+      context: ./backend
       dockerfile: Dockerfile
       network: host
     container_name: iteam_threat_backend

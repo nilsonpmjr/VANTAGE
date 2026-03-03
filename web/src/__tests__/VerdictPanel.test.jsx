@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import VerdictPanel from '../components/VerdictPanel';
+import VerdictPanel from '../components/dashboard/VerdictPanel';
 
 vi.mock('react-i18next', () => ({
     useTranslation: () => ({

@@ -11,6 +11,9 @@ jobs:
   lint-python:
     name: Lint (Python)
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +32,9 @@ jobs:
     name: Test (Python)
     runs-on: ubuntu-latest
     needs: lint-python
+    defaults:
+      run:
+        working-directory: backend
 
     services:
       mongodb:

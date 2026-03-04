@@ -135,7 +135,9 @@
         "stats_mfa": "Con MFA",
         "stats_failed_24h": "Fallos 24h",
         "tab_users": "Usuarios",
-        "tab_audit": "Registro de Auditoría"
+        "tab_audit": "Registro de Auditoría",
+        "revoke_mfa": "Revocar MFA",
+        "confirm_revoke_mfa": "¿Está seguro de que desea revocar el MFA del usuario '{{user}}'? Deberá registrar un nuevo autenticador."
     },
     "audit": {
         "my_history": "Mi Historial",
@@ -273,5 +275,36 @@
         "prev": "Anterior",
         "skip": "Saltar Tour",
         "finish": "Finalizar"
+    },
+    "mfa": {
+        "section_title": "Autenticación en Dos Pasos (MFA)",
+        "section_sub": "Proteja su cuenta con un código generado por su aplicación autenticadora.",
+        "status_active": "MFA activo",
+        "status_inactive": "MFA inactivo",
+        "enroll_btn": "Activar MFA",
+        "disable_btn": "Desactivar MFA",
+        "confirm_disable": "¿Está seguro de que desea desactivar el MFA?",
+        "mandatory_notice": "El MFA es obligatorio para su perfil y no puede desactivarse.",
+        "mandatory_warning": "Su perfil requiere MFA. Por favor, actívelo para continuar usando la plataforma.",
+        "scan_instruction": "Escanee el código QR con su aplicación autenticadora (Google Authenticator, Authy, etc.).",
+        "backup_codes_title": "Códigos de respaldo",
+        "backup_codes_notice": "Guarde estos códigos en un lugar seguro. Cada código solo puede usarse una vez.",
+        "copy_codes": "Copiar",
+        "copied": "¡Copiado!",
+        "enter_otp_label": "Ingrese el código de 6 dígitos de su autenticador:",
+        "confirm_btn": "Confirmar y Activar",
+        "error_invalid_otp": "Código inválido. Inténtelo de nuevo.",
+        "error_generic": "Ocurrió un error. Inténtelo de nuevo.",
+        "error_mandatory": "El MFA es obligatorio para su perfil.",
+        "verify_title": "Verificación en Dos Pasos",
+        "verify_subtitle": "Ingrese el código de su aplicación autenticadora.",
+        "verify_btn": "Verificar",
+        "back_to_login": "Volver al inicio de sesión",
+        "setup_required_notice": "Su perfil requiere MFA. Configúrelo para garantizar el acceso continuo.",
+        "setup_now": "Configurar ahora",
+        "lost_access_hint": "¿Perdió el acceso a su autenticador?",
+        "use_backup_code": "Usar código de respaldo",
+        "use_totp_instead": "Usar código del autenticador",
+        "backup_subtitle": "Ingrese uno de sus códigos de respaldo (formato XXXXXX-XXXXXX)."
     }
 }

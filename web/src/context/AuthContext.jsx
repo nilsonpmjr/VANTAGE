@@ -38,6 +38,8 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [isFadingOut, setIsFadingOut] = useState(false);
+    const [mfaPending, setMfaPending] = useState(null); // { preAuthToken } when mfa_required
+    const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
 
     // Initialize auth state from cookie on page load
     useEffect(() => {
@@ -111,7 +113,15 @@ export const AuthProvider = ({ children }) => {
         }
 
         const data = await response.json();
+
+        // MFA required — store pre_auth_token and wait for OTP
+        if (data.mfa_required) {
+            setMfaPending({ preAuthToken: data.pre_auth_token });
+            return false;
+        }
+
         // Cookies are set by the server; just update local state
+        if (data.user?.mfa_setup_required) setMfaSetupRequired(true);
         setIsTransitioning(true);
         setUser(data.user);
 
@@ -126,8 +136,24 @@ export const AuthProvider = ({ children }) => {
 
     const updateUserContext = (newUser) => setUser(newUser);
 
+    const completeMfaLogin = (userData) => {
+        setMfaPending(null);
+        setIsTransitioning(true);
+        setUser(userData);
+        setTimeout(() => setIsFadingOut(true), 200);
+        setTimeout(() => {
+            setIsTransitioning(false);
+            setIsFadingOut(false);
+        }, 1400);
+    };
+
+    const cancelMfa = () => {
+        setMfaPending(null);
+        setMfaSetupRequired(false);
+    };
+
     return (
-        <AuthContext.Provider value={{ user, login, logout, loading, updateUserContext, isTransitioning, isFadingOut }}>
+        <AuthContext.Provider value={{ user, login, logout, loading, updateUserContext, isTransitioning, isFadingOut, mfaPending, mfaSetupRequired, setMfaSetupRequired, completeMfaLogin, cancelMfa }}>
             {children}
         </AuthContext.Provider>
     );

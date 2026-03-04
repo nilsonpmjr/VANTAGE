@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     rescan_batch_size: int = 5
     max_rescan_targets: int = 100
 
+    # MFA
+    mfa_encryption_key: str = ""            # Fernet key; auto-derived in dev if empty
+    mfa_required_roles: List[str] = ["admin", "manager"]  # roles that MUST enroll MFA
+
     # Runtime
     environment: str = "development"
     log_level: str = "INFO"

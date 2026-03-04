@@ -7,13 +7,14 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_login_success(async_client):
+    # Use techuser (non-mandatory-MFA role) to test normal login flow
     response = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "techuser", "password": "tech123"},
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["user"]["username"] == "admin"
+    assert body["user"]["username"] == "techuser"
     assert body["token_type"] == "bearer"
     # HttpOnly cookies must be set
     assert "access_token" in response.cookies

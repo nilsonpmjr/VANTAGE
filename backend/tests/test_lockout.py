@@ -46,16 +46,17 @@ async def test_locked_user_denied_even_with_correct_password(async_client: Async
 @pytest.mark.asyncio
 async def test_successful_login_resets_counter(async_client: AsyncClient, fake_db):
     """A successful login must clear failed_login_count and locked_until."""
-    user_doc = await fake_db.users.find_one({"username": "admin"})
+    # Use techuser (non-mandatory-MFA role) to avoid 403 mfa_setup_required
+    user_doc = await fake_db.users.find_one({"username": "techuser"})
     user_doc["failed_login_count"] = 3
 
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "techuser", "password": "tech123"},
     )
     assert resp.status_code == 200
 
-    updated = await fake_db.users.find_one({"username": "admin"})
+    updated = await fake_db.users.find_one({"username": "techuser"})
     assert updated.get("failed_login_count") == 0
     assert updated.get("locked_until") is None
 

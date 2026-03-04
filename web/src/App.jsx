@@ -8,6 +8,7 @@ import { Globe, Download, LogOut } from 'lucide-react';
 import { generatePDFReport } from './utils/pdfGenerator';
 import { useAuth } from './context/AuthContext';
 import Login from './components/auth/Login';
+import MFAVerify from './components/auth/MFAVerify';
 import Sidebar from './components/layout/Sidebar';
 import Settings from './components/admin/Settings';
 import Dashboard from './components/dashboard/Dashboard';
@@ -30,7 +31,7 @@ const INTEGRATIONS = [
 ];
 
 export default function App() {
-  const { user, loading: authLoading, isTransitioning, isFadingOut } = useAuth();
+  const { user, loading: authLoading, isTransitioning, isFadingOut, mfaPending, mfaSetupRequired, setMfaSetupRequired, completeMfaLogin, cancelMfa } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
@@ -54,6 +55,13 @@ export default function App() {
       setCurrentView('profile');
     }
   }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Force navigation to profile when MFA setup is required
+  useEffect(() => {
+    if (mfaSetupRequired && user) {
+      setCurrentView('profile');
+    }
+  }, [mfaSetupRequired, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const handleSearch = async (query) => {
@@ -86,6 +94,9 @@ export default function App() {
   }
 
   if (!user && !isTransitioning) {
+    if (mfaPending) {
+      return <MFAVerify preAuthToken={mfaPending.preAuthToken} onSuccess={completeMfaLogin} onCancel={cancelMfa} />;
+    }
     return <Login />;
   }
 
@@ -107,6 +118,16 @@ export default function App() {
             <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
             <button onClick={() => setCurrentView('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
               {t('auth.change_now')}
+            </button>
+          </div>
+        )}
+
+        {/* MFA setup required banner */}
+        {mfaSetupRequired && (
+          <div style={{ background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+            <strong>{t('mfa.setup_required_notice')}</strong>
+            <button onClick={() => { setCurrentView('profile'); setMfaSetupRequired(false); }} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+              {t('mfa.setup_now')}
             </button>
           </div>
         )}

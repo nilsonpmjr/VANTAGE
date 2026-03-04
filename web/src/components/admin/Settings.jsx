@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock, ClipboardList } from 'lucide-react';
+import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock, ClipboardList, ShieldOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import AuditLogTable from './AuditLogTable';
@@ -225,6 +225,24 @@ export default function Settings() {
                 throw new Error(err.detail || t('settings.err_action'));
             }
             fetchUsers();
+        } catch (err) {
+            alert(err.message);
+        }
+    };
+
+    const handleRevokeMfa = async (targetUser) => {
+        if (!window.confirm(t('settings.confirm_revoke_mfa', { user: targetUser.username }))) return;
+        try {
+            const response = await fetch(`${API_URL}/api/mfa/${targetUser.username}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.detail || t('settings.err_action'));
+            }
+            fetchUsers();
+            fetchStats();
         } catch (err) {
             alert(err.message);
         }
@@ -475,6 +493,19 @@ export default function Settings() {
                                                     title={t('settings.unlock')}
                                                 >
                                                     <LockOpen size={18} />
+                                                </button>
+                                            )}
+                                            {u.mfa_enabled && user?.role === 'admin' && (
+                                                <button
+                                                    onClick={() => handleRevokeMfa(u)}
+                                                    style={{
+                                                        background: 'transparent', border: 'none', cursor: 'pointer',
+                                                        color: 'var(--primary)',
+                                                        padding: '0.4rem', borderRadius: '4px', marginRight: '0.5rem'
+                                                    }}
+                                                    title={t('settings.revoke_mfa')}
+                                                >
+                                                    <ShieldOff size={18} />
                                                 </button>
                                             )}
                                             <button

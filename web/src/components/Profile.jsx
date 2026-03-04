@@ -1,13 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
-import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw, ClipboardList } from 'lucide-react';
+import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw, ClipboardList, ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../config';
+import MFAEnroll from './auth/MFAEnroll';
 import '../index.css';
 
 export default function Profile() {
-    const { user, updateUserContext } = useAuth();
+    const { user, updateUserContext, setMfaSetupRequired } = useAuth();
     const { restartTour } = useTour();
 
     const { t, i18n } = useTranslation();
@@ -24,6 +25,7 @@ export default function Profile() {
 
     const [auditLogs, setAuditLogs] = useState([]);
     const [auditLoading, setAuditLoading] = useState(false);
+    const [mfaEnabled, setMfaEnabled] = useState(user?.mfa_enabled || false);
 
     const fileInputRef = useRef(null);
 
@@ -279,6 +281,31 @@ export default function Profile() {
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* MFA Enrollment */}
+            <div className="glass-panel" style={{ padding: '2rem', borderRadius: '12px', marginTop: '1.5rem' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '0.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
+                    <ShieldCheck size={18} color="var(--primary)" />
+                    {t('mfa.section_title')}
+                </h3>
+                <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('mfa.section_sub')}</p>
+                <MFAEnroll
+                    mfaEnabled={mfaEnabled}
+                    userRole={user?.role}
+                    onStatusChange={async () => {
+                        // Re-fetch /me to get updated mfa_enabled
+                        try {
+                            const resp = await fetch(`${API_URL}/api/auth/me`, { credentials: 'include' });
+                            if (resp.ok) {
+                                const freshUser = await resp.json();
+                                setMfaEnabled(freshUser.mfa_enabled || false);
+                                if (updateUserContext) updateUserContext(freshUser);
+                                if (setMfaSetupRequired) setMfaSetupRequired(false);
+                            }
+                        } catch { /* non-critical */ }
+                    }}
+                />
             </div>
 
             {/* My Audit History */}

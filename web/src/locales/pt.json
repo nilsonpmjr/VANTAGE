@@ -135,7 +135,9 @@
         "stats_mfa": "Com MFA",
         "stats_failed_24h": "Falhas 24h",
         "tab_users": "Usuários",
-        "tab_audit": "Audit Log"
+        "tab_audit": "Audit Log",
+        "revoke_mfa": "Revogar MFA",
+        "confirm_revoke_mfa": "Tem certeza que deseja revogar o MFA do usuário '{{user}}'? Ele precisará cadastrar um novo autenticador."
     },
     "audit": {
         "my_history": "Meu Histórico",
@@ -273,5 +275,36 @@
         "prev": "Anterior",
         "skip": "Pular Tour",
         "finish": "Concluir"
+    },
+    "mfa": {
+        "section_title": "Autenticação em Dois Fatores (MFA)",
+        "section_sub": "Proteja sua conta com um código gerado pelo seu autenticador.",
+        "status_active": "MFA ativo",
+        "status_inactive": "MFA inativo",
+        "enroll_btn": "Ativar MFA",
+        "disable_btn": "Desativar MFA",
+        "confirm_disable": "Tem certeza que deseja desativar o MFA?",
+        "mandatory_notice": "MFA é obrigatório para o seu perfil e não pode ser desativado.",
+        "mandatory_warning": "Seu perfil exige MFA. Por favor, ative-o para continuar usando a plataforma.",
+        "scan_instruction": "Escaneie o QR Code abaixo com seu aplicativo autenticador (Google Authenticator, Authy, etc.).",
+        "backup_codes_title": "Códigos de backup",
+        "backup_codes_notice": "Guarde estes códigos em um lugar seguro. Cada código pode ser usado uma única vez.",
+        "copy_codes": "Copiar",
+        "copied": "Copiado!",
+        "enter_otp_label": "Digite o código de 6 dígitos do seu autenticador:",
+        "confirm_btn": "Confirmar e Ativar",
+        "error_invalid_otp": "Código inválido. Tente novamente.",
+        "error_generic": "Ocorreu um erro. Tente novamente.",
+        "error_mandatory": "MFA é obrigatório para o seu perfil.",
+        "verify_title": "Verificação em Dois Fatores",
+        "verify_subtitle": "Digite o código do seu aplicativo autenticador.",
+        "verify_btn": "Verificar",
+        "back_to_login": "Voltar ao login",
+        "setup_required_notice": "Seu perfil exige MFA. Configure-o para garantir acesso contínuo.",
+        "setup_now": "Configurar agora",
+        "lost_access_hint": "Perdeu o acesso ao seu autenticador?",
+        "use_backup_code": "Usar código de backup",
+        "use_totp_instead": "Usar código do autenticador",
+        "backup_subtitle": "Digite um dos seus códigos de backup (formato XXXXXX-XXXXXX)."
     }
 }

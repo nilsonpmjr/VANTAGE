@@ -143,6 +143,9 @@ class FakeDB:
                 "password_changed_at": None,
                 "force_password_reset": False,
                 "last_login_at": None,
+                "mfa_enabled": False,
+                "mfa_secret_enc": None,
+                "mfa_backup_codes": [],
             },
             {
                 "username": "inactive",
@@ -158,6 +161,9 @@ class FakeDB:
                 "password_changed_at": None,
                 "force_password_reset": False,
                 "last_login_at": None,
+                "mfa_enabled": False,
+                "mfa_secret_enc": None,
+                "mfa_backup_codes": [],
             },
             {
                 "username": "techuser",
@@ -173,6 +179,9 @@ class FakeDB:
                 "password_changed_at": None,
                 "force_password_reset": False,
                 "last_login_at": None,
+                "mfa_enabled": False,
+                "mfa_secret_enc": None,
+                "mfa_backup_codes": [],
             },
         ])
         self.scans = FakeCollection()

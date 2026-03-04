@@ -14,7 +14,7 @@ from logging_config import setup_logging, get_logger
 from limiters import limiter
 from worker import scan_safe_targets_job
 
-from routers import auth, users, analyze, stats, admin
+from routers import auth, users, analyze, stats, admin, mfa
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -122,6 +122,7 @@ app.include_router(users.router, prefix="/api")
 app.include_router(analyze.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(mfa.router, prefix="/api")
 
 # /api/v1  (versioned)
 app.include_router(auth.router, prefix="/api/v1")
@@ -129,6 +130,7 @@ app.include_router(users.router, prefix="/api/v1")
 app.include_router(analyze.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(mfa.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

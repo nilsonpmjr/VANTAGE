@@ -125,8 +125,26 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         }},
     )
 
+    role = user.get("role", "tech")
+
+    # ── MFA gate ────────────────────────────────────────────────────────────
+    if user.get("mfa_enabled"):
+        # Issue a short-lived pre-auth token (5 min) to proceed to OTP verification
+        pre_auth_token = create_access_token(
+            data={"sub": user["username"], "role": role, "scope": "mfa_pending"},
+            expires_delta=timedelta(minutes=5),
+        )
+        await log_action(db, user=user["username"], action="login_mfa_pending", ip=ip)
+        return JSONResponse(content={"mfa_required": True, "pre_auth_token": pre_auth_token})
+
+    # If role requires MFA but not yet enrolled, allow login but flag setup as required
+    force_mfa_setup = role in settings.mfa_required_roles and not user.get("mfa_enabled")
+    if force_mfa_setup:
+        await log_action(db, user=user["username"], action="login_mfa_setup_required", ip=ip)
+    # ── end MFA gate ─────────────────────────────────────────────────────────
+
     access_token = create_access_token(
-        data={"sub": user["username"], "role": user.get("role", "tech")}
+        data={"sub": user["username"], "role": role}
     )
     refresh_token = create_refresh_token()
 
@@ -134,7 +152,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     await db.refresh_tokens.insert_one({
         "token": refresh_token,
         "username": user["username"],
-        "role": user.get("role", "tech"),
+        "role": role,
         "created_at": datetime.now(timezone.utc),
         "expires_at": datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
         "revoked": False,
@@ -142,11 +160,13 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
     user_payload = {
         "username": user["username"],
-        "role": user.get("role", "tech"),
+        "role": role,
         "name": user.get("name", ""),
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
+        "mfa_enabled": user.get("mfa_enabled", False),
+        "mfa_setup_required": force_mfa_setup,
     }
 
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from datetime import datetime, timezone
 from pydantic import BaseModel
 from typing import Optional
@@ -6,6 +6,7 @@ from typing import Optional
 from db import db_manager
 from auth import get_password_hash, verify_password, get_current_user, get_current_user_allow_expired, require_role
 from policies import get_password_policy, validate_password
+from audit import log_action
 from logging_config import get_logger
 
 logger = get_logger("UsersRouter")
@@ -47,7 +48,7 @@ async def list_users(current_user: dict = Depends(require_role(["admin"]))):
 
 
 @router.post("")
-async def create_user(user: UserCreate, current_user: dict = Depends(require_role(["admin"]))):
+async def create_user(request: Request, user: UserCreate, current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
@@ -77,6 +78,10 @@ async def create_user(user: UserCreate, current_user: dict = Depends(require_rol
         "force_password_reset": False,
     }
     await db.users.insert_one(new_user)
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="user_created",
+                     target=user.username, ip=ip, result="success",
+                     detail=f"role={user.role}")
     return {"status": "success", "message": f"User {user.username} created successfully"}
 
 
@@ -102,6 +107,7 @@ async def update_my_preferences(
     if prefs.avatar_base64 is not None:
         update_data["avatar_base64"] = prefs.avatar_base64
 
+    password_changed = False
     if prefs.password is not None:
         policy = await get_password_policy(db)
         errors = validate_password(prefs.password, policy)
@@ -127,16 +133,42 @@ async def update_my_preferences(
         # Append to history, keep only last history_count entries
         new_history = (history + [new_hash])[-history_count:]
         update_data["password_history"] = new_history
+        password_changed = True
 
     if not update_data:
         return {"status": "success", "message": "No fields to update"}
 
     await db.users.update_one({"username": username}, {"$set": update_data})
+
+    if password_changed:
+        await log_action(db, user=username, action="password_changed",
+                         target=username, result="success")
+
     return {"status": "success", "message": "Preferences updated successfully"}
 
 
+@router.get("/me/audit-logs")
+async def get_my_audit_logs(
+    current_user: dict = Depends(get_current_user),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Returns the authenticated user's own audit log entries."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    items = await db.audit_log.find(
+        {"user": current_user["username"]},
+        {"_id": 0},
+    ).sort("timestamp", -1).limit(limit).to_list(length=limit)
+    for item in items:
+        ts = item.get("timestamp")
+        if hasattr(ts, "isoformat"):
+            item["timestamp"] = ts.isoformat()
+    return items
+
+
 @router.delete("/{username}")
-async def delete_user(username: str, current_user: dict = Depends(require_role(["admin"]))):
+async def delete_user(request: Request, username: str, current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
@@ -147,11 +179,16 @@ async def delete_user(username: str, current_user: dict = Depends(require_role([
     result = await db.users.delete_one({"username": username})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
+
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="user_deleted",
+                     target=username, ip=ip, result="success")
     return {"status": "success", "message": f"User {username} deleted successfully"}
 
 
 @router.put("/{username}")
 async def update_user(
+    request: Request,
     username: str,
     user_update: UserUpdate,
     current_user: dict = Depends(require_role(["admin"])),
@@ -198,4 +235,22 @@ async def update_user(
         return {"status": "success", "message": "No fields to update"}
 
     await db.users.update_one({"username": username}, {"$set": update_data})
+
+    ip = request.client.host if request.client else ""
+    # Emit granular audit events
+    if "role" in update_data:
+        await log_action(db, user=current_user["username"], action="role_changed",
+                         target=username, ip=ip, result="success",
+                         detail=f"new_role={update_data['role']}")
+    if update_data.get("force_password_reset") is True:
+        await log_action(db, user=current_user["username"], action="password_reset_forced",
+                         target=username, ip=ip, result="success")
+    if "is_active" in update_data:
+        action_name = "user_reactivated" if update_data["is_active"] else "user_suspended"
+        await log_action(db, user=current_user["username"], action=action_name,
+                         target=username, ip=ip, result="success")
+    else:
+        await log_action(db, user=current_user["username"], action="user_updated",
+                         target=username, ip=ip, result="success")
+
     return {"status": "success", "message": f"User {username} updated successfully"}

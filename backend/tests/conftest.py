@@ -18,7 +18,7 @@ class _DeleteResult:
 
 
 class FakeCursor:
-    """Minimal async cursor shim that supports sort/limit chaining."""
+    """Minimal async cursor shim that supports sort/skip/limit chaining."""
 
     def __init__(self, data):
         self._data = list(data)
@@ -28,6 +28,10 @@ class FakeCursor:
 
     def limit(self, n):
         self._data = self._data[:n]
+        return self
+
+    def skip(self, n):
+        self._data = self._data[n:]
         return self
 
     async def to_list(self, length=None):
@@ -51,10 +55,23 @@ class FakeCollection:
     def find(self, query=None, projection=None):
         if not query:
             return FakeCursor(list(self._data))
-        results = [
-            doc for doc in self._data
-            if all(doc.get(k) == v for k, v in query.items() if not isinstance(v, dict))
-        ]
+        results = []
+        for doc in self._data:
+            match = True
+            for k, v in query.items():
+                if isinstance(v, dict):
+                    doc_val = doc.get(k)
+                    if doc_val is None:
+                        match = False; break
+                    if "$gte" in v and doc_val < v["$gte"]:
+                        match = False; break
+                    if "$lte" in v and doc_val > v["$lte"]:
+                        match = False; break
+                else:
+                    if doc.get(k) != v:
+                        match = False; break
+            if match:
+                results.append(doc)
         return FakeCursor(results)
 
     def aggregate(self, pipeline):
@@ -163,6 +180,7 @@ class FakeDB:
         self.system_status = FakeCollection()
         self.lockout_policy = FakeCollection()
         self.password_policy = FakeCollection()
+        self.audit_log = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

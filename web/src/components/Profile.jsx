@@ -1,7 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
-import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw } from 'lucide-react';
+import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw, ClipboardList } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../config';
 import '../index.css';
@@ -22,7 +22,23 @@ export default function Profile() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState({ type: '', text: '' });
 
+    const [auditLogs, setAuditLogs] = useState([]);
+    const [auditLoading, setAuditLoading] = useState(false);
+
     const fileInputRef = useRef(null);
+
+    useEffect(() => {
+        const fetchAuditLogs = async () => {
+            setAuditLoading(true);
+            try {
+                const resp = await fetch(`${API_URL}/api/users/me/audit-logs?limit=20`, { credentials: 'include' });
+                if (resp.ok) setAuditLogs(await resp.json());
+            } finally {
+                setAuditLoading(false);
+            }
+        };
+        fetchAuditLogs();
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const handleImageChange = (e) => {
         const file = e.target.files[0];
@@ -263,6 +279,50 @@ export default function Profile() {
                         </button>
                     </div>
                 </form>
+            </div>
+
+            {/* My Audit History */}
+            <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', marginTop: '1.5rem' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '1rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.95rem' }}>
+                    <ClipboardList size={18} color="var(--primary)" />
+                    {t('audit.my_history')}
+                    {auditLoading && <Loader className="spin" size={16} color="var(--primary)" />}
+                </h3>
+                <p style={{ margin: '0 0 1rem 0', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{t('audit.my_history_sub')}</p>
+                <div style={{ overflowX: 'auto', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead style={{ background: 'var(--bg-main)' }}>
+                            <tr>
+                                {['col_timestamp', 'col_action', 'col_result', 'col_ip'].map(k => (
+                                    <th key={k} style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', fontWeight: 500, textAlign: 'left' }}>
+                                        {t(`audit.${k}`).toUpperCase()}
+                                    </th>
+                                ))}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {auditLogs.length === 0 && !auditLoading && (
+                                <tr><td colSpan="4" style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('audit.no_entries')}</td></tr>
+                            )}
+                            {auditLogs.map((item, idx) => (
+                                <tr key={idx} style={{ borderTop: '1px solid var(--glass-border)' }}>
+                                    <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                                        {new Date(item.timestamp).toLocaleString()}
+                                    </td>
+                                    <td style={{ padding: '0.5rem 0.75rem' }}>
+                                        <span style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.75rem' }}>
+                                            {item.action}
+                                        </span>
+                                    </td>
+                                    <td style={{ padding: '0.5rem 0.75rem', fontWeight: 600, color: item.result === 'success' ? 'var(--green)' : item.result === 'failure' ? 'var(--red)' : '#fb923c' }}>
+                                        {t(`audit.result_${item.result}`) || item.result}
+                                    </td>
+                                    <td style={{ padding: '0.5rem 0.75rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.75rem' }}>{item.ip || '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Restart Tour */}

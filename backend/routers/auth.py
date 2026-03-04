@@ -70,6 +70,8 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                 },
             )
 
+    ip = request.client.host if request.client else ""
+
     # Verify credentials
     if not user or not verify_password(form_data.password, user["password_hash"]):
         if user:
@@ -82,9 +84,23 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                 update_fields["locked_until"] = (
                     datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
                 )
-            await db.users.update_one(
-                {"username": user["username"]},
-                {"$set": update_fields},
+                await db.users.update_one(
+                    {"username": user["username"]},
+                    {"$set": update_fields},
+                )
+                await log_action(
+                    db, user=form_data.username, action="account_locked",
+                    target=form_data.username, ip=ip, result="failure",
+                    detail=f"locked after {new_count} failed attempts",
+                )
+            else:
+                await db.users.update_one(
+                    {"username": user["username"]},
+                    {"$set": update_fields},
+                )
+            await log_action(
+                db, user=form_data.username, action="login_failed",
+                target=form_data.username, ip=ip, result="failure",
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -136,7 +152,6 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
     _set_auth_cookies(response, access_token, refresh_token)
     logger.info(f"Login successful: {user['username']}")
-    ip = request.client.host if request.client else ""
     await log_action(db, user=user["username"], action="login", ip=ip)
     return response
 

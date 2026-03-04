@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock } from 'lucide-react';
+import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock, ClipboardList } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
+import AuditLogTable from './AuditLogTable';
 import '../../index.css';
 
 export const RoleBadge = ({ role }) => {
@@ -43,6 +44,9 @@ export default function Settings() {
 
     // IAM Stats State
     const [adminStats, setAdminStats] = useState(null);
+
+    // Tab State
+    const [activeTab, setActiveTab] = useState('users');
 
     // Password Policy State
     const [policy, setPolicy] = useState(null);
@@ -278,11 +282,49 @@ export default function Settings() {
                 <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('settings.subtitle')}</p>
             </header>
 
+            {/* TAB NAVIGATION */}
+            <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--glass-border)', marginBottom: '2rem' }}>
+                {[
+                    { key: 'users', icon: <Users size={16} />, label: t('settings.tab_users') },
+                    ...(user?.role === 'admin' ? [{ key: 'audit', icon: <ClipboardList size={16} />, label: t('settings.tab_audit') }] : []),
+                ].map(tab => (
+                    <button
+                        key={tab.key}
+                        onClick={() => setActiveTab(tab.key)}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.4rem',
+                            padding: '0.6rem 1.25rem', border: 'none', borderBottom: '2px solid',
+                            borderBottomColor: activeTab === tab.key ? 'var(--primary)' : 'transparent',
+                            background: 'transparent', cursor: 'pointer',
+                            color: activeTab === tab.key ? 'var(--primary)' : 'var(--text-secondary)',
+                            fontSize: '0.9rem', fontWeight: activeTab === tab.key ? 600 : 400,
+                            transition: 'all 0.2s',
+                        }}
+                    >
+                        {tab.icon} {tab.label}
+                    </button>
+                ))}
+            </div>
+
             {error && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
                     {error}
                 </div>
             )}
+
+            {/* AUDIT LOG TAB */}
+            {activeTab === 'audit' && (
+                <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                    <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <ClipboardList size={20} color="var(--primary)" />
+                        {t('settings.tab_audit')}
+                    </h3>
+                    <AuditLogTable />
+                </div>
+            )}
+
+            {/* USERS TAB */}
+            {activeTab === 'users' && <>
 
             {/* IAM STATS CARDS */}
             {adminStats && (
@@ -470,8 +512,10 @@ export default function Settings() {
 
             </div>
 
+            </> /* end users tab */}
+
             {/* PASSWORD POLICY PANEL */}
-            {user?.role === 'admin' && (
+            {user?.role === 'admin' && activeTab === 'users' && (
                 <div className="glass-panel" style={{ marginTop: '2rem', padding: '1.5rem', borderRadius: '12px' }}>
                     <h3 style={{ marginTop: 0, marginBottom: '1.5rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <KeyRound size={20} color="var(--primary)" />

@@ -1,12 +1,17 @@
+import csv
+import io
+import json
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query, Request
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional
 
 from db import db_manager
 from auth import require_role
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY
+from audit import log_action
 from logging_config import get_logger
 
 logger = get_logger("AdminRouter")
@@ -40,6 +45,7 @@ async def read_lockout_policy(current_user: dict = Depends(require_role(["admin"
 
 @router.put("/lockout-policy")
 async def update_lockout_policy(
+    request: Request,
     policy: LockoutPolicyUpdate,
     current_user: dict = Depends(require_role(["admin"])),
 ):
@@ -56,6 +62,10 @@ async def update_lockout_policy(
         f"Admin '{current_user['username']}' updated lockout policy: "
         f"max_attempts={policy.max_attempts}, lockout_minutes={policy.lockout_minutes}"
     )
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="lockout_policy_changed",
+                     ip=ip, result="success",
+                     detail=f"max_attempts={policy.max_attempts}, lockout_minutes={policy.lockout_minutes}")
     return {"max_attempts": policy.max_attempts, "lockout_minutes": policy.lockout_minutes}
 
 
@@ -79,6 +89,7 @@ async def read_password_policy(current_user: dict = Depends(require_role(["admin
 
 @router.put("/password-policy")
 async def update_password_policy(
+    request: Request,
     policy: PasswordPolicyUpdate,
     current_user: dict = Depends(require_role(["admin"])),
 ):
@@ -97,6 +108,9 @@ async def update_password_policy(
         upsert=True,
     )
     logger.info(f"Admin '{current_user['username']}' updated password policy: {updates}")
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="password_policy_changed",
+                     ip=ip, result="success", detail=str(updates))
     return current
 
 
@@ -139,6 +153,7 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
 
 @router.post("/users/{username}/unlock")
 async def unlock_user(
+    request: Request,
     username: str,
     current_user: dict = Depends(require_role(["admin"])),
 ):
@@ -155,4 +170,119 @@ async def unlock_user(
         {"$set": {"failed_login_count": 0, "locked_until": None, "last_failed_at": None}},
     )
     logger.info(f"Admin '{current_user['username']}' unlocked user '{username}'")
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="account_unlocked",
+                     target=username, ip=ip, result="success")
     return {"message": f"User '{username}' has been unlocked."}
+
+
+# ── Audit Log helpers ────────────────────────────────────────────────────────
+
+def _build_audit_query(
+    user: Optional[str],
+    action: Optional[str],
+    result: Optional[str],
+    ip: Optional[str],
+    from_date: Optional[str],
+    to_date: Optional[str],
+) -> dict:
+    query: dict = {}
+    if user:
+        query["user"] = user
+    if action:
+        query["action"] = action
+    if result:
+        query["result"] = result
+    if ip:
+        query["ip"] = ip
+    ts_filter: dict = {}
+    if from_date:
+        try:
+            ts_filter["$gte"] = datetime.fromisoformat(from_date.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    if to_date:
+        try:
+            ts_filter["$lte"] = datetime.fromisoformat(to_date.replace("Z", "+00:00"))
+        except ValueError:
+            pass
+    if ts_filter:
+        query["timestamp"] = ts_filter
+    return query
+
+
+def _serialize_items(items: list) -> list:
+    for item in items:
+        ts = item.get("timestamp")
+        if hasattr(ts, "isoformat"):
+            item["timestamp"] = ts.isoformat()
+        item.pop("_id", None)
+    return items
+
+
+# ── Audit Log endpoints ──────────────────────────────────────────────────────
+
+@router.get("/audit-logs")
+async def get_audit_logs(
+    current_user: dict = Depends(require_role(["admin"])),
+    user: Optional[str] = None,
+    action: Optional[str] = None,
+    result: Optional[str] = None,
+    ip: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=500),
+):
+    """Paginated audit log for admins with optional filters."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    query = _build_audit_query(user, action, result, ip, from_date, to_date)
+    skip = (page - 1) * page_size
+    total = await db.audit_log.count_documents(query)
+    items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).skip(skip).limit(page_size).to_list(length=page_size)
+    pages = max(1, (total + page_size - 1) // page_size)
+    return {"items": _serialize_items(items), "total": total, "page": page, "pages": pages}
+
+
+@router.get("/audit-logs/export")
+async def export_audit_logs(
+    current_user: dict = Depends(require_role(["admin"])),
+    format: str = Query("csv", pattern="^(csv|json)$"),
+    user: Optional[str] = None,
+    action: Optional[str] = None,
+    result: Optional[str] = None,
+    ip: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+):
+    """Download audit log as CSV or JSON."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    query = _build_audit_query(user, action, result, ip, from_date, to_date)
+    items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).to_list(length=10000)
+    _serialize_items(items)
+
+    if format == "json":
+        content = json.dumps(items, ensure_ascii=False, indent=2)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=audit_log.json"},
+        )
+
+    # CSV
+    fieldnames = ["timestamp", "user", "action", "target", "result", "ip", "detail"]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    writer.writerows(items)
+    return StreamingResponse(
+        iter([output.getvalue().encode("utf-8-sig")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=audit_log.csv"},
+    )

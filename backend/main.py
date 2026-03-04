@@ -40,6 +40,16 @@ async def lifespan(app: FastAPI):
                 [("expires_at", 1)],
                 expireAfterSeconds=3600,
             )
+            # Audit log indexes for query performance
+            await db.audit_log.create_index([("timestamp", -1)])
+            await db.audit_log.create_index([("user", 1), ("timestamp", -1)])
+            await db.audit_log.create_index([("action", 1)])
+            # TTL: auto-delete audit entries older than 90 days
+            await db.audit_log.create_index(
+                [("timestamp", 1)],
+                expireAfterSeconds=90 * 24 * 3600,
+                name="audit_log_ttl",
+            )
             logger.info("MongoDB indexes created/verified.")
         except Exception as e:
             logger.warning(f"Could not create indexes: {e}")

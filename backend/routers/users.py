@@ -4,7 +4,8 @@ from pydantic import BaseModel
 from typing import Optional
 
 from db import db_manager
-from auth import get_password_hash, get_current_user, require_role
+from auth import get_password_hash, verify_password, get_current_user, get_current_user_allow_expired, require_role
+from policies import get_password_policy, validate_password
 from logging_config import get_logger
 
 logger = get_logger("UsersRouter")
@@ -24,6 +25,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     name: Optional[str] = None
     is_active: Optional[bool] = None
+    force_password_reset: Optional[bool] = None
 
 
 class UserPreferencesUpdate(BaseModel):
@@ -40,7 +42,7 @@ async def list_users(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-    users_cursor = db.users.find({}, {"password_hash": 0, "_id": 0})
+    users_cursor = db.users.find({}, {"password_hash": 0, "password_history": 0, "_id": 0})
     return await users_cursor.to_list(length=100)
 
 
@@ -56,14 +58,23 @@ async def create_user(user: UserCreate, current_user: dict = Depends(require_rol
     if user.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role specified")
 
+    policy = await get_password_policy(db)
+    errors = validate_password(user.password, policy)
+    if errors:
+        raise HTTPException(status_code=400, detail=errors[0])
+
+    password_hash = get_password_hash(user.password)
     new_user = {
         "username": user.username,
-        "password_hash": get_password_hash(user.password),
+        "password_hash": password_hash,
         "role": user.role,
         "name": user.name,
         "preferred_lang": "pt",
         "is_active": True,
         "created_at": datetime.now(timezone.utc),
+        "password_history": [password_hash],
+        "password_changed_at": datetime.now(timezone.utc),
+        "force_password_reset": False,
     }
     await db.users.insert_one(new_user)
     return {"status": "success", "message": f"User {user.username} created successfully"}
@@ -72,22 +83,50 @@ async def create_user(user: UserCreate, current_user: dict = Depends(require_rol
 @router.put("/me")
 async def update_my_preferences(
     prefs: UserPreferencesUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_allow_expired),
 ):
+    """
+    Update own preferences (language, avatar, password).
+    Uses allow_expired so users with expired/force-reset passwords can still
+    change their credentials.
+    """
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
     username = current_user["username"]
     update_data = {}
+
     if prefs.preferred_lang is not None:
         update_data["preferred_lang"] = prefs.preferred_lang
     if prefs.avatar_base64 is not None:
         update_data["avatar_base64"] = prefs.avatar_base64
+
     if prefs.password is not None:
-        if len(prefs.password) < 6:
-            raise HTTPException(status_code=400, detail="Password must be at least 6 characters long")
-        update_data["password_hash"] = get_password_hash(prefs.password)
+        policy = await get_password_policy(db)
+        errors = validate_password(prefs.password, policy)
+        if errors:
+            raise HTTPException(status_code=400, detail=errors[0])
+
+        # Check password history
+        user_doc = await db.users.find_one({"username": username})
+        history = user_doc.get("password_history", []) if user_doc else []
+        history_count = policy.get("history_count", 5)
+        for old_hash in history[-history_count:]:
+            if verify_password(prefs.password, old_hash):
+                raise HTTPException(
+                    status_code=400,
+                    detail="password_reuse_denied",
+                )
+
+        new_hash = get_password_hash(prefs.password)
+        update_data["password_hash"] = new_hash
+        update_data["password_changed_at"] = datetime.now(timezone.utc)
+        update_data["force_password_reset"] = False
+
+        # Append to history, keep only last history_count entries
+        new_history = (history + [new_hash])[-history_count:]
+        update_data["password_history"] = new_history
 
     if not update_data:
         return {"status": "success", "message": "No fields to update"}
@@ -136,12 +175,24 @@ async def update_user(
                 and user_update.role != "admin"):
             raise HTTPException(status_code=400, detail="You cannot demote your own admin account")
         update_data["role"] = user_update.role
-    if user_update.password is not None and len(user_update.password) >= 6:
-        update_data["password_hash"] = get_password_hash(user_update.password)
+    if user_update.password is not None:
+        policy = await get_password_policy(db)
+        errors = validate_password(user_update.password, policy)
+        if errors:
+            raise HTTPException(status_code=400, detail=errors[0])
+        new_hash = get_password_hash(user_update.password)
+        update_data["password_hash"] = new_hash
+        update_data["password_changed_at"] = datetime.now(timezone.utc)
+        update_data["force_password_reset"] = False
+        history = existing.get("password_history", [])
+        history_count = policy.get("history_count", 5)
+        update_data["password_history"] = (history + [new_hash])[-history_count:]
     if user_update.is_active is not None:
         if current_user["username"] == username and user_update.is_active is False:
             raise HTTPException(status_code=400, detail="You cannot suspend your own account")
         update_data["is_active"] = user_update.is_active
+    if user_update.force_password_reset is not None:
+        update_data["force_password_reset"] = user_update.force_password_reset
 
     if not update_data:
         return {"status": "success", "message": "No fields to update"}

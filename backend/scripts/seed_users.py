@@ -7,8 +7,8 @@ import logging
 # Allow running as standalone script from any directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from auth import get_password_hash
-from db import db_manager
+from auth import get_password_hash  # noqa: E402
+from db import db_manager  # noqa: E402
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DB_Seeder")

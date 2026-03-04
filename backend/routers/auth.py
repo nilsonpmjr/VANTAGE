@@ -11,6 +11,7 @@ from auth import (
     create_access_token,
     create_refresh_token,
     get_current_user,
+    get_current_user_allow_expired,
 )
 from limiters import limiter
 from audit import log_action
@@ -50,8 +51,41 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
+    # Fetch lockout policy (defaults: 5 attempts / 15 min)
+    lockout_cfg = await db.lockout_policy.find_one({"_id": "singleton"})
+    max_attempts = lockout_cfg["max_attempts"] if lockout_cfg else 5
+    lockout_minutes = lockout_cfg["lockout_minutes"] if lockout_cfg else 15
+
     user = await db.users.find_one({"username": form_data.username})
+
+    # Check account lockout before password verification
+    if user:
+        locked_until = user.get("locked_until")
+        if locked_until and locked_until > datetime.now(timezone.utc):
+            raise HTTPException(
+                status_code=423,
+                detail={
+                    "code": "account_locked",
+                    "locked_until": locked_until.isoformat(),
+                },
+            )
+
+    # Verify credentials
     if not user or not verify_password(form_data.password, user["password_hash"]):
+        if user:
+            new_count = user.get("failed_login_count", 0) + 1
+            update_fields = {
+                "failed_login_count": new_count,
+                "last_failed_at": datetime.now(timezone.utc),
+            }
+            if new_count >= max_attempts:
+                update_fields["locked_until"] = (
+                    datetime.now(timezone.utc) + timedelta(minutes=lockout_minutes)
+                )
+            await db.users.update_one(
+                {"username": user["username"]},
+                {"$set": update_fields},
+            )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
@@ -63,6 +97,17 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Inactive user account",
         )
+
+    # Successful login: reset lockout counters and record timestamp
+    await db.users.update_one(
+        {"username": user["username"]},
+        {"$set": {
+            "failed_login_count": 0,
+            "locked_until": None,
+            "last_failed_at": None,
+            "last_login_at": datetime.now(timezone.utc),
+        }},
+    )
 
     access_token = create_access_token(
         data={"sub": user["username"], "role": user.get("role", "tech")}
@@ -85,6 +130,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
         "name": user.get("name", ""),
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
+        "force_password_reset": user.get("force_password_reset", False),
     }
 
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
@@ -138,7 +184,7 @@ async def refresh_access_token(request: Request):
 
 
 @router.post("/logout")
-async def logout(request: Request, current_user: dict = Depends(get_current_user)):
+async def logout(request: Request, current_user: dict = Depends(get_current_user_allow_expired)):
     """Revoke refresh token and clear auth cookies."""
     db = db_manager.db
 
@@ -160,5 +206,5 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
 
 
 @router.get("/me")
-async def read_users_me(current_user: dict = Depends(get_current_user)):
+async def read_users_me(current_user: dict = Depends(get_current_user_allow_expired)):
     return current_user

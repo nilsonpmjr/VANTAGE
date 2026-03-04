@@ -1,4 +1,5 @@
 import React from 'react';
+import i18n from '../../i18n';
 
 /**
  * React error boundary — catches unhandled render errors and displays
@@ -40,19 +41,19 @@ export default class ErrorBoundary extends React.Component {
                     textAlign: 'center',
                 }}>
                     <span style={{ fontSize: '3rem' }}>⚠️</span>
-                    <h2 style={{ margin: 0, color: 'var(--red)' }}>Algo deu errado</h2>
+                    <h2 style={{ margin: 0, color: 'var(--red)' }}>{i18n.t('error_boundary.title')}</h2>
                     <p style={{ color: 'var(--text-secondary)', maxWidth: '480px' }}>
-                        Ocorreu um erro inesperado. Por favor, recarregue a página.
+                        {i18n.t('error_boundary.message')}
                     </p>
                     <button
                         className="btn-primary"
                         onClick={() => window.location.reload()}
                     >
-                        Recarregar Página
+                        {i18n.t('error_boundary.reload')}
                     </button>
-                    {this.state.error && (
+                    {this.state.error && !import.meta.env.PROD && (
                         <details style={{ color: 'var(--text-muted)', fontSize: '0.8rem', maxWidth: '600px' }}>
-                            <summary style={{ cursor: 'pointer' }}>Detalhes do erro</summary>
+                            <summary style={{ cursor: 'pointer' }}>{i18n.t('error_boundary.details')}</summary>
                             <pre style={{ textAlign: 'left', marginTop: '0.5rem', whiteSpace: 'pre-wrap' }}>
                                 {this.state.error.toString()}
                             </pre>

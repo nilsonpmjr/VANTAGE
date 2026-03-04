@@ -30,6 +30,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
     // Auto-expand sidebar when tour requires it
     useEffect(() => {
         if (isTourActive && currentStep?.sidebarMustOpen && isCollapsed) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setIsCollapsed(false);
         }
     }, [isTourActive, currentStep, isCollapsed]);

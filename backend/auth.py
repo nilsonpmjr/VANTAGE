@@ -9,6 +9,7 @@ from passlib.context import CryptContext
 
 from config import settings
 from db import db_manager
+from policies import compute_expiry_days_left, get_password_policy
 
 SECRET_KEY = settings.jwt_secret
 ALGORITHM = settings.algorithm
@@ -43,17 +44,8 @@ def create_refresh_token() -> str:
     return secrets.token_urlsafe(64)
 
 
-async def get_current_user(
-    request: Request,
-    bearer_token: Optional[str] = Depends(oauth2_scheme),
-) -> dict:
-    """
-    Resolves the current authenticated user.
-
-    Token resolution order:
-    1. HttpOnly cookie `access_token` (web app)
-    2. Authorization: Bearer <token> header (CLI / API clients)
-    """
+async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
+    """Decode the JWT and return the user document from the database."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -86,13 +78,72 @@ async def get_current_user(
             detail="Inactive user account",
         )
 
-    return {
+    return user
+
+
+def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
+    """Build the standard authenticated-user response dict."""
+    result = {
         "username": user["username"],
         "role": user.get("role", "tech"),
         "name": user.get("name", ""),
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
+        "force_password_reset": user.get("force_password_reset", False),
     }
+    if days_left is not None:
+        result["password_expires_in_days"] = days_left
+    return result
+
+
+async def get_current_user(
+    request: Request,
+    bearer_token: Optional[str] = Depends(oauth2_scheme),
+) -> dict:
+    """
+    Resolves the current authenticated user.
+
+    Token resolution order:
+    1. HttpOnly cookie `access_token` (web app)
+    2. Authorization: Bearer <token> header (CLI / API clients)
+
+    Raises HTTP 403 if force_password_reset is set or the password has expired.
+    Use get_current_user_allow_expired for /me and password-change endpoints.
+    """
+    user = await _resolve_user(request, bearer_token)
+    db = db_manager.db
+    policy = await get_password_policy(db)
+    days_left = compute_expiry_days_left(user, policy)
+
+    if user.get("force_password_reset", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="password_reset_required",
+        )
+
+    if days_left is not None and days_left == 0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="password_expired",
+        )
+
+    return _build_user_dict(user, days_left)
+
+
+async def get_current_user_allow_expired(
+    request: Request,
+    bearer_token: Optional[str] = Depends(oauth2_scheme),
+) -> dict:
+    """
+    Resolves the current authenticated user WITHOUT enforcing password
+    expiry or force_password_reset. Use for /me, /logout, and the
+    password-change endpoint so users can always update their credentials.
+    """
+    user = await _resolve_user(request, bearer_token)
+    db = db_manager.db
+    policy = await get_password_policy(db)
+    days_left = compute_expiry_days_left(user, policy)
+    return _build_user_dict(user, days_left)
 
 
 def require_role(allowed_roles: list):

@@ -29,9 +29,11 @@ export const TourProvider = ({ children }) => {
 
     const storageKey = user ? `${STORAGE_PREFIX}${user.username ?? user._id}` : null;
 
-    // Auto-start on first login
+    // Auto-start on first login — skip if password reset is required
     useEffect(() => {
         if (!user || !storageKey) return;
+        // Don't start tour when user must change password first
+        if (user.force_password_reset || user.password_expires_in_days === 0) return;
         const completed = localStorage.getItem(storageKey);
         if (!completed) {
             // Delay so the login transition animation finishes first

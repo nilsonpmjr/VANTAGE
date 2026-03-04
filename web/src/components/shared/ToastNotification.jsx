@@ -34,6 +34,7 @@ export default function ToastNotification({ errors = [] }) {
     useEffect(() => {
         if (errorsKey && errorsKey !== prevKeyRef.current) {
             prevKeyRef.current = errorsKey;
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setVisible(true);
             setDismissed(false);
             setExpanded(false);

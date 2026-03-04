@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
                 if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
             };
         }
-    }, [user]);
+    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const login = async (username, password) => {
         const formData = new URLSearchParams();
@@ -100,7 +100,14 @@ export const AuthProvider = ({ children }) => {
         });
 
         if (!response.ok) {
-            throw new Error('Credenciais inválidas');
+            if (response.status === 423) {
+                const errData = await response.json().catch(() => ({}));
+                const err = new Error('account_locked');
+                err.code = 'account_locked';
+                err.locked_until = errData?.detail?.locked_until ?? null;
+                throw err;
+            }
+            throw new Error('invalid_credentials');
         }
 
         const data = await response.json();

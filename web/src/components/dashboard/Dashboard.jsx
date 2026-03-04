@@ -55,7 +55,7 @@ export default function Dashboard({ onSearch }) {
                 });
 
                 if (!response.ok) {
-                    throw new Error('Falha ao obter estatísticas gerenciais.');
+                    throw new Error(t('dashboard.err_stats'));
                 }
 
                 const data = await response.json();
@@ -70,7 +70,7 @@ export default function Dashboard({ onSearch }) {
         if (user) {
             fetchStats();
         }
-    }, [user, period]);
+    }, [user, period]); // eslint-disable-line react-hooks/exhaustive-deps
 
     if (!user) return null;
 

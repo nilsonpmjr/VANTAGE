@@ -46,7 +46,7 @@ class ReportGenerator:
         return COUNTRY_MAP.get(code.upper(), code)
 
     def _get_tag_desc(self, tag: str):
-        return self.t.get('tags', {}).get(tag)
+        return self.t.get('tags', {}).get(tag, tag)
 
     # ------------------------------------------------------------------
     # Data ingestion
@@ -164,7 +164,8 @@ class ReportGenerator:
             for svc, d in skipped:
                 reason = d.get("_meta_error") or d.get("error", "unknown")
                 lines.append(f"  [dim]• {svc}: {reason}[/]")
-            self.console.print(Panel("\n".join(lines), title="⚠ Serviços Indisponíveis", border_style="dim"))
+            unavail_title = self.t.get('unavailable_services', '⚠ Unavailable Services')
+            self.console.print(Panel("\n".join(lines), title=unavail_title, border_style="dim"))
 
         self.console.print(f"[dim]{self.t['end_report']}[/]")
 
@@ -199,5 +200,6 @@ class ReportGenerator:
             for svc, d in skipped:
                 reason = d.get("_meta_error") or d.get("error", "unknown")
                 lines.append(f"  [dim]• {svc}: {reason}[/]")
+            unavail_title = self.t.get('unavailable_services', '⚠ Unavailable Services')
             self.console.print()
-            self.console.print(Panel("\n".join(lines), title="⚠ Serviços Indisponíveis", border_style="dim"))
+            self.console.print(Panel("\n".join(lines), title=unavail_title, border_style="dim"))

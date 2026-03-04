@@ -28,6 +28,7 @@ export default function TourOverlay() {
 
     // Re-measure on step change, scroll and resize
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         if (!isTourActive) { setVisible(false); return; }
 
         // Small delay so the DOM can settle (e.g. sidebar expanding)

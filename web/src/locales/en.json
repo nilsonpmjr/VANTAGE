@@ -11,13 +11,18 @@
     "login": {
         "subtitle": "Security Operations Center",
         "error_credentials": "Access denied. Invalid credentials.",
+        "error_locked": "Account locked due to too many failed attempts. Try again after {{until}} or contact your administrator.",
         "username": "Username",
         "password": "Password",
         "submit": "Sign In",
         "username_placeholder": "Enter your username..."
     },
     "auth": {
-        "session_expired": "Your session has expired due to inactivity. Please log in again."
+        "session_expired": "Your session has expired due to inactivity. Please log in again.",
+        "password_expiry_warning": "Your password expires in {{days}} day(s). Please update it.",
+        "change_now": "Change Now",
+        "force_reset_notice": "You must change your password before continuing.",
+        "password_expired_notice": "Your password has expired. Please change it to continue."
     },
     "sidebar": {
         "menu": "Menu",
@@ -62,7 +67,8 @@
         "threat_trends": "Threat Trends (7 Days)",
         "top_typologies": "Top Threat Typologies",
         "crit_incident": "Critical Incident Feed",
-        "no_crits": "No critical incidents"
+        "no_crits": "No critical incidents",
+        "err_stats": "Failed to load management statistics."
     },
     "settings": {
         "title": "Settings",
@@ -92,7 +98,42 @@
         "confirm_suspend": "Are you sure you want to Suspend access for user '{{user}}'?",
         "confirm_activate": "Are you sure you want to Activate access for user '{{user}}'?",
         "err_action": "Error performing action on this user",
-        "no_users_found": "No users found."
+        "no_users_found": "No users found.",
+        "locked": "Locked",
+        "unlock": "Unlock User",
+        "confirm_unlock": "Do you want to unlock user '{{user}}'?",
+        "lockout_policy": "Lockout Policy",
+        "lockout_max_attempts": "Max attempts before lockout",
+        "lockout_minutes": "Lockout duration (minutes)",
+        "cancel_edit": "Cancel Edit",
+        "pass_new": "Access Password",
+        "restore_to_edit": "Restore user to enable editing",
+        "edit_user": "Edit User",
+        "deny_self_title": "You cannot suspend your own account",
+        "reactivate": "Reactivate User",
+        "force_reset": "Force password reset on next login",
+        "force_reset_tip": "The user will be required to change their password before accessing any feature.",
+        "policy_title": "Password Policy",
+        "policy_subtitle": "Global rules applied when creating or changing passwords.",
+        "policy_min_length": "Minimum length",
+        "policy_uppercase": "Require uppercase letter",
+        "policy_numbers": "Require number",
+        "policy_symbols": "Require special character",
+        "policy_history": "Password history (last N)",
+        "policy_expiry": "Expiry (days, 0 = disabled)",
+        "policy_warning": "Expiry warning (days before)",
+        "policy_save": "Save Policy",
+        "policy_saved": "Password policy saved.",
+        "delete": "Delete User",
+        "confirm_delete": "Are you sure you want to PERMANENTLY DELETE user '{{user}}'? This action cannot be undone.",
+        "last_login": "Last Login",
+        "never": "Never",
+        "stats_total": "Total",
+        "stats_active": "Active",
+        "stats_suspended": "Suspended",
+        "stats_locked": "Locked",
+        "stats_mfa": "With MFA",
+        "stats_failed_24h": "Failed 24h"
     },
     "profile": {
         "title": "My Profile",
@@ -113,6 +154,11 @@
         "err_pass_len": "Password must be at least 6 characters long.",
         "err_no_change": "No changes were made.",
         "err_update": "Error updating preferences.",
+        "err_policy_min": "Password must be at least {{min}} characters long.",
+        "err_policy_upper": "Password must contain at least one uppercase letter.",
+        "err_policy_number": "Password must contain at least one number.",
+        "err_policy_symbol": "Password must contain at least one special character.",
+        "err_pass_history": "This password was recently used. Please choose a different one.",
         "restart_tour": "Guided Tour",
         "restart_tour_sub": "Review the interactive walkthrough of the platform features.",
         "restart_tour_btn": "Restart Tour"
@@ -175,6 +221,12 @@
         "planLimit": "Plan limitation",
         "apiError": "API error",
         "dismiss": "Dismiss"
+    },
+    "error_boundary": {
+        "title": "Something went wrong",
+        "message": "An unexpected error occurred. Please reload the page.",
+        "reload": "Reload Page",
+        "details": "Error details"
     },
     "tour": {
         "search_title": "Search Bar",

@@ -1,7 +1,6 @@
 import logging
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Any
 
 from db import db_manager
 from clients.api_client_async import AsyncThreatIntelClient
@@ -9,7 +8,6 @@ from analyzer import generate_heuristic_report, format_report_to_markdown
 from scoring import compute_risk_score, compute_verdict
 
 logger = logging.getLogger("Worker")
-
 
 
 async def scan_safe_targets_job():

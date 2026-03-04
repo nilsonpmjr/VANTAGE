@@ -1,4 +1,5 @@
 # PRD — Funções Administrativas Avançadas e IAM
+
 **Produto:** Threat Intelligence Tool — Plataforma SOC
 **Versão:** 1.0
 **Data:** 2026-03-03
@@ -9,12 +10,15 @@
 ## 1. Executive Summary
 
 ### Problema
+
 A plataforma SOC possui autenticação JWT funcional e RBAC básico (admin/manager/tech), mas carece de controles de identidade exigidos em ambientes corporativos e de segurança: MFA, gestão de sessões, políticas de senha, lockout de conta, audit trail navegável e chaves de API. Isso cria lacunas de segurança e dificulta a conformidade com frameworks como NIST SP 800-63, ISO 27001 e SOC 2.
 
 ### Solução Proposta
+
 Implementar um módulo IAM (Identity & Access Management) completo, incorporado à interface administrativa existente, com suporte a MFA multi-provedor (padrão TOTP RFC 6238), gerenciamento de sessões ativas, políticas de senha configuráveis, lockout de conta, audit log navegável, API keys com escopo e permissões granulares por usuário.
 
 ### Critérios de Sucesso (KPIs)
+
 | KPI | Meta |
 |-----|------|
 | Cobertura MFA entre usuários com role admin/manager | ≥ 100% (obrigatório) |
@@ -49,6 +53,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-1.5` Como **usuário**, quero ver o status do meu MFA no perfil (ativado/desativado) e poder desativar se não for obrigatório para o meu role.
 
 **Critérios de Aceite:**
+
 - [ ] QR code gerado com `pyotp.totp.TOTP.provisioning_uri()`, compatível com qualquer app TOTP RFC 6238
 - [ ] Secret TOTP armazenado criptografado em repouso (AES-256 via `cryptography.fernet`)
 - [ ] 10 backup codes de uso único gerados no enrolamento; armazenados como hashes
@@ -61,6 +66,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - [ ] Usuário com MFA obrigatório não pendente recebe HTTP 403 com `{ detail: "mfa_setup_required" }` após login bem-sucedido
 
 **Non-Goals:**
+
 - SMS OTP (inseguro, não será implementado)
 - Hardware keys (FIDO2/WebAuthn) — escopo de versão futura
 - OAuth/SAML SSO — escopo de versão futura
@@ -76,6 +82,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-2.3` Como **admin**, quero ver e encerrar sessões ativas de qualquer usuário para responder a incidentes.
 
 **Critérios de Aceite:**
+
 - [ ] Coleção `sessions` no MongoDB com campos: `session_id`, `username`, `ip`, `user_agent`, `created_at`, `last_active`, `is_active`
 - [ ] TTL index em `created_at` (expirar após `refresh_token_expire_days`)
 - [ ] Endpoint `GET /api/sessions/me` retorna sessões ativas do usuário atual
@@ -96,7 +103,9 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-3.3` Como **usuário**, quero ser impedido de reutilizar senhas anteriores ao trocar de senha.
 
 **Critérios de Aceite:**
+
 - [ ] Documento `password_policy` no MongoDB (singleton) com campos:
+
   ```json
   {
     "min_length": 8,
@@ -108,6 +117,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
     "expiry_warning_days": 14
   }
   ```
+
 - [ ] Endpoint `GET /api/admin/password-policy` (admin) retorna política atual
 - [ ] Endpoint `PUT /api/admin/password-policy` (admin) atualiza política
 - [ ] Validação de política aplicada em: criação de usuário, troca de senha, reset de senha
@@ -129,8 +139,10 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-4.3` Como **usuário**, quero receber uma mensagem clara informando que minha conta foi bloqueada e por quanto tempo.
 
 **Critérios de Aceite:**
+
 - [ ] Campos no documento do usuário: `failed_login_count`, `locked_until` (datetime), `last_failed_at`
 - [ ] Configuração global `lockout_policy`:
+
   ```json
   {
     "max_attempts": 5,
@@ -138,6 +150,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
     "reset_attempts_after_minutes": 30
   }
   ```
+
 - [ ] Endpoint `GET /api/admin/lockout-policy` e `PUT /api/admin/lockout-policy` (admin)
 - [ ] Login com conta bloqueada retorna HTTP 423 com `{ detail: "account_locked", locked_until: "<ISO>" }`
 - [ ] Login com conta desbloqueada mas tentativas acumuladas: continuar contador, não resetar
@@ -156,6 +169,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-5.3` Como **manager**, quero ver somente meu próprio histórico de auditoria.
 
 **Critérios de Aceite:**
+
 - [ ] Índices MongoDB em `audit_logs`: `{ timestamp: -1 }`, `{ user: 1, timestamp: -1 }`, `{ action: 1 }`
 - [ ] Endpoint `GET /api/admin/audit-logs` com query params:
   - `user` (string), `action` (string), `result` (success|failure|denied), `ip` (string)
@@ -164,6 +178,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - [ ] Endpoint `GET /api/audit-logs/me` — usuário vê apenas seus próprios eventos
 - [ ] Endpoint `GET /api/admin/audit-logs/export?format=csv|json` — download direto
 - [ ] Novos eventos auditados obrigatoriamente:
+
   | Ação | Trigger |
   |------|---------|
   | `user_created` | POST /api/users |
@@ -181,6 +196,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
   | `api_key_revoked` | DELETE /api/apikeys/{id} |
   | `password_reset_forced` | Admin set force_password_reset |
   | `bulk_import` | POST /api/admin/users/import |
+
 - [ ] UI: nova aba "Audit Log" em Settings (admin) e seção "Meu Histórico" em Profile
 
 ---
@@ -194,6 +210,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-6.3` Como **sistema CI/CD**, quero autenticar via API key (header `X-API-Key`) para executar análises automatizadas.
 
 **Critérios de Aceite:**
+
 - [ ] Formato da key: `iti_<32 chars aleatórios>` (prefixo visível para identificação)
 - [ ] Armazenamento: somente hash SHA-256 da key no banco; valor completo exibido **apenas na criação**
 - [ ] Campos da API key: `id`, `name`, `owner` (username), `scopes[]`, `created_at`, `expires_at` (nullable), `last_used_at`, `is_active`
@@ -216,14 +233,17 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-7.2` Como **sistema**, quero verificar permissões granulares sem substituir o modelo RBAC existente.
 
 **Critérios de Aceite:**
+
 - [ ] Campo `extra_permissions[]` no documento do usuário (lista de strings)
 - [ ] Permissões disponíveis inicialmente:
+
   | Permissão | Descrição |
   |-----------|-----------|
   | `audit_logs:read` | Pode visualizar audit logs |
   | `users:export` | Pode exportar lista de usuários |
   | `apikeys:manage` | Pode criar/revogar API keys próprias |
   | `stats:export` | Pode exportar relatórios de estatísticas |
+
 - [ ] Função `has_permission(user, permission)` no backend verifica role padrão OU extra_permissions
 - [ ] Endpoint `PUT /api/admin/users/{username}/permissions` (admin) — atualiza extra_permissions
 - [ ] Role `admin` tem todas as permissões implicitamente (sem necessidade de lista explícita)
@@ -239,6 +259,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-8.3` Como **admin**, quero forçar a redefinição de senha de um usuário no próximo login.
 
 **Critérios de Aceite:**
+
 - [ ] Endpoint `POST /api/auth/forgot-password` — recebe `{ email }`, envia link com token de 15 min
 - [ ] Endpoint `POST /api/auth/reset-password` — recebe `{ token, new_password }`, valida e troca
 - [ ] Token de reset: UUID v4 + hash SHA-256, TTL index MongoDB (15 min), uso único
@@ -258,6 +279,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-9.2` Como **admin**, quero exportar a lista de usuários (sem senhas) para auditoria ou migração.
 
 **Critérios de Aceite:**
+
 - [ ] Endpoint `POST /api/admin/users/import` — aceita arquivo CSV multipart
 - [ ] Formato CSV: `username,name,role,email,preferred_lang` (password gerada aleatoriamente + force_password_reset: true)
 - [ ] Resposta de importação: `{ created: N, skipped: N, errors: [{ row, reason }] }`
@@ -277,7 +299,9 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
 - `US-10.3` Como **admin**, quero ver o status MFA e sessões ativas de cada usuário na tabela.
 
 **Critérios de Aceite:**
+
 - [ ] Endpoint `GET /api/admin/stats` retorna:
+
   ```json
   {
     "total_users": 42,
@@ -290,6 +314,7 @@ Implementar um módulo IAM (Identity & Access Management) completo, incorporado 
     "active_api_keys": 5
   }
   ```
+
 - [ ] Tabela de usuários em Settings: colunas adicionadas — Status MFA, Sessões Ativas, Último Login, Ações (editar/suspender/deletar/encerrar sessões)
 - [ ] Botão "Deletar" com confirmação modal na interface (atualmente só via API)
 - [ ] Indicador visual de lockout: badge "BLOQUEADO" na tabela de usuários
@@ -416,6 +441,7 @@ DEFAULT_PASSWORD_EXPIRY_DAYS=90
 | Session data | Campos em `sessions` | TTL automático |
 
 **Conformidade:**
+
 - LGPD: Export de usuário não inclui hashes de senhas nem secrets MFA
 - Audit log retido por 90 dias (TTL index configurável)
 - Princípio do menor privilégio via escopos de API key
@@ -425,6 +451,7 @@ DEFAULT_PASSWORD_EXPIRY_DAYS=90
 ## 4. Roadmap e Faseamento
 
 ### Fase 1 — MVP de Segurança (Sprint 1-2) ⚡ Alta Prioridade
+
 Impacto imediato na postura de segurança.
 
 | Feature | Entregável |
@@ -435,6 +462,7 @@ Impacto imediato na postura de segurança.
 | F5 — Audit Log (backend) | Novos eventos + índices MongoDB |
 
 ### Fase 2 — MFA e Sessões (Sprint 3-4) 🔒 Crítico
+
 Elimina a maior lacuna de segurança atual.
 
 | Feature | Entregável |
@@ -444,6 +472,7 @@ Elimina a maior lacuna de segurança atual.
 | F5 — Audit Log (UI) | Interface web com filtros + exportação |
 
 ### Fase 3 — IAM Avançado (Sprint 5-6) 🏗️ Expansão
+
 Capacidades enterprise e automação.
 
 | Feature | Entregável |

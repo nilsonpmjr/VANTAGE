@@ -57,27 +57,27 @@ async def test_process_single_target_uses_scans_collection():
 
 @pytest.mark.asyncio
 async def test_worker_verdict_computation():
-    """Verify _compute_verdict returns correct verdict for known inputs."""
-    from worker import _compute_verdict
+    """Verify compute_risk_score + compute_verdict return correct verdicts for known inputs."""
+    from scoring import compute_risk_score, compute_verdict
 
     # Zero risk sources → SAFE
-    result = _compute_verdict({})
-    assert result["verdict"] == "SAFE"
-    assert result["risk_sources"] == 0
+    risk, _ = compute_risk_score({})
+    assert compute_verdict(risk) == "SAFE"
+    assert risk == 0
 
     # One source with high abuse score → SUSPICIOUS
     one_risky = {
         "abuseipdb": {"data": {"abuseConfidenceScore": 80}},
     }
-    result = _compute_verdict(one_risky)
-    assert result["verdict"] == "SUSPICIOUS"
-    assert result["risk_sources"] == 1
+    risk, _ = compute_risk_score(one_risky)
+    assert compute_verdict(risk) == "SUSPICIOUS"
+    assert risk == 1
 
     # Two risky sources → HIGH RISK
     two_risky = {
         "abuseipdb": {"data": {"abuseConfidenceScore": 80}},
         "greynoise": {"classification": "malicious"},
     }
-    result = _compute_verdict(two_risky)
-    assert result["verdict"] == "HIGH RISK"
-    assert result["risk_sources"] == 2
+    risk, _ = compute_risk_score(two_risky)
+    assert compute_verdict(risk) == "HIGH RISK"
+    assert risk == 2

@@ -11,13 +11,18 @@
     "login": {
         "subtitle": "Centro de Operações de Segurança",
         "error_credentials": "Acesso negado. Credenciais inválidas.",
+        "error_locked": "Conta bloqueada por tentativas excessivas. Tente novamente após {{until}} ou contate o administrador.",
         "username": "Usuário",
         "password": "Senha",
         "submit": "Entrar",
         "username_placeholder": "Digite seu usuário..."
     },
     "auth": {
-        "session_expired": "Sua sessão expirou por inatividade. Por favor, faça login novamente."
+        "session_expired": "Sua sessão expirou por inatividade. Por favor, faça login novamente.",
+        "password_expiry_warning": "Sua senha expira em {{days}} dia(s). Por favor, atualize-a.",
+        "change_now": "Alterar Agora",
+        "force_reset_notice": "Você deve alterar sua senha antes de continuar.",
+        "password_expired_notice": "Sua senha expirou. Por favor, altere-a para continuar."
     },
     "sidebar": {
         "menu": "Menu",
@@ -62,7 +67,8 @@
         "threat_trends": "Tendências de Ameaça (7 Dias)",
         "top_typologies": "Principais Tipologias de Ameaça",
         "crit_incident": "Feed de Incidentes Críticos",
-        "no_crits": "Sem incidentes críticos"
+        "no_crits": "Sem incidentes críticos",
+        "err_stats": "Falha ao obter estatísticas gerenciais."
     },
     "settings": {
         "title": "Configurações",
@@ -92,7 +98,42 @@
         "confirm_suspend": "Tem certeza que deseja Suspender o acesso do usuário '{{user}}'?",
         "confirm_activate": "Tem certeza que deseja Ativar o acesso do usuário '{{user}}'?",
         "err_action": "Erro na ação contra este usuário",
-        "no_users_found": "Nenhum usuário encontrado."
+        "no_users_found": "Nenhum usuário encontrado.",
+        "locked": "Bloqueado",
+        "unlock": "Desbloquear Usuário",
+        "confirm_unlock": "Deseja desbloquear o usuário '{{user}}'?",
+        "lockout_policy": "Política de Bloqueio",
+        "lockout_max_attempts": "Tentativas máximas antes do bloqueio",
+        "lockout_minutes": "Duração do bloqueio (minutos)",
+        "cancel_edit": "Cancelar Edição",
+        "pass_new": "Senha de Acesso",
+        "restore_to_edit": "Restaure o usuário para editar",
+        "edit_user": "Editar Usuário",
+        "deny_self_title": "Você não pode suspender a si próprio",
+        "reactivate": "Reativar Usuário",
+        "force_reset": "Forçar redefinição de senha no próximo login",
+        "force_reset_tip": "O usuário será obrigado a alterar a senha antes de acessar qualquer funcionalidade.",
+        "policy_title": "Política de Senha",
+        "policy_subtitle": "Regras globais aplicadas ao criar ou alterar senhas.",
+        "policy_min_length": "Comprimento mínimo",
+        "policy_uppercase": "Exigir letra maiúscula",
+        "policy_numbers": "Exigir número",
+        "policy_symbols": "Exigir caractere especial",
+        "policy_history": "Histórico de senhas (últimas N)",
+        "policy_expiry": "Expiração (dias, 0 = desativado)",
+        "policy_warning": "Aviso antes do vencimento (dias)",
+        "policy_save": "Salvar Política",
+        "policy_saved": "Política de senha salva.",
+        "delete": "Deletar Usuário",
+        "confirm_delete": "Tem certeza que deseja DELETAR permanentemente o usuário '{{user}}'? Esta ação é irreversível.",
+        "last_login": "Último Login",
+        "never": "Nunca",
+        "stats_total": "Total",
+        "stats_active": "Ativos",
+        "stats_suspended": "Suspensos",
+        "stats_locked": "Bloqueados",
+        "stats_mfa": "Com MFA",
+        "stats_failed_24h": "Falhas 24h"
     },
     "profile": {
         "title": "Meu Perfil",
@@ -113,6 +154,11 @@
         "err_pass_len": "A senha deve ter pelo menos 6 caracteres.",
         "err_no_change": "Nenhuma alteração foi feita.",
         "err_update": "Erro ao atualizar preferências.",
+        "err_policy_min": "A senha deve ter pelo menos {{min}} caracteres.",
+        "err_policy_upper": "A senha deve conter pelo menos uma letra maiúscula.",
+        "err_policy_number": "A senha deve conter pelo menos um número.",
+        "err_policy_symbol": "A senha deve conter pelo menos um caractere especial.",
+        "err_pass_history": "Esta senha foi usada recentemente. Por favor, escolha outra.",
         "restart_tour": "Tour Guiado",
         "restart_tour_sub": "Reveja o tutorial interativo das funcionalidades da plataforma.",
         "restart_tour_btn": "Refazer Tour"
@@ -175,6 +221,12 @@
         "planLimit": "Limitação de plano",
         "apiError": "Erro na API",
         "dismiss": "Fechar"
+    },
+    "error_boundary": {
+        "title": "Algo deu errado",
+        "message": "Ocorreu um erro inesperado. Por favor, recarregue a página.",
+        "reload": "Recarregar Página",
+        "details": "Detalhes do erro"
     },
     "tour": {
         "search_title": "Barra de Busca",

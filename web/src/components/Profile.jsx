@@ -40,7 +40,14 @@ export default function Profile() {
 
         const reader = new FileReader();
         reader.onloadend = () => {
-            setAvatarBase64(reader.result);
+            if (reader.result && reader.result.startsWith('data:image/')) {
+                setAvatarBase64(reader.result);
+            } else {
+                setMessage({ type: 'error', text: t('profile.err_img_invalid') });
+            }
+        };
+        reader.onerror = () => {
+            setMessage({ type: 'error', text: t('profile.err_img_invalid') });
         };
         reader.readAsDataURL(file);
     };
@@ -86,14 +93,35 @@ export default function Profile() {
 
             if (!response.ok) {
                 const errData = await response.json();
-                throw new Error(errData.detail || t('profile.err_update'));
+                const raw = errData.detail || t('profile.err_update');
+                // Translate backend policy error codes into human-readable messages
+                let msg = raw;
+                if (typeof raw === 'string') {
+                    if (raw.startsWith('password_too_short:')) {
+                        const min = raw.split(':')[1];
+                        msg = t('profile.err_policy_min', { min });
+                    } else if (raw === 'password_needs_uppercase') {
+                        msg = t('profile.err_policy_upper');
+                    } else if (raw === 'password_needs_number') {
+                        msg = t('profile.err_policy_number');
+                    } else if (raw === 'password_needs_symbol') {
+                        msg = t('profile.err_policy_symbol');
+                    } else if (raw === 'password_reuse_denied') {
+                        msg = t('profile.err_pass_history');
+                    }
+                }
+                throw new Error(msg);
             }
 
-            // Update user context and language immediately — no page reload needed
-            const updatedUser = { ...user, preferred_lang: language, avatar_base64: avatarBase64 };
-            if (updateUserContext) {
-                updateUserContext(updatedUser);
+            // Re-fetch /me so force_password_reset and expiry are refreshed in context
+            let freshUser = { ...user, preferred_lang: language, avatar_base64: avatarBase64 };
+            if (payload.password) {
+                try {
+                    const meResp = await fetch(`${API_URL}/api/auth/me`, { credentials: 'include' });
+                    if (meResp.ok) freshUser = { ...freshUser, ...(await meResp.json()) };
+                } catch { /* non-critical */ }
             }
+            if (updateUserContext) updateUserContext(freshUser);
 
             // Translate the success message in the target language BEFORE switching
             const successMsg = i18n.t('profile.success', { lng: language });
@@ -124,6 +152,14 @@ export default function Profile() {
                 </h2>
                 <p style={{ color: 'var(--text-secondary)', margin: 0, marginLeft: 'calc(28px + 0.75rem)' }}>{t('profile.subtitle')}</p>
             </header>
+
+            {/* Force-reset or expiry notice */}
+            {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
+                <div style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Lock size={18} />
+                    <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
+                </div>
+            )}
 
             {message.text && (
                 <div style={{

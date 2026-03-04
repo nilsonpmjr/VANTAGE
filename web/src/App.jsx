@@ -47,6 +47,14 @@ export default function App() {
     }
   }, [user?.preferred_lang, i18n]);
 
+  // Force navigation to profile when password reset is required or expired
+  useEffect(() => {
+    if (!user) return;
+    if (user.force_password_reset || user.password_expires_in_days === 0) {
+      setCurrentView('profile');
+    }
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   const handleSearch = async (query) => {
     setHasSearched(true);
@@ -58,12 +66,13 @@ export default function App() {
         credentials: 'include',
       });
 
-      const result = await response.json();
-
       if (!response.ok) {
-        throw new Error(result.detail || "Failed to analyze target");
+        let detail = "Failed to analyze target";
+        try { const err = await response.json(); detail = err.detail || detail; } catch { /* non-JSON error body */ }
+        throw new Error(detail);
       }
 
+      const result = await response.json();
       setData(result);
     } catch (err) {
       setError(err.message);
@@ -80,12 +89,37 @@ export default function App() {
     return <Login />;
   }
 
+  // Expiry warning: show banner when within warning window but not yet expired
+  const expiryWarningDays = (user && typeof user.password_expires_in_days === 'number' && user.password_expires_in_days > 0 && user.password_expires_in_days <= 7)
+    ? user.password_expires_in_days
+    : null;
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
 
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'scroll' }}>
+
+        {/* Password expiry / force-reset notice — inside content column, does not cover sidebar */}
+        {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
+          <div style={{ background: 'var(--status-risk-bg)', borderBottom: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+            <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
+            <button onClick={() => setCurrentView('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+              {t('auth.change_now')}
+            </button>
+          </div>
+        )}
+
+        {/* Password expiry warning (within warning window) */}
+        {expiryWarningDays !== null && (
+          <div style={{ background: 'rgba(251, 146, 60, 0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+            {t('auth.password_expiry_warning', { days: expiryWarningDays })}
+            <button onClick={() => setCurrentView('profile')} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+              {t('auth.change_now')}
+            </button>
+          </div>
+        )}
 
         {currentView === 'home' && (
           <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
@@ -245,7 +279,8 @@ export default function App() {
         {currentView === 'profile' && <Profile />}
       </div>
 
-      <TourOverlay />
+      {/* Tour only runs on the home page */}
+      {currentView === 'home' && <TourOverlay />}
     </div>
   );
 }

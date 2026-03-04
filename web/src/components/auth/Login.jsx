@@ -20,14 +20,17 @@ export default function Login() {
 
         try {
             await login(username, password);
-            // On success, start transition instead of unmounting immediately
-            // Note: We need to modify AuthContext to not immediately set User if we want to delay unmount,
-            // or simply render this overlay in App.jsx. Let's render the overlay here and delay the user setting.
-            // Wait, useAuth sets user immediately, which unmounts <Login/>.
-            // It's better to lift this overlay to App.jsx. I will undo this and do it in App.jsx.
-        } catch {
-            setError(t('login.error_credentials'));
-            setIsSubmitting(false); // Only stop loading on error, on success we transition
+        } catch (err) {
+            if (err.code === 'account_locked') {
+                const until = err.locked_until
+                    ? new Date(err.locked_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : '';
+                setError(t('login.error_locked', { until }));
+            } else {
+                setError(t('login.error_credentials'));
+            }
+        } finally {
+            setIsSubmitting(false);
         }
     };
 

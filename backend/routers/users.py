@@ -19,6 +19,7 @@ class UserCreate(BaseModel):
     password: str
     role: str
     name: str
+    email: Optional[str] = None
 
 
 class UserUpdate(BaseModel):
@@ -27,6 +28,7 @@ class UserUpdate(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     force_password_reset: Optional[bool] = None
+    email: Optional[str] = None
 
 
 class UserPreferencesUpdate(BaseModel):
@@ -70,12 +72,14 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "password_hash": password_hash,
         "role": user.role,
         "name": user.name,
+        "email": user.email.strip().lower() if user.email else None,
         "preferred_lang": "pt",
         "is_active": True,
         "created_at": datetime.now(timezone.utc),
         "password_history": [password_hash],
         "password_changed_at": datetime.now(timezone.utc),
         "force_password_reset": False,
+        "extra_permissions": [],
     }
     await db.users.insert_one(new_user)
     ip = request.client.host if request.client else ""
@@ -230,6 +234,8 @@ async def update_user(
         update_data["is_active"] = user_update.is_active
     if user_update.force_password_reset is not None:
         update_data["force_password_reset"] = user_update.force_password_reset
+    if user_update.email is not None:
+        update_data["email"] = user_update.email.strip().lower() if user_update.email else None
 
     if not update_data:
         return {"status": "success", "message": "No fields to update"}

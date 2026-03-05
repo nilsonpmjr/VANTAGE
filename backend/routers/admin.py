@@ -1,15 +1,17 @@
 import csv
 import io
 import json
+import re
+import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Depends, Query, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 
 from db import db_manager
-from auth import require_role
+from auth import require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY
 from audit import log_action
 from logging_config import get_logger
@@ -139,15 +141,18 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
         if u.get("last_failed_at") and u["last_failed_at"] > yesterday
     )
 
+    active_sessions = await db.sessions.count_documents({"is_active": True})
+    active_api_keys = await db.api_keys.count_documents({"is_active": True})
+
     return {
         "total_users": total_users,
         "active_users": active_users,
         "suspended_users": suspended_users,
         "locked_accounts": locked_accounts,
         "users_with_mfa": users_with_mfa,
-        "active_sessions": 0,
+        "active_sessions": active_sessions,
         "failed_logins_24h": failed_logins_24h,
-        "active_api_keys": 0,
+        "active_api_keys": active_api_keys,
     }
 
 
@@ -174,6 +179,221 @@ async def unlock_user(
     await log_action(db, user=current_user["username"], action="account_unlocked",
                      target=username, ip=ip, result="success")
     return {"message": f"User '{username}' has been unlocked."}
+
+
+# ── Fine-grained permissions ─────────────────────────────────────────────────
+
+class PermissionsUpdate(BaseModel):
+    extra_permissions: List[str] = Field(default_factory=list)
+
+
+@router.get("/permissions")
+async def list_available_permissions(current_user: dict = Depends(require_role(["admin"]))):
+    """Return the list of all defined fine-grained permissions."""
+    return {"permissions": AVAILABLE_PERMISSIONS}
+
+
+@router.put("/users/{username}/permissions")
+async def update_user_permissions(
+    request: Request,
+    username: str,
+    body: PermissionsUpdate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    """
+    Set the extra_permissions list for a user.
+    Admin role has all permissions implicitly — setting extra_permissions on an
+    admin is a no-op in practice but is stored for audit purposes.
+    Unknown permissions are silently filtered to prevent typos in production.
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    user = await db.users.find_one({"username": username})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Filter to only known permissions
+    valid_perms = [p for p in body.extra_permissions if p in AVAILABLE_PERMISSIONS]
+
+    await db.users.update_one(
+        {"username": username},
+        {"$set": {"extra_permissions": valid_perms}},
+    )
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="permissions_updated",
+        target=username,
+        ip=ip,
+        result="success",
+        detail=str(valid_perms),
+    )
+    return {"username": username, "extra_permissions": valid_perms}
+
+
+# ── User Import / Export ─────────────────────────────────────────────────────
+
+_VALID_ROLES = {"admin", "manager", "tech"}
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+_EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password_history"}
+_IMPORT_COLUMNS = {"username", "name", "role", "email", "preferred_lang"}
+
+
+def _sanitize_user(u: dict) -> dict:
+    return {k: v for k, v in u.items() if k not in _EXPORT_OMIT and k != "_id"}
+
+
+def _serialize_export(items: list) -> list:
+    for item in items:
+        for key, val in item.items():
+            if hasattr(val, "isoformat"):
+                item[key] = val.isoformat()
+    return items
+
+
+@router.get("/users/export")
+async def export_users(
+    current_user: dict = Depends(require_role(["admin"])),
+    format: str = Query("csv", pattern="^(csv|json)$"),
+):
+    """Export user list (sanitized) as CSV or JSON."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    users = await db.users.find({}).to_list(length=10000)
+    safe = _serialize_export([_sanitize_user(u) for u in users])
+
+    if format == "json":
+        content = json.dumps(safe, ensure_ascii=False, indent=2)
+        return StreamingResponse(
+            iter([content]),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=users_export.json"},
+        )
+
+    # CSV
+    fieldnames = ["username", "name", "role", "email", "preferred_lang", "is_active",
+                  "mfa_enabled", "last_login_at", "password_changed_at", "extra_permissions"]
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in safe:
+        if isinstance(row.get("extra_permissions"), list):
+            row["extra_permissions"] = "|".join(row["extra_permissions"])
+        writer.writerow(row)
+    return StreamingResponse(
+        iter([output.getvalue().encode("utf-8-sig")]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=users_export.csv"},
+    )
+
+
+@router.post("/users/import")
+async def import_users(
+    request: Request,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    """
+    Bulk-import users from a CSV file.
+    Required columns: username, name, role
+    Optional columns: email, preferred_lang
+    Passwords are auto-generated; force_password_reset is set to True.
+    """
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are accepted.")
+
+    contents = await file.read()
+    try:
+        text = contents.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="File must be UTF-8 encoded.")
+
+    reader = csv.DictReader(io.StringIO(text))
+    rows = list(reader)
+
+    if len(rows) > 500:
+        raise HTTPException(status_code=400, detail="Maximum 500 users per import.")
+
+    policy = await get_password_policy(db)
+    now = datetime.now(timezone.utc)
+    created = 0
+    skipped = 0
+    errors: list[dict] = []
+
+    for i, row in enumerate(rows, start=2):  # row 1 is header
+        username = (row.get("username") or "").strip().lower()
+        name = (row.get("name") or "").strip()
+        role = (row.get("role") or "tech").strip().lower()
+        email = (row.get("email") or "").strip().lower() or None
+        preferred_lang = (row.get("preferred_lang") or "pt").strip().lower()
+
+        # Validate
+        if not username:
+            errors.append({"row": i, "reason": "missing_username"})
+            continue
+        if not name:
+            errors.append({"row": i, "reason": "missing_name", "username": username})
+            continue
+        if role not in _VALID_ROLES:
+            errors.append({"row": i, "reason": f"invalid_role:{role}", "username": username})
+            continue
+        if email and not _EMAIL_RE.match(email):
+            errors.append({"row": i, "reason": "invalid_email", "username": username})
+            continue
+        if preferred_lang not in {"pt", "en", "es"}:
+            preferred_lang = "pt"
+
+        existing = await db.users.find_one({"username": username})
+        if existing:
+            skipped += 1
+            continue
+
+        # Generate a random password that satisfies basic policy
+        raw_password = secrets.token_urlsafe(14)
+        hashed = get_password_hash(raw_password)
+
+        await db.users.insert_one({
+            "username": username,
+            "name": name,
+            "role": role,
+            "email": email,
+            "preferred_lang": preferred_lang,
+            "password_hash": hashed,
+            "password_history": [hashed],
+            "password_changed_at": now,
+            "force_password_reset": True,
+            "is_active": True,
+            "failed_login_count": 0,
+            "locked_until": None,
+            "last_failed_at": None,
+            "last_login_at": None,
+            "mfa_enabled": False,
+            "mfa_secret_enc": None,
+            "mfa_backup_codes": [],
+            "extra_permissions": [],
+        })
+        created += 1
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="bulk_import",
+        ip=ip,
+        result="success",
+        detail=f"created={created}, skipped={skipped}, errors={len(errors)}",
+    )
+    return {"created": created, "skipped": skipped, "errors": errors}
 
 
 # ── Audit Log helpers ────────────────────────────────────────────────────────
@@ -224,7 +444,7 @@ def _serialize_items(items: list) -> list:
 
 @router.get("/audit-logs")
 async def get_audit_logs(
-    current_user: dict = Depends(require_role(["admin"])),
+    current_user: dict = Depends(require_permission("audit_logs:read")),
     user: Optional[str] = None,
     action: Optional[str] = None,
     result: Optional[str] = None,
@@ -249,7 +469,7 @@ async def get_audit_logs(
 
 @router.get("/audit-logs/export")
 async def export_audit_logs(
-    current_user: dict = Depends(require_role(["admin"])),
+    current_user: dict = Depends(require_permission("audit_logs:read")),
     format: str = Query("csv", pattern="^(csv|json)$"),
     user: Optional[str] = None,
     action: Optional[str] = None,

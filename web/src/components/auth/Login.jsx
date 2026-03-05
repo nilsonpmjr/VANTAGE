@@ -4,7 +4,7 @@ import { ShieldAlert, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import '../../index.css';
 
-export default function Login() {
+export default function Login({ onForgotPassword }) {
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
@@ -90,6 +90,15 @@ export default function Login() {
                         {isSubmitting ? <Loader className="spin" size={20} /> : t('login.submit')}
                     </button>
                 </form>
+
+                {onForgotPassword && (
+                    <button
+                        onClick={onForgotPassword}
+                        style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
+                    >
+                        {t('login.forgot_password')}
+                    </button>
+                )}
 
             </div>
         </div>

@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -44,8 +45,21 @@ def create_refresh_token() -> str:
     return secrets.token_urlsafe(64)
 
 
+def hash_api_key(raw_key: str) -> str:
+    """Return SHA-256 hex digest of a raw API key."""
+    return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
 async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
-    """Decode the JWT and return the user document from the database."""
+    """
+    Decode the JWT (or validate an API key) and return the user document.
+
+    Token resolution order:
+    1. HttpOnly cookie `access_token` (web session)
+    2. Authorization: Bearer <token> header
+       – if token starts with 'iti_' → treat as API key (hash & lookup)
+       – otherwise → decode as JWT
+    """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -56,17 +70,40 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
     if not token:
         raise credentials_exception
 
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            raise credentials_exception
-    except jwt.PyJWTError:
-        raise credentials_exception
-
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
+
+    # ── API Key path ─────────────────────────────────────────────────────────
+    if token.startswith("iti_"):
+        key_hash = hash_api_key(token)
+        key_doc = await db.api_keys.find_one({"key_hash": key_hash, "revoked": False})
+        if not key_doc:
+            raise credentials_exception
+        # Check expiry (None = never expires)
+        if key_doc.get("expires_at") and key_doc["expires_at"] < datetime.now(timezone.utc):
+            raise credentials_exception
+        # Update last_used_at (fire-and-forget; ignore errors)
+        try:
+            await db.api_keys.update_one(
+                {"key_hash": key_hash},
+                {"$set": {"last_used_at": datetime.now(timezone.utc)}},
+            )
+        except Exception:
+            pass
+        username = key_doc["username"]
+    else:
+        # ── JWT path ──────────────────────────────────────────────────────────
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            username: str = payload.get("sub")
+            if username is None:
+                raise credentials_exception
+            # Reject MFA pre-auth tokens (scope != None means limited token)
+            if payload.get("scope") == "mfa_pending":
+                raise credentials_exception
+        except jwt.PyJWTError:
+            raise credentials_exception
 
     user = await db.users.find_one({"username": username})
     if user is None:
@@ -90,6 +127,7 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
+        "extra_permissions": user.get("extra_permissions", []),
     }
     if days_left is not None:
         result["password_expires_in_days"] = days_left
@@ -159,3 +197,41 @@ def require_role(allowed_roles: list):
             )
         return current_user
     return role_checker
+
+
+# ── Fine-Grained Permissions ─────────────────────────────────────────────────
+
+AVAILABLE_PERMISSIONS: list[str] = [
+    "audit_logs:read",
+    "users:export",
+    "apikeys:manage",
+    "stats:export",
+]
+
+
+def has_permission(user: dict, permission: str) -> bool:
+    """
+    Return True if the user has the given permission.
+
+    Resolution order:
+    1. admin role → always True (all permissions implicitly)
+    2. extra_permissions[] on the user document
+    """
+    if user.get("role") == "admin":
+        return True
+    return permission in user.get("extra_permissions", [])
+
+
+def require_permission(permission: str):
+    """
+    Dependency factory that enforces a fine-grained permission check.
+    Passes if the user is admin OR has the permission in extra_permissions[].
+    """
+    def checker(current_user: dict = Depends(get_current_user)):
+        if not has_permission(current_user, permission):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"permission_required:{permission}",
+            )
+        return current_user
+    return checker

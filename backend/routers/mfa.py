@@ -224,15 +224,29 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
         )
 
     # Issue full auth tokens
+    import uuid as _uuid
     access_token = create_access_token(data={"sub": username, "role": role})
     refresh_token = create_refresh_token()
+    user_agent = request.headers.get("user-agent", "")
+    ip = request.client.host if request.client else "unknown"
+    now = datetime.now(timezone.utc)
+
+    # Revoke previous session from same browser to avoid accumulation
+    if user_agent:
+        await db.refresh_tokens.update_one(
+            {"username": username, "user_agent": user_agent, "revoked": False},
+            {"$set": {"revoked": True}},
+        )
 
     await db.refresh_tokens.insert_one({
+        "session_id": str(_uuid.uuid4()),
         "token": refresh_token,
         "username": username,
         "role": role,
-        "created_at": datetime.now(timezone.utc),
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
+        "ip": ip,
+        "user_agent": user_agent,
+        "created_at": now,
+        "expires_at": now + timedelta(days=settings.refresh_token_expire_days),
         "revoked": False,
     })
 

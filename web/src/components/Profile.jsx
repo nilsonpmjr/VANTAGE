@@ -1,10 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTour } from '../context/TourContext';
-import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw, ClipboardList, ShieldCheck } from 'lucide-react';
+import { User, Camera, Lock, Webhook, Loader, Save, CheckCircle, RotateCcw, ClipboardList, ShieldCheck, Monitor, Key } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../config';
 import MFAEnroll from './auth/MFAEnroll';
+import SessionsTable from './shared/SessionsTable';
+import ApiKeysManager from './shared/ApiKeysManager';
 import '../index.css';
 
 export default function Profile() {
@@ -306,6 +308,24 @@ export default function Profile() {
                         } catch { /* non-critical */ }
                     }}
                 />
+            </div>
+
+            {/* Active Sessions */}
+            <div className="glass-panel" style={{ padding: '2rem', borderRadius: '12px', marginTop: '1.5rem' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '0.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
+                    <Monitor size={18} color="var(--primary)" />
+                    {t('sessions.section_title')}
+                </h3>
+                <SessionsTable />
+            </div>
+
+            {/* API Keys */}
+            <div className="glass-panel" style={{ padding: '2rem', borderRadius: '12px', marginTop: '1.5rem' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '0.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
+                    <Key size={18} color="var(--primary)" />
+                    {t('api_keys.section_title')}
+                </h3>
+                <ApiKeysManager />
             </div>
 
             {/* My Audit History */}

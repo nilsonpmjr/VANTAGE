@@ -1,0 +1,106 @@
+import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Mail, Loader, ShieldAlert, ArrowLeft } from 'lucide-react';
+import API_URL from '../../config';
+
+export default function ForgotPassword({ onBack }) {
+    const { t } = useTranslation();
+    const [email, setEmail] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [sent, setSent] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+        setLoading(true);
+        try {
+            const resp = await fetch(`${API_URL}/api/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email.trim() }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json().catch(() => ({}));
+                throw new Error(err.detail || t('forgot_password.error_generic'));
+            }
+            setSent(true);
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="login-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+            <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
+
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+                    <img src="/logo.svg" alt="Logo" style={{ width: '200px', height: 'auto' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>
+                    <ShieldAlert size={40} color="var(--primary)" />
+                </div>
+
+                <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.5rem', fontSize: '1.2rem' }}>
+                    {t('forgot_password.title')}
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
+                    {t('forgot_password.subtitle')}
+                </p>
+
+                {sent ? (
+                    <div>
+                        <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid var(--green)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', color: 'var(--green)', fontSize: '0.9rem' }}>
+                            <Mail size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+                            {t('forgot_password.sent_notice')}
+                        </div>
+                        <button onClick={onBack} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
+                            <ArrowLeft size={16} />
+                            {t('forgot_password.back_to_login')}
+                        </button>
+                    </div>
+                ) : (
+                    <>
+                        {error && (
+                            <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                                {error}
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{ textAlign: 'left' }}>
+                                <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
+                                    {t('forgot_password.email_label')}
+                                </label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={e => setEmail(e.target.value)}
+                                    required
+                                    className="search-input"
+                                    style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                                    placeholder={t('forgot_password.email_placeholder')}
+                                />
+                            </div>
+
+                            <button type="submit" disabled={loading} className="btn-primary">
+                                {loading ? <Loader className="spin" size={18} /> : t('forgot_password.submit')}
+                            </button>
+                        </form>
+
+                        <button
+                            onClick={onBack}
+                            style={{ marginTop: '1rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem', margin: '1rem auto 0' }}
+                        >
+                            <ArrowLeft size={14} />
+                            {t('forgot_password.back_to_login')}
+                        </button>
+                    </>
+                )}
+            </div>
+        </div>
+    );
+}

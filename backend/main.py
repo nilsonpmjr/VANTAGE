@@ -14,7 +14,7 @@ from logging_config import setup_logging, get_logger
 from limiters import limiter
 from worker import scan_safe_targets_job
 
-from routers import auth, users, analyze, stats, admin, mfa
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -49,6 +49,16 @@ async def lifespan(app: FastAPI):
                 [("timestamp", 1)],
                 expireAfterSeconds=90 * 24 * 3600,
                 name="audit_log_ttl",
+            )
+            # TTL: auto-expire password reset tokens (MongoDB removes at expires_at)
+            await db.password_reset_tokens.create_index(
+                [("expires_at", 1)],
+                expireAfterSeconds=0,
+                name="reset_tokens_ttl",
+            )
+            await db.password_reset_tokens.create_index(
+                [("username", 1)],
+                name="reset_tokens_username",
             )
             logger.info("MongoDB indexes created/verified.")
         except Exception as e:
@@ -123,6 +133,8 @@ app.include_router(analyze.router, prefix="/api")
 app.include_router(stats.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(mfa.router, prefix="/api")
+app.include_router(sessions.router, prefix="/api")
+app.include_router(api_keys.router, prefix="/api")
 
 # /api/v1  (versioned)
 app.include_router(auth.router, prefix="/api/v1")
@@ -131,6 +143,8 @@ app.include_router(analyze.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(mfa.router, prefix="/api/v1")
+app.include_router(sessions.router, prefix="/api/v1")
+app.include_router(api_keys.router, prefix="/api/v1")
 
 
 if __name__ == "__main__":

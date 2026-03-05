@@ -61,11 +61,11 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
     };
 
-    // IAM Auto-Logout on Inactivity (15 minutes)
+    // IAM Auto-Logout on Inactivity (30 minutes — MFA adds extra security layer)
     const inactivityTimeoutRef = useRef(null);
 
     useEffect(() => {
-        const INACTIVITY_LIMIT_MS = 15 * 60 * 1000;
+        const INACTIVITY_LIMIT_MS = 30 * 60 * 1000;
 
         const resetInactivityTimeout = () => {
             if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);

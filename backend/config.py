@@ -27,6 +27,17 @@ class Settings(BaseSettings):
     mfa_encryption_key: str = ""            # Fernet key; auto-derived in dev if empty
     mfa_required_roles: List[str] = ["admin", "manager"]  # roles that MUST enroll MFA
 
+    # SMTP (optional — needed for password reset emails)
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_pass: str = ""
+    smtp_from: str = "noreply@soc.local"
+    smtp_tls: bool = True
+
+    # Frontend base URL (used to build password reset links)
+    frontend_url: str = "http://localhost:5173"
+
     # Runtime
     environment: str = "development"
     log_level: str = "INFO"

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock, ClipboardList, ShieldOff } from 'lucide-react';
+import { UserPlus, Loader, Shield, User, Terminal, Settings as SettingsIcon, Search, Edit2, X, Power, LockOpen, KeyRound, Trash2, Users, UserCheck, UserX, Lock, ClipboardList, ShieldOff, BarChart2, Upload, Download } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import AuditLogTable from './AuditLogTable';
@@ -36,11 +36,22 @@ export default function Settings() {
     const [newName, setNewName] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [newRole, setNewRole] = useState('tech');
+    const [newEmail, setNewEmail] = useState('');
 
     // Edit & Search State
     const [editingUser, setEditingUser] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [forceReset, setForceReset] = useState(false);
+    const [editingPermissions, setEditingPermissions] = useState([]);
+    const [permSaving, setPermSaving] = useState(false);
+    const [permMsg, setPermMsg] = useState('');
+
+    const ALL_PERMISSIONS = [
+        { key: 'audit_logs:read', label: t('permissions.audit_logs_read'), desc: t('permissions.audit_logs_read_desc') },
+        { key: 'users:export',    label: t('permissions.users_export'),    desc: t('permissions.users_export_desc') },
+        { key: 'apikeys:manage',  label: t('permissions.apikeys_manage'),  desc: t('permissions.apikeys_manage_desc') },
+        { key: 'stats:export',    label: t('permissions.stats_export'),    desc: t('permissions.stats_export_desc') },
+    ];
 
     // IAM Stats State
     const [adminStats, setAdminStats] = useState(null);
@@ -53,6 +64,11 @@ export default function Settings() {
     const [policyLoading, setPolicyLoading] = useState(false);
     const [policySaving, setPolicySaving] = useState(false);
     const [policyMsg, setPolicyMsg] = useState('');
+
+    // Import/Export State
+    const [importing, setImporting] = useState(false);
+    const [importResult, setImportResult] = useState(null);
+    const [exporting, setExporting] = useState(false);
 
     const fetchUsers = async () => {
         try {
@@ -112,6 +128,49 @@ export default function Settings() {
         }
     };
 
+    const handleExport = async (format) => {
+        setExporting(true);
+        try {
+            const resp = await fetch(`${API_URL}/api/admin/users/export?format=${format}`, { credentials: 'include' });
+            if (!resp.ok) throw new Error('export_failed');
+            const blob = await resp.blob();
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `users_export.${format}`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } catch (_) { /* non-critical */ } finally {
+            setExporting(false);
+        }
+    };
+
+    const handleImport = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImporting(true);
+        setImportResult(null);
+        try {
+            const form = new FormData();
+            form.append('file', file);
+            const resp = await fetch(`${API_URL}/api/admin/users/import`, {
+                method: 'POST',
+                credentials: 'include',
+                body: form,
+            });
+            const data = await resp.json();
+            if (!resp.ok) throw new Error(data.detail || t('settings.import_error'));
+            setImportResult(data);
+            fetchUsers();
+            fetchStats();
+        } catch (err) {
+            setImportResult({ error: err.message });
+        } finally {
+            setImporting(false);
+            e.target.value = '';
+        }
+    };
+
     useEffect(() => {
         fetchUsers();
         if (user?.role === 'admin' || user?.role === 'manager') fetchStats();
@@ -127,7 +186,8 @@ export default function Settings() {
 
             const payload = {
                 name: newName,
-                role: newRole
+                role: newRole,
+                email: newEmail || null,
             };
 
             if (!editingUser) {
@@ -166,7 +226,10 @@ export default function Settings() {
         setNewName(userToEdit.name);
         setNewRole(userToEdit.role);
         setNewPassword('');
+        setNewEmail(userToEdit.email || '');
         setForceReset(userToEdit.force_password_reset || false);
+        setEditingPermissions(userToEdit.extra_permissions || []);
+        setPermMsg('');
     };
 
     const cancelEdit = () => {
@@ -175,7 +238,39 @@ export default function Settings() {
         setNewName('');
         setNewPassword('');
         setNewRole('tech');
+        setNewEmail('');
         setForceReset(false);
+        setEditingPermissions([]);
+        setPermMsg('');
+    };
+
+    const handleSavePermissions = async () => {
+        setPermSaving(true);
+        setPermMsg('');
+        try {
+            const resp = await fetch(`${API_URL}/api/admin/users/${editingUser}/permissions`, {
+                method: 'PUT',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ extra_permissions: editingPermissions }),
+            });
+            if (!resp.ok) {
+                const err = await resp.json();
+                throw new Error(err.detail || t('permissions.err_save'));
+            }
+            setPermMsg(t('permissions.saved'));
+            fetchUsers();
+        } catch (err) {
+            setPermMsg(err.message);
+        } finally {
+            setPermSaving(false);
+        }
+    };
+
+    const togglePermission = (key) => {
+        setEditingPermissions(prev =>
+            prev.includes(key) ? prev.filter(p => p !== key) : [...prev, key]
+        );
     };
 
     const handleDeleteUser = async (userToDelete) => {
@@ -304,7 +399,8 @@ export default function Settings() {
             <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--glass-border)', marginBottom: '2rem' }}>
                 {[
                     { key: 'users', icon: <Users size={16} />, label: t('settings.tab_users') },
-                    ...(user?.role === 'admin' ? [{ key: 'audit', icon: <ClipboardList size={16} />, label: t('settings.tab_audit') }] : []),
+                    ...(user?.role === 'admin' ? [{ key: 'overview', icon: <BarChart2 size={16} />, label: t('settings.tab_overview') }] : []),
+                    ...(user?.role === 'admin' || user?.extra_permissions?.includes('audit_logs:read') ? [{ key: 'audit', icon: <ClipboardList size={16} />, label: t('settings.tab_audit') }] : []),
                 ].map(tab => (
                     <button
                         key={tab.key}
@@ -327,6 +423,101 @@ export default function Settings() {
             {error && (
                 <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
                     {error}
+                </div>
+            )}
+
+            {/* OVERVIEW TAB */}
+            {activeTab === 'overview' && user?.role === 'admin' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+
+                    {/* IAM Metrics */}
+                    {adminStats && (
+                        <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                            <h3 style={{ marginTop: 0, marginBottom: '1.25rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                <BarChart2 size={20} color="var(--primary)" />
+                                {t('settings.overview_iam_title')}
+                            </h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem' }}>
+                                {[
+                                    { icon: <Users size={20} />, label: t('settings.stats_total'), value: adminStats.total_users, color: 'var(--primary)' },
+                                    { icon: <UserCheck size={20} />, label: t('settings.stats_active'), value: adminStats.active_users, color: 'var(--green)' },
+                                    { icon: <UserX size={20} />, label: t('settings.stats_suspended'), value: adminStats.suspended_users, color: 'var(--red)' },
+                                    { icon: <Lock size={20} />, label: t('settings.stats_locked'), value: adminStats.locked_accounts, color: '#fb923c' },
+                                    { icon: <Shield size={20} />, label: t('settings.stats_mfa'), value: adminStats.users_with_mfa, color: 'var(--primary)' },
+                                    { icon: <X size={20} />, label: t('settings.stats_failed_24h'), value: adminStats.failed_logins_24h, color: 'var(--red)' },
+                                    { icon: <Terminal size={20} />, label: t('settings.stats_sessions'), value: adminStats.active_sessions, color: 'var(--primary)' },
+                                    { icon: <KeyRound size={20} />, label: t('settings.stats_api_keys'), value: adminStats.active_api_keys, color: '#a78bfa' },
+                                ].map(({ icon, label, value, color }) => (
+                                    <div key={label} className="glass-panel" style={{ padding: '1rem 1.25rem', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                        <span style={{ color, display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', fontWeight: 600 }}>{icon} {label}</span>
+                                        <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1 }}>{value ?? '—'}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Import / Export */}
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '0.5rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <Upload size={20} color="var(--primary)" />
+                            {t('settings.import_export_title')}
+                        </h3>
+                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: 0, marginBottom: '1.5rem' }}>{t('settings.import_export_sub')}</p>
+
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1rem', alignItems: 'flex-start' }}>
+                            {/* Export */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('settings.export_title')}</span>
+                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                    <button onClick={() => handleExport('csv')} disabled={exporting} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem' }}>
+                                        <Download size={15} /> CSV
+                                    </button>
+                                    <button onClick={() => handleExport('json')} disabled={exporting} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem' }}>
+                                        <Download size={15} /> JSON
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Import */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 600 }}>{t('settings.import_title')}</span>
+                                <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted)' }}>{t('settings.import_format_hint')}</p>
+                                <label className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', cursor: 'pointer' }}>
+                                    {importing ? <Loader className="spin" size={15} /> : <Upload size={15} />}
+                                    {t('settings.import_btn')}
+                                    <input type="file" accept=".csv" onChange={handleImport} style={{ display: 'none' }} disabled={importing} />
+                                </label>
+                            </div>
+                        </div>
+
+                        {importResult && (
+                            <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: '8px', background: importResult.error ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', fontSize: '0.875rem' }}>
+                                {importResult.error ? (
+                                    <span style={{ color: 'var(--red)' }}>{importResult.error}</span>
+                                ) : (
+                                    <>
+                                        <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                                            {t('settings.import_created', { count: importResult.created })} &nbsp;
+                                            {t('settings.import_skipped', { count: importResult.skipped })}
+                                        </span>
+                                        {importResult.errors?.length > 0 && (
+                                            <details style={{ marginTop: '0.5rem' }}>
+                                                <summary style={{ cursor: 'pointer', color: '#fb923c' }}>
+                                                    {t('settings.import_errors', { count: importResult.errors.length })}
+                                                </summary>
+                                                <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                    {importResult.errors.map((e, i) => (
+                                                        <li key={i}>{t('settings.import_error_row', { row: e.row })}: {e.reason} {e.username ? `(${e.username})` : ''}</li>
+                                                    ))}
+                                                </ul>
+                                            </details>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -393,6 +584,10 @@ export default function Settings() {
                             <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} required={!editingUser} minLength={6} className="search-input" style={{ width: '100%', padding: '0.6rem', background: 'var(--bg-main)' }} placeholder="••••••••" />
                         </div>
                         <div>
+                            <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('settings.email')}</label>
+                            <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className="search-input" style={{ width: '100%', padding: '0.6rem', background: 'var(--bg-main)' }} placeholder="user@example.com" />
+                        </div>
+                        <div>
                             <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>{t('settings.role')}</label>
                             <select value={newRole} onChange={e => setNewRole(e.target.value)} className="lang-select" style={{ width: '100%', padding: '0.6rem' }}>
                                 <option value="tech">{t('settings.tech')}</option>
@@ -421,6 +616,53 @@ export default function Settings() {
                             {isCreating ? <Loader className="spin" size={18} /> : (editingUser ? t('settings.edit') : t('settings.save'))}
                         </button>
                     </form>
+
+                    {/* Extra Permissions panel — shown only when editing a non-admin */}
+                    {editingUser && newRole !== 'admin' && (
+                        <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--glass-border)' }}>
+                            <h4 style={{ margin: '0 0 0.4rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.9rem' }}>
+                                <Shield size={16} color="var(--primary)" />
+                                {t('permissions.section_title')}
+                            </h4>
+                            <p style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{t('permissions.section_sub')}</p>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                {ALL_PERMISSIONS.map(({ key, label, desc }) => (
+                                    <div key={key} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.6rem', background: 'var(--bg-main)', borderRadius: '6px', border: '1px solid var(--glass-border)' }}>
+                                        <input
+                                            type="checkbox"
+                                            id={`perm_${key}`}
+                                            checked={editingPermissions.includes(key)}
+                                            onChange={() => togglePermission(key)}
+                                            style={{ marginTop: '0.15rem', accentColor: 'var(--primary)', cursor: 'pointer' }}
+                                        />
+                                        <div>
+                                            <label htmlFor={`perm_${key}`} style={{ fontSize: '0.82rem', color: 'var(--text-primary)', cursor: 'pointer', display: 'block', fontWeight: 500 }}>{label}</label>
+                                            <span style={{ fontSize: '0.74rem', color: 'var(--text-muted)' }}>{desc}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.75rem' }}>
+                                <button
+                                    type="button"
+                                    onClick={handleSavePermissions}
+                                    disabled={permSaving}
+                                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', background: 'var(--accent-glow)', border: '1px solid var(--accent-border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 500 }}
+                                >
+                                    {permSaving ? <Loader className="spin" size={14} /> : <Shield size={14} />}
+                                    {t('permissions.save')}
+                                </button>
+                                {permMsg && <span style={{ fontSize: '0.8rem', color: permMsg === t('permissions.saved') ? 'var(--green)' : 'var(--red)' }}>{permMsg}</span>}
+                            </div>
+                        </div>
+                    )}
+
+                    {editingUser && newRole === 'admin' && (
+                        <p style={{ marginTop: '1.25rem', fontSize: '0.8rem', color: 'var(--text-muted)', fontStyle: 'italic', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)' }}>
+                            <Shield size={13} style={{ verticalAlign: 'middle', marginRight: '0.3rem' }} />
+                            {t('permissions.admin_implicit')}
+                        </p>
+                    )}
                 </div>
 
                 {/* USERS LIST TABLE */}

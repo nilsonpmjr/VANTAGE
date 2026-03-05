@@ -65,7 +65,11 @@ class FakeCollection:
                         match = False; break
                     if "$gte" in v and doc_val < v["$gte"]:
                         match = False; break
+                    if "$gt" in v and doc_val <= v["$gt"]:
+                        match = False; break
                     if "$lte" in v and doc_val > v["$lte"]:
+                        match = False; break
+                    if "$lt" in v and doc_val >= v["$lt"]:
                         match = False; break
                 else:
                     if doc.get(k) != v:
@@ -114,7 +118,13 @@ class FakeCollection:
                     if "$gte" in v and doc_val < v["$gte"]:
                         match = False
                         break
+                    if "$gt" in v and doc_val <= v["$gt"]:
+                        match = False
+                        break
                     if "$lte" in v and doc_val > v["$lte"]:
+                        match = False
+                        break
+                    if "$lt" in v and doc_val >= v["$lt"]:
                         match = False
                         break
                 else:
@@ -134,6 +144,7 @@ class FakeDB:
                 "password_hash": get_password_hash("admin123"),
                 "role": "admin",
                 "name": "Admin User",
+                "email": "admin@soc.local",
                 "preferred_lang": "pt",
                 "is_active": True,
                 "failed_login_count": 0,
@@ -146,12 +157,14 @@ class FakeDB:
                 "mfa_enabled": False,
                 "mfa_secret_enc": None,
                 "mfa_backup_codes": [],
+                "extra_permissions": [],
             },
             {
                 "username": "inactive",
                 "password_hash": get_password_hash("pass"),
                 "role": "tech",
                 "name": "Inactive",
+                "email": None,
                 "preferred_lang": "pt",
                 "is_active": False,
                 "failed_login_count": 0,
@@ -164,12 +177,14 @@ class FakeDB:
                 "mfa_enabled": False,
                 "mfa_secret_enc": None,
                 "mfa_backup_codes": [],
+                "extra_permissions": [],
             },
             {
                 "username": "techuser",
                 "password_hash": get_password_hash("tech123"),
                 "role": "tech",
                 "name": "Tech User",
+                "email": "tech@soc.local",
                 "preferred_lang": "pt",
                 "is_active": True,
                 "failed_login_count": 0,
@@ -182,6 +197,7 @@ class FakeDB:
                 "mfa_enabled": False,
                 "mfa_secret_enc": None,
                 "mfa_backup_codes": [],
+                "extra_permissions": [],
             },
         ])
         self.scans = FakeCollection()
@@ -190,6 +206,9 @@ class FakeDB:
         self.lockout_policy = FakeCollection()
         self.password_policy = FakeCollection()
         self.audit_log = FakeCollection()
+        self.api_keys = FakeCollection()
+        self.sessions = FakeCollection()
+        self.password_reset_tokens = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

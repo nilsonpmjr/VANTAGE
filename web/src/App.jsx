@@ -9,6 +9,8 @@ import { generatePDFReport } from './utils/pdfGenerator';
 import { useAuth } from './context/AuthContext';
 import Login from './components/auth/Login';
 import MFAVerify from './components/auth/MFAVerify';
+import ForgotPassword from './components/auth/ForgotPassword';
+import ResetPassword from './components/auth/ResetPassword';
 import Sidebar from './components/layout/Sidebar';
 import Settings from './components/admin/Settings';
 import Dashboard from './components/dashboard/Dashboard';
@@ -38,8 +40,23 @@ export default function App() {
   const [lang, setLang] = useState('pt');
   const [hasSearched, setHasSearched] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+  const [resetToken, setResetToken] = useState(null);
+  const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
 
   const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('token');
+    if (token) setResetToken(token);
+  }, []);
+
+  const clearResetToken = () => {
+    setResetToken(null);
+    const url = new URL(window.location.href);
+    url.searchParams.delete('token');
+    window.history.replaceState({}, '', url);
+  };
 
   useEffect(() => {
     if (user?.preferred_lang) {
@@ -94,10 +111,10 @@ export default function App() {
   }
 
   if (!user && !isTransitioning) {
-    if (mfaPending) {
-      return <MFAVerify preAuthToken={mfaPending.preAuthToken} onSuccess={completeMfaLogin} onCancel={cancelMfa} />;
-    }
-    return <Login />;
+    if (resetToken) return <ResetPassword token={resetToken} onSuccess={clearResetToken} />;
+    if (mfaPending) return <MFAVerify preAuthToken={mfaPending.preAuthToken} onSuccess={completeMfaLogin} onCancel={cancelMfa} />;
+    if (forgotPasswordMode) return <ForgotPassword onBack={() => setForgotPasswordMode(false)} />;
+    return <Login onForgotPassword={() => setForgotPasswordMode(true)} />;
   }
 
   // Expiry warning: show banner when within warning window but not yet expired

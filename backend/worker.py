@@ -16,7 +16,7 @@ async def scan_safe_targets_job():
     """
     logger.info("Starting scheduled background scan for SAFE targets")
 
-    if not db_manager.db:
+    if db_manager.db is None:
         logger.error("Worker cannot run: Database not connected")
         return
 
@@ -33,36 +33,35 @@ async def scan_safe_targets_job():
     cursor = db.scans.find(query).sort("timestamp", 1).limit(100)
     old_targets = await cursor.to_list(length=100)
 
-    if not old_targets:
-        logger.info("No old SAFE targets found that require re-scanning.")
-        return
-
-    logger.info(f"Found {len(old_targets)} SAFE targets for re-scanning.")
-
     altered_targets_count = 0
 
-    async with AsyncThreatIntelClient() as client:
-        batch_size = 5
+    if not old_targets:
+        logger.info("No old SAFE targets found that require re-scanning.")
+    else:
+        logger.info(f"Found {len(old_targets)} SAFE targets for re-scanning.")
 
-        for i in range(0, len(old_targets), batch_size):
-            batch = old_targets[i:i + batch_size]
-            tasks = [
-                process_single_target(client, db, item["target"], item["type"], item["_id"])
-                for item in batch
-            ]
+        async with AsyncThreatIntelClient() as client:
+            batch_size = 5
 
-            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for i in range(0, len(old_targets), batch_size):
+                batch = old_targets[i:i + batch_size]
+                tasks = [
+                    process_single_target(client, db, item["target"], item["type"], item["_id"])
+                    for item in batch
+                ]
 
-            for res in results:
-                if isinstance(res, bool) and res:
-                    altered_targets_count += 1
-                elif isinstance(res, Exception):
-                    logger.error(f"Error during async batch processing: {res}")
+                results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            # Short pause between batches to respect rate limits
-            await asyncio.sleep(2)
+                for res in results:
+                    if isinstance(res, bool) and res:
+                        altered_targets_count += 1
+                    elif isinstance(res, Exception):
+                        logger.error(f"Error during async batch processing: {res}")
 
-    # Record health metrics for the Dashboard
+                # Short pause between batches to respect rate limits
+                await asyncio.sleep(2)
+
+    # Record health metrics for the Dashboard (always, even when no targets found)
     try:
         await db.system_status.update_one(
             {"module": "worker"},

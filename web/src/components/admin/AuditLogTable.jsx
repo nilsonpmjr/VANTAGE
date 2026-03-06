@@ -127,8 +127,8 @@ export default function AuditLogTable() {
             </form>
 
             {/* Table */}
-            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--glass-border)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
+            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--glass-border)', paddingBottom: '2px' }}>
+                <table style={{ width: '100%', minWidth: '860px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
                     <thead style={{ background: 'var(--bg-main)' }}>
                         <tr>
                             {['col_timestamp', 'col_user', 'col_action', 'col_target', 'col_result', 'col_ip', 'col_detail'].map(k => (
@@ -161,7 +161,7 @@ export default function AuditLogTable() {
                                     </span>
                                 </td>
                                 <td style={{ padding: '0.6rem 1rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.78rem' }}>{item.ip || '—'}</td>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-secondary)', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.detail}>{item.detail || '—'}</td>
+                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-secondary)', minWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.detail}>{item.detail || '—'}</td>
                             </tr>
                         ))}
                     </tbody>

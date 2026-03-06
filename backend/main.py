@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -72,6 +73,7 @@ async def lifespan(app: FastAPI):
         trigger="interval",
         hours=24,
         id="scan_safe_targets_daily",
+        next_run_time=datetime.now(timezone.utc),
     )
     scheduler.start()
     logger.info("Background Worker (APScheduler) started.")

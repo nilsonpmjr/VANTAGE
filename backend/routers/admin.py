@@ -141,7 +141,10 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
         if u.get("last_failed_at") and u["last_failed_at"] > yesterday
     )
 
-    active_sessions = await db.sessions.count_documents({"is_active": True})
+    active_sessions = await db.refresh_tokens.count_documents({
+        "revoked": False,
+        "expires_at": {"$gt": now},
+    })
     active_api_keys = await db.api_keys.count_documents({"is_active": True})
 
     return {

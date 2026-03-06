@@ -679,16 +679,8 @@ h4 {
   position: fixed;
   inset: 0;
   z-index: 9998;
-  pointer-events: none;
-  animation: fadeIn 0.3s ease;
-}
-
-.tour-overlay::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.72);
   pointer-events: auto;
+  animation: fadeIn 0.3s ease;
 }
 
 .tour-spotlight {
@@ -868,7 +860,7 @@ h4 {
 .settings-content {
   flex: 1;
   padding: 2rem 2.5rem;
-  max-width: 960px;
+  min-width: 0;
 }
 
 /* Contextual Menu */

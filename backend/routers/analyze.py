@@ -110,6 +110,23 @@ async def analyze_target(
     if not service_results:
         logger.warning("No services available or no API keys configured.")
 
+    # If ALL services failed (network outage, DNS failure, no API keys), try to
+    # return the most recent cached result regardless of age (stale fallback).
+    all_failed = all("_meta_error" in v for v in service_results.values()) if service_results else True
+    if all_failed and db_manager.db is not None:
+        try:
+            stale_scan = await db_manager.db.scans.find_one(
+                {"target": sanitized},
+                sort=[("timestamp", -1)],
+            )
+            if stale_scan and "data" in stale_scan:
+                logger.info(f"Stale cache fallback: {sanitized} (all APIs unavailable)")
+                stale_data = stale_scan["data"]
+                stale_data["_stale_cache"] = True
+                return stale_data
+        except Exception as e:
+            logger.error(f"Stale cache fallback failed: {e}")
+
     risk_score, total_sources = compute_risk_score(service_results)
     verdict = compute_verdict(risk_score)
 

@@ -267,6 +267,12 @@ export default function App() {
 
               {data && (
                 <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
+                  {/* Stale cache notice */}
+                  {data._stale_cache && (
+                    <div style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid #fb923c', color: '#fb923c', padding: '0.6rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      ⚠ {t('app.stale_cache_notice')}
+                    </div>
+                  )}
                   {/* Recalculate source counts from actual results (fixes cached data with stale counts) */}
                   {(() => {
                     const successEntries = Object.entries(data.results).filter(([, d]) => !d.error && !d._meta_error);

@@ -6,7 +6,8 @@
         "summary": "Summary",
         "error": "Error:",
         "download": "Download Report (PDF)",
-        "loading": "Loading Security..."
+        "loading": "Loading Security...",
+        "stale_cache_notice": "External APIs are currently unavailable. Showing a previously stored result — may not reflect the current state of this indicator."
     },
     "login": {
         "subtitle": "Security Operations Center",

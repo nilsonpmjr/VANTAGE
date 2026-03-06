@@ -6,7 +6,8 @@
         "summary": "Resumen",
         "error": "Error:",
         "download": "Descargar Informe (PDF)",
-        "loading": "Cargando Seguridad..."
+        "loading": "Cargando Seguridad...",
+        "stale_cache_notice": "Las APIs externas no están disponibles en este momento. Mostrando un resultado almacenado anteriormente — puede no reflejar el estado actual del indicador."
     },
     "login": {
         "subtitle": "Centro de Operaciones de Seguridad",

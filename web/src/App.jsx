@@ -127,7 +127,7 @@ export default function App() {
 
       <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
 
-      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'scroll' }}>
+      <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
 
         {/* Password expiry / force-reset notice — inside content column, does not cover sidebar */}
         {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
@@ -160,7 +160,7 @@ export default function App() {
         )}
 
         {currentView === 'home' && (
-          <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', minHeight: '100%' }}>
+          <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
             {/* Animated Header */}
             <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
 
@@ -311,16 +311,17 @@ export default function App() {
               )}
             </main>
 
-            {/* Footer */}
-            <footer style={{ marginTop: 'auto', display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0 }}>
-              <p>&copy; {new Date().getFullYear()} iT.eam Next Generation SOC. All rights reserved.</p>
-            </footer>
           </div>
         )}
 
-        {currentView === 'dashboard' && <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} />}
-        {currentView === 'settings' && <Settings />}
-        {currentView === 'profile' && <Profile />}
+        {currentView === 'dashboard' && <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} style={{ flexShrink: 0 }} />}
+        {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings /></div>}
+        {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
+
+        {/* Shared footer — end of scrollable content */}
+        <footer style={{ display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0, background: 'var(--bg-main)' }}>
+          <p>&copy; {new Date().getFullYear()} iT.eam Next Generation SOC. All rights reserved.</p>
+        </footer>
       </div>
 
       {/* Tour only runs on the home page */}

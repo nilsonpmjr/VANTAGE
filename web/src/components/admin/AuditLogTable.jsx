@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Loader, Download, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
+import { fmtBRT } from '../../utils/dateFormat';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 
@@ -76,11 +77,7 @@ export default function AuditLogTable() {
         URL.revokeObjectURL(url);
     };
 
-    const formatTs = (raw) => {
-        if (!raw) return '—';
-        const d = new Date(raw);
-        return isNaN(d.getTime()) ? raw : d.toLocaleString();
-    };
+    const formatTs = (raw) => fmtBRT(raw);
 
     return (
         <div>

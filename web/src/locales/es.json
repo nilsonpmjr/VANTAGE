@@ -316,7 +316,20 @@
         "threat": "Amenaza:",
         "conf": "Confianza:",
         "riskLevel": "Riesgo:",
-        "feeds": "Feeds:"
+        "feeds": "Feeds:",
+        "info_label": "Sobre este servicio",
+        "info": {
+            "view_on_site": "Ver en el sitio",
+            "virustotal":     { "title": "VirusTotal",      "desc": "Analiza archivos y URLs con más de 70 motores antivirus y herramientas de seguridad." },
+            "abuseipdb":      { "title": "AbuseIPDB",       "desc": "Base de datos colaborativa de IPs abusivas reportadas por la comunidad de seguridad." },
+            "alienvault":     { "title": "AlienVault OTX",  "desc": "Plataforma de inteligencia colaborativa con pulsos de amenazas enviados por la comunidad." },
+            "shodan":         { "title": "Shodan",           "desc": "Motor de búsqueda para dispositivos conectados, puertos abiertos y vulnerabilidades." },
+            "greynoise":      { "title": "GreyNoise",        "desc": "Filtra el ruido de internet identificando escáneres automáticos y atacantes conocidos." },
+            "urlscan":        { "title": "URLScan.io",       "desc": "Analiza páginas web identificando comportamiento malicioso y recursos cargados." },
+            "blacklistmaster":{ "title": "BlacklistMaster",  "desc": "Verifica si una IP aparece en listas de bloqueo de spam, abuso y malware." },
+            "abusech":        { "title": "Abuse.ch (ThreatFox)", "desc": "Base de datos de IOCs maliciosos mantenida por abuse.ch, enfocada en malware activo." },
+            "pulsedive":      { "title": "Pulsedive",        "desc": "Plataforma de inteligencia de amenazas con puntuación de riesgo basada en múltiples feeds." }
+        }
     },
     "toast": {
         "title": "{{count}} servicio(s) no disponible(s)",

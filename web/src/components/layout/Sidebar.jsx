@@ -10,22 +10,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
     const { isTourActive, currentStep } = useTour();
 
     const [isCollapsed, setIsCollapsed] = useState(true);
-    const [profileImg, setProfileImg] = useState(user?.avatar_base64 || '');
-
-    useEffect(() => {
-        const handleProfileUpdate = () => {
-            try {
-                const updatedUser = JSON.parse(localStorage.getItem('user'));
-                if (updatedUser && updatedUser.avatar_base64) {
-                    setProfileImg(updatedUser.avatar_base64);
-                }
-            } catch (e) {
-                console.error(e);
-            }
-        };
-        window.addEventListener('userProfileUpdated', handleProfileUpdate);
-        return () => window.removeEventListener('userProfileUpdated', handleProfileUpdate);
-    }, []);
+    const profileImg = user?.avatar_base64 || '';
 
     // Auto-expand sidebar when tour requires it
     useEffect(() => {

@@ -1,16 +1,13 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import ContextMenu from './ContextMenu';
 import Breadcrumbs from './Breadcrumbs';
 
 export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs, children }) {
-    const contentRef = useRef(null);
     const [drawerOpen, setDrawerOpen] = useState(false);
 
     useEffect(() => {
-        if (contentRef.current) {
-            contentRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
         setDrawerOpen(false);
     }, [activeKey]);
 
@@ -50,7 +47,7 @@ export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs
                 drawerOpen={drawerOpen}
             />
 
-            <div className="settings-content" ref={contentRef}>
+            <div className="settings-content">
                 <Breadcrumbs items={breadcrumbs} />
                 {children}
             </div>

@@ -128,6 +128,7 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "extra_permissions": user.get("extra_permissions", []),
+        "avatar_base64": user.get("avatar_base64", ""),
     }
     if days_left is not None:
         result["password_expires_in_days"] = days_left

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Copy, CheckCircle, Loader, Key } from 'lucide-react';
 import API_URL from '../../config';
+import { fmtDateBRT } from '../../utils/dateFormat';
 
 export default function ApiKeysManager() {
     const { t } = useTranslation();
@@ -213,12 +214,12 @@ export default function ApiKeysManager() {
                                         {k.prefix}
                                         {k.expires_at && (
                                             <span style={{ marginLeft: '0.75rem' }}>
-                                                {t('api_keys.expires')}: {new Date(k.expires_at).toLocaleDateString()}
+                                                {t('api_keys.expires')}: {fmtDateBRT(k.expires_at)}
                                             </span>
                                         )}
                                         {k.last_used_at && (
                                             <span style={{ marginLeft: '0.75rem' }}>
-                                                {t('api_keys.last_used')}: {new Date(k.last_used_at).toLocaleDateString()}
+                                                {t('api_keys.last_used')}: {fmtDateBRT(k.last_used_at)}
                                             </span>
                                         )}
                                     </div>

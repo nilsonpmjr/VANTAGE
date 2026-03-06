@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Monitor, Smartphone, Loader, LogOut, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
+import { fmtBRT } from '../../utils/dateFormat';
 
 /**
  * Active sessions panel — embed in Profile.
@@ -54,10 +55,7 @@ export default function SessionsTable() {
 
     const isMobile = (ua = '') => /android|iphone|ipad/i.test(ua);
 
-    const fmtDate = (iso) => {
-        try { return new Date(iso).toLocaleString(); }
-        catch { return iso; }
-    };
+    const fmtDate = (iso) => fmtBRT(iso);
 
     const otherCount = sessions.filter(s => !s.is_current).length;
 

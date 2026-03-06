@@ -116,14 +116,12 @@ h4 {
   border-radius: 9999px;
   color: var(--text-primary);
   outline: none;
-  transition: all 0.3s ease;
+  transition: border-color 0.2s;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
 }
 
 .search-input:focus {
   border-color: var(--accent-border);
-  background: rgba(15, 23, 42, 0.8);
-  box-shadow: 0 0 20px var(--accent-glow);
 }
 
 .search-icon {
@@ -202,6 +200,32 @@ h4 {
   border-color: var(--glass-border);
   box-shadow: none;
   color: var(--text-muted);
+}
+
+.btn-secondary {
+  background: var(--glass-bg);
+  color: var(--text-primary);
+  border: 1px solid var(--glass-border);
+  padding: 0.6rem 1.25rem;
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: var(--accent-border);
+}
+
+.btn-secondary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 /* Buttons */
@@ -845,7 +869,6 @@ h4 {
 .settings-content {
   flex: 1;
   padding: 2rem 2.5rem;
-  overflow-y: auto;
   max-width: 960px;
 }
 

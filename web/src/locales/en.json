@@ -316,7 +316,20 @@
         "threat": "Threat:",
         "conf": "Confidence:",
         "riskLevel": "Risk:",
-        "feeds": "Feeds:"
+        "feeds": "Feeds:",
+        "info_label": "About this service",
+        "info": {
+            "view_on_site": "View on site",
+            "virustotal":     { "title": "VirusTotal",      "desc": "Scans files and URLs with 70+ antivirus engines and security tools." },
+            "abuseipdb":      { "title": "AbuseIPDB",       "desc": "Community-driven database of abusive IPs reported by security professionals." },
+            "alienvault":     { "title": "AlienVault OTX",  "desc": "Collaborative threat intelligence platform with community-submitted threat pulses." },
+            "shodan":         { "title": "Shodan",           "desc": "Search engine for internet-connected devices, exposing open ports and vulnerabilities." },
+            "greynoise":      { "title": "GreyNoise",        "desc": "Filters internet noise by identifying automated scanners and known attackers." },
+            "urlscan":        { "title": "URLScan.io",       "desc": "Analyzes and screenshots web pages, identifying malicious behavior and loaded resources." },
+            "blacklistmaster":{ "title": "BlacklistMaster",  "desc": "Checks if an IP appears on spam, abuse, and malware blocklists." },
+            "abusech":        { "title": "Abuse.ch (ThreatFox)", "desc": "Malicious IOC database maintained by abuse.ch, focused on active malware." },
+            "pulsedive":      { "title": "Pulsedive",        "desc": "Threat intelligence platform with risk scoring based on multiple threat feeds." }
+        }
     },
     "toast": {
         "title": "{{count}} service(s) unavailable",

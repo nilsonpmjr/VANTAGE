@@ -7,6 +7,7 @@ import { jsPDF } from 'jspdf';
 import { useTranslation } from 'react-i18next';
 import i18n from '../../i18n';
 import API_URL from '../../config';
+import { fmtBRT } from '../../utils/dateFormat';
 import '../../index.css';
 
 export default function Dashboard({ onSearch }) {
@@ -193,7 +194,7 @@ export default function Dashboard({ onSearch }) {
                             </h3>
                             {stats?.workerHealth?.last_run && (
                                 <p style={{ margin: '0.2rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                                    {t('dashboard.seen_at')}: {new Date(stats.workerHealth.last_run).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'), { dateStyle: 'short', timeStyle: 'short' })}
+                                    {t('dashboard.seen_at')}: {fmtBRT(stats.workerHealth.last_run, i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                 </p>
                             )}
                         </div>
@@ -340,7 +341,7 @@ export default function Dashboard({ onSearch }) {
                                         stats.criticalIncidents.map((scan, idx) => (
                                             <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none', transition: 'background 0.2s' }}>
                                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {new Date(scan.timestamp).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
+                                                    {fmtBRT(scan.timestamp, i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                                 </td>
                                                 <td
                                                     onClick={() => onSearch && onSearch(scan.target)}
@@ -463,7 +464,7 @@ export default function Dashboard({ onSearch }) {
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
-                                                    {new Date(scan.timestamp).toLocaleString(i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
+                                                    {fmtBRT(scan.timestamp, i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                                 </td>
                                                 <td
                                                     onClick={() => onSearch && onSearch(scan.target)}

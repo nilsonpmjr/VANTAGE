@@ -42,12 +42,18 @@ export default function SettingsOverview({ adminStats, onExport, exporting, onIm
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                             <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.export_title')}</span>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button onClick={() => onExport('csv')} disabled={exporting} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem' }}>
-                                    <Download size={15} /> CSV
-                                </button>
-                                <button onClick={() => onExport('json')} disabled={exporting} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem' }}>
-                                    <Download size={15} /> JSON
-                                </button>
+                                {['csv', 'json'].map(fmt => (
+                                    <button
+                                        key={fmt}
+                                        onClick={() => onExport(fmt)}
+                                        disabled={exporting}
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500, transition: 'border-color 0.2s, background 0.2s', opacity: exporting ? 0.6 : 1 }}
+                                        onMouseOver={e => Object.assign(e.currentTarget.style, { background: 'rgba(56,189,248,0.08)', borderColor: 'var(--accent-border)' })}
+                                        onMouseOut={e => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
+                                    >
+                                        <Download size={15} /> {fmt.toUpperCase()}
+                                    </button>
+                                ))}
                             </div>
                         </div>
 

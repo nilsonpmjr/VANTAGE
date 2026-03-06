@@ -3,6 +3,7 @@ import { useAuth } from '../../context/AuthContext';
 import { ShieldAlert, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import '../../index.css';
+import { fmtTimeBRT } from '../../utils/dateFormat';
 
 export default function Login({ onForgotPassword }) {
     const [username, setUsername] = useState('');
@@ -23,7 +24,7 @@ export default function Login({ onForgotPassword }) {
         } catch (err) {
             if (err.code === 'account_locked') {
                 const until = err.locked_until
-                    ? new Date(err.locked_until).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    ? fmtTimeBRT(err.locked_until)
                     : '';
                 setError(t('login.error_locked', { until }));
             } else {

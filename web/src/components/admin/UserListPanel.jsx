@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Users, UserPlus, Search, Loader, Shield, User, Terminal, AlignJustify, List } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { fmtBRT } from '../../utils/dateFormat';
 import SectionHeader from '../shared/SectionHeader';
 
 export const RoleBadge = ({ role }) => {
@@ -32,8 +33,8 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
 
     const formatLastLogin = (raw) => {
         if (!raw) return t('settings.never');
-        const d = new Date(raw);
-        return isNaN(d.getTime()) ? t('settings.never') : d.toLocaleString();
+        const result = fmtBRT(raw);
+        return result === '—' ? t('settings.never') : result;
     };
 
     const filtered = Array.isArray(usersList) ? usersList.filter(u =>

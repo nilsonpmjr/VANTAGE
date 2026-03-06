@@ -5,7 +5,7 @@ import { saveAs } from 'file-saver';
 // Helper to format dates
 const formatDate = () => {
     const d = new Date();
-    return d.toLocaleString();
+    return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
 };
 
 // Flatten JSON into Key-Value rows for the tables

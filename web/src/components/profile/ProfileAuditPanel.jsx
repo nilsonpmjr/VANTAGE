@@ -3,6 +3,7 @@ import { ClipboardList, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import SectionHeader from '../shared/SectionHeader';
+import { fmtBRT } from '../../utils/dateFormat';
 
 export default function ProfileAuditPanel() {
     const { t } = useTranslation();
@@ -49,7 +50,7 @@ export default function ProfileAuditPanel() {
                         )}
                         {logs.map((item, idx) => (
                             <tr key={idx} style={{ borderTop: '1px solid var(--glass-border)' }}>
-                                <td style={{ padding: '0.5rem 0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{new Date(item.timestamp).toLocaleString()}</td>
+                                <td style={{ padding: '0.5rem 0.85rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtBRT(item.timestamp)}</td>
                                 <td style={{ padding: '0.5rem 0.85rem' }}>
                                     <span style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '4px', padding: '0.1rem 0.4rem', fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.75rem' }}>
                                         {item.action}

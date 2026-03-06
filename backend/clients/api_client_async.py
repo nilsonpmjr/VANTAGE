@@ -321,7 +321,19 @@ class AsyncThreatIntelClient:
                         )
 
                     response.raise_for_status()
-                    data = await response.json()
+
+                    # 204 No Content or empty body → treat as "nothing found"
+                    raw = await response.read()
+                    if not raw.strip():
+                        _service_cooldown.pop(service, None)
+                        return APIResponse(
+                            service=service,
+                            data={"_meta_msg": "No content returned"},
+                            success=True,
+                        )
+
+                    import json as _json
+                    data = _json.loads(raw)
 
                     # Clear any previous cooldown on success
                     _service_cooldown.pop(service, None)
@@ -584,8 +596,8 @@ class AsyncThreatIntelClient:
         if cache_key in self.cache:
             return APIResponse(service='blacklistmaster', data=self.cache[cache_key], success=True, cached=True)
 
-        # Auth via ?apikey= query parameter (Bearer header returns 401)
-        url = f"{self.SERVICES_CONFIG['blacklistmaster']['base_url']}/blacklistcheck/ip/{ip}"
+        # Same endpoint as sync client — 204 No Content means clean IP
+        url = f"{self.SERVICES_CONFIG['blacklistmaster']['base_url']}/ipbl/{ip}"
         params = {"apikey": self.api_keys.get('blacklistmaster', '')}
 
         response = await self._safe_request('blacklistmaster', 'GET', url, params=params)

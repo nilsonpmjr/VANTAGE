@@ -90,10 +90,9 @@ export default function PasswordPolicyForm() {
                         ].map(([key, labelKey]) => (
                             <ToggleSwitch
                                 key={key}
-                                active={policy[key]}
+                                checked={policy[key]}
                                 onChange={v => setPolicy(p => ({ ...p, [key]: v }))}
                                 label={t(`settings.${labelKey}`)}
-                                rowMode
                             />
                         ))}
                     </div>

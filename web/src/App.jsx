@@ -287,7 +287,7 @@ export default function App() {
                     {Object.entries(data.results)
                       .filter(([, d]) => !d.error && !d._meta_error)
                       .map(([serviceName, serviceData]) => (
-                        <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} />
+                        <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} target={{ value: data.target, type: data.type }} />
                       ))}
                   </div>
 

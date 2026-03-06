@@ -1,8 +1,20 @@
-import React from 'react';
-import { AlertTriangle, CheckCircle, Info, Clock } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { AlertTriangle, CheckCircle, Info, Clock, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
-export default function ServiceCard({ name, data }) {
+const SERVICE_URLS = {
+    virustotal:     (t) => `https://www.virustotal.com/gui/${t.type === 'ip' ? 'ip-address' : t.type === 'domain' ? 'domain' : 'file'}/${t.value}`,
+    abuseipdb:      (t) => `https://www.abuseipdb.com/check/${t.value}`,
+    alienvault:     (t) => `https://otx.alienvault.com/indicator/${t.type === 'ip' ? 'ip' : 'domain'}/${t.value}`,
+    shodan:         (t) => `https://www.shodan.io/host/${t.value}`,
+    greynoise:      (t) => `https://viz.greynoise.io/ip/${t.value}`,
+    urlscan:        (t) => `https://urlscan.io/search/#${t.type === 'ip' ? 'ip' : 'domain'}:${t.value}`,
+    blacklistmaster:(t) => `https://www.blacklistmaster.com/`,
+    abusech:        (t) => `https://threatfox.abuse.ch/browse.php?search=${t.value}`,
+    pulsedive:      (t) => `https://pulsedive.com/indicator/?ioc=${encodeURIComponent(t.value)}`,
+};
+
+export default function ServiceCard({ name, data, target }) {
     const isError = data.error || data._meta_error;
     const errorType = data._meta_error_type || (isError ? 'api_error' : null);
     const isRateLimit = errorType === 'rate_limited';
@@ -36,6 +48,18 @@ export default function ServiceCard({ name, data }) {
 
     const { t } = useTranslation();
     const loc = key => t(`service_card.${key}`);
+
+    const [showInfo, setShowInfo] = useState(false);
+    const infoRef = useRef(null);
+
+    useEffect(() => {
+        if (!showInfo) return;
+        const handler = (e) => {
+            if (infoRef.current && !infoRef.current.contains(e.target)) setShowInfo(false);
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [showInfo]);
 
     const renderContent = () => {
         if (isError) {
@@ -190,7 +214,48 @@ export default function ServiceCard({ name, data }) {
                         }
                     </h3>
                 </div>
-                {!isError && <Info size={16} color="var(--text-muted)" style={{ cursor: 'pointer' }} />}
+                {!isError && (
+                    <div ref={infoRef} style={{ position: 'relative' }}>
+                        <button
+                            onClick={() => setShowInfo(v => !v)}
+                            aria-label={t('service_card.info_label')}
+                            style={{ background: 'none', border: 'none', padding: '2px', cursor: 'pointer', display: 'flex', alignItems: 'center', borderRadius: '4px', color: showInfo ? 'var(--primary)' : 'var(--text-muted)', transition: 'color 0.15s' }}
+                        >
+                            <Info size={16} />
+                        </button>
+                        {showInfo && (
+                            <div style={{
+                                position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 50,
+                                background: 'var(--bg-card, rgba(15,23,42,0.97))',
+                                border: '1px solid var(--glass-border)',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.75rem 1rem',
+                                minWidth: '220px', maxWidth: '280px',
+                                boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+                                fontSize: '0.85rem',
+                                color: 'var(--text-secondary)',
+                                lineHeight: 1.5,
+                            }}>
+                                <p style={{ margin: '0 0 0.6rem', color: 'var(--text-primary)', fontWeight: 500 }}>
+                                    {t(`service_card.info.${name}.title`, { defaultValue: name })}
+                                </p>
+                                <p style={{ margin: '0 0 0.6rem' }}>
+                                    {t(`service_card.info.${name}.desc`, { defaultValue: '' })}
+                                </p>
+                                {SERVICE_URLS[name] && target && (
+                                    <a
+                                        href={SERVICE_URLS[name]({ value: target.value, type: target.type })}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--primary)', textDecoration: 'none', fontSize: '0.8rem' }}
+                                    >
+                                        {t('service_card.info.view_on_site')} <ExternalLink size={12} />
+                                    </a>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
 
             <div style={{ padding: '1.5rem' }}>

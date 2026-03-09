@@ -64,7 +64,43 @@
         "collapse_menu": "Collapse sidebar"
     },
     "search": {
-        "placeholder": "Enter an IP, domain or Hash"
+        "placeholder": "Enter an IP, domain or Hash",
+        "batch_placeholder": "{{count}} targets — press Enter to run batch analysis",
+        "batch_hint": "{{count}} targets",
+        "batch_tip": "Separate with comma or semicolon · Enter to analyze"
+    },
+    "batch": {
+        "estimating": "Checking cache...",
+        "running": "Analyzing targets...",
+        "preflight": {
+            "title": "Confirm batch analysis",
+            "total": "{{count}} target(s) detected",
+            "cache_hits": "From cache (no cost)",
+            "external_calls": "External API calls",
+            "estimated": "Estimated time",
+            "services": "Affected services",
+            "confirm": "Analyze now",
+            "cancel": "Cancel"
+        },
+        "results": {
+            "title": "Batch Results",
+            "progress": "{{done}} / {{total}} targets",
+            "col_target": "TARGET",
+            "col_type": "TYPE",
+            "col_verdict": "VERDICT",
+            "col_risk": "RISK",
+            "col_cache": "SOURCE",
+            "cached": "Cache",
+            "live": "Live",
+            "row_hint": "Click to view details"
+        },
+        "errors": {
+            "estimate_failed": "Failed to estimate impact. Please try again.",
+            "submit_failed": "Failed to submit batch. Please try again.",
+            "worker_error": "Error during batch processing.",
+            "sse_lost": "Connection lost. Some results may be incomplete.",
+            "generic": "An unexpected error occurred."
+        }
     },
     "dashboard": {
         "title": "Manager Dashboard",

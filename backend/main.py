@@ -15,7 +15,7 @@ from logging_config import setup_logging, get_logger
 from limiters import limiter
 from worker import scan_safe_targets_job
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -60,6 +60,16 @@ async def lifespan(app: FastAPI):
             await db.password_reset_tokens.create_index(
                 [("username", 1)],
                 name="reset_tokens_username",
+            )
+            # TTL: auto-expire completed batch jobs
+            await db.batch_jobs.create_index(
+                [("created_at", 1)],
+                expireAfterSeconds=settings.batch_job_ttl_hours * 3600,
+                name="batch_jobs_ttl",
+            )
+            await db.batch_jobs.create_index(
+                [("analyst", 1), ("created_at", -1)],
+                name="batch_jobs_analyst",
             )
             logger.info("MongoDB indexes created/verified.")
 
@@ -150,6 +160,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
+    batch.router,
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

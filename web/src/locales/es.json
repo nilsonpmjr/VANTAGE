@@ -64,7 +64,43 @@
         "collapse_menu": "Contraer barra lateral"
     },
     "search": {
-        "placeholder": "Ingrese un IP, dominio o Hash"
+        "placeholder": "Ingrese un IP, dominio o Hash",
+        "batch_placeholder": "{{count}} objetivos — Enter para analizar en lote",
+        "batch_hint": "{{count}} objetivos",
+        "batch_tip": "Separe con coma o punto y coma · Enter para analizar"
+    },
+    "batch": {
+        "estimating": "Verificando caché...",
+        "running": "Analizando objetivos...",
+        "preflight": {
+            "title": "Confirmar análisis en lote",
+            "total": "{{count}} objetivo(s) detectado(s)",
+            "cache_hits": "En caché (sin costo)",
+            "external_calls": "Llamadas externas",
+            "estimated": "Tiempo estimado",
+            "services": "Servicios afectados",
+            "confirm": "Analizar ahora",
+            "cancel": "Cancelar"
+        },
+        "results": {
+            "title": "Resultados del Lote",
+            "progress": "{{done}} / {{total}} objetivos",
+            "col_target": "OBJETIVO",
+            "col_type": "TIPO",
+            "col_verdict": "VEREDICTO",
+            "col_risk": "RIESGO",
+            "col_cache": "ORIGEN",
+            "cached": "Caché",
+            "live": "En vivo",
+            "row_hint": "Clic para ver detalles"
+        },
+        "errors": {
+            "estimate_failed": "Error al estimar el impacto. Inténtelo de nuevo.",
+            "submit_failed": "Error al enviar el lote. Inténtelo de nuevo.",
+            "worker_error": "Error durante el procesamiento del lote.",
+            "sse_lost": "Conexión perdida. Algunos resultados pueden estar incompletos.",
+            "generic": "Ocurrió un error inesperado."
+        }
     },
     "dashboard": {
         "title": "Panel de Gestión",

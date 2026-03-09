@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     rescan_batch_size: int = 5
     max_rescan_targets: int = 100
 
+    # Batch analysis
+    batch_max_targets: int = 50
+    batch_inter_target_delay_ms: int = 500  # ms between external calls
+    batch_job_ttl_hours: int = 24
+
     # MFA
     mfa_encryption_key: str = ""            # Fernet key; auto-derived in dev if empty
     mfa_required_roles: List[str] = ["admin", "manager"]  # roles that MUST enroll MFA

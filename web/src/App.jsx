@@ -2,6 +2,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import SearchBar from './components/dashboard/SearchBar';
 import VerdictPanel from './components/dashboard/VerdictPanel';
 import ServiceCard from './components/dashboard/ServiceCard';
+const BatchResultsPanel = React.lazy(() => import('./components/dashboard/BatchResultsPanel'));
 import ToastNotification from './components/shared/ToastNotification';
 import ReactMarkdown from 'react-markdown';
 import { Globe, Download, LogOut, Menu } from 'lucide-react';
@@ -42,6 +43,7 @@ export default function App() {
   const [data, setData] = useState(null);
   const [lang, setLang] = useState('pt');
   const [hasSearched, setHasSearched] = useState(false);
+  const [batchTargets, setBatchTargets] = useState(null);
   const [currentView, setCurrentView] = useState('home');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resetToken, setResetToken] = useState(null);
@@ -85,7 +87,15 @@ export default function App() {
   }, [mfaSetupRequired, user, setCurrentView]);
 
 
+  const handleBatchSearch = (rawTargets) => {
+    setHasSearched(true);
+    setData(null);
+    setError(null);
+    setBatchTargets(rawTargets);
+  };
+
   const handleSearch = async (query) => {
+    setBatchTargets(null);
     setHasSearched(true);
     setLoading(true);
     setError(null);
@@ -209,7 +219,12 @@ export default function App() {
               </div>
 
               <div className="header-center" data-tour="search-bar">
-                <SearchBar key={hasSearched ? 'active' : 'initial'} onSearch={handleSearch} loading={loading} lang={lang} />
+                <SearchBar
+                  key={hasSearched ? 'active' : 'initial'}
+                  onSearch={handleSearch}
+                  onBatchSearch={handleBatchSearch}
+                  loading={loading}
+                />
               </div>
 
               <div className="header-right">
@@ -293,7 +308,21 @@ export default function App() {
                 </div>
               )}
 
-              {data && (
+              {batchTargets && (
+                <Suspense fallback={
+                  <div style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <span className="loader-pulse" style={{ width: 32, height: 32, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
+                  </div>
+                }>
+                  <BatchResultsPanel
+                    targets={batchTargets}
+                    lang={lang}
+                    onReset={() => { setBatchTargets(null); setHasSearched(false); }}
+                  />
+                </Suspense>
+              )}
+
+              {!batchTargets && data && (
                 <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
                   {/* Stale cache notice */}
                   {data._stale_cache && (
@@ -301,7 +330,6 @@ export default function App() {
                       ⚠ {t('app.stale_cache_notice')}
                     </div>
                   )}
-                  {/* Recalculate source counts from actual results (fixes cached data with stale counts) */}
                   {(() => {
                     const successEntries = Object.entries(data.results).filter(([, d]) => !d.error && !d._meta_error);
                     const correctedSummary = {
@@ -336,7 +364,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-              )}
+              )}{/* end single result */}
             </main>
 
           </div>

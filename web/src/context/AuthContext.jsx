@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useToast } from './ToastContext';
 import API_URL from '../config';
 
 const AuthContext = createContext(null);
@@ -34,6 +35,7 @@ async function fetchCurrentUser() {
 
 export const AuthProvider = ({ children }) => {
     const { t } = useTranslation();
+    const { addToast } = useToast();
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
@@ -49,7 +51,7 @@ export const AuthProvider = ({ children }) => {
             .finally(() => setLoading(false));
     }, []);
 
-    const logout = async () => {
+    const logout = useCallback(async () => {
         try {
             await fetch(`${API_URL}/api/auth/logout`, {
                 method: 'POST',
@@ -59,7 +61,7 @@ export const AuthProvider = ({ children }) => {
             // Best-effort: clear local state regardless
         }
         setUser(null);
-    };
+    }, []);
 
     // IAM Auto-Logout on Inactivity (30 minutes — MFA adds extra security layer)
     const inactivityTimeoutRef = useRef(null);
@@ -73,7 +75,7 @@ export const AuthProvider = ({ children }) => {
                 inactivityTimeoutRef.current = setTimeout(() => {
                     console.warn('Session expired due to inactivity. Forcing logout (IAM Policy).');
                     logout();
-                    alert(t('auth.session_expired', 'Your session has expired due to inactivity. Please log in again.'));
+                    addToast(t('auth.session_expired', 'Your session has expired due to inactivity. Please log in again.'), 'warning');
                 }, INACTIVITY_LIMIT_MS);
             }
         };
@@ -87,7 +89,7 @@ export const AuthProvider = ({ children }) => {
                 if (inactivityTimeoutRef.current) clearTimeout(inactivityTimeoutRef.current);
             };
         }
-    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [user, logout, addToast, t]);
 
     const login = async (username, password) => {
         const formData = new URLSearchParams();

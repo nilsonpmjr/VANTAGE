@@ -13,6 +13,7 @@ from auth import get_current_user
 from limiters import limiter
 from audit import log_action
 from logging_config import get_logger
+from config import settings
 
 logger = get_logger("AnalyzeRouter")
 
@@ -77,12 +78,12 @@ async def analyze_target(
         logger.warning(f"Validation error for '{target}': {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Check MongoDB cache (24 h)
+    # Check MongoDB cache (TTL controlled by CACHE_TTL_HOURS env var, default 24 h)
     if db_manager.db is not None:
         try:
-            one_day_ago = datetime.now(timezone.utc) - timedelta(days=1)
+            cache_cutoff = datetime.now(timezone.utc) - timedelta(hours=settings.cache_ttl_hours)
             cached_scan = await db_manager.db.scans.find_one(
-                {"target": sanitized, "timestamp": {"$gte": one_day_ago}},
+                {"target": sanitized, "timestamp": {"$gte": cache_cutoff}},
                 sort=[("timestamp", -1)],
             )
             if cached_scan and "data" in cached_scan:

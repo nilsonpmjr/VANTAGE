@@ -10,6 +10,7 @@ export default function ContextMenu({ groups, activeKey, onSelect, drawerOpen })
 
     return (
         <nav
+            id="settings-nav-menu"
             className={`settings-menu${drawerOpen ? ' drawer-open' : ''}`}
             aria-label="Context menu"
         >

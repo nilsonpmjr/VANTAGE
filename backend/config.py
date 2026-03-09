@@ -3,14 +3,14 @@ from typing import List
 
 
 class Settings(BaseSettings):
-    # Authentication
-    jwt_secret: str = "iteam_soc_super_secret_key_2026"
+    # Authentication — no default; must be set via environment variable
+    jwt_secret: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60  # 1 hour (access token)
     refresh_token_expire_days: int = 7     # 7 days (refresh token)
 
-    # Database
-    mongo_uri: str = "mongodb://admin:iteam_secure_password@localhost:27017/"
+    # Database — no default; must be set via environment variable
+    mongo_uri: str
     mongo_db_name: str = "threat_intel"
 
     # CORS — list specific origins; never use "*" in production
@@ -49,10 +49,16 @@ class Settings(BaseSettings):
     )
 
     def validate_production(self) -> None:
-        """Raise if critical secrets are at their insecure defaults in production."""
-        if self.environment == "production":
-            if self.jwt_secret == "iteam_soc_super_secret_key_2026":
-                raise ValueError("JWT_SECRET must be changed from the default value in production.")
+        """Raise if critical secrets are insecure or missing in production."""
+        if self.environment != "production":
+            return
+        errors = []
+        if len(self.jwt_secret) < 32:
+            errors.append("JWT_SECRET must be at least 32 characters.")
+        if not self.mfa_encryption_key:
+            errors.append("MFA_ENCRYPTION_KEY must be set in production.")
+        if errors:
+            raise ValueError("Insecure production configuration:\n" + "\n".join(f"  - {e}" for e in errors))
 
 
 settings = Settings()

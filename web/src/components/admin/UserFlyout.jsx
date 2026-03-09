@@ -3,6 +3,7 @@ import { X, Edit2, Save, Loader, Shield, UserPlus, Power, Trash2, LockOpen, Shie
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import FlyoutPanel from '../shared/FlyoutPanel';
+import ConfirmModal from '../shared/ConfirmModal';
 
 const ALL_PERMISSIONS = [
     { key: 'audit_logs:read', label: 'Visualizar Audit Log' },
@@ -40,6 +41,9 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
     // Action feedback
     const [actionMsg, setActionMsg] = useState('');
     const [actionErr, setActionErr] = useState('');
+
+    // ConfirmModal state
+    const [confirmState, setConfirmState] = useState(null); // { title, message, onConfirm, danger }
 
     useEffect(() => {
         if (isNew) {
@@ -107,40 +111,63 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
         }
     };
 
-    const handleUnlock = () => doAction(async () => {
-        if (!window.confirm(t('settings.confirm_unlock', { user: username }))) return;
-        const r = await fetch(`${API_URL}/api/admin/users/${username}/unlock`, { method: 'POST', credentials: 'include' });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-        setActionMsg(t('settings.unlock'));
-    });
-
-    const handleRevokeMfa = () => doAction(async () => {
-        if (!window.confirm(t('settings.confirm_revoke_mfa', { user: username }))) return;
-        const r = await fetch(`${API_URL}/api/mfa/${username}`, { method: 'DELETE', credentials: 'include' });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-    });
-
-    const handleToggleActive = () => doAction(async () => {
-        const newStatus = selectedUser.is_active !== false ? false : true;
-        const msg = newStatus
-            ? t('settings.confirm_activate', { user: username })
-            : t('settings.confirm_suspend', { user: username });
-        if (!window.confirm(msg)) return;
-        const r = await fetch(`${API_URL}/api/users/${username}`, {
-            method: 'PUT', credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ is_active: newStatus }),
+    const handleUnlock = () => {
+        setConfirmState({
+            title: t('settings.unlock'),
+            message: t('settings.confirm_unlock', { user: username }),
+            danger: false,
+            onConfirm: () => doAction(async () => {
+                const r = await fetch(`${API_URL}/api/admin/users/${username}/unlock`, { method: 'POST', credentials: 'include' });
+                if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+                setActionMsg(t('settings.unlock'));
+            }),
         });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-    });
+    };
 
-    const handleDelete = () => doAction(async () => {
-        if (username === currentUser?.username) { alert(t('settings.deny_self')); return; }
-        if (!window.confirm(t('settings.confirm_delete', { user: username }))) return;
-        const r = await fetch(`${API_URL}/api/users/${username}`, { method: 'DELETE', credentials: 'include' });
-        if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
-        onClose();
-    });
+    const handleRevokeMfa = () => {
+        setConfirmState({
+            title: t('settings.revoke_mfa'),
+            message: t('settings.confirm_revoke_mfa', { user: username }),
+            danger: true,
+            onConfirm: () => doAction(async () => {
+                const r = await fetch(`${API_URL}/api/mfa/${username}`, { method: 'DELETE', credentials: 'include' });
+                if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+            }),
+        });
+    };
+
+    const handleToggleActive = () => {
+        const newStatus = selectedUser.is_active !== false ? false : true;
+        setConfirmState({
+            title: newStatus ? t('settings.activate') : t('settings.suspend'),
+            message: newStatus
+                ? t('settings.confirm_activate', { user: username })
+                : t('settings.confirm_suspend', { user: username }),
+            danger: !newStatus,
+            onConfirm: () => doAction(async () => {
+                const r = await fetch(`${API_URL}/api/users/${username}`, {
+                    method: 'PUT', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: newStatus }),
+                });
+                if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+            }),
+        });
+    };
+
+    const handleDelete = () => {
+        if (username === currentUser?.username) { setActionErr(t('settings.deny_self')); return; }
+        setConfirmState({
+            title: t('settings.delete'),
+            message: t('settings.confirm_delete', { user: username }),
+            danger: true,
+            onConfirm: () => doAction(async () => {
+                const r = await fetch(`${API_URL}/api/users/${username}`, { method: 'DELETE', credentials: 'include' });
+                if (!r.ok) { const e = await r.json(); throw new Error(e.detail); }
+                onClose();
+            }),
+        });
+    };
 
     const handleSavePerms = async () => {
         setPermSaving(true);
@@ -167,6 +194,17 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
 
     return (
         <FlyoutPanel open title={title} onClose={onClose}>
+
+            {/* Confirmation Modal (UX-11) */}
+            {confirmState && (
+                <ConfirmModal
+                    title={confirmState.title}
+                    message={confirmState.message}
+                    danger={confirmState.danger}
+                    onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+                    onCancel={() => setConfirmState(null)}
+                />
+            )}
 
             {/* Feedback */}
             {actionErr && (

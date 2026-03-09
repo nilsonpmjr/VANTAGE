@@ -1,97 +1,229 @@
-# 🛡️ Threat Intelligence Tool
+# Threat Intelligence Tool
 
-[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![React](https://img.shields.io/badge/React-18.x-61dafb.svg)](https://reactjs.org/)
+[![CI](https://github.com/nilsonpmjr/Threat-Intelligence-Tool/actions/workflows/ci.yml/badge.svg)](https://github.com/nilsonpmjr/Threat-Intelligence-Tool/actions/workflows/ci.yml)
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://reactjs.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-8-47A248.svg)](https://www.mongodb.com/)
+[![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-A powerful, high-performance web application and CLI tool to aggregate threat intelligence from multiple sources. Rapidly scan IPs, Domains, and File Hashes to get a comprehensive security verdict.
+Next-generation SOC (Security Operations Center) platform that aggregates threat intelligence from multiple sources to provide comprehensive security verdicts for IPs, domains, and file hashes.
 
-Integrated Sources: **VirusTotal, AbuseIPDB, Shodan, AlienVault OTX, GreyNoise, UrlScan.io, and BlacklistMaster**.
+## Features
 
-## ✨ Features
+- **Parallel Threat Intelligence** — Queries VirusTotal, AbuseIPDB, Shodan, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and BlacklistMaster simultaneously
+- **Heuristic AI Reports** — Contextual natural-language summaries in PT-BR, EN, and ES
+- **IAM & RBAC** — Role-based access control (admin / manager / tech), JWT + HttpOnly cookies, refresh tokens
+- **MFA (TOTP)** — Authenticator-app 2FA with AES-256 encrypted secrets and backup codes
+- **Session Management** — Active session list, per-session revocation, 30-min inactivity auto-logout
+- **API Keys** — Scoped API keys with SHA-256 hashed storage and configurable TTL
+- **Audit Log** — Full audit trail of all user actions with CSV/JSON export
+- **Background Worker** — Daily re-scan of known targets for verdict change detection
+- **Password Policy** — Configurable complexity, history, expiry, and lockout rules
+- **Dark Mode UI** — Glassmorphism design with responsive layout and guided tour
 
-- 🎨 **Modern Web Dashboard** - Premium Dark Mode / Glassmorphism UI built with React, Vite, and Tailwind CSS.
-- 🚀 **FastAPI Backend** - High-concurrency async Python backend for parallel API querying.
-- 🧠 **Heuristic Analysis** - Automatic contextual summaries of targets written in natural language.
-- 🌍 **Multi-language Support (i18n)** - English (EN), Portuguese (PT-BR), and Spanish (ES) supported natively across the UI and Analysis Engine.
-- 🔒 **Robust Validation** - Protection against malicious inputs and invalid queries.
-- 💻 **CLI Fallback** - Includes an interactive Console Dashboard for terminal power users.
+## Architecture
 
-## 📋 Requirements
+```
+┌──────────────────┐     HTTPS      ┌─────────────────────┐
+│  React + Vite    │ ◄────────────► │  FastAPI (Python)   │
+│  (port 80/443)   │                │  (port 8000)        │
+└──────────────────┘                └──────────┬──────────┘
+                                               │
+                                    ┌──────────▼──────────┐
+                                    │  MongoDB 8           │
+                                    │  (port 27017)       │
+                                    └─────────────────────┘
+```
 
-- **Backend:** Python 3.9+
-- **Frontend:** Node.js 18+
+**Backend modules**: `routers/` (auth, users, analyze, stats, admin, mfa, sessions, api_keys) · `analyzer.py` · `scoring.py` · `worker.py` · `mailer.py` · `audit.py`
 
-## 🚀 Installation
+**Frontend structure**: `components/auth/` · `components/admin/` · `components/dashboard/` · `components/layout/` · `components/shared/` · `context/`
+
+## Quick Start (Docker — recommended)
+
+### 1. Clone and configure
 
 ```bash
-# Clone the repository
 git clone https://github.com/nilsonpmjr/Threat-Intelligence-Tool.git
 cd Threat-Intelligence-Tool
+cp .env.example .env
+```
 
-# 1. Install Python backend dependencies
+Edit `.env` and fill in the required values (see [Environment Variables](#environment-variables) below).
+
+### 2. Start services
+
+```bash
+docker compose up -d
+```
+
+The app will be available at `http://localhost` (frontend) and `http://localhost:8000` (API).
+
+### 3. Seed initial admin user
+
+```bash
+docker compose exec backend python scripts/seed_users.py
+```
+
+### Optional: mongo-express (dev only)
+
+```bash
+docker compose --profile dev up -d
+# mongo-express at http://localhost:8081
+```
+
+## Development Setup (without Docker)
+
+### Backend
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pip install fastapi uvicorn
+# Copy and fill in .env at repo root, then:
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+```
 
-# 2. Install Frontend dependencies
+### Frontend
+
+```bash
 cd web
 npm install
-cd ..
-```
-
-## ⚙️ Configuration
-
-Set your API keys as environment variables in your shell (`.bashrc`, `.zshrc`, or Windows Environment Variables), or use a `.env` file in the root directory:
-
-```bash
-export VT_API_KEY='your_key'
-export ABUSEIPDB_API_KEY='your_key'
-export SHODAN_API_KEY='your_key'
-export OTX_API_KEY='your_key'
-export GREYNOISE_API_KEY='your_key'
-export URLSCAN_API_KEY='your_key'
-export BLACKLISTMASTER_API_KEY='your_key'
-```
-
-*Note: The tool gracefully handles missing keys by simply skipping those specific services.*
-
-## 📖 Usage
-
-### Web Interface (Recommended)
-
-Start the local servers to launch the unified SOC Dashboard:
-
-```bash
-# Terminal 1: Start the API Backend (Root directory)
-python -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-
-# Terminal 2: Start the Frontend (Inside /web directory)
-cd web
 npm run dev
+# Available at http://localhost:5173
 ```
 
-Navigate to `http://localhost:5173` to access the interactive Threat Intelligence Hub. The UI features dynamic animations, real-time fetching, and instant language switching.
-
-### Command Line Interface (CLI)
-
-If you prefer the terminal, you can still use the traditional CLI script:
+### Run tests
 
 ```bash
-# Basic Analysis
-./threat_check.py 8.8.8.8
-./threat_check.py google.com
-./threat_check.py 44d88612fea8a8f36de82e1278abb02f
-
-# Advanced Options
-./threat_check.py 8.8.8.8 --lang es       # Enforce language (pt, en, es)
-./threat_check.py 8.8.8.8 --dashboard     # Grid View (Dashboard Mode)
+cd backend
+pip install -r requirements-dev.txt
+pytest tests/ -v
 ```
 
-## 🤝 Contributing
+## Environment Variables
 
-Pull requests are welcome! Please read our Contributing Guide.
+Copy `.env.example` to `.env` and configure the following:
 
-## 📝 License
+### Required
 
-[MIT](https://choosealicense.com/licenses/mit/)
+| Variable | Description |
+|---|---|
+| `JWT_SECRET` | Random string ≥32 chars for signing JWT tokens |
+| `MONGO_URI` | MongoDB connection string (e.g. `mongodb://user:pass@localhost:27017/`) |
+| `MONGO_USER` | MongoDB root username (used by docker-compose) |
+| `MONGO_PASSWORD` | MongoDB root password (used by docker-compose) |
+
+### Threat Intelligence API Keys
+
+| Variable | Service | Free Tier |
+|---|---|---|
+| `VT_API_KEY` | VirusTotal | 4 req/min |
+| `ABUSEIPDB_API_KEY` | AbuseIPDB | 1000 req/day |
+| `SHODAN_API_KEY` | Shodan | Limited |
+| `OTX_API_KEY` | AlienVault OTX | Unlimited |
+| `GREYNOISE_API_KEY` | GreyNoise | Community |
+| `URLSCAN_API_KEY` | UrlScan.io | 100 req/day |
+| `PULSEDIVE_API_KEY` | Pulsedive | Free tier |
+| `ABUSECH_API_KEY` | Abuse.ch | Free |
+
+Missing keys are gracefully skipped — services without keys are excluded from the verdict.
+
+### Optional
+
+| Variable | Default | Description |
+|---|---|---|
+| `ENVIRONMENT` | `development` | Set to `production` to enable HSTS and stricter validation |
+| `CACHE_TTL_HOURS` | `24` | How long scan results are cached in MongoDB |
+| `MFA_ENCRYPTION_KEY` | auto-derived (dev) | Fernet key for TOTP secrets; **required in production** |
+| `FRONTEND_URL` | `http://localhost:5173` | Base URL for password-reset email links |
+| `SMTP_HOST` | — | SMTP server for password-reset emails |
+| `SMTP_PORT` | `587` | SMTP port |
+| `SMTP_USER` | — | SMTP username |
+| `SMTP_PASS` | — | SMTP password |
+| `SMTP_FROM` | `noreply@soc.local` | From address for outgoing emails |
+| `LOG_LEVEL` | `INFO` | Python log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
+
+## API Endpoints
+
+All endpoints are available under both `/api` and `/api/v1`.
+
+### Authentication
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/auth/login` | Login (form data: username, password) |
+| `POST` | `/api/auth/logout` | Logout (clears cookies) |
+| `POST` | `/api/auth/refresh` | Rotate access/refresh tokens |
+| `GET` | `/api/auth/me` | Current user info |
+| `GET` | `/api/auth/sessions` | List active sessions |
+| `DELETE` | `/api/auth/sessions/{id}` | Revoke a session |
+| `DELETE` | `/api/auth/sessions/others` | Revoke all other sessions |
+| `POST` | `/api/auth/forgot-password` | Request password-reset email |
+| `POST` | `/api/auth/reset-password` | Reset password with token |
+
+### MFA
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/mfa/enroll` | Begin TOTP enrollment (returns QR URI) |
+| `POST` | `/api/mfa/confirm` | Confirm enrollment with OTP code |
+| `POST` | `/api/mfa/verify` | Verify OTP during login (pre-auth token) |
+| `DELETE` | `/api/mfa/me` | Disable own MFA |
+| `DELETE` | `/api/mfa/{username}` | Admin: revoke user MFA |
+
+### Threat Analysis
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/analyze?target=&lang=` | Analyze an IP, domain, or hash |
+| `GET` | `/api/status` | Service availability (which API keys are configured) |
+
+### Users & API Keys
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/users` | List users (admin) |
+| `POST` | `/api/users` | Create user (admin) |
+| `PUT` | `/api/users/{username}` | Update user |
+| `DELETE` | `/api/users/{username}` | Delete user (admin) |
+| `GET` | `/api/api-keys/me` | List own API keys |
+| `POST` | `/api/api-keys` | Create API key |
+| `DELETE` | `/api/api-keys/{id}` | Revoke API key |
+
+### Admin & Stats
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/stats` | Dashboard statistics (`?period=day\|week\|month\|all`) |
+| `GET` | `/api/admin/overview` | IAM overview metrics |
+| `GET` | `/api/admin/audit-logs` | Paginated audit log |
+| `GET` | `/api/admin/audit-logs/export` | Export audit log (CSV or JSON) |
+| `PUT` | `/api/admin/password-policy` | Update password policy |
+| `PUT` | `/api/admin/lockout-policy` | Update lockout policy |
+
+## RBAC — Roles
+
+| Role | Capabilities |
+|---|---|
+| `admin` | Full access; manage users, policies, audit logs; MFA required |
+| `manager` | Dashboard + analysis + stats; read-only on user list; MFA required |
+| `tech` | Analysis only; no admin panels |
+
+## CI/CD
+
+GitHub Actions runs on every PR and push to `main`:
+
+- **lint-python** — flake8
+- **test-python** — pytest against MongoDB 8
+- **lint-frontend** — ESLint
+- **test-frontend** — Vitest
+- **build-frontend** — Vite production build
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## License
+
+[MIT](LICENSE)

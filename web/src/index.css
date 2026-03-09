@@ -169,7 +169,7 @@ h4 {
   background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
   color: #ffffff;
   border: 1px solid rgba(56, 189, 248, 0.5);
-  padding: 0.8rem 1.5rem;
+  padding: 0.625rem 1.5rem;
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.95rem;
@@ -206,7 +206,7 @@ h4 {
   background: var(--glass-bg);
   color: var(--text-primary);
   border: 1px solid var(--glass-border);
-  padding: 0.6rem 1.25rem;
+  padding: 0.625rem 1.25rem;
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 0.875rem;
@@ -246,16 +246,6 @@ h4 {
 
 .btn:hover {
   background: rgba(255, 255, 255, 0.15);
-}
-
-.btn-primary {
-  background: var(--status-neutral);
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #2563eb;
-  box-shadow: 0 0 15px var(--accent-glow);
 }
 
 /* Badges */
@@ -1650,6 +1640,150 @@ h4 {
   font-size: 0.8rem;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   UTILITY
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Screen-reader only text (accessibility) */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SIDEBAR MOBILE OVERLAY (UX-03)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 499;
+  animation: fadeIn 0.15s ease;
+}
+
+.mobile-topbar {
+  display: none;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASHBOARD — 2-column responsive grid (UX-02)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.dashboard-grid-2col {
+  display: grid;
+  grid-template-columns: minmax(300px, 1fr) 2fr;
+  gap: 2rem;
+  align-items: stretch;
+  margin-bottom: 2rem;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — 640px breakpoint (UX-05)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 640px) {
+  /* Sidebar becomes a fixed mobile drawer */
+  .sidebar-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    z-index: 500;
+    transform: translateX(-110%);
+    transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+
+  .sidebar-wrapper.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop.open {
+    display: block;
+  }
+
+  /* Mobile hamburger topbar */
+  .mobile-topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* Dashboard grids collapse to 1 column */
+  .dashboard-grid-2col {
+    grid-template-columns: 1fr;
+  }
+
+  .grid-dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  /* Settings content */
+  .settings-content {
+    padding: 1rem;
+  }
+
+  /* Section header stacks vertically */
+  .section-header {
+    flex-direction: column;
+  }
+
+  /* Form grids collapse */
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Stat grid: 2 columns on 640px */
+  .stat-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Hide data table columns beyond 2nd on small screens */
+  .data-table th:nth-child(n+3),
+  .data-table td:nth-child(n+3) {
+    display: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   RESPONSIVE — 480px breakpoint (UX-05)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 480px) {
+  .stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .toast-notification {
+    left: 0.75rem;
+    right: 0.75rem;
+    bottom: 0.75rem;
+    min-width: unset;
+    max-width: unset;
+  }
+
+  .btn-primary,
+  .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 /* Density toggle button */
 .density-toggle {
   display: inline-flex;
@@ -1695,6 +1829,44 @@ h4 {
   }
 
   .settings-menu {
+    transition: none;
+  }
+
+  .glass-panel,
+  .provider-card,
+  .lang-select,
+  .btn-primary,
+  .btn-secondary,
+  .btn-action,
+  .btn {
+    transition: none;
+  }
+
+  .marquee-content {
+    animation: none;
+  }
+
+  .loader-pulse,
+  .tour-spotlight,
+  .tour-tooltip {
+    animation: none;
+    transition: none;
+  }
+
+  .toast-notification {
+    animation: none;
+  }
+
+  .app-header,
+  .header-left,
+  .app-logo,
+  .app-subtitle,
+  .header-center,
+  .header-right {
+    transition: none;
+  }
+
+  .sidebar-wrapper {
     transition: none;
   }
 }

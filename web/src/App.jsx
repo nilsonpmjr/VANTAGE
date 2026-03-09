@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import SearchBar from './components/dashboard/SearchBar';
 import VerdictPanel from './components/dashboard/VerdictPanel';
 import ServiceCard from './components/dashboard/ServiceCard';
 import ToastNotification from './components/shared/ToastNotification';
 import ReactMarkdown from 'react-markdown';
-import { Globe, Download, LogOut } from 'lucide-react';
+import { Globe, Download, LogOut, Menu } from 'lucide-react';
 import { generatePDFReport } from './utils/pdfGenerator';
 import { useAuth } from './context/AuthContext';
 import Login from './components/auth/Login';
@@ -13,7 +13,7 @@ import ForgotPassword from './components/auth/ForgotPassword';
 import ResetPassword from './components/auth/ResetPassword';
 import Sidebar from './components/layout/Sidebar';
 import Settings from './components/admin/Settings';
-import Dashboard from './components/dashboard/Dashboard';
+const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 import Profile from './components/Profile';
 import TourOverlay from './components/shared/TourOverlay';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,9 @@ const INTEGRATIONS = [
   { id: 'pulsedive', name: 'Pulsedive', domain: 'pulsedive.com' }
 ];
 
+// Pre-built double list for marquee infinite scroll — defined outside component (FE-10)
+const MARQUEE_ITEMS = [...INTEGRATIONS, ...INTEGRATIONS];
+
 export default function App() {
   const { user, loading: authLoading, isTransitioning, isFadingOut, mfaPending, mfaSetupRequired, setMfaSetupRequired, completeMfaLogin, cancelMfa } = useAuth();
   const [loading, setLoading] = useState(false);
@@ -40,6 +43,7 @@ export default function App() {
   const [lang, setLang] = useState('pt');
   const [hasSearched, setHasSearched] = useState(false);
   const [currentView, setCurrentView] = useState('home');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resetToken, setResetToken] = useState(null);
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
 
@@ -71,14 +75,14 @@ export default function App() {
     if (user.force_password_reset || user.password_expires_in_days === 0) {
       setCurrentView('profile');
     }
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user, setCurrentView]);
 
   // Force navigation to profile when MFA setup is required
   useEffect(() => {
     if (mfaSetupRequired && user) {
       setCurrentView('profile');
     }
-  }, [mfaSetupRequired, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mfaSetupRequired, user, setCurrentView]);
 
 
   const handleSearch = async (query) => {
@@ -125,13 +129,34 @@ export default function App() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--bg-main)' }}>
 
-      <Sidebar currentView={currentView} setCurrentView={setCurrentView} />
+      {/* Backdrop for mobile sidebar drawer (UX-03) */}
+      <div
+        className={`sidebar-backdrop${sidebarOpen ? ' open' : ''}`}
+        onClick={() => setSidebarOpen(false)}
+        aria-hidden="true"
+      />
+
+      <div className={`sidebar-wrapper${sidebarOpen ? ' sidebar-open' : ''}`}>
+        <Sidebar currentView={currentView} setCurrentView={setCurrentView} onMobileClose={() => setSidebarOpen(false)} />
+      </div>
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
 
-        {/* Password expiry / force-reset notice — inside content column, does not cover sidebar */}
+        {/* Mobile topbar — hamburger visible only on ≤640px (UX-03) */}
+        <div className="mobile-topbar">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label={t('sidebar.open_menu')}
+            style={{ background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex', padding: '0.35rem' }}
+          >
+            <Menu size={20} />
+          </button>
+          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>iT.eam</span>
+        </div>
+
+        {/* Password expiry / force-reset notice (UX-06: role=alert) */}
         {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
-          <div style={{ background: 'var(--status-risk-bg)', borderBottom: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" style={{ background: 'var(--status-risk-bg)', borderBottom: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
             <button onClick={() => setCurrentView('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
               {t('auth.change_now')}
@@ -139,9 +164,9 @@ export default function App() {
           </div>
         )}
 
-        {/* MFA setup required banner */}
+        {/* MFA setup required banner (UX-06: role=alert) */}
         {mfaSetupRequired && (
-          <div style={{ background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" style={{ background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             <strong>{t('mfa.setup_required_notice')}</strong>
             <button onClick={() => { setCurrentView('profile'); setMfaSetupRequired(false); }} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
               {t('mfa.setup_now')}
@@ -149,15 +174,18 @@ export default function App() {
           </div>
         )}
 
-        {/* Password expiry warning (within warning window) */}
+        {/* Password expiry warning (UX-06: role=alert) */}
         {expiryWarningDays !== null && (
-          <div style={{ background: 'rgba(251, 146, 60, 0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" style={{ background: 'rgba(251, 146, 60, 0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             {t('auth.password_expiry_warning', { days: expiryWarningDays })}
             <button onClick={() => setCurrentView('profile')} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
               {t('auth.change_now')}
             </button>
           </div>
         )}
+
+        {/* View content — keyed by currentView for fade-in transition (UX-01) */}
+        <div key={currentView} className="fade-in" style={{ display: 'contents' }}>
 
         {currentView === 'home' && (
           <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
@@ -242,7 +270,7 @@ export default function App() {
                   </p>
                   <div className="marquee-container">
                     <div className="marquee-content">
-                      {[...INTEGRATIONS, ...INTEGRATIONS].map((provider, i) => (
+                      {MARQUEE_ITEMS.map((provider, i) => (
                         <div key={i} className="provider-card">
                           <img
                             src={`https://www.google.com/s2/favicons?domain=${provider.domain}&sz=64`}
@@ -314,9 +342,15 @@ export default function App() {
           </div>
         )}
 
-        {currentView === 'dashboard' && <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} style={{ flexShrink: 0 }} />}
+        {currentView === 'dashboard' && (
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+            <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} style={{ flexShrink: 0 }} />
+          </Suspense>
+        )}
         {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings /></div>}
         {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
+
+        </div>{/* end view fade-in wrapper */}
 
         {/* Shared footer — end of scrollable content */}
         <footer style={{ display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0, background: 'var(--bg-main)' }}>

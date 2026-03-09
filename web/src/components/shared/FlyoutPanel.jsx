@@ -1,7 +1,9 @@
 import React, { useEffect, useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 export default function FlyoutPanel({ open, onClose, title, titleIcon, children }) {
+    const { t } = useTranslation();
     const panelRef = useRef(null);
 
     const handleKeyDown = useCallback((e) => {
@@ -35,7 +37,7 @@ export default function FlyoutPanel({ open, onClose, title, titleIcon, children 
                         {titleIcon}
                         {title}
                     </span>
-                    <button className="flyout-close" onClick={onClose} aria-label="Fechar painel">
+                    <button className="flyout-close" onClick={onClose} aria-label={t('flyout.close_label')}>
                         <X size={18} />
                     </button>
                 </div>

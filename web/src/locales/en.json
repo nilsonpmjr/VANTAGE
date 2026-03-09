@@ -58,7 +58,10 @@
         "dashboard": "Dashboard",
         "settings": "Settings",
         "profile": "My Profile",
-        "logout": "Logout"
+        "logout": "Logout",
+        "open_menu": "Open navigation menu",
+        "expand_menu": "Expand sidebar",
+        "collapse_menu": "Collapse sidebar"
     },
     "search": {
         "placeholder": "Enter an IP, domain or Hash"
@@ -337,6 +340,9 @@
         "planLimit": "Plan limitation",
         "apiError": "API error",
         "dismiss": "Dismiss"
+    },
+    "flyout": {
+        "close_label": "Close panel"
     },
     "error_boundary": {
         "title": "Something went wrong",

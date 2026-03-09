@@ -1,5 +1,5 @@
 # ── Stage 1: Build React app ──────────────────────────────────────────────────
-FROM node:22-alpine AS builder
+FROM node:22.14.0-alpine3.21 AS builder
 
 WORKDIR /app
 
@@ -10,7 +10,7 @@ COPY . .
 RUN npm run build
 
 # ── Stage 2: Serve with nginx ─────────────────────────────────────────────────
-FROM nginx:alpine
+FROM nginx:1.27.4-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 

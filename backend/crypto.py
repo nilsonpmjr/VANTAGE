@@ -10,16 +10,29 @@ Development: a deterministic key derived from a fixed string is used automatical
 
 import base64
 import hashlib
+import logging
 
 from cryptography.fernet import Fernet
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 
 def _get_fernet() -> Fernet:
     key = settings.mfa_encryption_key.strip()
     if key:
         return Fernet(key.encode())
-    # Derive a deterministic dev key — never use in production
+
+    if settings.environment == "production":
+        raise RuntimeError(
+            "MFA_ENCRYPTION_KEY must be set in production. "
+            "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+        )
+
+    logger.warning(
+        "MFA_ENCRYPTION_KEY is not set — using insecure deterministic dev key. "
+        "Never use this configuration in production."
+    )
     raw = hashlib.sha256(b"threat-intel-mfa-dev-key-do-not-use-in-prod").digest()
     return Fernet(base64.urlsafe_b64encode(raw))
 

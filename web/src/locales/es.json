@@ -58,7 +58,10 @@
         "dashboard": "Panel",
         "settings": "Configuración",
         "profile": "Mi Perfil",
-        "logout": "Cerrar Sesión"
+        "logout": "Cerrar Sesión",
+        "open_menu": "Abrir menú de navegación",
+        "expand_menu": "Expandir barra lateral",
+        "collapse_menu": "Contraer barra lateral"
     },
     "search": {
         "placeholder": "Ingrese un IP, dominio o Hash"
@@ -337,6 +340,9 @@
         "planLimit": "Limitación de plan",
         "apiError": "Error de API",
         "dismiss": "Cerrar"
+    },
+    "flyout": {
+        "close_label": "Cerrar panel"
     },
     "error_boundary": {
         "title": "Algo salió mal",

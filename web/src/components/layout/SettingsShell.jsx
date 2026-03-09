@@ -1,13 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Menu, X } from 'lucide-react';
 import ContextMenu from './ContextMenu';
 import Breadcrumbs from './Breadcrumbs';
 
+function getScrollParent(el) {
+    while (el && el !== document.documentElement) {
+        const { overflow, overflowY } = window.getComputedStyle(el);
+        if (overflow === 'auto' || overflowY === 'auto' || overflow === 'scroll' || overflowY === 'scroll') {
+            return el;
+        }
+        el = el.parentElement;
+    }
+    return document.documentElement;
+}
+
 export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs, children }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const shellRef = useRef(null);
 
     useEffect(() => {
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        if (shellRef.current) {
+            getScrollParent(shellRef.current).scrollTo({ top: 0, behavior: 'smooth' });
+        }
         setDrawerOpen(false);
     }, [activeKey]);
 
@@ -19,7 +33,7 @@ export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs
     const currentLabel = breadcrumbs?.[breadcrumbs.length - 1]?.label || '';
 
     return (
-        <div className="settings-shell fade-in">
+        <div className="settings-shell fade-in" ref={shellRef}>
             {/* Mobile drawer backdrop */}
             <div
                 className={`settings-drawer-backdrop${drawerOpen ? ' open' : ''}`}
@@ -34,6 +48,7 @@ export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs
                     onClick={() => setDrawerOpen(o => !o)}
                     aria-label={drawerOpen ? 'Close menu' : 'Open menu'}
                     aria-expanded={drawerOpen}
+                    aria-controls="settings-nav-menu"
                 >
                     {drawerOpen ? <X size={18} /> : <Menu size={18} />}
                 </button>

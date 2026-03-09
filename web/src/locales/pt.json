@@ -58,7 +58,10 @@
         "dashboard": "Dashboard",
         "settings": "Configurações",
         "profile": "Meu Perfil",
-        "logout": "Sair"
+        "logout": "Sair",
+        "open_menu": "Abrir menu de navegação",
+        "expand_menu": "Expandir menu lateral",
+        "collapse_menu": "Recolher menu lateral"
     },
     "search": {
         "placeholder": "Insira um IP, domínio ou Hash"
@@ -337,6 +340,9 @@
         "planLimit": "Limitação de plano",
         "apiError": "Erro na API",
         "dismiss": "Fechar"
+    },
+    "flyout": {
+        "close_label": "Fechar painel"
     },
     "error_boundary": {
         "title": "Algo deu errado",

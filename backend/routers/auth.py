@@ -17,6 +17,7 @@ from auth import (
     create_refresh_token,
     get_current_user,
     get_current_user_allow_expired,
+    _set_auth_cookies,
 )
 from limiters import limiter
 from audit import log_action
@@ -27,29 +28,6 @@ from policies import get_password_policy, validate_password
 logger = get_logger("AuthRouter")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-_SECURE = settings.environment == "production"
-
-
-def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
-    response.set_cookie(
-        key="access_token",
-        value=access_token,
-        httponly=True,
-        secure=_SECURE,
-        samesite="strict",
-        max_age=settings.access_token_expire_minutes * 60,
-    )
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=_SECURE,
-        samesite="strict",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
-
 
 @router.post("/login")
 @limiter.limit("5/minute")

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Plus, Trash2, Copy, CheckCircle, Loader, Key } from 'lucide-react';
 import API_URL from '../../config';
 import { fmtDateBRT } from '../../utils/dateFormat';
+import ConfirmModal from './ConfirmModal';
 
 export default function ApiKeysManager() {
     const { t } = useTranslation();
@@ -15,6 +16,7 @@ export default function ApiKeysManager() {
     const [revealedKey, setRevealedKey] = useState(null); // { key_id, key }
     const [copied, setCopied] = useState(false);
     const [error, setError] = useState('');
+    const [confirmRevoke, setConfirmRevoke] = useState(null); // { key_id, name }
 
     const fetchKeys = useCallback(async () => {
         setLoading(true);
@@ -61,13 +63,18 @@ export default function ApiKeysManager() {
         }
     };
 
-    const handleRevoke = async (key_id, name) => {
-        if (!window.confirm(t('api_keys.confirm_revoke', { name }))) return;
-        await fetch(`${API_URL}/api/api-keys/${key_id}`, {
+    const handleRevoke = (key_id, name) => {
+        setConfirmRevoke({ key_id, name });
+    };
+
+    const doRevoke = async () => {
+        if (!confirmRevoke) return;
+        await fetch(`${API_URL}/api/api-keys/${confirmRevoke.key_id}`, {
             method: 'DELETE',
             credentials: 'include',
         });
-        if (revealedKey?.key_id === key_id) setRevealedKey(null);
+        if (revealedKey?.key_id === confirmRevoke.key_id) setRevealedKey(null);
+        setConfirmRevoke(null);
         await fetchKeys();
     };
 
@@ -80,6 +87,15 @@ export default function ApiKeysManager() {
 
     return (
         <div>
+            {confirmRevoke && (
+                <ConfirmModal
+                    title={t('api_keys.revoke')}
+                    message={t('api_keys.confirm_revoke', { name: confirmRevoke.name })}
+                    danger
+                    onConfirm={doRevoke}
+                    onCancel={() => setConfirmRevoke(null)}
+                />
+            )}
             <p style={{ margin: '0 0 1.25rem 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                 {t('api_keys.subtitle')}
             </p>

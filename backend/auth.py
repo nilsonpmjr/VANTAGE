@@ -5,6 +5,7 @@ from typing import Optional
 
 import jwt
 from fastapi import Depends, HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
 from passlib.context import CryptContext
 
@@ -48,6 +49,30 @@ def create_refresh_token() -> str:
 def hash_api_key(raw_key: str) -> str:
     """Return SHA-256 hex digest of a raw API key."""
     return hashlib.sha256(raw_key.encode()).hexdigest()
+
+
+_SECURE = settings.environment == "production"
+
+
+def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
+    """Set HttpOnly auth cookies on a response (shared by auth and mfa routers)."""
+    response.set_cookie(
+        key="access_token",
+        value=access_token,
+        httponly=True,
+        secure=_SECURE,
+        samesite="strict",
+        max_age=settings.access_token_expire_minutes * 60,
+    )
+    response.set_cookie(
+        key="refresh_token",
+        value=refresh_token,
+        httponly=True,
+        secure=_SECURE,
+        samesite="strict",
+        max_age=settings.refresh_token_expire_days * 86400,
+        path="/api/auth/refresh",
+    )
 
 
 async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:

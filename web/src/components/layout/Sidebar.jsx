@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTour } from '../../context/TourContext';
 import { useTranslation } from 'react-i18next';
 
-export default function Sidebar({ currentView, setCurrentView }) {
+export default function Sidebar({ currentView, setCurrentView, onMobileClose }) {
     const { t } = useTranslation();
     const { user, logout } = useAuth();
     const { isTourActive, currentStep } = useTour();
@@ -50,7 +50,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                 <button
                     onClick={() => setIsCollapsed(!isCollapsed)}
                     style={{ background: 'transparent', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', display: 'flex' }}
-                    title="Toggle Menu"
+                    aria-label={isCollapsed ? t('sidebar.expand_menu') : t('sidebar.collapse_menu')}
                     data-tour="sidebar-toggle"
                 >
                     <Menu size={24} />
@@ -65,7 +65,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                         <button
                             key={item.id}
                             data-tour={`sidebar-${item.id}`}
-                            onClick={() => setCurrentView(item.id)}
+                            onClick={() => { setCurrentView(item.id); onMobileClose?.(); }}
                             style={{
                                 display: 'flex', alignItems: 'center', gap: '0.75rem',
                                 width: '100%', padding: '0.875rem 1rem',
@@ -101,12 +101,12 @@ export default function Sidebar({ currentView, setCurrentView }) {
 
             <div style={{ borderTop: '1px solid var(--glass-border)', paddingTop: '1.5rem', marginTop: 'auto' }}>
                 <div
-                    onClick={() => setCurrentView('profile')}
+                    onClick={() => { setCurrentView('profile'); onMobileClose?.(); }}
                     data-tour="sidebar-profile"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem', cursor: 'pointer', borderRadius: '8px', transition: 'background 0.2s' }}
                     onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
                     onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    title="Meu Perfil"
+                    title={t('sidebar.profile')}
                 >
                     <div style={{ width: '36px', height: '36px', background: 'var(--glass-bg)', borderRadius: '50%', border: '1px solid var(--primary)', flexShrink: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
                         {profileImg ? (
@@ -124,6 +124,7 @@ export default function Sidebar({ currentView, setCurrentView }) {
                 </div>
                 <button
                     onClick={logout}
+                    aria-label={t('sidebar.logout')}
                     style={{
                         display: 'flex', alignItems: 'center', gap: '0.75rem',
                         width: '100%', padding: '0.875rem 1rem',

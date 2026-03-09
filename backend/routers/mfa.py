@@ -29,6 +29,7 @@ from auth import (
     create_access_token,
     create_refresh_token,
     require_role,
+    _set_auth_cookies,
 )
 from config import settings
 from crypto import encrypt_secret, decrypt_secret
@@ -37,9 +38,6 @@ from logging_config import get_logger
 
 logger = get_logger("MFARouter")
 router = APIRouter(prefix="/mfa", tags=["mfa"])
-
-_SECURE = settings.environment == "production"
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -50,20 +48,6 @@ def _hash_backup_code(code: str) -> str:
 def _generate_backup_codes(n: int = 8) -> list[str]:
     """Generate N one-time backup codes in XXXXX-XXXXX format."""
     return [f"{secrets.token_hex(3).upper()}-{secrets.token_hex(3).upper()}" for _ in range(n)]
-
-
-def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: str) -> None:
-    response.set_cookie(
-        key="access_token", value=access_token,
-        httponly=True, secure=_SECURE, samesite="strict",
-        max_age=settings.access_token_expire_minutes * 60,
-    )
-    response.set_cookie(
-        key="refresh_token", value=refresh_token,
-        httponly=True, secure=_SECURE, samesite="strict",
-        max_age=settings.refresh_token_expire_days * 86400,
-        path="/api/auth/refresh",
-    )
 
 
 # ── Pydantic models ────────────────────────────────────────────────────────────

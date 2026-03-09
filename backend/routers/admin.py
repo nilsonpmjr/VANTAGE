@@ -129,7 +129,7 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
     all_users = await db.users.find({}).to_list(length=1000)
 
     total_users = len(all_users)
-    active_users = sum(1 for u in all_users if u.get("is_active", True) is not False)
+    active_users = sum(1 for u in all_users if u.get("is_active", True) == True)
     suspended_users = total_users - active_users
     locked_accounts = sum(
         1 for u in all_users
@@ -145,7 +145,7 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
         "revoked": False,
         "expires_at": {"$gt": now},
     })
-    active_api_keys = await db.api_keys.count_documents({"is_active": True})
+    active_api_keys = await db.api_keys.count_documents({"revoked": False})
 
     return {
         "total_users": total_users,
@@ -423,12 +423,12 @@ def _build_audit_query(
         try:
             ts_filter["$gte"] = datetime.fromisoformat(from_date.replace("Z", "+00:00"))
         except ValueError:
-            pass
+            raise HTTPException(status_code=422, detail="Invalid from_date format; use ISO 8601 (e.g. 2024-01-01T00:00:00Z)")
     if to_date:
         try:
             ts_filter["$lte"] = datetime.fromisoformat(to_date.replace("Z", "+00:00"))
         except ValueError:
-            pass
+            raise HTTPException(status_code=422, detail="Invalid to_date format; use ISO 8601 (e.g. 2024-01-01T00:00:00Z)")
     if ts_filter:
         query["timestamp"] = ts_filter
     return query

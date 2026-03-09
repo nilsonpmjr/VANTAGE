@@ -3,6 +3,7 @@ import { Monitor, Smartphone, Loader, LogOut, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import { fmtBRT } from '../../utils/dateFormat';
+import ConfirmModal from './ConfirmModal';
 
 /**
  * Active sessions panel — embed in Profile.
@@ -14,6 +15,7 @@ export default function SessionsTable() {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(false);
     const [actionLoading, setActionLoading] = useState(null); // session_id being acted on
+    const [confirmState, setConfirmState] = useState(null); // { title, message, onConfirm }
 
     const fetchSessions = useCallback(async () => {
         setLoading(true);
@@ -27,30 +29,40 @@ export default function SessionsTable() {
 
     useEffect(() => { fetchSessions(); }, [fetchSessions]);
 
-    const handleRevoke = async (sessionId) => {
-        if (!window.confirm(t('sessions.confirm_revoke'))) return;
-        setActionLoading(sessionId);
-        try {
-            const resp = await fetch(`${API_URL}/api/auth/sessions/${sessionId}`, {
-                method: 'DELETE', credentials: 'include',
-            });
-            if (resp.ok) fetchSessions();
-        } finally {
-            setActionLoading(null);
-        }
+    const handleRevoke = (sessionId) => {
+        setConfirmState({
+            title: t('sessions.revoke'),
+            message: t('sessions.confirm_revoke'),
+            onConfirm: async () => {
+                setActionLoading(sessionId);
+                try {
+                    const resp = await fetch(`${API_URL}/api/auth/sessions/${sessionId}`, {
+                        method: 'DELETE', credentials: 'include',
+                    });
+                    if (resp.ok) fetchSessions();
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
-    const handleRevokeOthers = async () => {
-        if (!window.confirm(t('sessions.confirm_revoke_others'))) return;
-        setActionLoading('others');
-        try {
-            const resp = await fetch(`${API_URL}/api/auth/sessions/others`, {
-                method: 'DELETE', credentials: 'include',
-            });
-            if (resp.ok) fetchSessions();
-        } finally {
-            setActionLoading(null);
-        }
+    const handleRevokeOthers = () => {
+        setConfirmState({
+            title: t('sessions.revoke_others', { count: sessions.filter(s => !s.is_current).length }),
+            message: t('sessions.confirm_revoke_others'),
+            onConfirm: async () => {
+                setActionLoading('others');
+                try {
+                    const resp = await fetch(`${API_URL}/api/auth/sessions/others`, {
+                        method: 'DELETE', credentials: 'include',
+                    });
+                    if (resp.ok) fetchSessions();
+                } finally {
+                    setActionLoading(null);
+                }
+            },
+        });
     };
 
     const isMobile = (ua = '') => /android|iphone|ipad/i.test(ua);
@@ -61,6 +73,15 @@ export default function SessionsTable() {
 
     return (
         <div>
+            {confirmState && (
+                <ConfirmModal
+                    title={confirmState.title}
+                    message={confirmState.message}
+                    danger
+                    onConfirm={() => { confirmState.onConfirm(); setConfirmState(null); }}
+                    onCancel={() => setConfirmState(null)}
+                />
+            )}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                 <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {t('sessions.subtitle')}

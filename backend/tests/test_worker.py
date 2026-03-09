@@ -1,9 +1,10 @@
 """
-Tests for worker.py — ensuring the rescan job targets the correct DB collection.
+Tests for worker.py — ensuring the rescan job targets the correct DB collection,
+handles API failures gracefully, and detects verdict changes.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from datetime import datetime, timezone
 
 
@@ -81,3 +82,88 @@ async def test_worker_verdict_computation():
     risk, _ = compute_risk_score(two_risky)
     assert compute_verdict(risk) == "HIGH RISK"
     assert risk == 2
+
+
+@pytest.mark.asyncio
+async def test_process_single_target_all_apis_fail_returns_false():
+    """When all API calls fail, process_single_target should return False (no verdict change)."""
+    from worker import process_single_target
+
+    mock_db = MagicMock()
+    mock_db.scans = MagicMock()
+    mock_db.scans.update_one = AsyncMock()
+
+    mock_result = MagicMock()
+    mock_result.success = False
+    mock_result.data = None
+    mock_result.error = "API timeout"
+    mock_result.error_type = "timeout"
+
+    mock_client = AsyncMock()
+    mock_client.query_all = AsyncMock(return_value={"virustotal": mock_result, "abuseipdb": mock_result})
+
+    result = await process_single_target(mock_client, mock_db, "1.2.3.4", "ip", "doc_id")
+
+    # All APIs failed → all results have _meta_error → verdict SAFE (no change from SAFE)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_process_single_target_verdict_change_returns_true():
+    """When verdict changes to HIGH RISK, process_single_target returns True."""
+    from worker import process_single_target
+
+    mock_db = MagicMock()
+    mock_db.scans = MagicMock()
+    mock_db.scans.update_one = AsyncMock()
+
+    # AbuseIPDB with high confidence → SUSPICIOUS/HIGH RISK
+    mock_result = MagicMock()
+    mock_result.success = True
+    mock_result.data = {"data": {"abuseConfidenceScore": 95, "totalReports": 50}}
+    mock_result.error = None
+
+    mock_result2 = MagicMock()
+    mock_result2.success = True
+    mock_result2.data = {"classification": "malicious"}
+    mock_result2.error = None
+
+    mock_client = AsyncMock()
+    mock_client.query_all = AsyncMock(return_value={
+        "abuseipdb": mock_result,
+        "greynoise": mock_result2,
+    })
+
+    result = await process_single_target(mock_client, mock_db, "1.2.3.4", "ip", "doc_id")
+
+    assert result is True
+    mock_db.scans.update_one.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_scan_safe_targets_job_db_unavailable():
+    """When DB is not connected, the worker job exits gracefully without raising."""
+    from worker import scan_safe_targets_job
+    from db import db_manager
+
+    original_db = db_manager.db
+    db_manager.db = None
+    try:
+        # Should not raise, just log error and return
+        await scan_safe_targets_job()
+    finally:
+        db_manager.db = original_db
+
+
+@pytest.mark.asyncio
+async def test_process_single_target_exception_returns_false():
+    """When an unexpected exception occurs, process_single_target returns False."""
+    from worker import process_single_target
+
+    mock_db = MagicMock()
+    mock_client = AsyncMock()
+    mock_client.query_all = AsyncMock(side_effect=RuntimeError("network error"))
+
+    result = await process_single_target(mock_client, mock_db, "1.2.3.4", "ip", "doc_id")
+
+    assert result is False

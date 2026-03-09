@@ -15,7 +15,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from auth import get_current_user, hash_api_key
+from auth import get_current_user, hash_api_key, require_role
 from db import db_manager
 from audit import log_action
 
@@ -163,12 +163,9 @@ async def revoke_api_key(
 @router.get("/admin/{username}")
 async def list_user_keys(
     username: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_role(["admin"])),
 ):
     """Admin: list all active API keys for any user."""
-    if current_user["role"] != "admin":
-        raise HTTPException(status_code=403, detail="forbidden")
-
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")

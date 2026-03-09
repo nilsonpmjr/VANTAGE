@@ -58,6 +58,11 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
     if await db.users.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
 
+    if user.email:
+        normalized_email = user.email.strip().lower()
+        if await db.users.find_one({"email": normalized_email}):
+            raise HTTPException(status_code=400, detail="Email already in use")
+
     if user.role not in VALID_ROLES:
         raise HTTPException(status_code=400, detail="Invalid role specified")
 

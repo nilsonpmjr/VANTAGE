@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldCheck, ShieldOff, Loader, Copy, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { QRCodeSVG } from 'qrcode.react';
 import API_URL from '../../config';
 
 /**
@@ -143,12 +144,7 @@ export default function MFAEnroll({ mfaEnabled, userRole, onStatusChange }) {
             {/* QR Code as data URI via browser API */}
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
                 <div style={{ background: '#fff', padding: '12px', borderRadius: '8px', display: 'inline-block' }}>
-                    <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(qrUri)}`}
-                        alt="QR Code MFA"
-                        width={180} height={180}
-                        style={{ display: 'block' }}
-                    />
+                    <QRCodeSVG value={qrUri} size={180} />
                 </div>
             </div>
 

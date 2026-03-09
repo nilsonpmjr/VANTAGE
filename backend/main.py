@@ -62,6 +62,11 @@ async def lifespan(app: FastAPI):
                 name="reset_tokens_username",
             )
             logger.info("MongoDB indexes created/verified.")
+
+            # Clean up legacy refresh_tokens without session_id (created before session tracking)
+            result = await db.refresh_tokens.delete_many({"session_id": {"$exists": False}})
+            if result.deleted_count:
+                logger.info(f"Cleaned up {result.deleted_count} legacy refresh token(s) without session_id.")
         except Exception as e:
             logger.warning(f"Could not create indexes: {e}")
 
@@ -100,6 +105,20 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
+# Security headers (OWASP recommendations)
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    if settings.environment == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
+
 # Content-size guard: reject bodies > 1 MB before they reach business logic
 @app.middleware("http")
 async def content_size_limit(request: Request, call_next):
@@ -128,25 +147,13 @@ app.add_middleware(
 )
 
 # ── Register routers ────────────────────────────────────────────────────────
-# /api  (backward compat)
-app.include_router(auth.router, prefix="/api")
-app.include_router(users.router, prefix="/api")
-app.include_router(analyze.router, prefix="/api")
-app.include_router(stats.router, prefix="/api")
-app.include_router(admin.router, prefix="/api")
-app.include_router(mfa.router, prefix="/api")
-app.include_router(sessions.router, prefix="/api")
-app.include_router(api_keys.router, prefix="/api")
-
-# /api/v1  (versioned)
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(analyze.router, prefix="/api/v1")
-app.include_router(stats.router, prefix="/api/v1")
-app.include_router(admin.router, prefix="/api/v1")
-app.include_router(mfa.router, prefix="/api/v1")
-app.include_router(sessions.router, prefix="/api/v1")
-app.include_router(api_keys.router, prefix="/api/v1")
+_routers = [
+    auth.router, users.router, analyze.router, stats.router,
+    admin.router, mfa.router, sessions.router, api_keys.router,
+]
+for _prefix in ("/api", "/api/v1"):
+    for _router in _routers:
+        app.include_router(_router, prefix=_prefix)
 
 
 if __name__ == "__main__":

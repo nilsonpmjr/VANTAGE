@@ -1,6 +1,16 @@
 {
   "version": 1,
   "skills": {
+    "gsap": {
+      "source": "martinholovsky/claude-skills-generator",
+      "sourceType": "github",
+      "computedHash": "b7d401d70a6f6f2bd29bb36ee803564cb071cc43bf5701e32a5dedbf88cc1466"
+    },
+    "gsap-master": {
+      "source": "su69ar/rdnax-gsap-master",
+      "sourceType": "github",
+      "computedHash": "c8a18812b2bf5f65c0c69136616bff829f445309dd57312ddf83cad16531a1a6"
+    },
     "humanizer": {
       "source": "softaworks/agent-toolkit",
       "sourceType": "github",

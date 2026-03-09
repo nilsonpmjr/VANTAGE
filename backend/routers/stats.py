@@ -142,6 +142,36 @@ async def get_dashboard_stats(
         # Worker health status
         worker_status = await db.system_status.find_one({"module": "worker"}, {"_id": 0})
 
+        # Recon Engine stats
+        recon_base_query = {}
+        if start_date:
+            recon_base_query = {"created_at": {"$gte": start_date}}
+
+        recon_total = await db.recon_jobs.count_documents(recon_base_query)
+
+        recent_recon_raw = await (
+            db.recon_jobs.find(
+                recon_base_query,
+                {
+                    "_id": 1,
+                    "target": 1,
+                    "target_type": 1,
+                    "modules": 1,
+                    "analyst": 1,
+                    "status": 1,
+                    "created_at": 1,
+                    "completed_at": 1,
+                },
+            )
+            .sort("created_at", -1)
+            .limit(10)
+            .to_list(10)
+        )
+        recent_recon_jobs = [
+            {**{k: v for k, v in doc.items() if k != "_id"}, "job_id": str(doc["_id"])}
+            for doc in recent_recon_raw
+        ]
+
         return {
             "totalScans": total_scans,
             "verdictDistribution": verdict_result,
@@ -151,6 +181,8 @@ async def get_dashboard_stats(
             "recentScans": recent_scans,
             "criticalIncidents": critical_incidents,
             "workerHealth": worker_status,
+            "reconTotal": recon_total,
+            "recentReconJobs": recent_recon_jobs,
         }
 
     except Exception as e:

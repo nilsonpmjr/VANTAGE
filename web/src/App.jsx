@@ -15,6 +15,7 @@ import ResetPassword from './components/auth/ResetPassword';
 import Sidebar from './components/layout/Sidebar';
 import Settings from './components/admin/Settings';
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
+const ReconPage = React.lazy(() => import('./components/recon/ReconPage'));
 import Profile from './components/Profile';
 import TourOverlay from './components/shared/TourOverlay';
 import { useTranslation } from 'react-i18next';
@@ -48,6 +49,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [resetToken, setResetToken] = useState(null);
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
+  const [reconTarget, setReconTarget] = useState(null);
 
   const { t, i18n } = useTranslation();
 
@@ -372,11 +374,20 @@ export default function App() {
 
         {currentView === 'dashboard' && (
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
-            <Dashboard onSearch={(query) => { setCurrentView('home'); handleSearch(query); }} style={{ flexShrink: 0 }} />
+            <Dashboard
+            onSearch={(query) => { setCurrentView('home'); handleSearch(query); }}
+            onRecon={(t) => { setReconTarget(t); setCurrentView('recon'); }}
+            style={{ flexShrink: 0 }}
+          />
           </Suspense>
         )}
         {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings /></div>}
         {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
+        {currentView === 'recon' && (
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+            <ReconPage initialTarget={reconTarget} />
+          </Suspense>
+        )}
 
         </div>{/* end view fade-in wrapper */}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History, Download, AlignLeft } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History, Download, AlignLeft, Radar } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -10,7 +10,7 @@ import API_URL from '../../config';
 import { fmtBRT } from '../../utils/dateFormat';
 import '../../index.css';
 
-export default function Dashboard({ onSearch }) {
+export default function Dashboard({ onSearch, onRecon }) {
     const { t } = useTranslation();
     const { user } = useAuth();
     const [stats, setStats] = useState(null);
@@ -180,6 +180,16 @@ export default function Dashboard({ onSearch }) {
                             <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>
                                 {stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}
                             </h3>
+                        </div>
+                    </div>
+
+                    <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+                        <div style={{ background: 'rgba(56, 189, 248, 0.08)', padding: '1rem', borderRadius: '12px', color: 'var(--primary)' }}>
+                            <Radar size={32} />
+                        </div>
+                        <div>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('recon.title')}</p>
+                            <h3 style={{ margin: '0.5rem 0 0 0', color: 'var(--text-primary)', fontSize: '2rem', fontWeight: 600 }}>{stats?.reconTotal ?? 0}</h3>
                         </div>
                     </div>
 
@@ -497,6 +507,72 @@ export default function Dashboard({ onSearch }) {
                         </div>
                     </div>
 
+                    {/* Recent Recon Jobs Table */}
+                    {stats?.recentReconJobs && stats.recentReconJobs.length > 0 && (
+                        <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
+                            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+                                <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                                    <Radar size={20} color="var(--primary)" />
+                                    {t('recon.title')}
+                                </h3>
+                            </div>
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <caption className="sr-only">{t('recon.title')}</caption>
+                                    <thead style={{ background: 'var(--bg-main)' }}>
+                                        <tr>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('recon.modules_label')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {stats.recentReconJobs.map((job, idx) => (
+                                            <tr key={job.job_id} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
+                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                        <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', color: 'var(--primary)', fontWeight: 'bold' }}>
+                                                            {job.analyst ? job.analyst.substring(0, 2).toUpperCase() : 'SYS'}
+                                                        </div>
+                                                        {job.analyst || t('dashboard.sys')}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>
+                                                    {fmtBRT(job.created_at, i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
+                                                </td>
+                                                <td
+                                                    onClick={() => onRecon && onRecon(job.target)}
+                                                    style={{
+                                                        padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem',
+                                                        maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                                        cursor: onRecon ? 'pointer' : 'default',
+                                                    }}
+                                                    title={job.target}
+                                                >
+                                                    {onRecon ? <span style={{ textDecoration: 'underline' }}>{job.target}</span> : job.target}
+                                                </td>
+                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                                    {job.modules?.join(', ') || '—'}
+                                                </td>
+                                                <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}>
+                                                    <span style={{
+                                                        fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: '1rem',
+                                                        color: job.status === 'done' ? 'var(--green)' : job.status === 'error' ? 'var(--red)' : 'var(--primary)',
+                                                        background: job.status === 'done' ? 'rgba(16,185,129,0.1)' : job.status === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(56,189,248,0.1)',
+                                                        border: `1px solid ${job.status === 'done' ? 'var(--green)' : job.status === 'error' ? 'var(--red)' : 'var(--primary)'}`,
+                                                    }}>
+                                                        {job.status}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    )}
                 </div> {/* END Grid */}
             </div> {/* END Ref */}
         </div>

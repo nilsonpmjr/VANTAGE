@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     batch_inter_target_delay_ms: int = 500  # ms between external calls
     batch_job_ttl_hours: int = 24
 
+    # Recon Engine
+    recon_cache_ttl_hours: int = 6
+    recon_port_range: str = "21,22,23,25,53,80,110,111,135,139,143,443,445,993,995,1723,3306,3389,5900,8080,8443,8888"
+    recon_max_concurrent: int = 2
+
     # MFA
     mfa_encryption_key: str = ""            # Fernet key; auto-derived in dev if empty
     mfa_required_roles: List[str] = ["admin", "manager"]  # roles that MUST enroll MFA

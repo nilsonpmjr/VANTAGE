@@ -15,7 +15,7 @@ from logging_config import setup_logging, get_logger
 from limiters import limiter
 from worker import scan_safe_targets_job
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -70,6 +70,30 @@ async def lifespan(app: FastAPI):
             await db.batch_jobs.create_index(
                 [("analyst", 1), ("created_at", -1)],
                 name="batch_jobs_analyst",
+            )
+            # Recon Engine indexes
+            await db.recon_jobs.create_index(
+                [("created_at", 1)],
+                expireAfterSeconds=24 * 3600,
+                name="recon_jobs_ttl",
+            )
+            await db.recon_jobs.create_index(
+                [("analyst", 1), ("created_at", -1)],
+                name="recon_jobs_analyst",
+            )
+            await db.recon_jobs.create_index(
+                [("target", 1), ("created_at", -1)],
+                name="recon_jobs_target",
+            )
+            await db.recon_results.create_index(
+                [("scanned_at", 1)],
+                expireAfterSeconds=settings.recon_cache_ttl_hours * 3600,
+                name="recon_results_ttl",
+            )
+            await db.recon_results.create_index(
+                [("cache_key", 1)],
+                unique=True,
+                name="recon_results_cache_key",
             )
             logger.info("MongoDB indexes created/verified.")
 
@@ -160,7 +184,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router,
+    batch.router, recon.router,
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu } from 'lucide-react';
+import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu, Radar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTour } from '../../context/TourContext';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,7 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
     const NAV_ITEMS = [
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
         { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
+        { id: 'recon', label: t('sidebar.recon'), icon: Radar, roles: ['admin', 'manager', 'tech'] },
         { id: 'settings', label: t('sidebar.settings'), icon: Settings, roles: ['admin'] }
     ];
 

@@ -13,6 +13,7 @@ docker_build.log
 AUDITORIA_THREAT_TOOL.md
 GUIA_CORRECOES.md
 README_IMPROVED.md
-.gemini/
-PRD-ui-overhaul.md
-PRD-admin-iam.md
+docs/
+.agents/
+.agent/
+.claude/

@@ -265,12 +265,18 @@ export default function ModuleResultCard({ module, result, target }) {
     };
 
     return (
-        <div className="glass-panel" style={{
-            padding: '1rem 1.25rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.5rem',
-        }}>
+        <div
+            className="glass-panel"
+            onClick={() => !isRunning && data && setExpanded(!expanded)}
+            style={{
+                padding: '1rem 1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.5rem',
+                cursor: !isRunning && data ? 'pointer' : 'default',
+                transition: 'border-color 0.15s',
+            }}
+        >
             {/* Header row */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -307,15 +313,15 @@ export default function ModuleResultCard({ module, result, target }) {
 
                     {!isRunning && data && (
                         <>
-                            <button onClick={copyJSON} title={t('recon.copy_json')} style={{ background: 'transparent', border: 'none', color: copied ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
+                            <button onClick={(e) => { e.stopPropagation(); copyJSON(); }} title={t('recon.copy_json')} style={{ background: 'transparent', border: 'none', color: copied ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
                                 <Copy size={13} />
                             </button>
-                            <button onClick={() => exportJSON(data, target, module.name)} title={t('recon.export_module')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
+                            <button onClick={(e) => { e.stopPropagation(); exportJSON(data, target, module.name); }} title={t('recon.export_module')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
                                 <Download size={13} />
                             </button>
-                            <button onClick={() => setExpanded(!expanded)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
+                            <div style={{ color: 'var(--text-muted)', display: 'flex', padding: '0.2rem' }}>
                                 {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                            </button>
+                            </div>
                         </>
                     )}
                 </div>

@@ -50,6 +50,7 @@ export default function App() {
   const [resetToken, setResetToken] = useState(null);
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
   const [reconTarget, setReconTarget] = useState(null);
+  const [reconOpenHistory, setReconOpenHistory] = useState(false);
 
   const { t, i18n } = useTranslation();
 
@@ -376,7 +377,7 @@ export default function App() {
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
             <Dashboard
             onSearch={(query) => { setCurrentView('home'); handleSearch(query); }}
-            onRecon={(t) => { setReconTarget(t); setCurrentView('recon'); }}
+            onRecon={(target, opts) => { setReconTarget(target); setReconOpenHistory(!!opts?.showHistory); setCurrentView('recon'); }}
             style={{ flexShrink: 0 }}
           />
           </Suspense>
@@ -385,7 +386,7 @@ export default function App() {
         {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
         {currentView === 'recon' && (
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
-            <ReconPage initialTarget={reconTarget} />
+            <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />
           </Suspense>
         )}
 

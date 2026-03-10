@@ -23,7 +23,7 @@ function exportAllJSON(jobId, target, results) {
 }
 
 
-export default function ReconPage({ initialTarget }) {
+export default function ReconPage({ initialTarget, initialShowHistory }) {
     const { t } = useTranslation();
 
     const [target, setTarget] = useState(initialTarget || '');
@@ -42,8 +42,11 @@ export default function ReconPage({ initialTarget }) {
 
     // Sync when initialTarget changes (e.g. navigated from Dashboard)
     useEffect(() => {
-        if (initialTarget) setTarget(initialTarget);
-    }, [initialTarget]);
+        if (initialTarget) {
+            setTarget(initialTarget);
+            if (initialShowHistory) setShowHistory(true);
+        }
+    }, [initialTarget, initialShowHistory]);
 
     // Load available modules on mount
     useEffect(() => {
@@ -154,7 +157,7 @@ export default function ReconPage({ initialTarget }) {
     const activeModuleMeta = modules.find(m => m.name === activeModule);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
             {/* Header */}
             <div style={{
                 padding: '1.25rem 1.5rem',

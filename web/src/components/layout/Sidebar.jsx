@@ -24,8 +24,8 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
 
     const NAV_ITEMS = [
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
-        { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
         { id: 'recon', label: t('sidebar.recon'), icon: Radar, roles: ['admin', 'manager', 'tech'] },
+        { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
         { id: 'settings', label: t('sidebar.settings'), icon: Settings, roles: ['admin'] }
     ];
 

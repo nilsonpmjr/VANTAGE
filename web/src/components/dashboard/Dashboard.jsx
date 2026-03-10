@@ -543,7 +543,7 @@ export default function Dashboard({ onSearch, onRecon }) {
                                                     {fmtBRT(job.created_at, i18n.language === 'en' ? 'en-US' : (i18n.language === 'es' ? 'es-ES' : 'pt-BR'))}
                                                 </td>
                                                 <td
-                                                    onClick={() => onRecon && onRecon(job.target)}
+                                                    onClick={() => onRecon && onRecon(job.target, { showHistory: true })}
                                                     style={{
                                                         padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem',
                                                         maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',

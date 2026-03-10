@@ -382,7 +382,7 @@ export default function App() {
           />
           </Suspense>
         )}
-        {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings /></div>}
+        {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings onRecon={(target) => { setReconTarget(target); setReconOpenHistory(false); setCurrentView('recon'); }} /></div>}
         {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
         {currentView === 'recon' && (
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>

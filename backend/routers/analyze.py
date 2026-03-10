@@ -9,10 +9,11 @@ from validators import validate_target, ValidationError
 from analyzer import generate_heuristic_report, format_report_to_markdown
 from scoring import compute_risk_score, compute_verdict
 from db import db_manager
-from auth import get_current_user
+from auth import get_current_user, require_api_scope
 from limiters import limiter
 from audit import log_action
 from logging_config import get_logger
+from db import inc_service_quota
 from config import settings
 
 logger = get_logger("AnalyzeRouter")
@@ -63,7 +64,7 @@ async def analyze_target(
     request: Request,
     target: str = Query(..., description="IP address, Domain, or File Hash"),
     lang: str = Query("pt", description="Language for heuristic report (pt, en, es)"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_api_scope("analyze")),
 ):
     """
     Analyzes a target using all configured Threat Intelligence services.
@@ -99,9 +100,11 @@ async def analyze_target(
 
     # Separate successful results from errors
     service_results: Dict[str, Any] = {}
+    analyst_name = current_user.get("username", "")
     for svc, resp in raw_results.items():
         if resp.success and resp.data is not None:
             service_results[svc] = resp.data
+            await inc_service_quota(svc, analyst_name)
         else:
             service_results[svc] = {
                 "_meta_error": resp.error or "service unavailable",

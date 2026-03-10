@@ -1,3 +1,6 @@
+import ipaddress
+import re
+
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from datetime import datetime, timezone
 from pydantic import BaseModel
@@ -29,6 +32,7 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
     force_password_reset: Optional[bool] = None
     email: Optional[str] = None
+    allowed_ips: Optional[list[str]] = None
 
 
 class UserPreferencesUpdate(BaseModel):
@@ -241,6 +245,23 @@ async def update_user(
         update_data["force_password_reset"] = user_update.force_password_reset
     if user_update.email is not None:
         update_data["email"] = user_update.email.strip().lower() if user_update.email else None
+    if user_update.allowed_ips is not None:
+        # Validate each entry as IP, CIDR, or IPv6
+        validated = []
+        for entry in user_update.allowed_ips:
+            entry = entry.strip()
+            if not entry:
+                continue
+            try:
+                ipaddress.ip_network(entry, strict=False)
+                validated.append(entry)
+            except ValueError:
+                try:
+                    ipaddress.ip_address(entry)
+                    validated.append(entry)
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"Invalid IP/CIDR: {entry}")
+        update_data["allowed_ips"] = validated
 
     if not update_data:
         return {"status": "success", "message": "No fields to update"}

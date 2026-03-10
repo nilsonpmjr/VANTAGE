@@ -79,6 +79,7 @@ class PasswordPolicyUpdate(BaseModel):
     history_count: Optional[int] = Field(None, ge=0, le=24)
     expiry_days: Optional[int] = Field(None, ge=0, le=3650)
     expiry_warning_days: Optional[int] = Field(None, ge=1, le=90)
+    mask_pii: Optional[bool] = None
 
 
 @router.get("/password-policy")
@@ -399,6 +400,31 @@ async def import_users(
     return {"created": created, "skipped": skipped, "errors": errors}
 
 
+# ── PII masking (LGPD) ───────────────────────────────────────────────────────
+
+_EMAIL_MASK_RE = re.compile(r"^(.)([^@]*)(@.+)$")
+
+
+def _mask_pii_value(value: str) -> str:
+    """Mask email-like targets: j***@example.com"""
+    if not value or "@" not in value:
+        return value
+    m = _EMAIL_MASK_RE.match(value)
+    if m:
+        return f"{m.group(1)}***{m.group(3)}"
+    return value
+
+
+def _mask_audit_items(items: list) -> list:
+    """Apply PII masking to target and detail fields in audit log entries."""
+    for item in items:
+        if item.get("target"):
+            item["target"] = _mask_pii_value(item["target"])
+        if item.get("detail"):
+            item["detail"] = _mask_pii_value(item["detail"])
+    return items
+
+
 # ── Audit Log helpers ────────────────────────────────────────────────────────
 
 def _build_audit_query(
@@ -467,7 +493,14 @@ async def get_audit_logs(
     total = await db.audit_log.count_documents(query)
     items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).skip(skip).limit(page_size).to_list(length=page_size)
     pages = max(1, (total + page_size - 1) // page_size)
-    return {"items": _serialize_items(items), "total": total, "page": page, "pages": pages}
+    serialized = _serialize_items(items)
+
+    # Apply PII masking if enabled in policy
+    policy = await get_password_policy(db)
+    if policy.get("mask_pii", True):
+        _mask_audit_items(serialized)
+
+    return {"items": serialized, "total": total, "page": page, "pages": pages}
 
 
 @router.get("/audit-logs/export")
@@ -489,6 +522,11 @@ async def export_audit_logs(
     query = _build_audit_query(user, action, result, ip, from_date, to_date)
     items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).to_list(length=10000)
     _serialize_items(items)
+
+    # Apply PII masking if enabled
+    policy = await get_password_policy(db)
+    if policy.get("mask_pii", True):
+        _mask_audit_items(items)
 
     if format == "json":
         content = json.dumps(items, ensure_ascii=False, indent=2)

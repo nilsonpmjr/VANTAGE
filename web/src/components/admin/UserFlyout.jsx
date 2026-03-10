@@ -29,6 +29,7 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
     const [role, setRole] = useState('tech');
     const [email, setEmail] = useState('');
     const [forceReset, setForceReset] = useState(false);
+    const [allowedIps, setAllowedIps] = useState('');
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
 
@@ -48,13 +49,14 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
     useEffect(() => {
         if (isNew) {
             setName(''); setUsername(''); setPassword(''); setRole('tech');
-            setEmail(''); setForceReset(false); setIsEditing(true);
+            setEmail(''); setForceReset(false); setAllowedIps(''); setIsEditing(true);
         } else if (selectedUser) {
             setName(selectedUser.name || '');
             setUsername(selectedUser.username || '');
             setRole(selectedUser.role || 'tech');
             setEmail(selectedUser.email || '');
             setForceReset(selectedUser.force_password_reset || false);
+            setAllowedIps((selectedUser.allowed_ips || []).join('\n'));
             setPassword('');
             setIsEditing(false);
             setEditPerms(selectedUser.extra_permissions || []);
@@ -79,6 +81,7 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
             } else {
                 if (password) payload.password = password;
                 payload.force_password_reset = forceReset;
+                payload.allowed_ips = allowedIps.split('\n').map(s => s.trim()).filter(Boolean);
             }
             const resp = await fetch(url, {
                 method,
@@ -243,6 +246,14 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
                                 {selectedUser.mfa_enabled ? '● Ativo' : '○ Inativo'}
                             </span>
                         </div>
+                        {selectedUser.allowed_ips && selectedUser.allowed_ips.length > 0 && (
+                            <div className="flyout-row">
+                                <span className="flyout-row-key">{t('admin.allowed_ips')}</span>
+                                <span className="flyout-row-val" style={{ fontFamily: 'monospace', fontSize: '0.78rem' }}>
+                                    {selectedUser.allowed_ips.join(', ')}
+                                </span>
+                            </div>
+                        )}
                         <div className="flyout-row">
                             <span className="flyout-row-key">{t('settings.status')}</span>
                             <span className="flyout-row-val">
@@ -350,6 +361,22 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
                             <option value="admin">{t('settings.admin')}</option>
                         </select>
                     </div>
+                    {!isNew && (
+                        <div className="form-field">
+                            <label className="form-label">{t('admin.allowed_ips')}</label>
+                            <textarea
+                                value={allowedIps}
+                                onChange={e => setAllowedIps(e.target.value)}
+                                className="form-input"
+                                placeholder="192.168.1.0/24&#10;10.0.0.5&#10;2001:db8::1"
+                                rows={3}
+                                style={{ resize: 'vertical', fontFamily: 'monospace', fontSize: '0.82rem' }}
+                            />
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
+                                {t('admin.allowed_ips_hint')}
+                            </span>
+                        </div>
+                    )}
                     {!isNew && !isSelf && (
                         <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.5rem', fontSize: '0.82rem', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                             <input type="checkbox" checked={forceReset} onChange={e => setForceReset(e.target.checked)} style={{ accentColor: 'var(--primary)', marginTop: '0.15rem' }} />

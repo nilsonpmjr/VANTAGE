@@ -13,9 +13,9 @@ from db import db_manager
 from config import settings
 from logging_config import setup_logging, get_logger
 from limiters import limiter
-from worker import scan_safe_targets_job
+from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -95,6 +95,41 @@ async def lifespan(app: FastAPI):
                 unique=True,
                 name="recon_results_cache_key",
             )
+            # Recon scheduled scans indexes
+            await db.recon_scheduled.create_index(
+                [("run_at", 1)],
+                name="recon_scheduled_run_at",
+            )
+            await db.recon_scheduled.create_index(
+                [("analyst", 1), ("status", 1)],
+                name="recon_scheduled_analyst_status",
+            )
+            await db.recon_scheduled.create_index(
+                [("created_at", 1)],
+                expireAfterSeconds=8 * 24 * 3600,
+                name="recon_scheduled_ttl",
+            )
+            # Watchlist indexes
+            await db.watchlist.create_index(
+                [("user", 1), ("target", 1)],
+                unique=True,
+                name="watchlist_user_target",
+            )
+            await db.watchlist.create_index(
+                [("user", 1), ("created_at", -1)],
+                name="watchlist_user_created",
+            )
+            # Service quota indexes (daily API call tracking)
+            await db.service_quota.create_index(
+                [("service", 1), ("date", 1), ("user", 1)],
+                unique=True,
+                name="service_quota_unique",
+            )
+            await db.service_quota.create_index(
+                [("created_at", 1)],
+                expireAfterSeconds=2 * 24 * 3600,
+                name="service_quota_ttl",
+            )
             logger.info("MongoDB indexes created/verified.")
 
             # Clean up legacy refresh_tokens without session_id (created before session tracking)
@@ -116,6 +151,13 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
     logger.info("Background Worker (APScheduler) started.")
+
+    # Start background workers
+    import asyncio as _aio
+    _aio.create_task(start_watchlist_worker())
+    logger.info("Watchlist worker task created.")
+    _aio.create_task(start_recon_scheduler())
+    logger.info("Recon scheduler task created.")
 
     yield
 
@@ -184,7 +226,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router, recon.router,
+    batch.router, recon.router, watchlist.router,
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

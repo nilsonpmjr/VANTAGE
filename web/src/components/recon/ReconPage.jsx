@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Radar, Play, RotateCcw, Download, History, Printer } from 'lucide-react';
+import { Radar, Play, RotateCcw, Download, History, Printer, CalendarClock, X } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import ModuleSidebar from './ModuleSidebar';
@@ -37,6 +37,10 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
     const [activeView, setActiveView] = useState('idle'); // 'idle' | 'module' | 'surface'
     const [error, setError] = useState(null);
     const [showHistory, setShowHistory] = useState(false);
+    const [showSchedule, setShowSchedule] = useState(false);
+    const [scheduleAt, setScheduleAt] = useState('');
+    const [scheduledItems, setScheduledItems] = useState([]);
+    const [scheduling, setScheduling] = useState(false);
 
     const eventSourceRef = useRef(null);
 
@@ -64,6 +68,55 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
             prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]
         );
     }, []);
+
+    // Fetch user's scheduled scans
+    const fetchScheduled = useCallback(() => {
+        fetch(`${API_URL}/api/recon/scheduled/mine`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(data => setScheduledItems(data.items || []))
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => { fetchScheduled(); }, [fetchScheduled]);
+
+    const handleSchedule = async () => {
+        if (!target.trim() || !scheduleAt || scheduling) return;
+        setScheduling(true);
+        try {
+            const res = await fetch(`${API_URL}/api/recon/scheduled`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    target: target.trim(),
+                    modules: selected,
+                    run_at: new Date(scheduleAt).toISOString(),
+                }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                setError(err.detail || t('recon.error_generic'));
+                return;
+            }
+            setShowSchedule(false);
+            setScheduleAt('');
+            fetchScheduled();
+        } catch {
+            setError(t('recon.error_generic'));
+        } finally {
+            setScheduling(false);
+        }
+    };
+
+    const handleCancelScheduled = async (id) => {
+        try {
+            await fetch(`${API_URL}/api/recon/scheduled/${id}`, {
+                method: 'DELETE',
+                credentials: 'include',
+            });
+            setScheduledItems(prev => prev.filter(i => i.id !== id));
+        } catch { /* ignore */ }
+    };
 
     const handleScan = async () => {
         if (!target.trim() || selected.length === 0 || scanning) return;
@@ -218,6 +271,23 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                         <Play size={14} />
                         {scanning ? t('recon.scanning') : t('recon.scan')}
                     </button>
+                    {!scanning && target.trim() && selected.length > 0 && (
+                        <button
+                            onClick={() => setShowSchedule(p => !p)}
+                            title={t('recon.schedule')}
+                            style={{
+                                display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                background: showSchedule ? 'var(--accent-glow)' : 'var(--glass-bg)',
+                                border: `1px solid ${showSchedule ? 'var(--accent-border)' : 'var(--glass-border)'}`,
+                                color: showSchedule ? 'var(--primary)' : 'var(--text-secondary)',
+                                borderRadius: 'var(--radius-sm)',
+                                padding: '0.5rem 0.75rem', cursor: 'pointer',
+                                fontSize: '0.85rem', transition: 'all 0.2s',
+                            }}
+                        >
+                            <CalendarClock size={14} />
+                        </button>
+                    )}
 
                     {hasResults && !scanning && (
                         <>
@@ -265,6 +335,88 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                     )}
                 </div>
             </div>
+
+            {/* Schedule picker */}
+            {showSchedule && (
+                <div style={{
+                    padding: '0.75rem 1.5rem',
+                    borderBottom: '1px solid var(--glass-border)',
+                    background: 'var(--glass-bg)',
+                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                    flexShrink: 0, flexWrap: 'wrap',
+                }}>
+                    <CalendarClock size={14} color="var(--primary)" />
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
+                        {t('recon.schedule')}
+                    </span>
+                    <input
+                        type="datetime-local"
+                        value={scheduleAt}
+                        onChange={e => setScheduleAt(e.target.value)}
+                        min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
+                        style={{
+                            background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
+                            color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)',
+                            padding: '0.4rem 0.6rem', fontSize: '0.82rem',
+                        }}
+                    />
+                    <button
+                        onClick={handleSchedule}
+                        disabled={!scheduleAt || scheduling}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.3rem',
+                            background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
+                            color: 'var(--primary)', borderRadius: 'var(--radius-sm)',
+                            padding: '0.4rem 0.8rem', cursor: 'pointer', fontWeight: 600,
+                            fontSize: '0.82rem', opacity: (!scheduleAt || scheduling) ? 0.5 : 1,
+                        }}
+                    >
+                        {t('recon.schedule_confirm')}
+                    </button>
+                </div>
+            )}
+
+            {/* Scheduled scan badges */}
+            {scheduledItems.length > 0 && (
+                <div style={{
+                    padding: '0.5rem 1.5rem',
+                    borderBottom: '1px solid var(--glass-border)',
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    flexWrap: 'wrap', flexShrink: 0,
+                }}>
+                    <CalendarClock size={12} color="var(--text-muted)" />
+                    {scheduledItems.map(item => (
+                        <span
+                            key={item.id}
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.3rem',
+                                background: 'rgba(56,189,248,0.08)',
+                                border: '1px solid var(--primary)',
+                                color: 'var(--primary)',
+                                borderRadius: '1rem',
+                                padding: '0.15rem 0.55rem',
+                                fontSize: '0.72rem', fontWeight: 600,
+                            }}
+                        >
+                            <span className="mono" style={{ fontSize: '0.7rem' }}>{item.target}</span>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.68rem' }}>
+                                {new Date(item.run_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                            <button
+                                onClick={() => handleCancelScheduled(item.id)}
+                                title={t('recon.schedule_cancel')}
+                                style={{
+                                    background: 'transparent', border: 'none',
+                                    color: 'var(--text-muted)', cursor: 'pointer',
+                                    padding: '0', display: 'flex', lineHeight: 1,
+                                }}
+                            >
+                                <X size={10} />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
 
             {/* Body: sidebar + content */}
             {showHistory && target.trim() && (

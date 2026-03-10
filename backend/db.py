@@ -1,5 +1,6 @@
 import re
 import logging
+from datetime import datetime, timezone
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
 from config import settings
@@ -46,3 +47,21 @@ db_manager = DatabaseManager()
 
 async def get_db():
     return db_manager.db
+
+
+async def inc_service_quota(service: str, user: str) -> None:
+    """Increment the daily call counter for a service/user pair."""
+    if db_manager.db is None:
+        return
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        await db_manager.db.service_quota.update_one(
+            {"service": service, "date": today, "user": user},
+            {
+                "$inc": {"count": 1},
+                "$setOnInsert": {"created_at": datetime.now(timezone.utc)},
+            },
+            upsert=True,
+        )
+    except Exception as e:
+        logger.debug(f"Quota increment failed for {service}/{user}: {e}")

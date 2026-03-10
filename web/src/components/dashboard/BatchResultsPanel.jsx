@@ -1,13 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
     Layers, CheckCircle, XCircle, AlertTriangle, Shield,
-    ShieldAlert, Skull, Activity, Download, Database,
+    ShieldAlert, Skull, Activity, Download, Database, Clock, Filter, Mail,
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useTranslation } from 'react-i18next';
 import FlyoutPanel from '../shared/FlyoutPanel';
 import VerdictPanel from './VerdictPanel';
 import ServiceCard from './ServiceCard';
+import BatchHistoryFlyout from './BatchHistoryFlyout';
 import API_URL from '../../config';
 
 // ── verdict helpers (mirrors Dashboard / VerdictPanel colours) ───────────────
@@ -42,8 +43,33 @@ function VerdictIcon({ verdict, size = 14 }) {
     }
 }
 
+// ── filter pill component ───────────────────────────────────────────────────
+function FilterPill({ label, active, onClick, color }) {
+    return (
+        <button
+            onClick={onClick}
+            style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                padding: '0.2rem 0.6rem',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                borderRadius: '1rem',
+                cursor: 'pointer',
+                transition: 'all 0.15s',
+                border: `1px solid ${active ? (color || 'var(--primary)') : 'var(--glass-border)'}`,
+                background: active ? (color ? `${color}15` : 'var(--accent-glow)') : 'transparent',
+                color: active ? (color || 'var(--primary)') : 'var(--text-muted)',
+            }}
+        >
+            {label}
+        </button>
+    );
+}
+
 // ── pre-flight modal ─────────────────────────────────────────────────────────
-function PreflightModal({ estimate, onConfirm, onCancel, t }) {
+function PreflightModal({ estimate, onConfirm, onCancel, t, notifyEmail, onNotifyChange, smtpOk }) {
     const { total, cache_hits, external_calls, estimated_seconds, services_impacted } = estimate;
 
     return (
@@ -140,6 +166,26 @@ function PreflightModal({ estimate, onConfirm, onCancel, t }) {
                     )}
                 </div>
 
+                <label
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                        fontSize: '0.85rem', color: smtpOk ? 'var(--text-secondary)' : 'var(--text-muted)',
+                        cursor: smtpOk ? 'pointer' : 'not-allowed',
+                        marginBottom: '1rem', opacity: smtpOk ? 1 : 0.5,
+                    }}
+                    title={smtpOk ? '' : t('batch.notify_no_smtp')}
+                >
+                    <input
+                        type="checkbox"
+                        checked={notifyEmail}
+                        onChange={(e) => onNotifyChange(e.target.checked)}
+                        disabled={!smtpOk}
+                        style={{ accentColor: 'var(--primary)' }}
+                    />
+                    <Mail size={14} />
+                    {t('batch.notify_email')}
+                </label>
+
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
                     <button
                         onClick={onCancel}
@@ -189,6 +235,15 @@ function exportJSON(results) {
     URL.revokeObjectURL(url);
 }
 
+// ── verdict/type constants for filter pills ─────────────────────────────────
+const VERDICT_PILLS = [
+    { value: 'HIGH RISK', color: 'var(--status-risk)' },
+    { value: 'SUSPICIOUS', color: 'var(--status-suspicious)' },
+    { value: 'SAFE', color: 'var(--status-safe)' },
+    { value: 'UNKNOWN', color: 'var(--text-muted)' },
+];
+const TYPE_PILLS = ['IP', 'DOMAIN', 'HASH', 'URL'];
+
 // ── main component ───────────────────────────────────────────────────────────
 export default function BatchResultsPanel({ targets, lang, onReset }) {
     const { t } = useTranslation();
@@ -200,8 +255,49 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
     const [errMsg, setErrMsg] = useState(null);
     const [flyout, setFlyout] = useState(null); // { target, data } | null
     const [flyoutLoading, setFlyoutLoading] = useState(false);
+    const [showHistory, setShowHistory] = useState(false);
+    const [notifyEmail, setNotifyEmail] = useState(false);
+    const [smtpOk, setSmtpOk] = useState(false);
+
+    // Filter state
+    const [filterVerdicts, setFilterVerdicts] = useState([]);
+    const [filterTypes, setFilterTypes] = useState([]);
+    const [filterMisses, setFilterMisses] = useState(false);
 
     const esRef = useRef(null);
+
+    const hasFilters = filterVerdicts.length > 0 || filterTypes.length > 0 || filterMisses;
+
+    // Apply filters
+    const filteredResults = useMemo(() => {
+        if (!hasFilters) return results;
+        return results.filter((row) => {
+            if (filterVerdicts.length > 0 && !filterVerdicts.includes((row.verdict || '').toUpperCase())) return false;
+            if (filterTypes.length > 0 && !filterTypes.includes((row.target_type || '').toUpperCase())) return false;
+            if (filterMisses && row.from_cache) return false;
+            return true;
+        });
+    }, [results, filterVerdicts, filterTypes, filterMisses, hasFilters]);
+
+    const toggleFilter = useCallback((arr, setArr, value) => {
+        setArr((prev) =>
+            prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]
+        );
+    }, []);
+
+    const clearFilters = useCallback(() => {
+        setFilterVerdicts([]);
+        setFilterTypes([]);
+        setFilterMisses(false);
+    }, []);
+
+    // ── check SMTP on mount ─────────────────────────────────────────────────
+    useEffect(() => {
+        fetch(`${API_URL}/api/watchlist/smtp-status`, { credentials: 'include' })
+            .then(r => r.json())
+            .then(d => setSmtpOk(d.smtp_configured))
+            .catch(() => {});
+    }, []);
 
     // ── estimate on mount ────────────────────────────────────────────────────
     useEffect(() => {
@@ -239,7 +335,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ targets, lang }),
+                body: JSON.stringify({ targets, lang, notify_email: notifyEmail }),
             });
             if (!res.ok) {
                 const body = await res.json().catch(() => ({}));
@@ -252,7 +348,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
             setErrMsg(e.message);
             setPhase('error');
         }
-    }, [targets, lang]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [targets, lang, notifyEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // ── SSE listener ─────────────────────────────────────────────────────────
     const openSSE = useCallback((job_id) => {
@@ -332,8 +428,19 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
         }
     }, [lang]);
 
+    // ── load historical job ──────────────────────────────────────────────────
+    const loadHistoricalJob = useCallback(async (job) => {
+        setShowHistory(false);
+        if (job.results) {
+            setResults(job.results);
+            setProgress(job.progress || { done: job.results.length, total: job.results.length });
+            setPhase('done');
+        }
+    }, []);
+
     // ── render ────────────────────────────────────────────────────────────────
     const isDone = phase === 'done';
+    const displayResults = hasFilters ? filteredResults : results;
 
     return (
         <>
@@ -343,6 +450,9 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                     onConfirm={startBatch}
                     onCancel={onReset}
                     t={t}
+                    notifyEmail={notifyEmail}
+                    onNotifyChange={setNotifyEmail}
+                    smtpOk={smtpOk}
                 />
             )}
 
@@ -388,11 +498,33 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                             </span>
                         ) : null}
 
+                        {/* history button */}
+                        {isDone && (
+                            <button
+                                onClick={() => setShowHistory(true)}
+                                title={t('batch.history_title')}
+                                style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.35rem',
+                                    background: 'var(--glass-bg)',
+                                    border: '1px solid var(--glass-border)',
+                                    color: 'var(--text-secondary)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    padding: '0.35rem 0.75rem',
+                                    cursor: 'pointer', fontSize: '0.8rem',
+                                    transition: 'all 0.2s',
+                                }}
+                                onMouseOver={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--primary)', color: 'var(--primary)' })}
+                                onMouseOut={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' })}
+                            >
+                                <Clock size={14} />
+                            </button>
+                        )}
+
                         {/* export buttons — only when done */}
                         {isDone && results.length > 0 && (
                             <>
                                 <button
-                                    onClick={() => exportCSV(results)}
+                                    onClick={() => exportCSV(hasFilters ? filteredResults : results)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '0.35rem',
                                         background: 'var(--glass-bg)',
@@ -409,7 +541,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                     <Download size={14} /> CSV
                                 </button>
                                 <button
-                                    onClick={() => exportJSON(results)}
+                                    onClick={() => exportJSON(hasFilters ? filteredResults : results)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '0.35rem',
                                         background: 'var(--glass-bg)',
@@ -429,6 +561,88 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                         )}
                     </div>
                 </div>
+
+                {/* filter bar — visible when done with results */}
+                {isDone && results.length > 0 && (
+                    <div
+                        style={{
+                            padding: '0.65rem 1.5rem',
+                            borderBottom: '1px solid var(--glass-border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            flexWrap: 'wrap',
+                            background: 'var(--glass-bg)',
+                        }}
+                    >
+                        <Filter size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+
+                        {/* Verdict pills */}
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.15rem' }}>
+                                {t('batch.filter_verdict')}
+                            </span>
+                            {VERDICT_PILLS.map(({ value, color }) => (
+                                <FilterPill
+                                    key={value}
+                                    label={value}
+                                    color={color}
+                                    active={filterVerdicts.includes(value)}
+                                    onClick={() => toggleFilter(filterVerdicts, setFilterVerdicts, value)}
+                                />
+                            ))}
+                        </div>
+
+                        <span style={{ color: 'var(--glass-border)' }}>|</span>
+
+                        {/* Type pills */}
+                        <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center' }}>
+                            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: '0.15rem' }}>
+                                {t('batch.filter_type')}
+                            </span>
+                            {TYPE_PILLS.map((tp) => (
+                                <FilterPill
+                                    key={tp}
+                                    label={tp}
+                                    active={filterTypes.includes(tp)}
+                                    onClick={() => toggleFilter(filterTypes, setFilterTypes, tp)}
+                                />
+                            ))}
+                        </div>
+
+                        <span style={{ color: 'var(--glass-border)' }}>|</span>
+
+                        {/* Misses toggle */}
+                        <FilterPill
+                            label={t('batch.filter_misses')}
+                            active={filterMisses}
+                            onClick={() => setFilterMisses((p) => !p)}
+                        />
+
+                        {hasFilters && (
+                            <button
+                                onClick={clearFilters}
+                                style={{
+                                    fontSize: '0.72rem',
+                                    color: 'var(--primary)',
+                                    background: 'transparent',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0,
+                                }}
+                            >
+                                {t('batch.filter_clear')}
+                            </button>
+                        )}
+
+                        {hasFilters && (
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
+                                {filteredResults.length}/{results.length}
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* progress bar */}
                 {(phase === 'running' || phase === 'estimating') && (
@@ -471,7 +685,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                 )}
 
                 {/* results table */}
-                {results.length > 0 && (
+                {displayResults.length > 0 && (
                     <div style={{ overflowX: 'auto' }}>
                         <table className="data-table">
                             <caption className="sr-only">{t('batch.results.title')}</caption>
@@ -485,7 +699,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                 </tr>
                             </thead>
                             <tbody>
-                                {results.map((row, idx) => (
+                                {displayResults.map((row, idx) => (
                                     <tr
                                         key={idx}
                                         onClick={() => openDrilldown(row)}
@@ -570,7 +784,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                 ))}
 
                                 {/* pending rows while running */}
-                                {phase === 'running' &&
+                                {phase === 'running' && !hasFilters &&
                                     Array.from({
                                         length: progress.total - results.length,
                                     }).map((_, i) => (
@@ -589,6 +803,14 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                     ))}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* no filter matches */}
+                {isDone && hasFilters && filteredResults.length === 0 && results.length > 0 && (
+                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                        <Filter size={18} style={{ opacity: 0.4, marginBottom: '0.5rem' }} />
+                        <p style={{ margin: 0 }}>{t('batch.filter_clear')}</p>
                     </div>
                 )}
 
@@ -655,6 +877,13 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                     );
                 })()}
             </FlyoutPanel>
+
+            {/* batch history flyout */}
+            <BatchHistoryFlyout
+                open={showHistory}
+                onClose={() => setShowHistory(false)}
+                onLoad={loadHistoricalJob}
+            />
         </>
     );
 }

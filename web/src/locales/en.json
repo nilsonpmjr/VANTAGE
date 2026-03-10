@@ -87,7 +87,11 @@
         "re_scan": "Re-scan",
         "history_title": "History",
         "no_history": "No previous scans found.",
-        "print": "Print Report"
+        "print": "Print Report",
+        "schedule": "Schedule",
+        "schedule_confirm": "Confirm Schedule",
+        "schedule_cancel": "Cancel",
+        "scheduled_for": "Scheduled for {{date}}"
     },
     "search": {
         "placeholder": "Enter an IP, domain or Hash",
@@ -126,7 +130,23 @@
             "worker_error": "Error during batch processing.",
             "sse_lost": "Connection lost. Some results may be incomplete.",
             "generic": "An unexpected error occurred."
-        }
+        },
+        "import_file": "Import File",
+        "import_error": "Failed to read file. Check the format (.txt or .csv).",
+        "import_limit": "Limit of {{max}} targets reached. {{skipped}} line(s) skipped.",
+        "filter_verdict": "Verdict",
+        "filter_type": "Type",
+        "filter_misses": "Only misses",
+        "filter_clear": "Clear filters",
+        "history_title": "Batch History",
+        "history_empty": "No previous batch jobs found.",
+        "history_load": "Load results",
+        "history_targets": "{{count}} target(s)",
+        "history_threats": "{{count}} threat(s)",
+        "quota_today": "Daily quota",
+        "quota_calls": "{{count}} call(s)",
+        "notify_email": "Notify by email when done",
+        "notify_no_smtp": "Email notification unavailable (SMTP not configured)"
     },
     "dashboard": {
         "title": "Manager Dashboard",
@@ -261,9 +281,25 @@
         "lockout_saved": "Lockout policy saved.",
         "lockout_max_hint": "Number of failed attempts before lockout.",
         "lockout_minutes_hint": "Duration (in minutes) the account will be locked.",
+        "allowed_ips": "Allowed IPs",
+        "allowed_ips_hint": "One IP or CIDR per line. Leave empty to allow any IP.",
+        "mask_pii": "Mask personal data (LGPD)",
+        "mask_pii_desc": "Hides emails and sensitive data in exported audit logs.",
         "click_to_view": "Click to view details",
         "density_compact": "Compact mode",
-        "density_comfortable": "Comfortable mode"
+        "density_comfortable": "Comfortable mode",
+        "recon_jobs": "Recon Jobs",
+        "recon_all_analysts": "Scans from all analysts in the last 7 days.",
+        "recon_filter_analyst": "All analysts",
+        "recon_filter_status": "All statuses",
+        "recon_jobs_count": "jobs",
+        "recon_no_jobs": "No scans found in this period.",
+        "recon_col_target": "Target",
+        "recon_col_analyst": "Analyst",
+        "recon_col_modules": "Modules",
+        "recon_col_status": "Status",
+        "recon_col_date": "Date",
+        "recon_click_hint": "Click to open in Recon Engine"
     },
     "audit": {
         "my_history": "My History",
@@ -490,7 +526,28 @@
         "revoke": "Revoke",
         "confirm_revoke": "Are you sure you want to revoke the key '{{name}}'? This action cannot be undone.",
         "no_keys": "No active API keys.",
-        "err_create": "Error creating API key."
+        "err_create": "Error creating API key.",
+        "scopes_label": "Access scopes",
+        "scope_analyze": "Analyze",
+        "scope_recon": "Recon",
+        "scope_batch": "Batch",
+        "scope_stats": "Stats"
+    },
+    "watchlist": {
+        "title": "Watchlist",
+        "subtitle": "Monitor specific targets and get alerts when their verdict changes.",
+        "add_placeholder": "IP, domain or hash...",
+        "add_btn": "Add",
+        "remove": "Remove",
+        "empty": "No targets in watchlist.",
+        "notify_toggle": "Email notification",
+        "limit_reached": "Limit of {{limit}} targets reached.",
+        "added": "Target added to watchlist.",
+        "removed": "Target removed from watchlist.",
+        "err_add": "Failed to add target.",
+        "err_duplicate": "Target already in watchlist.",
+        "last_scan": "Last scan",
+        "never_scanned": "Never scanned"
     },
     "permissions": {
         "section_title": "Additional Permissions",

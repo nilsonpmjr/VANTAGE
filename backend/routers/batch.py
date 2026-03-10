@@ -12,8 +12,8 @@ from clients.api_client_async import AsyncThreatIntelClient
 from validators import validate_target, ValidationError
 from analyzer import generate_heuristic_report, format_report_to_markdown
 from scoring import compute_risk_score, compute_verdict
-from db import db_manager
-from auth import get_current_user
+from db import db_manager, inc_service_quota
+from auth import get_current_user, require_api_scope
 from audit import log_action
 from logging_config import get_logger
 from config import settings
@@ -34,6 +34,7 @@ _MONGO_MAX_INT = (2 ** 63) - 1
 class BatchRequest(BaseModel):
     targets: List[str]
     lang: str = "pt"
+    notify_email: bool = False
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
@@ -134,7 +135,7 @@ async def estimate_batch(
 async def submit_batch(
     request: Request,
     body: BatchRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_api_scope("batch")),
 ):
     """Create a batch job and start async processing. Returns job_id."""
     valid, errors = _parse_targets(body.targets)
@@ -180,13 +181,84 @@ async def submit_batch(
     _job_queues[job_id] = queue
 
     ip = request.client.host if request.client else ""
+    notify_email = body.notify_email and bool(current_user.get("email"))
+    user_email = current_user.get("email", "") if notify_email else ""
     asyncio.create_task(
         _process_batch(
-            job_id, valid, body.lang, current_user["username"], ip, queue
+            job_id, valid, body.lang, current_user["username"], ip, queue,
+            notify_email=notify_email, user_email=user_email,
         )
     )
 
     return {"job_id": job_id, "status": "pending", "total": len(valid)}
+
+
+# ── history ───────────────────────────────────────────────────────────────────
+
+@router.get("/batch/history")
+async def batch_history(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the last 20 batch jobs for the current user (summary only)."""
+    if db_manager.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    cursor = db_manager.db.batch_jobs.find(
+        {"analyst": current_user["username"]},
+        {
+            "_id": 1,
+            "created_at": 1,
+            "status": 1,
+            "progress": 1,
+            "results": 1,
+        },
+    ).sort("created_at", -1).limit(20)
+
+    jobs = []
+    async for doc in cursor:
+        results = doc.get("results", [])
+        threat_count = sum(
+            1 for r in results
+            if (r.get("verdict") or "").upper() in ("HIGH RISK", "SUSPICIOUS")
+        )
+        jobs.append({
+            "job_id": str(doc["_id"]),
+            "created_at": doc.get("created_at", "").isoformat()
+            if hasattr(doc.get("created_at", ""), "isoformat")
+            else str(doc.get("created_at", "")),
+            "target_count": doc.get("progress", {}).get("total", len(results)),
+            "threat_count": threat_count,
+            "status": doc.get("status", "unknown"),
+        })
+
+    return {"jobs": jobs}
+
+
+# ── quota today ──────────────────────────────────────────────────────────────
+
+@router.get("/batch/quota/today")
+async def quota_today(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return today's external API call counts per service for the current user."""
+    if db_manager.db is None:
+        return {"quotas": {}}
+
+    # Only admin/manager can see quota
+    if current_user.get("role") not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Insufficient permissions.")
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cursor = db_manager.db.service_quota.find(
+        {"date": today, "user": current_user["username"]},
+        {"service": 1, "count": 1, "_id": 0},
+    )
+
+    quotas = {}
+    async for doc in cursor:
+        quotas[doc["service"]] = doc["count"]
+
+    return {"quotas": quotas}
 
 
 # ── SSE stream ───────────────────────────────────────────────────────────────
@@ -279,6 +351,8 @@ async def _process_batch(
     analyst: str,
     ip: str,
     queue: asyncio.Queue,
+    notify_email: bool = False,
+    user_email: str = "",
 ) -> None:
     """
     Sequential batch processor:
@@ -333,6 +407,8 @@ async def _process_batch(
                     for svc, resp in raw_results.items():
                         if resp.success and resp.data is not None:
                             service_results[svc] = resp.data
+                            # Track quota for successful external calls
+                            await inc_service_quota(svc, analyst)
                         else:
                             service_results[svc] = {
                                 "_meta_error": resp.error or "service unavailable",
@@ -453,6 +529,18 @@ async def _process_batch(
                 logger.error(f"Batch {job_id}: failed to mark done: {e}")
 
         logger.info(f"Batch {job_id}: completed {done_count}/{total}")
+
+        # Send email notification if requested
+        if notify_email and user_email:
+            try:
+                from mailer import send_batch_complete
+                threat_count = sum(
+                    1 for r in (await db_manager.db.batch_jobs.find_one({"_id": job_id}) or {}).get("results", [])
+                    if (r.get("verdict") or "").upper() in ("HIGH RISK", "SUSPICIOUS")
+                ) if db_manager.db else 0
+                await send_batch_complete(user_email, job_id, total, threat_count)
+            except Exception as mail_err:
+                logger.error(f"Batch {job_id}: email notification failed: {mail_err}")
 
     except Exception as e:
         logger.error(f"Batch {job_id}: unexpected failure: {e}")

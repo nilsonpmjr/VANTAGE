@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, HTTPException, Query, Depends
 
 from db import db_manager
-from auth import require_role
+from auth import require_role, require_api_scope
 from logging_config import get_logger
 
 logger = get_logger("StatsRouter")
@@ -16,6 +16,7 @@ async def get_dashboard_stats(
     period: str = "month",
     limit: int = Query(20, ge=1, le=100, description="Max recent scans to return"),
     current_user: dict = Depends(require_role(["admin", "manager", "tech"])),
+    _scope=Depends(require_api_scope("stats")),
 ):
     """Aggregated threat intelligence statistics for the SOC Dashboard."""
     db = db_manager.db

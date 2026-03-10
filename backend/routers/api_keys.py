@@ -10,7 +10,7 @@ Auth       : any endpoint that accepts Bearer tokens will also accept iti_* keys
 import secrets
 import uuid
 from datetime import datetime, timezone, timedelta
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
@@ -18,6 +18,8 @@ from pydantic import BaseModel, Field
 from auth import get_current_user, hash_api_key, require_role
 from db import db_manager
 from audit import log_action
+
+VALID_SCOPES = ["analyze", "recon", "batch", "stats"]
 
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
@@ -44,6 +46,7 @@ def _fmt(doc: dict) -> dict:
         "expires_at": doc["expires_at"].isoformat() if isinstance(doc.get("expires_at"), datetime) else None,
         "last_used_at": doc["last_used_at"].isoformat() if isinstance(doc.get("last_used_at"), datetime) else None,
         "revoked": doc.get("revoked", False),
+        "scopes": doc.get("scopes", ["analyze"]),
     }
 
 
@@ -52,6 +55,7 @@ def _fmt(doc: dict) -> dict:
 class CreateKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     expires_days: Optional[int] = Field(None, ge=1, le=3650)
+    scopes: Optional[List[str]] = None  # default ["analyze"]
 
 
 # ── POST /api/api-keys  ──────────────────────────────────────────────────────
@@ -75,6 +79,12 @@ async def create_api_key(
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=body.expires_days) if body.expires_days else None
 
+    # Validate and set scopes
+    scopes = body.scopes or ["analyze"]
+    scopes = [s for s in scopes if s in VALID_SCOPES]
+    if not scopes:
+        scopes = ["analyze"]
+
     await db.api_keys.insert_one({
         "key_id": key_id,
         "key_hash": hash_api_key(raw_key),
@@ -86,6 +96,7 @@ async def create_api_key(
         "expires_at": expires_at,
         "last_used_at": None,
         "revoked": False,
+        "scopes": scopes,
     })
 
     ip = request.client.host if request.client else "unknown"
@@ -101,6 +112,7 @@ async def create_api_key(
             "expires_at": expires_at,
             "last_used_at": None,
             "revoked": False,
+            "scopes": scopes,
         }),
         "key": raw_key,   # shown ONCE
     }

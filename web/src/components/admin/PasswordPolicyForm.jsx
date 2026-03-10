@@ -95,6 +95,17 @@ export default function PasswordPolicyForm() {
                                 label={t(`settings.${labelKey}`)}
                             />
                         ))}
+
+                        <div style={{ borderTop: '1px solid var(--glass-border)', margin: '0.5rem 0', paddingTop: '0.5rem' }}>
+                            <ToggleSwitch
+                                checked={policy.mask_pii !== false}
+                                onChange={v => setPolicy(p => ({ ...p, mask_pii: v }))}
+                                label={t('settings.mask_pii')}
+                            />
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', display: 'block', marginTop: '0.15rem', marginLeft: '2.5rem' }}>
+                                {t('settings.mask_pii_desc')}
+                            </span>
+                        </div>
                     </div>
 
                     <div className="form-actions">

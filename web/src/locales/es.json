@@ -87,7 +87,11 @@
         "re_scan": "Re-scan",
         "history_title": "Historial",
         "no_history": "No se encontraron escaneos anteriores.",
-        "print": "Imprimir Informe"
+        "print": "Imprimir Informe",
+        "schedule": "Programar",
+        "schedule_confirm": "Confirmar Programación",
+        "schedule_cancel": "Cancelar",
+        "scheduled_for": "Programado para {{date}}"
     },
     "search": {
         "placeholder": "Ingrese un IP, dominio o Hash",
@@ -126,7 +130,23 @@
             "worker_error": "Error durante el procesamiento del lote.",
             "sse_lost": "Conexión perdida. Algunos resultados pueden estar incompletos.",
             "generic": "Ocurrió un error inesperado."
-        }
+        },
+        "import_file": "Importar Archivo",
+        "import_error": "Error al leer el archivo. Verifique el formato (.txt o .csv).",
+        "import_limit": "Límite de {{max}} objetivos alcanzado. {{skipped}} línea(s) omitida(s).",
+        "filter_verdict": "Veredicto",
+        "filter_type": "Tipo",
+        "filter_misses": "Solo misses",
+        "filter_clear": "Limpiar filtros",
+        "history_title": "Historial de Lotes",
+        "history_empty": "No se encontraron lotes anteriores.",
+        "history_load": "Cargar resultados",
+        "history_targets": "{{count}} objetivo(s)",
+        "history_threats": "{{count}} amenaza(s)",
+        "quota_today": "Cuota diaria",
+        "quota_calls": "{{count}} llamada(s)",
+        "notify_email": "Notificar por email al terminar",
+        "notify_no_smtp": "Notificación por email no disponible (SMTP no configurado)"
     },
     "dashboard": {
         "title": "Panel de Gestión",
@@ -261,9 +281,25 @@
         "lockout_saved": "Política de bloqueo guardada.",
         "lockout_max_hint": "Número de intentos incorrectos antes del bloqueo.",
         "lockout_minutes_hint": "Duración (en minutos) del bloqueo de la cuenta.",
+        "allowed_ips": "IPs Permitidas",
+        "allowed_ips_hint": "Una IP o CIDR por línea. Deje vacío para permitir cualquier IP.",
+        "mask_pii": "Enmascarar datos personales (LGPD)",
+        "mask_pii_desc": "Oculta correos electrónicos y datos sensibles en los registros de auditoría exportados.",
         "click_to_view": "Haga clic para ver detalles",
         "density_compact": "Modo compacto",
-        "density_comfortable": "Modo confortable"
+        "density_comfortable": "Modo confortable",
+        "recon_jobs": "Recon Jobs",
+        "recon_all_analysts": "Escaneos de todos los analistas en los últimos 7 días.",
+        "recon_filter_analyst": "Todos los analistas",
+        "recon_filter_status": "Todos los estados",
+        "recon_jobs_count": "jobs",
+        "recon_no_jobs": "No se encontraron escaneos en este período.",
+        "recon_col_target": "Objetivo",
+        "recon_col_analyst": "Analista",
+        "recon_col_modules": "Módulos",
+        "recon_col_status": "Estado",
+        "recon_col_date": "Fecha",
+        "recon_click_hint": "Clic para abrir en Recon Engine"
     },
     "audit": {
         "my_history": "Mi Historial",
@@ -490,7 +526,28 @@
         "revoke": "Revocar",
         "confirm_revoke": "¿Está seguro de que desea revocar la clave '{{name}}'? Esta acción es irreversible.",
         "no_keys": "No hay claves de API activas.",
-        "err_create": "Error al crear la clave de API."
+        "err_create": "Error al crear la clave de API.",
+        "scopes_label": "Ámbitos de acceso",
+        "scope_analyze": "Análisis",
+        "scope_recon": "Recon",
+        "scope_batch": "Lote",
+        "scope_stats": "Estadísticas"
+    },
+    "watchlist": {
+        "title": "Watchlist",
+        "subtitle": "Monitoree objetivos específicos y reciba alertas cuando cambie el veredicto.",
+        "add_placeholder": "IP, dominio o hash...",
+        "add_btn": "Agregar",
+        "remove": "Eliminar",
+        "empty": "No hay objetivos en la watchlist.",
+        "notify_toggle": "Notificación por email",
+        "limit_reached": "Límite de {{limit}} objetivos alcanzado.",
+        "added": "Objetivo agregado a la watchlist.",
+        "removed": "Objetivo eliminado de la watchlist.",
+        "err_add": "Error al agregar objetivo.",
+        "err_duplicate": "El objetivo ya está en la watchlist.",
+        "last_scan": "Último escaneo",
+        "never_scanned": "Nunca escaneado"
     },
     "permissions": {
         "section_title": "Permisos Adicionales",

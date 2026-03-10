@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { User, Lock, Webhook, ClipboardList, ShieldCheck, Monitor, Key, RotateCcw } from 'lucide-react';
+import { User, Lock, Webhook, ClipboardList, ShieldCheck, Monitor, Key, RotateCcw, Eye } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SettingsShell from './layout/SettingsShell';
 import MFAEnroll from './auth/MFAEnroll';
@@ -12,6 +12,7 @@ import ProfileLanguagePanel from './profile/ProfileLanguagePanel';
 import ProfilePasswordPanel from './profile/ProfilePasswordPanel';
 import ProfileAuditPanel from './profile/ProfileAuditPanel';
 import ProfileTourPanel from './profile/ProfileTourPanel';
+import WatchlistSettings from './profile/WatchlistSettings';
 import API_URL from '../config';
 import '../index.css';
 
@@ -47,6 +48,13 @@ export default function Profile() {
             ],
         },
         {
+            key: 'watchlist_group',
+            label: t('watchlist.title'),
+            items: [
+                { key: 'watchlist', icon: <Eye size={16} />, label: t('watchlist.title') },
+            ],
+        },
+        {
             key: 'history_group',
             label: t('profile.menu_history'),
             items: [
@@ -64,6 +72,7 @@ export default function Profile() {
             mfa:      { parent: t('profile.menu_security'),    label: t('profile.menu_mfa') },
             sessions: { parent: t('profile.menu_security'),    label: t('profile.menu_sessions') },
             api_keys: { parent: t('profile.menu_integration'), label: t('profile.menu_api_keys') },
+            watchlist:{ parent: t('watchlist.title'),          label: t('watchlist.title') },
             audit:    { parent: t('profile.menu_history'),     label: t('profile.menu_audit') },
             tour:     { label: t('profile.menu_tour') },
         };
@@ -102,6 +111,7 @@ export default function Profile() {
             {activeKey === 'password' && <ProfilePasswordPanel notices={notices} />}
             {activeKey === 'audit'    && <ProfileAuditPanel />}
             {activeKey === 'tour'     && <ProfileTourPanel />}
+            {activeKey === 'watchlist' && <WatchlistSettings />}
 
             {activeKey === 'mfa' && (
                 <div className="fade-in">

@@ -12,6 +12,7 @@ export default function ApiKeysManager() {
     const [creating, setCreating] = useState(false);
     const [newKeyName, setNewKeyName] = useState('');
     const [newKeyExpiry, setNewKeyExpiry] = useState('');
+    const [newKeyScopes, setNewKeyScopes] = useState(['analyze']);
     const [showForm, setShowForm] = useState(false);
     const [revealedKey, setRevealedKey] = useState(null); // { key_id, key }
     const [copied, setCopied] = useState(false);
@@ -36,7 +37,7 @@ export default function ApiKeysManager() {
         setError('');
         setCreating(true);
         try {
-            const body = { name: newKeyName.trim() };
+            const body = { name: newKeyName.trim(), scopes: newKeyScopes };
             if (newKeyExpiry) body.expires_days = parseInt(newKeyExpiry, 10);
 
             const resp = await fetch(`${API_URL}/api/api-keys`, {
@@ -57,6 +58,7 @@ export default function ApiKeysManager() {
             setShowForm(false);
             setNewKeyName('');
             setNewKeyExpiry('');
+            setNewKeyScopes(['analyze']);
             await fetchKeys();
         } finally {
             setCreating(false);
@@ -177,12 +179,39 @@ export default function ApiKeysManager() {
                             />
                         </div>
                     </div>
+                    <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>
+                            {t('api_keys.scopes_label')}
+                        </label>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                            {['analyze', 'recon', 'batch', 'stats'].map(scope => (
+                                <label key={scope} style={{
+                                    display: 'flex', alignItems: 'center', gap: '0.3rem',
+                                    fontSize: '0.8rem', color: 'var(--text-primary)', cursor: 'pointer',
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={newKeyScopes.includes(scope)}
+                                        onChange={e => {
+                                            setNewKeyScopes(prev =>
+                                                e.target.checked
+                                                    ? [...prev, scope]
+                                                    : prev.filter(s => s !== scope)
+                                            );
+                                        }}
+                                        style={{ accentColor: 'var(--primary)' }}
+                                    />
+                                    {t(`api_keys.scope_${scope}`)}
+                                </label>
+                            ))}
+                        </div>
+                    </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button type="submit" disabled={creating} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', fontSize: '0.85rem' }}>
                             {creating ? <Loader className="spin" size={14} /> : <Plus size={14} />}
                             {t('api_keys.create_btn')}
                         </button>
-                        <button type="button" onClick={() => { setShowForm(false); setError(''); }} style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                        <button type="button" onClick={() => { setShowForm(false); setError(''); setNewKeyScopes(['analyze']); }} style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                             {t('api_keys.cancel')}
                         </button>
                     </div>
@@ -239,6 +268,20 @@ export default function ApiKeysManager() {
                                             </span>
                                         )}
                                     </div>
+                                    {k.scopes && k.scopes.length > 0 && (
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
+                                            {k.scopes.map(s => (
+                                                <span key={s} style={{
+                                                    fontSize: '0.65rem', padding: '0.1rem 0.4rem',
+                                                    borderRadius: '4px', fontFamily: 'monospace',
+                                                    background: 'rgba(99, 102, 241, 0.12)',
+                                                    color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.25)',
+                                                }}>
+                                                    {s}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <button

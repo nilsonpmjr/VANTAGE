@@ -1,4 +1,5 @@
 import hashlib
+import ipaddress
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -100,6 +101,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
         raise HTTPException(status_code=500, detail="Database not connected")
 
     # ── API Key path ─────────────────────────────────────────────────────────
+    _api_key_scopes = None
     if token.startswith("iti_"):
         key_hash = hash_api_key(token)
         key_doc = await db.api_keys.find_one({"key_hash": key_hash, "revoked": False})
@@ -117,6 +119,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
         except Exception:
             pass
         username = key_doc["username"]
+        _api_key_scopes = key_doc.get("scopes", ["analyze"])
     else:
         # ── JWT path ──────────────────────────────────────────────────────────
         try:
@@ -140,6 +143,28 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
             detail="Inactive user account",
         )
 
+    # IP allowlist check
+    allowed_ips = user.get("allowed_ips", [])
+    if allowed_ips:
+        client_ip = request.client.host if request.client else ""
+        if client_ip:
+            try:
+                client_addr = ipaddress.ip_address(client_ip)
+                if not any(
+                    client_addr in ipaddress.ip_network(cidr, strict=False)
+                    for cidr in allowed_ips
+                ):
+                    raise HTTPException(
+                        status_code=status.HTTP_403_FORBIDDEN,
+                        detail="Access denied: IP not in allowlist",
+                    )
+            except ValueError:
+                pass  # If client IP can't be parsed, skip check
+
+    # Attach API key scopes if authenticated via API key
+    if _api_key_scopes is not None:
+        user["_api_key_scopes"] = _api_key_scopes
+
     return user
 
 
@@ -155,6 +180,8 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "extra_permissions": user.get("extra_permissions", []),
         "avatar_base64": user.get("avatar_base64", ""),
     }
+    if "_api_key_scopes" in user:
+        result["_api_key_scopes"] = user["_api_key_scopes"]
     if days_left is not None:
         result["password_expires_in_days"] = days_left
     return result
@@ -258,6 +285,23 @@ def require_permission(permission: str):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"permission_required:{permission}",
+            )
+        return current_user
+    return checker
+
+
+def require_api_scope(scope: str):
+    """
+    Dependency factory that enforces API key scope restrictions.
+    If the request is authenticated via JWT (no _api_key_scopes), it always passes.
+    If via API key, the key must include the required scope.
+    """
+    def checker(current_user: dict = Depends(get_current_user)):
+        scopes = current_user.get("_api_key_scopes")
+        if scopes is not None and scope not in scopes:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"API key missing required scope: {scope}",
             )
         return current_user
     return checker

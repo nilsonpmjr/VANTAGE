@@ -7,6 +7,10 @@ Endpoints:
   GET  /recon/stream/{job_id}       — SSE real-time progress
   GET  /recon/{job_id}              — polling fallback + JSON export
   GET  /recon/history/{target}      — previous scans for a target
+  POST /recon/scheduled             — schedule a scan for a future time
+  DELETE /recon/scheduled/{id}      — cancel a scheduled scan
+  GET  /recon/scheduled/mine        — list user's scheduled scans
+  GET  /recon/admin/jobs            — admin: list all recent jobs
 """
 
 import asyncio
@@ -22,7 +26,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, field_validator
 
 from audit import log_action
-from auth import get_current_user
+from auth import get_current_user, require_api_scope
 from config import settings
 from db import db_manager
 from logging_config import get_logger
@@ -88,6 +92,17 @@ class ScanRequest(BaseModel):
         return v.strip()
 
 
+class ScheduleRequest(BaseModel):
+    target: str
+    modules: Optional[List[str]] = None
+    run_at: str  # ISO 8601 datetime string
+
+    @field_validator("target")
+    @classmethod
+    def strip_target(cls, v: str) -> str:
+        return v.strip()
+
+
 # ── cache helpers ─────────────────────────────────────────────────────────────
 
 def _cache_key(target: str, module: str) -> str:
@@ -136,7 +151,7 @@ async def list_modules(current_user: dict = Depends(get_current_user)):
 async def submit_scan(
     request: Request,
     body: ScanRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_api_scope("recon")),
 ):
     """Create a recon job and start async processing. Returns job_id."""
     target, target_type = _validate_target(body.target)
@@ -315,6 +330,151 @@ async def get_scan(
             logger.warning(f"Correlator failed for {job_id}: {e}")
 
     return job
+
+
+# ── scheduled scans ───────────────────────────────────────────────────────────
+
+@router.post("/scheduled", status_code=201)
+async def schedule_scan(
+    body: ScheduleRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Schedule a recon scan for a future time."""
+    if db_manager.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    target, target_type = _validate_target(body.target)
+
+    # Parse and validate run_at
+    try:
+        run_at = datetime.fromisoformat(body.run_at.replace("Z", "+00:00"))
+        if run_at.tzinfo is None:
+            run_at = run_at.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid run_at datetime format.")
+
+    min_time = datetime.now(timezone.utc) + timedelta(minutes=2)
+    if run_at < min_time:
+        raise HTTPException(status_code=400, detail="run_at must be at least 2 minutes in the future.")
+
+    # Validate modules
+    available = {m["name"]: m for m in get_available_modules()}
+    if body.modules:
+        requested = [m for m in body.modules if m in available]
+    else:
+        requested = list(available.keys())
+    requested = [
+        m for m in requested
+        if "both" in available[m]["target_types"] or target_type in available[m]["target_types"]
+    ]
+    if not requested:
+        raise HTTPException(status_code=400, detail="No compatible modules for this target type.")
+
+    # Limit: max 5 pending scheduled scans per user
+    pending_count = await db_manager.db.recon_scheduled.count_documents({
+        "analyst": current_user["username"],
+        "status": "pending",
+    })
+    if pending_count >= 5:
+        raise HTTPException(status_code=422, detail="Maximum 5 pending scheduled scans allowed.")
+
+    doc_id = str(uuid.uuid4())
+    doc = {
+        "_id": doc_id,
+        "target": target,
+        "target_type": target_type,
+        "modules": requested,
+        "analyst": current_user["username"],
+        "status": "pending",
+        "run_at": run_at,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db_manager.db.recon_scheduled.insert_one(doc)
+
+    return {"id": doc_id, "target": target, "modules": requested, "run_at": run_at.isoformat(), "status": "pending"}
+
+
+@router.get("/scheduled/mine")
+async def list_my_scheduled(
+    current_user: dict = Depends(get_current_user),
+):
+    """List the current user's pending scheduled scans."""
+    if db_manager.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    items = await (
+        db_manager.db.recon_scheduled.find(
+            {"analyst": current_user["username"], "status": "pending"},
+            {"_id": 1, "target": 1, "modules": 1, "run_at": 1, "created_at": 1},
+        )
+        .sort("run_at", 1)
+        .limit(10)
+        .to_list(10)
+    )
+    for item in items:
+        item["id"] = str(item.pop("_id"))
+    return {"items": items}
+
+
+@router.delete("/scheduled/{item_id}")
+async def cancel_scheduled(
+    item_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Cancel a pending scheduled scan."""
+    if db_manager.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    result = await db_manager.db.recon_scheduled.delete_one({
+        "_id": item_id,
+        "analyst": current_user["username"],
+        "status": "pending",
+    })
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Scheduled scan not found or already executed.")
+    return {"ok": True}
+
+
+# ── admin endpoints ──────────────────────────────────────────────────────────
+
+@router.get("/admin/jobs")
+async def admin_list_jobs(
+    current_user: dict = Depends(get_current_user),
+    analyst: Optional[str] = None,
+    status: Optional[str] = None,
+):
+    """Admin-only: list all recon jobs from the last 7 days."""
+    if current_user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin access required.")
+    if db_manager.db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable.")
+
+    query: dict = {"created_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=7)}}
+    if analyst:
+        query["analyst"] = analyst
+    if status:
+        query["status"] = status
+
+    jobs = await (
+        db_manager.db.recon_jobs.find(
+            query,
+            {"_id": 1, "target": 1, "modules": 1, "analyst": 1, "status": 1, "created_at": 1, "completed_at": 1},
+        )
+        .sort("created_at", -1)
+        .limit(100)
+        .to_list(100)
+    )
+
+    for j in jobs:
+        j["job_id"] = str(j.pop("_id"))
+
+    # Also get distinct analysts for the filter dropdown
+    analysts = await db_manager.db.recon_jobs.distinct(
+        "analyst",
+        {"created_at": {"$gte": datetime.now(timezone.utc) - timedelta(days=7)}},
+    )
+
+    return {"jobs": jobs, "analysts": sorted(analysts)}
 
 
 # ── worker ────────────────────────────────────────────────────────────────────

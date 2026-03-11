@@ -226,4 +226,4 @@ See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 
 ## License
 
-[MIT](LICENSE)
+[AGPLv3](LICENSE)

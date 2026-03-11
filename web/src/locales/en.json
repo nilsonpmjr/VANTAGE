@@ -538,6 +538,17 @@
         "scope_batch": "Batch",
         "scope_stats": "Stats"
     },
+    "third_party_keys": {
+        "section_title": "Third-Party Service Keys",
+        "subtitle": "Configure your personal API keys for threat intelligence services.",
+        "description": "Your personal keys take priority over the system's global keys. Keys are stored with AES-256 encryption.",
+        "configured": "Configured",
+        "not_configured": "Not configured",
+        "key_placeholder": "Paste your API key here...",
+        "get_key": "Get key",
+        "remove": "Remove key",
+        "menu_third_party": "External Keys"
+    },
     "watchlist": {
         "title": "Watchlist",
         "subtitle": "Monitor specific targets and get alerts when their verdict changes.",

@@ -15,6 +15,7 @@ from audit import log_action
 from logging_config import get_logger
 from db import inc_service_quota
 from config import settings
+from crypto import decrypt_secret
 
 logger = get_logger("AnalyzeRouter")
 
@@ -51,10 +52,30 @@ def _fire_and_log(coro, description: str):
     )
 
 
+async def _get_user_keys(username: str) -> dict | None:
+    """Load and decrypt user's third-party API keys from MongoDB."""
+    if db_manager.db is None:
+        return None
+    user_doc = await db_manager.db.users.find_one(
+        {"username": username},
+        {"third_party_keys": 1}
+    )
+    if not user_doc or not user_doc.get("third_party_keys"):
+        return None
+    decrypted = {}
+    for svc, enc_key in user_doc["third_party_keys"].items():
+        try:
+            decrypted[svc] = decrypt_secret(enc_key)
+        except Exception:
+            pass
+    return decrypted if decrypted else None
+
+
 @router.get("/status")
 async def get_status(current_user: dict = Depends(get_current_user)):
     """Returns the initialization status of all services based on API keys."""
-    async with AsyncThreatIntelClient() as client:
+    user_keys = await _get_user_keys(current_user["username"])
+    async with AsyncThreatIntelClient(user_keys=user_keys) as client:
         return {"status": "ok", "services": client.services}
 
 
@@ -110,7 +131,8 @@ async def analyze_target(
 
     # Fetch all services in parallel (rate-limited by the async client)
     async with _semaphore:
-        async with AsyncThreatIntelClient() as async_client:
+        user_keys = await _get_user_keys(current_user["username"])
+        async with AsyncThreatIntelClient(user_keys=user_keys) as async_client:
             raw_results = await async_client.query_all(sanitized, target_type)
 
     # Separate successful results from errors

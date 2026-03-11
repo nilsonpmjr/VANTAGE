@@ -11,6 +11,7 @@ from auth import get_password_hash, verify_password, get_current_user, get_curre
 from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
+from crypto import encrypt_secret, decrypt_secret
 
 logger = get_logger("UsersRouter")
 
@@ -40,6 +41,15 @@ class UserPreferencesUpdate(BaseModel):
     preferred_lang: Optional[str] = None
     avatar_base64: Optional[str] = None
 
+
+class ThirdPartyKeysUpdate(BaseModel):
+    keys: dict
+
+
+ALLOWED_SERVICES = {
+    "virustotal", "abuseipdb", "shodan", "alienvault",
+    "greynoise", "urlscan", "blacklistmaster", "abusech", "pulsedive"
+}
 
 VALID_ROLES = {"admin", "manager", "tech"}
 
@@ -178,6 +188,50 @@ async def get_my_audit_logs(
         if hasattr(ts, "isoformat"):
             item["timestamp"] = ts.isoformat()
     return items
+
+
+@router.get("/me/third-party-keys")
+async def get_third_party_keys(current_user: dict = Depends(get_current_user)):
+    """Returns which third-party services the user has configured (without exposing key values)."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    user_doc = await db.users.find_one({"username": current_user["username"]})
+    stored = user_doc.get("third_party_keys", {}) if user_doc else {}
+    return {
+        svc: {"configured": svc in stored and bool(stored[svc])}
+        for svc in ALLOWED_SERVICES
+    }
+
+
+@router.patch("/me/third-party-keys")
+async def update_third_party_keys(
+    body: ThirdPartyKeysUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Save or update encrypted third-party API keys for the current user."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    invalid = set(body.keys.keys()) - ALLOWED_SERVICES
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid services: {', '.join(invalid)}")
+
+    user_doc = await db.users.find_one({"username": current_user["username"]})
+    existing = user_doc.get("third_party_keys", {}) if user_doc else {}
+
+    for svc, value in body.keys.items():
+        if value and value.strip():
+            existing[svc] = encrypt_secret(value.strip())
+        elif svc in existing:
+            del existing[svc]
+
+    await db.users.update_one(
+        {"username": current_user["username"]},
+        {"$set": {"third_party_keys": existing}}
+    )
+    return {"status": "success", "message": "Third-party keys updated"}
 
 
 @router.delete("/{username}")

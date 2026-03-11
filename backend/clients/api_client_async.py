@@ -191,7 +191,8 @@ class AsyncThreatIntelClient:
         timeout: int = 10,
         max_retries: int = 3,
         cache_ttl: int = 3600,  # 1 hora
-        cache_size: int = 100
+        cache_size: int = 100,
+        user_keys: dict | None = None,
     ):
         """
         Args:
@@ -215,6 +216,10 @@ class AsyncThreatIntelClient:
 
         # Carregar chaves API
         self.api_keys = self._load_api_keys()
+        if user_keys:
+            for svc, key in user_keys.items():
+                if key and svc in self.SERVICES_CONFIG:
+                    self.api_keys[svc] = key
         # Check key existence (not value) so empty-string keys for public APIs still enable the service
         self.services = {
             service: (service in self.api_keys)

@@ -12,6 +12,7 @@ import ProfileLanguagePanel from './profile/ProfileLanguagePanel';
 import ProfilePasswordPanel from './profile/ProfilePasswordPanel';
 import ProfileAuditPanel from './profile/ProfileAuditPanel';
 import ProfileTourPanel from './profile/ProfileTourPanel';
+import ThirdPartyKeysManager from './profile/ThirdPartyKeysManager';
 import API_URL from '../config';
 import '../index.css';
 
@@ -44,6 +45,7 @@ export default function Profile() {
             label: t('profile.menu_integration'),
             items: [
                 { key: 'api_keys', icon: <Key size={16} />, label: t('profile.menu_api_keys') },
+                { key: 'third_party_keys', icon: <Key size={16} />, label: t('third_party_keys.menu_third_party') },
             ],
         },
         {
@@ -64,6 +66,7 @@ export default function Profile() {
             mfa:      { parent: t('profile.menu_security'),    label: t('profile.menu_mfa') },
             sessions: { parent: t('profile.menu_security'),    label: t('profile.menu_sessions') },
             api_keys: { parent: t('profile.menu_integration'), label: t('profile.menu_api_keys') },
+            third_party_keys: { parent: t('profile.menu_integration'), label: t('third_party_keys.menu_third_party') },
             audit:    { parent: t('profile.menu_history'),     label: t('profile.menu_audit') },
             tour:     { label: t('profile.menu_tour') },
         };
@@ -125,6 +128,15 @@ export default function Profile() {
                     <SectionHeader icon={<Key size={22} color="var(--primary)" />} title={t('api_keys.section_title')} subtitle={t('api_keys.subtitle')} />
                     <div className="glass-panel" style={{ padding: '2rem', borderRadius: '12px' }}>
                         <ApiKeysManager />
+                    </div>
+                </div>
+            )}
+
+            {activeKey === 'third_party_keys' && (
+                <div className="fade-in">
+                    <SectionHeader icon={<Key size={22} color="var(--primary)" />} title={t('third_party_keys.section_title')} subtitle={t('third_party_keys.subtitle')} />
+                    <div className="glass-panel" style={{ padding: '2rem', borderRadius: '12px' }}>
+                        <ThirdPartyKeysManager />
                     </div>
                 </div>
             )}

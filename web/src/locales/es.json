@@ -538,6 +538,17 @@
         "scope_batch": "Lote",
         "scope_stats": "Estadísticas"
     },
+    "third_party_keys": {
+        "section_title": "Claves de Servicios Externos",
+        "subtitle": "Configure sus claves de API personales para los servicios de inteligencia de amenazas.",
+        "description": "Sus claves personales tienen prioridad sobre las claves globales del sistema. Las claves se almacenan con cifrado AES-256.",
+        "configured": "Configurada",
+        "not_configured": "No configurada",
+        "key_placeholder": "Pegue su API key aquí...",
+        "get_key": "Obtener clave",
+        "remove": "Eliminar clave",
+        "menu_third_party": "Claves Externas"
+    },
     "watchlist": {
         "title": "Watchlist",
         "subtitle": "Monitoree objetivos específicos y reciba alertas cuando cambie el veredicto.",

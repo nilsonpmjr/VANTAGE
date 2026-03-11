@@ -91,35 +91,40 @@ async def get_dashboard_stats(
         ]
 
         # Top threat types from AlienVault/Pulsedive tags
+        # AlienVault stores pulses as array of objects with a nested "tags" array;
+        # we must unwind pulses first, then unwind the inner tags.
         tags_pipeline = base_match + [
             {"$project": {
-                "tags": {"$concatArrays": [
-                    {"$ifNull": ["$data.results.alienvault.pulse_info.pulses.tags", []]},
-                    {"$ifNull": ["$data.results.pulsedive.tags", []]},
-                ]}
+                "av_pulses": {"$ifNull": ["$data.results.alienvault.pulse_info.pulses", []]},
+                "pd_tags": {"$ifNull": ["$data.results.pulsedive.tags", []]},
             }},
-            {"$unwind": {"path": "$tags", "preserveNullAndEmptyArrays": False}},
-            {"$match": {"tags": {"$type": "string"}}},
-            {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+            {"$facet": {
+                "alienvault": [
+                    {"$unwind": {"path": "$av_pulses", "preserveNullAndEmptyArrays": False}},
+                    {"$unwind": {"path": "$av_pulses.tags", "preserveNullAndEmptyArrays": False}},
+                    {"$match": {"av_pulses.tags": {"$type": "string"}}},
+                    {"$project": {"tag": {"$toLower": "$av_pulses.tags"}}},
+                ],
+                "pulsedive": [
+                    {"$unwind": {"path": "$pd_tags", "preserveNullAndEmptyArrays": False}},
+                    {"$match": {"pd_tags": {"$type": "string"}}},
+                    {"$project": {"tag": {"$toLower": "$pd_tags"}}},
+                ],
+            }},
+            {"$project": {"all_tags": {"$concatArrays": ["$alienvault", "$pulsedive"]}}},
+            {"$unwind": "$all_tags"},
+            {"$group": {"_id": "$all_tags.tag", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
             {"$limit": 5},
         ]
         try:
             top_threat_types = [
-                {"name": item["_id"] if isinstance(item["_id"], str) else "Unknown", "value": item["count"]}
+                {"name": item["_id"], "value": item["count"]}
                 for item in await db.scans.aggregate(tags_pipeline).to_list(length=None)
-                if item["_id"]
+                if item["_id"] and isinstance(item["_id"], str)
             ]
         except Exception:
             top_threat_types = []
-
-        if not top_threat_types:
-            top_threat_types = [
-                {"name": "malware", "value": 0},
-                {"name": "phishing", "value": 0},
-                {"name": "botnet", "value": 0},
-                {"name": "c2-server", "value": 0},
-            ]
 
         # Recent scans (paginated via limit param)
         recent_scans = await (

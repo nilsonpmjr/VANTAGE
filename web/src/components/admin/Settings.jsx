@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Radar } from 'lucide-react';
+import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import SettingsShell from '../layout/SettingsShell';
@@ -11,7 +11,6 @@ import UserListPanel from './UserListPanel';
 import UserFlyout from './UserFlyout';
 import UserImportPanel from './UserImportPanel';
 import AuditLogPanel from './AuditLogPanel';
-import ReconAdminPanel from './ReconAdminPanel';
 import '../../index.css';
 
 // Re-export RoleBadge for backward compat (used in other places if any)
@@ -27,7 +26,7 @@ export const RoleBadge = ({ role }) => {
     );
 };
 
-export default function Settings({ onRecon }) {
+export default function Settings() {
     const { user } = useAuth();
     const { t } = useTranslation();
 
@@ -135,9 +134,6 @@ export default function Settings({ onRecon }) {
         ];
         if (isAdmin) usersItems.push({ key: 'import', icon: <Upload size={16} />, label: t('settings.menu_import') });
         groups.push({ key: 'users_group', label: t('settings.menu_users'), items: usersItems });
-        if (isAdmin) {
-            groups.push({ key: 'recon_group', label: t('settings.recon_jobs'), items: [{ key: 'recon_jobs', icon: <Radar size={16} />, label: t('settings.recon_jobs') }] });
-        }
         if (canViewAudit) {
             groups.push({ key: 'audit_group', label: t('settings.menu_audit'), items: [{ key: 'audit', icon: <ClipboardList size={16} />, label: t('settings.menu_logs') }] });
         }
@@ -151,7 +147,6 @@ export default function Settings({ onRecon }) {
             lockout_policy: { parent: t('settings.menu_security'), label: t('settings.menu_lockout_policy') },
             users: { parent: t('settings.menu_users'), label: t('settings.menu_manage') },
             import: { parent: t('settings.menu_users'), label: t('settings.menu_import') },
-            recon_jobs: { parent: t('settings.recon_jobs'), label: t('settings.recon_jobs') },
             audit: { parent: t('settings.menu_audit'), label: t('settings.menu_logs') },
         };
         const crumbs = [{ label: t('settings.title'), onClick: () => setActiveKey('overview') }];
@@ -205,8 +200,6 @@ export default function Settings({ onRecon }) {
                 {activeKey === 'import' && isAdmin && (
                     <UserImportPanel onImportDone={handleRefresh} />
                 )}
-
-                {activeKey === 'recon_jobs' && isAdmin && <ReconAdminPanel onRecon={onRecon} />}
 
                 {activeKey === 'audit' && canViewAudit && <AuditLogPanel />}
 

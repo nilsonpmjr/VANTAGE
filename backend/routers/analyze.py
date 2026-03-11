@@ -89,6 +89,21 @@ async def analyze_target(
             )
             if cached_scan and "data" in cached_scan:
                 logger.info(f"Cache hit: {sanitized}")
+                # Record scan for current user so each analyst appears in history
+                if cached_scan.get("analyst") != current_user["username"]:
+                    _fire_and_log(
+                        db_manager.db.scans.insert_one({
+                            "target": sanitized,
+                            "type": cached_scan.get("type", target_type),
+                            "timestamp": datetime.now(timezone.utc),
+                            "risk_score": cached_scan.get("risk_score"),
+                            "verdict": cached_scan.get("verdict"),
+                            "analyst": current_user["username"],
+                            "data": cached_scan["data"],
+                            "_cache_ref": cached_scan["_id"],
+                        }),
+                        f"Failed to persist cache-hit scan for {sanitized}",
+                    )
                 return cached_scan["data"]
         except Exception as e:
             logger.error(f"Cache check failed: {e}")

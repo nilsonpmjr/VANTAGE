@@ -143,7 +143,7 @@ export default function ReconAdminPanel({ onRecon }) {
                                     <tr
                                         key={job.job_id}
                                         style={{ cursor: onRecon ? 'pointer' : 'default' }}
-                                        onClick={() => onRecon && onRecon(job.target)}
+                                        onClick={() => onRecon && onRecon(job.target, { showHistory: true })}
                                         title={onRecon ? t('settings.recon_click_hint') : ''}
                                     >
                                         <td>

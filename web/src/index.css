@@ -835,6 +835,7 @@ h4 {
   display: flex;
   gap: 0;
   min-height: calc(100vh - 80px);
+  flex-grow: 1;
   width: 100%;
 }
 

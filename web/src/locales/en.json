@@ -62,7 +62,8 @@
         "open_menu": "Open navigation menu",
         "expand_menu": "Expand sidebar",
         "collapse_menu": "Collapse sidebar",
-        "recon": "Recon Engine"
+        "recon": "Recon Engine",
+        "watchlist": "Watchlist"
     },
     "recon": {
         "title": "Recon Engine",
@@ -181,7 +182,11 @@
         "top_typologies": "Top Threat Typologies",
         "crit_incident": "Critical Incident Feed",
         "no_crits": "No critical incidents",
-        "err_stats": "Failed to load management statistics."
+        "err_stats": "Failed to load management statistics.",
+        "tab_overview": "Overview",
+        "tab_history": "Scan History",
+        "tab_recon_jobs": "Recon Jobs",
+        "tab_alerts": "Critical Alerts"
     },
     "settings": {
         "title": "Settings",

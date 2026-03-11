@@ -17,6 +17,7 @@ import Settings from './components/admin/Settings';
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 const ReconPage = React.lazy(() => import('./components/recon/ReconPage'));
 import Profile from './components/Profile';
+import WatchlistSettings from './components/profile/WatchlistSettings';
 import TourOverlay from './components/shared/TourOverlay';
 import { useTranslation } from 'react-i18next';
 import API_URL from './config';
@@ -54,6 +55,15 @@ export default function App() {
 
   const { t, i18n } = useTranslation();
 
+  // BUG-02: Clear recon navigation state when leaving the recon view
+  const setCurrentViewSafe = (view) => {
+    if (view !== 'recon') {
+      setReconTarget(null);
+      setReconOpenHistory(false);
+    }
+    setCurrentView(view);
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const token = params.get('token');
@@ -78,16 +88,16 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     if (user.force_password_reset || user.password_expires_in_days === 0) {
-      setCurrentView('profile');
+      setCurrentViewSafe('profile');
     }
-  }, [user, setCurrentView]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Force navigation to profile when MFA setup is required
   useEffect(() => {
     if (mfaSetupRequired && user) {
-      setCurrentView('profile');
+      setCurrentViewSafe('profile');
     }
-  }, [mfaSetupRequired, user, setCurrentView]);
+  }, [mfaSetupRequired, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const handleBatchSearch = (rawTargets) => {
@@ -150,7 +160,7 @@ export default function App() {
       />
 
       <div className={`sidebar-wrapper${sidebarOpen ? ' sidebar-open' : ''}`}>
-        <Sidebar currentView={currentView} setCurrentView={setCurrentView} onMobileClose={() => setSidebarOpen(false)} />
+        <Sidebar currentView={currentView} setCurrentView={setCurrentViewSafe} onMobileClose={() => setSidebarOpen(false)} />
       </div>
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
@@ -171,7 +181,7 @@ export default function App() {
         {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
           <div role="alert" aria-live="polite" style={{ background: 'var(--status-risk-bg)', borderBottom: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
-            <button onClick={() => setCurrentView('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+            <button onClick={() => setCurrentViewSafe('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
               {t('auth.change_now')}
             </button>
           </div>
@@ -181,7 +191,7 @@ export default function App() {
         {mfaSetupRequired && (
           <div role="alert" aria-live="polite" style={{ background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             <strong>{t('mfa.setup_required_notice')}</strong>
-            <button onClick={() => { setCurrentView('profile'); setMfaSetupRequired(false); }} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+            <button onClick={() => { setCurrentViewSafe('profile'); setMfaSetupRequired(false); }} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
               {t('mfa.setup_now')}
             </button>
           </div>
@@ -191,7 +201,7 @@ export default function App() {
         {expiryWarningDays !== null && (
           <div role="alert" aria-live="polite" style={{ background: 'rgba(251, 146, 60, 0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
             {t('auth.password_expiry_warning', { days: expiryWarningDays })}
-            <button onClick={() => setCurrentView('profile')} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+            <button onClick={() => setCurrentViewSafe('profile')} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
               {t('auth.change_now')}
             </button>
           </div>
@@ -374,16 +384,18 @@ export default function App() {
         )}
 
         {currentView === 'dashboard' && (
-          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
             <Dashboard
-            onSearch={(query) => { setCurrentView('home'); handleSearch(query); }}
+            onSearch={(query) => { setCurrentViewSafe('home'); handleSearch(query); }}
             onRecon={(target, opts) => { setReconTarget(target); setReconOpenHistory(!!opts?.showHistory); setCurrentView('recon'); }}
-            style={{ flexShrink: 0 }}
           />
           </Suspense>
+          </div>
         )}
-        {currentView === 'settings' && <div style={{ flexShrink: 0 }}><Settings onRecon={(target) => { setReconTarget(target); setReconOpenHistory(false); setCurrentView('recon'); }} /></div>}
-        {currentView === 'profile' && <div style={{ flexShrink: 0 }}><Profile /></div>}
+        {currentView === 'settings' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
+        {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
+        {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile /></div>}
         {currentView === 'recon' && (
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
             <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />

@@ -62,7 +62,8 @@
         "open_menu": "Abrir menú de navegación",
         "expand_menu": "Expandir barra lateral",
         "collapse_menu": "Contraer barra lateral",
-        "recon": "Recon Engine"
+        "recon": "Recon Engine",
+        "watchlist": "Watchlist"
     },
     "recon": {
         "title": "Recon Engine",
@@ -181,7 +182,11 @@
         "top_typologies": "Principales Tipologías de Amenazas",
         "crit_incident": "Fuente de Incidentes Críticos",
         "no_crits": "Sin incidentes críticos",
-        "err_stats": "Error al obtener estadísticas de gestión."
+        "err_stats": "Error al obtener estadísticas de gestión.",
+        "tab_overview": "Visión General",
+        "tab_history": "Historial de Búsquedas",
+        "tab_recon_jobs": "Recon Jobs",
+        "tab_alerts": "Alertas Críticas"
     },
     "settings": {
         "title": "Configuración",

@@ -210,197 +210,197 @@ export default function App() {
         {/* View content — keyed by currentView for fade-in transition (UX-01) */}
         <div key={currentView} className="fade-in" style={{ display: 'contents' }}>
 
-        {currentView === 'home' && (
-          <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-            {/* Animated Header */}
-            <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
+          {currentView === 'home' && (
+            <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+              {/* Animated Header */}
+              <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
 
-              <div className="header-left">
-                <img
-                  src="/logo.svg"
-                  alt="iT.eam Logo"
-                  className="app-logo"
-                  style={{ cursor: 'pointer' }}
-                  onClick={() => {
-                    setHasSearched(false);
-                    setData(null);
-                    setError(null);
-                  }}
-                  onError={(e) => { e.target.style.display = 'none'; }}
-                />
-                <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title')}</p>
-              </div>
+                <div className="header-left">
+                  <img
+                    src="/logo.svg"
+                    alt="iT.eam Logo"
+                    className="app-logo"
+                    style={{ cursor: 'pointer' }}
+                    onClick={() => {
+                      setHasSearched(false);
+                      setData(null);
+                      setError(null);
+                    }}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title')}</p>
+                </div>
 
-              <div className="header-center" data-tour="search-bar">
-                <SearchBar
-                  key={hasSearched ? 'active' : 'initial'}
-                  onSearch={handleSearch}
-                  onBatchSearch={handleBatchSearch}
-                  loading={loading}
-                />
-              </div>
+                <div className="header-center" data-tour="search-bar">
+                  <SearchBar
+                    key={hasSearched ? 'active' : 'initial'}
+                    onSearch={handleSearch}
+                    onBatchSearch={handleBatchSearch}
+                    loading={loading}
+                  />
+                </div>
 
-              <div className="header-right">
-                {data && (
-                  <button
-                    onClick={() => generatePDFReport(data, data.analysis_reports?.[lang], lang)}
-                    className="fade-in"
-                    style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    title={t('app.download')}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', borderColor: 'var(--accent-border)' })}
-                    onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
+                <div className="header-right">
+                  {data && (
+                    <button
+                      onClick={() => generatePDFReport(data, data.analysis_reports?.[lang], lang)}
+                      className="fade-in"
+                      style={{ marginRight: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', padding: '0.5rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.2s' }}
+                      title={t('app.download')}
+                      onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'var(--accent-glow)', borderColor: 'var(--accent-border)' })}
+                      onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
+                    >
+                      <Download size={18} />
+                      <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>PDF</span>
+                    </button>
+                  )}
+
+                  <Globe size={18} color="var(--text-muted)" />
+                  <select
+                    value={lang}
+                    onChange={(e) => setLang(e.target.value)}
+                    className="lang-select"
+                    data-tour="lang-select"
                   >
-                    <Download size={18} />
-                    <span style={{ fontSize: '0.9rem', fontWeight: 500 }}>PDF</span>
-                  </button>
+                    <option value="pt">Português</option>
+                    <option value="en">English</option>
+                    <option value="es">Español</option>
+                  </select>
+                </div>
+              </header>
+
+              {/* Main Content Area */}
+              <main style={{ paddingBottom: '2rem', flexGrow: 1 }}>
+                {error && (
+                  <div className="fade-in" style={{
+                    marginTop: '2rem',
+                    padding: '1rem',
+                    background: 'var(--status-risk-bg)',
+                    border: '1px solid var(--status-risk)',
+                    color: 'var(--status-risk)',
+                    borderRadius: 'var(--radius-md)',
+                    textAlign: 'center',
+                    flexShrink: 0
+                  }}>
+                    <p><strong>{t('app.error')}</strong> {error}</p>
+                  </div>
                 )}
 
-                <Globe size={18} color="var(--text-muted)" />
-                <select
-                  value={lang}
-                  onChange={(e) => setLang(e.target.value)}
-                  className="lang-select"
-                  data-tour="lang-select"
-                >
-                  <option value="pt">Português</option>
-                  <option value="en">English</option>
-                  <option value="es">Español</option>
-                </select>
-              </div>
-            </header>
-
-            {/* Main Content Area */}
-            <main style={{ paddingBottom: '2rem', flexGrow: 1 }}>
-              {error && (
-                <div className="fade-in" style={{
-                  marginTop: '2rem',
-                  padding: '1rem',
-                  background: 'var(--status-risk-bg)',
-                  border: '1px solid var(--status-risk)',
-                  color: 'var(--status-risk)',
-                  borderRadius: 'var(--radius-md)',
-                  textAlign: 'center',
-                  flexShrink: 0
-                }}>
-                  <p><strong>{t('app.error')}</strong> {error}</p>
-                </div>
-              )}
-
-              {!data && !error && (
-                <div className="fade-in" style={{
-                  marginTop: hasSearched ? '1rem' : '2rem',
-                  textAlign: 'center',
-                  transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
-                  flexShrink: 0
-                }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {t('app.services')}
-                  </p>
-                  <div className="marquee-container">
-                    <div className="marquee-content">
-                      {MARQUEE_ITEMS.map((provider, i) => (
-                        <div key={i} className="provider-card">
-                          <img
-                            src={`https://www.google.com/s2/favicons?domain=${provider.domain}&sz=64`}
-                            alt={provider.name}
-                            className="provider-icon"
-                            onError={(e) => { e.target.style.display = 'none'; }}
-                          />
-                          <span>{provider.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {loading && !data && (
-                <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
-                  <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
-                  <p>{t('app.scanning')}</p>
-                </div>
-              )}
-
-              {batchTargets && (
-                <Suspense fallback={
-                  <div style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <span className="loader-pulse" style={{ width: 32, height: 32, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
-                  </div>
-                }>
-                  <BatchResultsPanel
-                    targets={batchTargets}
-                    lang={lang}
-                    onReset={() => { setBatchTargets(null); setHasSearched(false); }}
-                  />
-                </Suspense>
-              )}
-
-              {!batchTargets && data && (
-                <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
-                  {/* Stale cache notice */}
-                  {data._stale_cache && (
-                    <div style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid #fb923c', color: '#fb923c', padding: '0.6rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      ⚠ {t('app.stale_cache_notice')}
-                    </div>
-                  )}
-                  {(() => {
-                    const successEntries = Object.entries(data.results).filter(([, d]) => !d.error && !d._meta_error);
-                    const correctedSummary = {
-                      ...data.summary,
-                      total_sources: successEntries.length,
-                    };
-                    return <VerdictPanel target={data.target} type={data.type} summary={correctedSummary} lang={lang} />;
-                  })()}
-
-                  <div className="grid-dashboard">
-                    {Object.entries(data.results)
-                      .filter(([, d]) => !d.error && !d._meta_error)
-                      .map(([serviceName, serviceData]) => (
-                        <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} target={{ value: data.target, type: data.type }} />
-                      ))}
-                  </div>
-
-                  <ToastNotification
-                    errors={Object.entries(data.results)
-                      .filter(([, d]) => d.error || d._meta_error)
-                      .map(([name, d]) => ({ name, type: d._meta_error_type || 'api_error', message: d._meta_error || d.error }))}
-                  />
-
-                  {(data.analysis_report || data.analysis_reports) && (
-                    <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>
-                      <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
-                        {t('app.summary')}
-                      </h3>
-                      <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.05rem' }}>
-                        <ReactMarkdown>{data.analysis_reports ? data.analysis_reports[lang] : data.analysis_report}</ReactMarkdown>
+                {!data && !error && (
+                  <div className="fade-in" style={{
+                    marginTop: hasSearched ? '1rem' : '2rem',
+                    textAlign: 'center',
+                    transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
+                    flexShrink: 0
+                  }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      {t('app.services')}
+                    </p>
+                    <div className="marquee-container">
+                      <div className="marquee-content">
+                        {MARQUEE_ITEMS.map((provider, i) => (
+                          <div key={i} className="provider-card">
+                            <img
+                              src={`https://www.google.com/s2/favicons?domain=${provider.domain}&sz=64`}
+                              alt={provider.name}
+                              className="provider-icon"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                            <span>{provider.name}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  )}
-                </div>
-              )}{/* end single result */}
-            </main>
+                  </div>
+                )}
 
-          </div>
-        )}
+                {loading && !data && (
+                  <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
+                    <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
+                    <p>{t('app.scanning')}</p>
+                  </div>
+                )}
 
-        {currentView === 'dashboard' && (
-          <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
-            <Dashboard
-            onSearch={(query) => { setCurrentViewSafe('home'); handleSearch(query); }}
-            onRecon={(target, opts) => { setReconTarget(target); setReconOpenHistory(!!opts?.showHistory); setCurrentView('recon'); }}
-          />
-          </Suspense>
-          </div>
-        )}
-        {currentView === 'settings' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
-        {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
-        {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile /></div>}
-        {currentView === 'recon' && (
-          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
-            <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />
-          </Suspense>
-        )}
+                {batchTargets && (
+                  <Suspense fallback={
+                    <div style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <span className="loader-pulse" style={{ width: 32, height: 32, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
+                    </div>
+                  }>
+                    <BatchResultsPanel
+                      targets={batchTargets}
+                      lang={lang}
+                      onReset={() => { setBatchTargets(null); setHasSearched(false); }}
+                    />
+                  </Suspense>
+                )}
+
+                {!batchTargets && data && (
+                  <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
+                    {/* Stale cache notice */}
+                    {data._stale_cache && (
+                      <div style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid #fb923c', color: '#fb923c', padding: '0.6rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        ⚠ {t('app.stale_cache_notice')}
+                      </div>
+                    )}
+                    {(() => {
+                      const successEntries = Object.entries(data.results).filter(([, d]) => !d.error && !d._meta_error);
+                      const correctedSummary = {
+                        ...data.summary,
+                        total_sources: successEntries.length,
+                      };
+                      return <VerdictPanel target={data.target} type={data.type} summary={correctedSummary} lang={lang} />;
+                    })()}
+
+                    <div className="grid-dashboard">
+                      {Object.entries(data.results)
+                        .filter(([, d]) => !d.error && !d._meta_error)
+                        .map(([serviceName, serviceData]) => (
+                          <ServiceCard key={serviceName} name={serviceName} data={serviceData} lang={lang} target={{ value: data.target, type: data.type }} />
+                        ))}
+                    </div>
+
+                    <ToastNotification
+                      errors={Object.entries(data.results)
+                        .filter(([, d]) => d.error || d._meta_error)
+                        .map(([name, d]) => ({ name, type: d._meta_error_type || 'api_error', message: d._meta_error || d.error }))}
+                    />
+
+                    {(data.analysis_report || data.analysis_reports) && (
+                      <div className="glass-panel fade-in" style={{ marginTop: '2rem', padding: '2rem', borderTop: '4px solid var(--accent-border)' }}>
+                        <h3 style={{ margin: '0 0 1rem 0', display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)' }}>
+                          {t('app.summary')}
+                        </h3>
+                        <div style={{ color: 'var(--text-secondary)', lineHeight: 1.6, fontSize: '1.05rem' }}>
+                          <ReactMarkdown>{data.analysis_reports ? data.analysis_reports[lang] : data.analysis_report}</ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}{/* end single result */}
+              </main>
+
+            </div>
+          )}
+
+          {currentView === 'dashboard' && (
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+                <Dashboard
+                  onSearch={(query) => { setCurrentViewSafe('home'); handleSearch(query); }}
+                  onRecon={(target, opts) => { setReconTarget(target); setReconOpenHistory(!!opts?.showHistory); setCurrentView('recon'); }}
+                />
+              </Suspense>
+            </div>
+          )}
+          {currentView === 'settings' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
+          {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
+          {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile /></div>}
+          {currentView === 'recon' && (
+            <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+              <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />
+            </Suspense>
+          )}
 
         </div>{/* end view fade-in wrapper */}
 

@@ -13,7 +13,7 @@ Next-generation SOC (Security Operations Center) platform that aggregates threat
 ## Features
 
 - **Parallel Threat Intelligence** — Queries VirusTotal, AbuseIPDB, Shodan, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and BlacklistMaster simultaneously
-- **Heuristic AI Reports** — Contextual natural-language summaries in PT-BR, EN, and ES
+- **AI Reports** — Contextual natural-language summaries in PT-BR, EN, and ES
 - **IAM & RBAC** — Role-based access control (admin / manager / tech), JWT + HttpOnly cookies, refresh tokens
 - **MFA (TOTP)** — Authenticator-app 2FA with AES-256 encrypted secrets and backup codes
 - **Session Management** — Active session list, per-session revocation, 30-min inactivity auto-logout
@@ -32,7 +32,7 @@ Next-generation SOC (Security Operations Center) platform that aggregates threat
 └──────────────────┘                └──────────┬──────────┘
                                                │
                                     ┌──────────▼──────────┐
-                                    │  MongoDB 8           │
+                                    │  MongoDB 8          │
                                     │  (port 27017)       │
                                     └─────────────────────┘
 ```

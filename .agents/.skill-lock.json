@@ -1,0 +1,194 @@
+{
+  "version": 3,
+  "skills": {
+    "find-skills": {
+      "source": "vercel-labs/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/skills.git",
+      "skillPath": "skills/find-skills/SKILL.md",
+      "skillFolderHash": "c2f31172b6f256272305a5e6e7228b258446899f",
+      "installedAt": "2026-03-03T00:10:28.653Z",
+      "updatedAt": "2026-03-03T00:24:14.095Z"
+    },
+    "agent-tools": {
+      "source": "inference-sh-9/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/inference-sh-9/skills.git",
+      "skillPath": "skills/agent-tools/SKILL.md",
+      "skillFolderHash": "5ab5b1639e405cb4be4cae6474a20ff2fd22afaf",
+      "installedAt": "2026-03-03T00:17:44.378Z",
+      "updatedAt": "2026-03-03T00:17:44.378Z"
+    },
+    "ai-image-generation": {
+      "source": "inference-sh-9/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/inference-sh-9/skills.git",
+      "skillPath": "skills/ai-image-generation/SKILL.md",
+      "skillFolderHash": "1e95cc0540f91e24bf46e5a08f966753161bfa6a",
+      "installedAt": "2026-03-03T00:19:28.612Z",
+      "updatedAt": "2026-03-03T00:19:28.612Z"
+    },
+    "docker-best-practices": {
+      "source": "josiahsiegel/claude-plugin-marketplace",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/josiahsiegel/claude-plugin-marketplace.git",
+      "skillPath": "plugins/docker-master/skills/docker-best-practices/SKILL.md",
+      "skillFolderHash": "ab89dfeeaf070481ae1644be13bcf5d6b6508275",
+      "installedAt": "2026-03-03T00:22:23.439Z",
+      "updatedAt": "2026-03-03T00:22:23.439Z"
+    },
+    "frontend-design": {
+      "source": "anthropics/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/anthropics/skills.git",
+      "skillPath": "skills/frontend-design/SKILL.md",
+      "skillFolderHash": "928950704df8a8b885c03de5da626331e6f29cf8",
+      "pluginName": "example-skills",
+      "installedAt": "2026-03-03T00:25:57.633Z",
+      "updatedAt": "2026-03-03T00:26:34.721Z"
+    },
+    "github-actions-templates": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/wshobson/agents.git",
+      "skillPath": "plugins/cicd-automation/skills/github-actions-templates/SKILL.md",
+      "skillFolderHash": "414560172cc8181b6c17f6d2f5ffcda4716368dd",
+      "installedAt": "2026-03-03T00:27:09.385Z",
+      "updatedAt": "2026-03-03T00:27:09.385Z"
+    },
+    "nano-banana-2": {
+      "source": "inference-sh-9/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/inference-sh-9/skills.git",
+      "skillPath": "skills/nano-banana-2/SKILL.md",
+      "skillFolderHash": "f2494fc20f1c2985d07c1b329c9533ff80a2c86a",
+      "installedAt": "2026-03-03T00:28:34.902Z",
+      "updatedAt": "2026-03-03T00:28:34.902Z"
+    },
+    "prd": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/github/awesome-copilot.git",
+      "skillPath": "skills/prd/SKILL.md",
+      "skillFolderHash": "b4af69e637f8f2bf620c55273680669ccca3e73c",
+      "installedAt": "2026-03-03T00:29:15.632Z",
+      "updatedAt": "2026-03-03T00:29:15.632Z"
+    },
+    "read-github": {
+      "source": "am-will/codex-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/am-will/codex-skills.git",
+      "skillPath": "skills/read-github/SKILL.md",
+      "skillFolderHash": "ceb82a060b46f76c60f9709c6324169b6f78e0ef",
+      "installedAt": "2026-03-03T00:31:13.224Z",
+      "updatedAt": "2026-03-03T00:31:13.224Z"
+    },
+    "security-scanning-security-sast": {
+      "source": "sickn33/antigravity-awesome-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/sickn33/antigravity-awesome-skills.git",
+      "skillPath": "skills/security-scanning-security-sast/SKILL.md",
+      "skillFolderHash": "26c33dd64118b88d72473533182d65243914da63",
+      "installedAt": "2026-03-03T00:33:21.148Z",
+      "updatedAt": "2026-03-03T00:33:21.148Z"
+    },
+    "audit-website": {
+      "source": "squirrelscan/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/squirrelscan/skills.git",
+      "skillPath": "audit-website/SKILL.md",
+      "skillFolderHash": "ec491d7739b80f4c64126ae674384cbbcac953ae",
+      "installedAt": "2026-03-03T00:36:28.523Z",
+      "updatedAt": "2026-03-03T00:36:28.523Z"
+    },
+    "repomix-safe-mixer": {
+      "source": "daymade/claude-code-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/daymade/claude-code-skills.git",
+      "skillPath": "repomix-safe-mixer/SKILL.md",
+      "skillFolderHash": "5c261af868b1e5a5c53d6e2f74608d885e9a1ba5",
+      "pluginName": "repomix-safe-mixer",
+      "installedAt": "2026-03-03T00:40:11.571Z",
+      "updatedAt": "2026-03-03T00:40:11.571Z"
+    },
+    "simple-brainstorm": {
+      "source": "roin-orca/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/roin-orca/skills.git",
+      "skillPath": "skills/simple-brainstorm/SKILL.md",
+      "skillFolderHash": "04a9177318209f7225709468a811a1617711aaba",
+      "installedAt": "2026-03-03T00:43:15.670Z",
+      "updatedAt": "2026-03-03T00:43:15.670Z"
+    },
+    "cybersecurity-analyst": {
+      "source": "rysweet/amplihack",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/rysweet/amplihack.git",
+      "skillPath": "skills/cybersecurity-analyst/SKILL.md",
+      "skillFolderHash": "",
+      "installedAt": "2026-03-03T00:43:26.913Z",
+      "updatedAt": "2026-03-03T00:43:26.913Z"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills.git",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "skillFolderHash": "fce8b5a24ff4ff2fc5db6aa1051e03b53c6b5bf1",
+      "installedAt": "2026-03-03T00:44:05.541Z",
+      "updatedAt": "2026-03-03T00:44:05.541Z"
+    },
+    "web-design-guidelines": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/vercel-labs/agent-skills.git",
+      "skillPath": "skills/web-design-guidelines/SKILL.md",
+      "skillFolderHash": "3116f3e62dbd02b44a598b1aa690d2a8938e8f89",
+      "installedAt": "2026-03-03T00:44:43.320Z",
+      "updatedAt": "2026-03-03T00:44:43.320Z"
+    },
+    "owasp-security-check": {
+      "source": "sergiodxa/agent-skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/sergiodxa/agent-skills.git",
+      "skillPath": "skills/owasp-security-check/SKILL.md",
+      "skillFolderHash": "49536d8b2050cb9997968479394771ce7922c0cd",
+      "installedAt": "2026-03-03T00:47:10.383Z",
+      "updatedAt": "2026-03-03T00:47:10.383Z"
+    },
+    "social-media-carousel": {
+      "source": "inference-sh-9/skills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/inference-sh-9/skills.git",
+      "skillPath": "skills/social-media-carousel/SKILL.md",
+      "skillFolderHash": "a70fd474d3e5ae9e7ecdaa30b7826ab6c7ac401d",
+      "installedAt": "2026-03-03T00:54:45.856Z",
+      "updatedAt": "2026-03-03T00:54:45.856Z"
+    },
+    "copywriting": {
+      "source": "coreyhaines31/marketingskills",
+      "sourceType": "github",
+      "sourceUrl": "https://github.com/coreyhaines31/marketingskills.git",
+      "skillPath": "skills/copywriting/SKILL.md",
+      "skillFolderHash": "0bef7af6d4994302db21de02a4b6460887fd5880",
+      "pluginName": "marketing-skills",
+      "installedAt": "2026-03-03T00:57:30.286Z",
+      "updatedAt": "2026-03-03T00:57:30.286Z"
+    }
+  },
+  "dismissed": {
+    "findSkillsPrompt": true
+  },
+  "lastSelectedAgents": [
+    "amp",
+    "cline",
+    "codex",
+    "cursor",
+    "gemini-cli",
+    "github-copilot",
+    "kimi-cli",
+    "opencode",
+    "claude-code",
+    "antigravity"
+  ]
+}

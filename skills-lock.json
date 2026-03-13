@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "audit-code": {
+      "source": "swader/agent-skills-audit",
+      "sourceType": "github",
+      "computedHash": "909d9a915a11d826a89c53710c8002e7dfadc0c4e4f136f521e400fa5d0f63f2"
+    },
+    "gsap": {
+      "source": "martinholovsky/claude-skills-generator",
+      "sourceType": "github",
+      "computedHash": "b7d401d70a6f6f2bd29bb36ee803564cb071cc43bf5701e32a5dedbf88cc1466"
+    },
+    "gsap-master": {
+      "source": "su69ar/rdnax-gsap-master",
+      "sourceType": "github",
+      "computedHash": "c8a18812b2bf5f65c0c69136616bff829f445309dd57312ddf83cad16531a1a6"
+    },
+    "humanizer": {
+      "source": "softaworks/agent-toolkit",
+      "sourceType": "github",
+      "computedHash": "34a38e6acc60d4529612d41ffe740bca0060d3c5e89e2a0d24ae795f67157fbb"
+    },
+    "security-audit": {
+      "source": "netresearch/security-audit-skill",
+      "sourceType": "github",
+      "computedHash": "75cac5f5b7be5a4f3816e6ab88d37bac3ba8bc31a959b4178e9e9d1bd71175ce"
+    },
+    "technical-roadmaps": {
+      "source": "refoundai/lenny-skills",
+      "sourceType": "github",
+      "computedHash": "beda6704866862e5dd9fc5ec144d53b6b229ba8f98a4ad9bb1bf240006a837b5"
+    }
+  }
+}

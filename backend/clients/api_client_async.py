@@ -304,10 +304,11 @@ class AsyncThreatIntelClient:
                             error_type="not_found"
                         )
 
-                    if response.status == 403:
+                    if response.status in [402, 403]:
+                        # 402 Payment Required or 403 Forbidden (often used for quota/key issues)
                         return APIResponse(
                             service=service, data=None, success=False,
-                            error="Access denied - Check quota/API key",
+                            error="Access denied or Payment Required - Check quota/API key",
                             error_type="plan_limitation"
                         )
 

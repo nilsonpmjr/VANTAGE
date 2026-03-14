@@ -11,6 +11,19 @@ logger = get_logger("StatsRouter")
 router = APIRouter(prefix="", tags=["stats"])
 
 
+def _serialize_obj(obj):
+    """Recursively convert ObjectId and other non-JSON types for response."""
+    if isinstance(obj, list):
+        return [_serialize_obj(x) for x in obj]
+    if isinstance(obj, dict):
+        return {k: _serialize_obj(v) for k, v in obj.items()}
+    if hasattr(obj, "isoformat"):
+        return obj.isoformat()
+    if str(type(obj)).find("ObjectId") >= 0:
+        return str(obj)
+    return obj
+
+
 @router.get("/stats")
 async def get_dashboard_stats(
     period: str = "month",
@@ -91,8 +104,6 @@ async def get_dashboard_stats(
         ]
 
         # Top threat types from AlienVault/Pulsedive tags
-        # AlienVault stores pulses as array of objects with a nested "tags" array;
-        # we must unwind pulses first, then unwind the inner tags.
         tags_pipeline = base_match + [
             {"$project": {
                 "av_pulses": {"$ifNull": ["$data.results.alienvault.pulse_info.pulses", []]},
@@ -178,7 +189,7 @@ async def get_dashboard_stats(
             for doc in recent_recon_raw
         ]
 
-        return {
+        result = {
             "totalScans": total_scans,
             "verdictDistribution": verdict_result,
             "topTargets": top_targets_result,
@@ -191,6 +202,9 @@ async def get_dashboard_stats(
             "recentReconJobs": recent_recon_jobs,
         }
 
+        # Apply robust serialization before returning to avoid FastAPI/Pydantic ObjectId issues
+        return _serialize_obj(result)
+
     except Exception as e:
-        logger.error(f"Failed to aggregate stats: {e}")
+        logger.error(f"Failed to aggregate stats: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal DB Aggregation Error")

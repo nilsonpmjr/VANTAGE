@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Query, Depends
+from fastapi.encoders import jsonable_encoder
 
 from db import db_manager
 from auth import require_role, require_api_scope
@@ -9,19 +10,6 @@ from logging_config import get_logger
 logger = get_logger("StatsRouter")
 
 router = APIRouter(prefix="", tags=["stats"])
-
-
-def _serialize_obj(obj):
-    """Recursively convert ObjectId and other non-JSON types for response."""
-    if isinstance(obj, list):
-        return [_serialize_obj(x) for x in obj]
-    if isinstance(obj, dict):
-        return {k: _serialize_obj(v) for k, v in obj.items()}
-    if hasattr(obj, "isoformat"):
-        return obj.isoformat()
-    if str(type(obj)).find("ObjectId") >= 0:
-        return str(obj)
-    return obj
 
 
 @router.get("/stats")
@@ -202,8 +190,7 @@ async def get_dashboard_stats(
             "recentReconJobs": recent_recon_jobs,
         }
 
-        # Apply robust serialization before returning to avoid FastAPI/Pydantic ObjectId issues
-        return _serialize_obj(result)
+        return jsonable_encoder(result)
 
     except Exception as e:
         logger.error(f"Failed to aggregate stats: {e}", exc_info=True)

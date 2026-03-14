@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.encoders import jsonable_encoder
 
@@ -190,7 +191,7 @@ async def get_dashboard_stats(
             "recentReconJobs": recent_recon_jobs,
         }
 
-        return jsonable_encoder(result)
+        return jsonable_encoder(result, custom_encoder={ObjectId: str})
 
     except Exception as e:
         logger.error(f"Failed to aggregate stats: {e}", exc_info=True)

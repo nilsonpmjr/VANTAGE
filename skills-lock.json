@@ -26,6 +26,11 @@
       "sourceType": "github",
       "computedHash": "75cac5f5b7be5a4f3816e6ab88d37bac3ba8bc31a959b4178e9e9d1bd71175ce"
     },
+    "shadcn": {
+      "source": "shadcn/ui",
+      "sourceType": "github",
+      "computedHash": "1ec42c9b918b315d8e5c6c856b78c3c4725fc93dea30b9b7e9975c69848fcce6"
+    },
     "technical-roadmaps": {
       "source": "refoundai/lenny-skills",
       "sourceType": "github",

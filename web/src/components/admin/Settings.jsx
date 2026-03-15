@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock } from 'lucide-react';
+import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Palette } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import SettingsShell from '../layout/SettingsShell';
 import SettingsOverview from './SettingsOverview';
+import DesignSystemPanel from './DesignSystemPanel';
 import PasswordPolicyForm from './PasswordPolicyForm';
 import LockoutPolicyForm from './LockoutPolicyForm';
 import UserListPanel from './UserListPanel';
@@ -120,6 +121,9 @@ export default function Settings() {
             { key: 'overview', icon: <BarChart2 size={16} />, label: t('settings.menu_overview') },
         ];
         if (isAdmin) {
+            groups.push({ key: 'design_system', icon: <Palette size={16} />, label: t('settings.menu_design_system') });
+        }
+        if (isAdmin) {
             groups.push({
                 key: 'security_group',
                 label: t('settings.menu_security'),
@@ -143,6 +147,7 @@ export default function Settings() {
     const breadcrumbs = useMemo(() => {
         const map = {
             overview: {},
+            design_system: { label: t('settings.menu_design_system') },
             password_policy: { parent: t('settings.menu_security'), label: t('settings.menu_password_policy') },
             lockout_policy: { parent: t('settings.menu_security'), label: t('settings.menu_lockout_policy') },
             users: { parent: t('settings.menu_users'), label: t('settings.menu_manage') },
@@ -181,6 +186,8 @@ export default function Settings() {
                         isAdmin={isAdmin}
                     />
                 )}
+
+                {activeKey === 'design_system' && isAdmin && <DesignSystemPanel />}
 
                 {activeKey === 'password_policy' && isAdmin && <PasswordPolicyForm />}
 

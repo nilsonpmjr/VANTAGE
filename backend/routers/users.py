@@ -12,6 +12,8 @@ from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
 from crypto import encrypt_secret, decrypt_secret
+from identity import normalize_email, email_in_use
+from session_revocation import revoke_user_refresh_tokens, is_sensitive_role_downgrade
 
 logger = get_logger("UsersRouter")
 
@@ -52,6 +54,7 @@ ALLOWED_SERVICES = {
 }
 
 VALID_ROLES = {"admin", "manager", "tech"}
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.get("")
@@ -72,9 +75,11 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
     if await db.users.find_one({"username": user.username}):
         raise HTTPException(status_code=400, detail="Username already exists")
 
-    if user.email:
-        normalized_email = user.email.strip().lower()
-        if await db.users.find_one({"email": normalized_email}):
+    normalized_email = normalize_email(user.email)
+    if normalized_email:
+        if not _EMAIL_RE.match(normalized_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if await email_in_use(db, normalized_email):
             raise HTTPException(status_code=400, detail="Email already in use")
 
     if user.role not in VALID_ROLES:
@@ -91,7 +96,8 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "password_hash": password_hash,
         "role": user.role,
         "name": user.name,
-        "email": user.email.strip().lower() if user.email else None,
+        "email": normalized_email,
+        "normalized_email": normalized_email,
         "preferred_lang": "pt",
         "is_active": True,
         "created_at": datetime.now(timezone.utc),
@@ -164,8 +170,10 @@ async def update_my_preferences(
     await db.users.update_one({"username": username}, {"$set": update_data})
 
     if password_changed:
+        revoked_count = await revoke_user_refresh_tokens(db, username)
         await log_action(db, user=username, action="password_changed",
-                         target=username, result="success")
+                         target=username, result="success",
+                         detail=f"revoked_sessions={revoked_count}")
 
     return {"status": "success", "message": "Preferences updated successfully"}
 
@@ -243,13 +251,15 @@ async def delete_user(request: Request, username: str, current_user: dict = Depe
     if current_user["username"] == username:
         raise HTTPException(status_code=400, detail="You cannot delete yourself")
 
+    revoked_count = await revoke_user_refresh_tokens(db, username)
     result = await db.users.delete_one({"username": username})
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
 
     ip = request.client.host if request.client else ""
     await log_action(db, user=current_user["username"], action="user_deleted",
-                     target=username, ip=ip, result="success")
+                     target=username, ip=ip, result="success",
+                     detail=f"revoked_sessions={revoked_count}")
     return {"status": "success", "message": f"User {username} deleted successfully"}
 
 
@@ -269,6 +279,7 @@ async def update_user(
         raise HTTPException(status_code=404, detail="User not found")
 
     update_data = {}
+    revoke_sessions = False
     if user_update.name is not None:
         update_data["name"] = user_update.name
     if user_update.role is not None:
@@ -279,6 +290,7 @@ async def update_user(
                 and user_update.role != "admin"):
             raise HTTPException(status_code=400, detail="You cannot demote your own admin account")
         update_data["role"] = user_update.role
+        revoke_sessions = revoke_sessions or is_sensitive_role_downgrade(existing.get("role"), user_update.role)
     if user_update.password is not None:
         policy = await get_password_policy(db)
         errors = validate_password(user_update.password, policy)
@@ -291,14 +303,25 @@ async def update_user(
         history = existing.get("password_history", [])
         history_count = policy.get("history_count", 5)
         update_data["password_history"] = (history + [new_hash])[-history_count:]
+        revoke_sessions = True
     if user_update.is_active is not None:
         if current_user["username"] == username and user_update.is_active is False:
             raise HTTPException(status_code=400, detail="You cannot suspend your own account")
         update_data["is_active"] = user_update.is_active
+        if user_update.is_active is False:
+            revoke_sessions = True
     if user_update.force_password_reset is not None:
         update_data["force_password_reset"] = user_update.force_password_reset
+        if user_update.force_password_reset is True:
+            revoke_sessions = True
     if user_update.email is not None:
-        update_data["email"] = user_update.email.strip().lower() if user_update.email else None
+        normalized_email = normalize_email(user_update.email)
+        if normalized_email and not _EMAIL_RE.match(normalized_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if await email_in_use(db, normalized_email, exclude_username=username):
+            raise HTTPException(status_code=400, detail="Email already in use")
+        update_data["email"] = normalized_email
+        update_data["normalized_email"] = normalized_email
     if user_update.allowed_ips is not None:
         # Validate each entry as IP, CIDR, or IPv6
         validated = []
@@ -321,22 +344,26 @@ async def update_user(
         return {"status": "success", "message": "No fields to update"}
 
     await db.users.update_one({"username": username}, {"$set": update_data})
+    revoked_count = await revoke_user_refresh_tokens(db, username) if revoke_sessions else 0
 
     ip = request.client.host if request.client else ""
     # Emit granular audit events
     if "role" in update_data:
         await log_action(db, user=current_user["username"], action="role_changed",
                          target=username, ip=ip, result="success",
-                         detail=f"new_role={update_data['role']}")
+                         detail=f"new_role={update_data['role']}; revoked_sessions={revoked_count}")
     if update_data.get("force_password_reset") is True:
         await log_action(db, user=current_user["username"], action="password_reset_forced",
-                         target=username, ip=ip, result="success")
+                         target=username, ip=ip, result="success",
+                         detail=f"revoked_sessions={revoked_count}")
     if "is_active" in update_data:
         action_name = "user_reactivated" if update_data["is_active"] else "user_suspended"
         await log_action(db, user=current_user["username"], action=action_name,
-                         target=username, ip=ip, result="success")
+                         target=username, ip=ip, result="success",
+                         detail=f"revoked_sessions={revoked_count}")
     else:
         await log_action(db, user=current_user["username"], action="user_updated",
-                         target=username, ip=ip, result="success")
+                         target=username, ip=ip, result="success",
+                         detail=f"revoked_sessions={revoked_count}")
 
     return {"status": "success", "message": f"User {username} updated successfully"}

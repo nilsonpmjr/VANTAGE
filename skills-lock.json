@@ -16,6 +16,11 @@
       "sourceType": "github",
       "computedHash": "9c71bc5839febec1c42fdd6f5aed3beb3fa9df399460f0d20310124abd77cc31"
     },
+    "github-copilot-starter": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "7b29145c2d3255c38d7333c41e2872411f668658c2c2f4782e420400abf08175"
+    },
     "gsap": {
       "source": "martinholovsky/claude-skills-generator",
       "sourceType": "github",

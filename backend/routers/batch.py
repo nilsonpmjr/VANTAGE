@@ -17,6 +17,7 @@ from auth import get_current_user, require_api_scope
 from audit import log_action
 from logging_config import get_logger
 from config import settings
+from scans import build_scan_document, build_scan_payload, extract_scan_payload
 
 logger = get_logger("BatchRouter")
 
@@ -84,6 +85,18 @@ async def _cache_lookup(sanitized: str) -> Optional[dict]:
     except Exception as e:
         logger.error(f"Cache lookup error for {sanitized}: {e}")
         return None
+
+
+def _entry_from_scan_doc(scan_doc: dict | None) -> Optional[dict]:
+    payload = extract_scan_payload(scan_doc)
+    if not payload:
+        return None
+    summary = payload.get("summary", {})
+    return {
+        "payload": payload,
+        "verdict": scan_doc.get("verdict", summary.get("verdict", "UNKNOWN")),
+        "risk_score": scan_doc.get("risk_score", summary.get("risk_sources", 0)),
+    }
 
 
 # ── estimate ─────────────────────────────────────────────────────────────────
@@ -391,9 +404,12 @@ async def _process_batch(
             try:
                 cached = await _cache_lookup(sanitized)
                 if cached:
+                    cached_entry = _entry_from_scan_doc(cached)
+                    if not cached_entry:
+                        raise ValueError("Cached scan missing canonical payload")
                     entry["from_cache"] = True
-                    entry["verdict"] = cached.get("verdict", "UNKNOWN")
-                    entry["risk_score"] = cached.get("risk_score", 0)
+                    entry["verdict"] = cached_entry["verdict"]
+                    entry["risk_score"] = cached_entry["risk_score"]
                 else:
                     await asyncio.sleep(
                         settings.batch_inter_target_delay_ms / 1000
@@ -440,36 +456,37 @@ async def _process_batch(
                         lang="es",
                     )
 
-                    scan_data = {
-                        "target": sanitized,
-                        "type": target_type,
-                        "results": service_results,
-                        "summary": summary,
-                        "analysis_report": format_report_to_markdown(
+                    scan_data = build_scan_payload(
+                        target=sanitized,
+                        target_type=target_type,
+                        results=service_results,
+                        summary=summary,
+                        analysis_report=format_report_to_markdown(
                             report_pt if lang == "pt"
                             else (report_en if lang == "en" else report_es)
                         ),
-                        "analysis_reports": {
+                        analysis_reports={
                             "pt": format_report_to_markdown(report_pt),
                             "en": format_report_to_markdown(report_en),
                             "es": format_report_to_markdown(report_es),
                         },
-                    }
+                    )
 
                     entry["verdict"] = verdict
                     entry["risk_score"] = risk_score
 
                     if db_manager.db is not None:
                         try:
-                            await db_manager.db.scans.insert_one({
-                                "target": sanitized,
-                                "type": target_type,
-                                "timestamp": datetime.now(timezone.utc),
-                                "risk_score": risk_score,
-                                "verdict": verdict,
-                                "analyst": analyst,
-                                "data": _sanitize_for_mongo(scan_data),
-                            })
+                            await db_manager.db.scans.insert_one(
+                                build_scan_document(
+                                    target=sanitized,
+                                    target_type=target_type,
+                                    risk_score=risk_score,
+                                    verdict=verdict,
+                                    analyst=analyst,
+                                    payload=_sanitize_for_mongo(scan_data),
+                                )
+                            )
                         except Exception as e:
                             logger.error(
                                 f"Batch {job_id}: persist scan "

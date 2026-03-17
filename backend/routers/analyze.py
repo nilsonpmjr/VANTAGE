@@ -16,6 +16,7 @@ from logging_config import get_logger
 from db import inc_service_quota
 from config import settings
 from crypto import decrypt_secret
+from scans import build_scan_document, build_scan_payload, extract_scan_payload
 
 logger = get_logger("AnalyzeRouter")
 
@@ -108,24 +109,26 @@ async def analyze_target(
                 {"target": sanitized, "timestamp": {"$gte": cache_cutoff}},
                 sort=[("timestamp", -1)],
             )
-            if cached_scan and "data" in cached_scan:
+            cached_payload = extract_scan_payload(cached_scan)
+            if cached_scan and cached_payload:
                 logger.info(f"Cache hit: {sanitized}")
                 # Record scan for current user so each analyst appears in history
                 if cached_scan.get("analyst") != current_user["username"]:
                     _fire_and_log(
-                        db_manager.db.scans.insert_one({
-                            "target": sanitized,
-                            "type": cached_scan.get("type", target_type),
-                            "timestamp": datetime.now(timezone.utc),
-                            "risk_score": cached_scan.get("risk_score"),
-                            "verdict": cached_scan.get("verdict"),
-                            "analyst": current_user["username"],
-                            "data": cached_scan["data"],
-                            "_cache_ref": cached_scan["_id"],
-                        }),
+                        db_manager.db.scans.insert_one(
+                            build_scan_document(
+                                target=sanitized,
+                                target_type=cached_scan.get("type", target_type),
+                                risk_score=cached_scan.get("risk_score", 0),
+                                verdict=cached_scan.get("verdict", "UNKNOWN"),
+                                analyst=current_user["username"],
+                                payload=cached_payload,
+                                extra_fields={"_cache_ref": cached_scan["_id"]},
+                            )
+                        ),
                         f"Failed to persist cache-hit scan for {sanitized}",
                     )
-                return cached_scan["data"]
+                return cached_payload
         except Exception as e:
             logger.error(f"Cache check failed: {e}")
 
@@ -160,9 +163,10 @@ async def analyze_target(
                 {"target": sanitized},
                 sort=[("timestamp", -1)],
             )
-            if stale_scan and "data" in stale_scan:
+            stale_payload = extract_scan_payload(stale_scan)
+            if stale_scan and stale_payload:
                 logger.info(f"Stale cache fallback: {sanitized} (all APIs unavailable)")
-                stale_data = stale_scan["data"]
+                stale_data = dict(stale_payload)
                 stale_data["_stale_cache"] = True
                 return stale_data
         except Exception as e:
@@ -177,39 +181,39 @@ async def analyze_target(
         "verdict": verdict,
     }
 
-    results = {
-        "target": sanitized,
-        "type": target_type,
-        "results": service_results,
-        "summary": summary,
-    }
-
     # Heuristic reports for all 3 languages
     report_pt = generate_heuristic_report(sanitized, target_type, summary, service_results, lang="pt")
     report_en = generate_heuristic_report(sanitized, target_type, summary, service_results, lang="en")
     report_es = generate_heuristic_report(sanitized, target_type, summary, service_results, lang="es")
 
-    results["analysis_report"] = format_report_to_markdown(
+    analysis_report = format_report_to_markdown(
         report_pt if lang == "pt" else (report_en if lang == "en" else report_es)
     )
-    results["analysis_reports"] = {
+    analysis_reports = {
         "pt": format_report_to_markdown(report_pt),
         "en": format_report_to_markdown(report_en),
         "es": format_report_to_markdown(report_es),
     }
+    results = build_scan_payload(
+        target=sanitized,
+        target_type=target_type,
+        results=service_results,
+        summary=summary,
+        analysis_report=analysis_report,
+        analysis_reports=analysis_reports,
+    )
 
     # Fire-and-forget persist to MongoDB
     if db_manager.db is not None:
         try:
-            document = {
-                "target": sanitized,
-                "type": target_type,
-                "timestamp": datetime.now(timezone.utc),
-                "risk_score": risk_score,
-                "verdict": verdict,
-                "analyst": current_user["username"],
-                "data": _sanitize_for_mongo(results),
-            }
+            document = build_scan_document(
+                target=sanitized,
+                target_type=target_type,
+                risk_score=risk_score,
+                verdict=verdict,
+                analyst=current_user["username"],
+                payload=_sanitize_for_mongo(results),
+            )
             _fire_and_log(
                 db_manager.db.scans.insert_one(document),
                 f"Failed to persist scan for {sanitized}",

@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
     const [loading, setLoading] = useState(true);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [isFadingOut, setIsFadingOut] = useState(false);
-    const [mfaPending, setMfaPending] = useState(null); // { preAuthToken } when mfa_required
+    const [mfaPending, setMfaPending] = useState(null); // truthy when MFA step is pending
     const [mfaSetupRequired, setMfaSetupRequired] = useState(false);
 
     // Initialize auth state from cookie on page load
@@ -116,9 +116,9 @@ export const AuthProvider = ({ children }) => {
 
         const data = await response.json();
 
-        // MFA required — store pre_auth_token and wait for OTP
+        // MFA required — the server keeps the pre-auth token in an HttpOnly cookie.
         if (data.mfa_required) {
-            setMfaPending({ preAuthToken: data.pre_auth_token });
+            setMfaPending({ required: true });
             return false;
         }
 

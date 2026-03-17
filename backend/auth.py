@@ -47,6 +47,11 @@ def create_refresh_token() -> str:
     return secrets.token_urlsafe(64)
 
 
+def hash_refresh_token(raw_token: str) -> str:
+    """Return SHA-256 hex digest of a raw refresh token."""
+    return hashlib.sha256(raw_token.encode()).hexdigest()
+
+
 def hash_api_key(raw_key: str) -> str:
     """Return SHA-256 hex digest of a raw API key."""
     return hashlib.sha256(raw_key.encode()).hexdigest()
@@ -74,6 +79,24 @@ def _set_auth_cookies(response: JSONResponse, access_token: str, refresh_token: 
         max_age=settings.refresh_token_expire_days * 86400,
         path="/api/auth/refresh",
     )
+
+
+def _set_pre_auth_cookie(response: JSONResponse, pre_auth_token: str) -> None:
+    """Set a short-lived HttpOnly cookie for MFA completion."""
+    response.set_cookie(
+        key="pre_auth_token",
+        value=pre_auth_token,
+        httponly=True,
+        secure=_SECURE,
+        samesite="strict",
+        max_age=5 * 60,
+        path="/api/mfa/verify",
+    )
+
+
+def _clear_pre_auth_cookie(response: JSONResponse) -> None:
+    """Remove the temporary MFA pre-auth cookie."""
+    response.delete_cookie("pre_auth_token", path="/api/mfa/verify")
 
 
 async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:

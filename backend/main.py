@@ -21,6 +21,9 @@ logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
 
 scheduler = AsyncIOScheduler()
+API_CANONICAL_PREFIX = "/api"
+API_LEGACY_PREFIX = "/api/v1"
+API_V1_SUNSET = "Wed, 30 Sep 2026 00:00:00 GMT"
 
 
 @asynccontextmanager
@@ -36,10 +39,22 @@ async def lifespan(app: FastAPI):
             await db.scans.create_index([("verdict", 1)])
             await db.scans.create_index([("analyst", 1), ("timestamp", -1)])
             await db.scans.create_index([("target", 1), ("timestamp", -1)])
+            await db.users.create_index(
+                [("normalized_email", 1)],
+                unique=True,
+                sparse=True,
+                name="users_normalized_email_unique",
+            )
             # TTL index to auto-purge expired refresh tokens (7d + 1h grace)
             await db.refresh_tokens.create_index(
                 [("expires_at", 1)],
                 expireAfterSeconds=3600,
+            )
+            await db.refresh_tokens.create_index(
+                [("token_hash", 1)],
+                unique=True,
+                sparse=True,
+                name="refresh_tokens_token_hash",
             )
             # Audit log indexes for query performance
             await db.audit_log.create_index([("timestamp", -1)])
@@ -212,6 +227,22 @@ async def content_size_limit(request: Request, call_next):
                 content={"detail": "Invalid Content-Length header"},
             )
     return await call_next(request)
+
+
+@app.middleware("http")
+async def api_v1_deprecation_notice(request: Request, call_next):
+    response = await call_next(request)
+
+    path = request.url.path
+    if path == API_LEGACY_PREFIX or path.startswith(f"{API_LEGACY_PREFIX}/"):
+        successor_path = path.removeprefix(API_LEGACY_PREFIX) or ""
+        response.headers["Deprecation"] = "true"
+        response.headers["Sunset"] = API_V1_SUNSET
+        response.headers["Link"] = f'<{API_CANONICAL_PREFIX}{successor_path}>; rel="successor-version"'
+        response.headers["Warning"] = '299 - "/api/v1 is deprecated; use /api"'
+
+    return response
+
 
 # CORS — restrict to known origins; never use "*" in production
 app.add_middleware(

@@ -64,6 +64,7 @@ docker compose up -d
 ```
 
 The app will be available at `http://localhost` (frontend) and `http://localhost:8000` (API).
+MongoDB stays on the internal Docker network only; it is no longer published to the host.
 
 ### 3. Seed initial admin user
 
@@ -75,7 +76,7 @@ docker compose exec backend python scripts/seed_users.py
 
 ```bash
 docker compose --profile dev up -d
-# mongo-express at http://localhost:8081
+# mongo-express at http://127.0.0.1:8081
 ```
 
 ## Development Setup (without Docker)
@@ -116,9 +117,11 @@ Copy `.env.example` to `.env` and configure the following:
 | Variable | Description |
 |---|---|
 | `JWT_SECRET` | Random string ≥32 chars for signing JWT tokens |
-| `MONGO_URI` | MongoDB connection string (e.g. `mongodb://user:pass@localhost:27017/`) |
+| `MONGO_URI` | MongoDB connection string for local backend runs (e.g. `mongodb://user:pass@localhost:27017/`) |
 | `MONGO_USER` | MongoDB root username (used by docker-compose) |
 | `MONGO_PASSWORD` | MongoDB root password (used by docker-compose) |
+
+When you use `docker compose`, the backend receives an internal `MONGO_URI` automatically and connects to the `mongodb` service over the private bridge network.
 
 ### Threat Intelligence API Keys
 
@@ -152,7 +155,8 @@ Missing keys are gracefully skipped — services without keys are excluded from 
 
 ## API Endpoints
 
-All endpoints are available under both `/api` and `/api/v1`.
+The canonical API prefix is `/api`.
+`/api/v1` remains temporarily available for backwards compatibility, but responses now include explicit deprecation headers and a `Sunset` date of `2026-09-30`.
 
 ### Authentication
 

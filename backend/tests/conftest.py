@@ -84,6 +84,14 @@ class FakeCollection:
     async def insert_one(self, doc):
         self._data.append(doc)
 
+    async def replace_one(self, query, replacement, upsert=False):
+        for i, doc in enumerate(self._data):
+            if all(doc.get(k) == v for k, v in query.items()):
+                self._data[i] = replacement
+                return
+        if upsert:
+            self._data.append(replacement)
+
     async def update_one(self, query, update, upsert=False):
         for doc in self._data:
             if all(doc.get(k) == v for k, v in query.items()):
@@ -134,6 +142,14 @@ class FakeCollection:
             if match:
                 count += 1
         return count
+
+    async def distinct(self, field, query=None):
+        values = []
+        for doc in self.find(query)._data:
+            value = doc.get(field)
+            if value not in values:
+                values.append(value)
+        return values
 
 
 class FakeDB:
@@ -209,6 +225,12 @@ class FakeDB:
         self.api_keys = FakeCollection()
         self.sessions = FakeCollection()
         self.password_reset_tokens = FakeCollection()
+        self.recon_jobs = FakeCollection()
+        self.recon_scheduled = FakeCollection()
+        self.recon_results = FakeCollection()
+        self.batch_jobs = FakeCollection()
+        self.watchlist = FakeCollection()
+        self.service_quota = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

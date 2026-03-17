@@ -84,6 +84,10 @@ async def test_import_creates_users(async_client, admin_headers):
     assert body["created"] == 1
     assert body["skipped"] == 0
     assert body["errors"] == []
+    assert len(body["temporary_credentials"]) == 1
+    assert body["temporary_credentials"][0]["username"] == "newuser1"
+    assert body["temporary_credentials"][0]["email"] == "new1@test.com"
+    assert body["temporary_credentials"][0]["temporary_password"]
 
 
 @pytest.mark.asyncio
@@ -155,6 +159,37 @@ async def test_import_force_password_reset_set(async_client, fake_db, admin_head
     doc = await fake_db.users.find_one({"username": "fpruser"})
     assert doc is not None
     assert doc["force_password_reset"] is True
+    assert "temporary_password" not in doc
+
+
+@pytest.mark.asyncio
+async def test_import_returns_passwords_matching_policy(async_client, fake_db, admin_headers):
+    await fake_db.password_policy.update_one(
+        {"_id": "singleton"},
+        {"$set": {
+            "_id": "singleton",
+            "min_length": 14,
+            "require_uppercase": True,
+            "require_numbers": True,
+            "require_symbols": True,
+            "history_count": 5,
+            "expiry_days": 0,
+            "expiry_warning_days": 7,
+        }},
+        upsert=True,
+    )
+    csv_data = _csv(["policyuser,Policy User,tech,policy@test.com,pt"])
+    resp = await async_client.post(
+        "/api/admin/users/import",
+        headers=admin_headers,
+        files={"file": ("users.csv", io.BytesIO(csv_data), "text/csv")},
+    )
+    assert resp.status_code == 200
+    temp_password = resp.json()["temporary_credentials"][0]["temporary_password"]
+    assert len(temp_password) >= 14
+    assert any(c.isupper() for c in temp_password)
+    assert any(c.isdigit() for c in temp_password)
+    assert any(not c.isalnum() for c in temp_password)
 
 
 @pytest.mark.asyncio
@@ -208,3 +243,35 @@ async def test_import_mixed_valid_invalid(async_client, admin_headers):
     assert body["created"] == 1
     assert body["skipped"] == 1
     assert len(body["errors"]) == 2
+    assert len(body["temporary_credentials"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_duplicate_email_case_insensitive(async_client, admin_headers):
+    csv_data = _csv(["dupemail,Duplicate Email,tech,ADMIN@SOC.LOCAL,pt"])
+    resp = await async_client.post(
+        "/api/admin/users/import",
+        headers=admin_headers,
+        files={"file": ("users.csv", io.BytesIO(csv_data), "text/csv")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created"] == 0
+    assert body["errors"][0]["reason"] == "email_already_in_use"
+
+
+@pytest.mark.asyncio
+async def test_import_rejects_duplicate_email_in_same_file(async_client, admin_headers):
+    csv_data = _csv([
+        "usera,User A,tech,dup@test.com,pt",
+        "userb,User B,tech,DUP@test.com,pt",
+    ])
+    resp = await async_client.post(
+        "/api/admin/users/import",
+        headers=admin_headers,
+        files={"file": ("users.csv", io.BytesIO(csv_data), "text/csv")},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created"] == 1
+    assert body["errors"][0]["reason"] == "duplicate_email_in_file"

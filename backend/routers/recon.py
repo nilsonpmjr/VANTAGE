@@ -16,7 +16,6 @@ Endpoints:
 import asyncio
 import hashlib
 import json
-import re
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -30,6 +29,8 @@ from auth import get_current_user, require_api_scope
 from config import settings
 from db import db_manager
 from logging_config import get_logger
+from network_security import UnsafeTargetError, validate_public_scan_target
+from policies import compute_expiry_days_left, get_password_policy
 from recon.engine import get_available_modules, run_module
 from recon.correlator import correlate, extract_risks
 
@@ -40,44 +41,18 @@ router = APIRouter(prefix="/recon", tags=["recon"])
 # In-memory SSE queue registry — same pattern as batch.py
 _job_queues: dict[str, asyncio.Queue] = {}
 
-# Target validation: allow IPv4, IPv6, hostname/domain, CIDR /24 or smaller
-_TARGET_RE = re.compile(
-    r"^(?:"
-    r"(?:\d{1,3}\.){3}\d{1,3}(?:/(?:2[0-4]|[0-9]))?"  # IPv4 or CIDR
-    r"|(?:[0-9a-fA-F:]{2,39})"                           # IPv6 (simplified)
-    r"|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9\-]{1,63})*)"  # domain
-    r")$"
-)
-
-# RFC-1918 / loopback ranges — forbidden as scan targets
-_PRIVATE_PREFIXES = (
-    "127.", "10.", "192.168.",
-    "::1", "localhost",
-)
-_PRIVATE_172 = re.compile(r"^172\.(1[6-9]|2\d|3[01])\.")
-
 
 def _validate_target(raw: str) -> tuple[str, str]:
     """
     Returns (sanitized_target, target_type) or raises HTTPException 400.
     target_type: "ip" | "domain"
     """
-    target = raw.strip().lower()
+    try:
+        validated = validate_public_scan_target(raw)
+    except UnsafeTargetError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    if not target or not _TARGET_RE.match(target):
-        raise HTTPException(status_code=400, detail=f"Invalid target: '{raw}'")
-
-    # Block private/loopback
-    if any(target.startswith(p) for p in _PRIVATE_PREFIXES):
-        raise HTTPException(status_code=400, detail="Private/loopback targets are not allowed")
-    if _PRIVATE_172.match(target):
-        raise HTTPException(status_code=400, detail="Private network targets are not allowed")
-
-    # Classify
-    ipv4_re = re.compile(r"^(?:\d{1,3}\.){3}\d{1,3}(?:/\d+)?$")
-    if ipv4_re.match(target) or ":" in target:
-        return target, "ip"
-    return target, "domain"
+    return validated.sanitized, validated.target_type
 
 
 # ── models ───────────────────────────────────────────────────────────────────
@@ -137,6 +112,27 @@ async def _cache_set(target: str, module: str, data: dict) -> None:
         )
     except Exception as e:
         logger.error(f"Recon cache set error: {e}")
+
+
+async def get_recon_eligibility_failure(db, username: str) -> tuple[Optional[dict], Optional[str]]:
+    """
+    Return `(user_doc, None)` when the user is currently eligible to run recon,
+    otherwise `(None, reason_code)`.
+    """
+    user = await db.users.find_one({"username": username})
+    if not user:
+        return None, "user_not_found"
+    if user.get("is_active", True) is False:
+        return None, "user_inactive"
+    if user.get("force_password_reset", False):
+        return None, "password_reset_required"
+
+    policy = await get_password_policy(db)
+    days_left = compute_expiry_days_left(user, policy)
+    if days_left is not None and days_left == 0:
+        return None, "password_expired"
+
+    return user, None
 
 
 # ── endpoints ─────────────────────────────────────────────────────────────────
@@ -288,9 +284,13 @@ async def get_history(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     sanitized, _ = _validate_target(target)
+    query = {"target": sanitized}
+    if current_user.get("role") != "admin":
+        query["analyst"] = current_user["username"]
+
     jobs = await (
         db_manager.db.recon_jobs.find(
-            {"target": sanitized},
+            query,
             {"_id": 1, "modules": 1, "status": 1, "analyst": 1, "created_at": 1, "completed_at": 1},
         )
         .sort("created_at", -1)
@@ -337,7 +337,7 @@ async def get_scan(
 @router.post("/scheduled", status_code=201)
 async def schedule_scan(
     body: ScheduleRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_api_scope("recon")),
 ):
     """Schedule a recon scan for a future time."""
     if db_manager.db is None:

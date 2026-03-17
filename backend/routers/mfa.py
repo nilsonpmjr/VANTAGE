@@ -6,8 +6,8 @@ Enrollment flow (from Profile):
   2. POST /api/mfa/confirm  → {otp} — activates MFA after first valid code
 
 Login flow (when mfa_enabled):
-  Login returns {mfa_required: true, pre_auth_token: "<5-min JWT>"}
-  3. POST /api/mfa/verify   → {pre_auth_token, otp} — issues full auth cookies
+  Login returns {mfa_required: true} and stores pre_auth_token in HttpOnly cookie
+  3. POST /api/mfa/verify   → {otp} — issues full auth cookies
 
 Admin management:
   4. DELETE /api/mfa/{username}  → admin revokes another user's MFA
@@ -28,8 +28,10 @@ from auth import (
     get_current_user,
     create_access_token,
     create_refresh_token,
+    hash_refresh_token,
     require_role,
     _set_auth_cookies,
+    _clear_pre_auth_cookie,
 )
 from config import settings
 from crypto import encrypt_secret, decrypt_secret
@@ -57,7 +59,6 @@ class OTPConfirm(BaseModel):
 
 
 class MFAVerifyRequest(BaseModel):
-    pre_auth_token: str
     otp: str
 
 
@@ -162,23 +163,30 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
+    pre_auth_token = request.cookies.get("pre_auth_token")
+    if not pre_auth_token:
+        raise HTTPException(status_code=401, detail="invalid_pre_auth_token")
+
     # Decode pre_auth_token
     try:
         payload = pyjwt.decode(
-            body.pre_auth_token,
+            pre_auth_token,
             settings.jwt_secret,
             algorithms=[settings.algorithm],
         )
         if payload.get("scope") != "mfa_pending":
             raise HTTPException(status_code=401, detail="invalid_pre_auth_token")
         username = payload.get("sub")
-        role = payload.get("role", "tech")
     except pyjwt.PyJWTError:
         raise HTTPException(status_code=401, detail="invalid_pre_auth_token")
 
     user_doc = await db.users.find_one({"username": username})
     if not user_doc or not user_doc.get("mfa_secret_enc"):
         raise HTTPException(status_code=400, detail="MFA not configured for this user")
+    if user_doc.get("is_active", True) is False:
+        raise HTTPException(status_code=403, detail="Inactive user account")
+
+    role = user_doc.get("role", "tech")
 
     secret = decrypt_secret(user_doc["mfa_secret_enc"])
     totp = pyotp.TOTP(secret)
@@ -224,7 +232,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
 
     await db.refresh_tokens.insert_one({
         "session_id": str(_uuid.uuid4()),
-        "token": refresh_token,
+        "token_hash": hash_refresh_token(refresh_token),
         "username": username,
         "role": role,
         "ip": ip,
@@ -251,6 +259,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
 
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
     _set_auth_cookies(response, access_token, refresh_token)
+    _clear_pre_auth_cookie(response)
 
     ip = request.client.host if request.client else ""
     await log_action(db, user=username, action="login", ip=ip, detail="via_mfa")

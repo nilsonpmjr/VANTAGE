@@ -1,10 +1,11 @@
 import hashlib
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs
 
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.responses import JSONResponse
-from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel
 from typing import Optional
 
@@ -15,33 +16,80 @@ from auth import (
     get_password_hash,
     create_access_token,
     create_refresh_token,
+    hash_refresh_token,
     get_current_user,
     get_current_user_allow_expired,
     _set_auth_cookies,
+    _set_pre_auth_cookie,
+    _clear_pre_auth_cookie,
 )
 from limiters import limiter
 from audit import log_action
 from logging_config import get_logger
 from mailer import send_password_reset_email
+from identity import find_user_by_normalized_email, normalize_email
 from policies import get_password_policy, validate_password
+from session_revocation import revoke_user_refresh_tokens
 
 logger = get_logger("AuthRouter")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+
+async def _parse_login_credentials(request: Request) -> tuple[str, str]:
+    """
+    Parse login credentials without relying on FastAPI's form dependency.
+
+    This keeps the endpoint compatible with `application/x-www-form-urlencoded`
+    while avoiding the request-body hang observed under ASGITransport tests.
+    """
+    raw_body = await request.body()
+    if not raw_body:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Missing login credentials",
+        )
+
+    content_type = request.headers.get("content-type", "").lower()
+
+    if "application/json" in content_type:
+        try:
+            payload = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Invalid JSON body",
+            )
+        username = str(payload.get("username", "")).strip()
+        password = str(payload.get("password", ""))
+    else:
+        parsed = parse_qs(raw_body.decode("utf-8"), keep_blank_values=True)
+        username = parsed.get("username", [""])[0].strip()
+        password = parsed.get("password", [""])[0]
+
+    if not username or not password:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Username and password are required",
+        )
+
+    return username, password
+
 @router.post("/login")
 @limiter.limit("5/minute")
-async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends()):
+async def login(request: Request):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
+
+    username, password = await _parse_login_credentials(request)
 
     # Fetch lockout policy (defaults: 5 attempts / 15 min)
     lockout_cfg = await db.lockout_policy.find_one({"_id": "singleton"})
     max_attempts = lockout_cfg["max_attempts"] if lockout_cfg else 5
     lockout_minutes = lockout_cfg["lockout_minutes"] if lockout_cfg else 15
 
-    user = await db.users.find_one({"username": form_data.username})
+    user = await db.users.find_one({"username": username})
 
     # Check account lockout before password verification
     if user:
@@ -58,7 +106,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     ip = request.client.host if request.client else ""
 
     # Verify credentials
-    if not user or not verify_password(form_data.password, user["password_hash"]):
+    if not user or not verify_password(password, user["password_hash"]):
         if user:
             new_count = user.get("failed_login_count", 0) + 1
             update_fields = {
@@ -74,8 +122,8 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                     {"$set": update_fields},
                 )
                 await log_action(
-                    db, user=form_data.username, action="account_locked",
-                    target=form_data.username, ip=ip, result="failure",
+                    db, user=username, action="account_locked",
+                    target=username, ip=ip, result="failure",
                     detail=f"locked after {new_count} failed attempts",
                 )
             else:
@@ -84,8 +132,8 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
                     {"$set": update_fields},
                 )
             await log_action(
-                db, user=form_data.username, action="login_failed",
-                target=form_data.username, ip=ip, result="failure",
+                db, user=username, action="login_failed",
+                target=username, ip=ip, result="failure",
             )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -120,7 +168,9 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
             expires_delta=timedelta(minutes=5),
         )
         await log_action(db, user=user["username"], action="login_mfa_pending", ip=ip)
-        return JSONResponse(content={"mfa_required": True, "pre_auth_token": pre_auth_token})
+        response = JSONResponse(content={"mfa_required": True})
+        _set_pre_auth_cookie(response, pre_auth_token)
+        return response
 
     # If role requires MFA but not yet enrolled, allow login but flag setup as required
     force_mfa_setup = role in settings.mfa_required_roles and not user.get("mfa_enabled")
@@ -161,7 +211,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
     # Persist refresh token in MongoDB
     await db.refresh_tokens.insert_one({
         "session_id": str(uuid.uuid4()),
-        "token": refresh_token,
+        "token_hash": hash_refresh_token(refresh_token),
         "username": user["username"],
         "role": role,
         "ip": ip,
@@ -184,6 +234,7 @@ async def login(request: Request, form_data: OAuth2PasswordRequestForm = Depends
 
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
     _set_auth_cookies(response, access_token, refresh_token)
+    _clear_pre_auth_cookie(response)
     logger.info(f"Login successful: {user['username']}")
     await log_action(db, user=user["username"], action="login", ip=ip)
     return response
@@ -200,28 +251,36 @@ async def refresh_access_token(request: Request):
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing")
 
-    stored = await db.refresh_tokens.find_one({"token": refresh_token, "revoked": False})
+    token_hash = hash_refresh_token(refresh_token)
+    stored = await db.refresh_tokens.find_one({"token_hash": token_hash, "revoked": False})
     if not stored:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     if stored["expires_at"] < datetime.now(timezone.utc):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
 
+    user = await db.users.find_one({"username": stored["username"]})
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+    if user.get("is_active", True) is False:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user account")
+
     new_access_token = create_access_token(
-        data={"sub": stored["username"], "role": stored["role"]}
+        data={"sub": user["username"], "role": user.get("role", "tech")}
     )
     new_refresh_token = create_refresh_token()
+    new_refresh_token_hash = hash_refresh_token(new_refresh_token)
 
     # Rotate: revoke old, insert new (preserving session context)
     await db.refresh_tokens.update_one(
-        {"token": refresh_token},
+        {"token_hash": token_hash},
         {"$set": {"revoked": True}},
     )
     await db.refresh_tokens.insert_one({
         "session_id": stored.get("session_id", str(uuid.uuid4())),
-        "token": new_refresh_token,
-        "username": stored["username"],
-        "role": stored["role"],
+        "token_hash": new_refresh_token_hash,
+        "username": user["username"],
+        "role": user.get("role", "tech"),
         "ip": stored.get("ip", ""),
         "user_agent": stored.get("user_agent", ""),
         "created_at": stored.get("created_at", datetime.now(timezone.utc)),
@@ -242,13 +301,14 @@ async def logout(request: Request, current_user: dict = Depends(get_current_user
     refresh_token = request.cookies.get("refresh_token")
     if db is not None and refresh_token:
         await db.refresh_tokens.update_one(
-            {"token": refresh_token},
+            {"token_hash": hash_refresh_token(refresh_token)},
             {"$set": {"revoked": True}},
         )
 
     response = JSONResponse(content={"message": "Logged out successfully"})
     response.delete_cookie("access_token")
     response.delete_cookie("refresh_token", path="/api/auth/refresh")
+    _clear_pre_auth_cookie(response)
     logger.info(f"Logout: {current_user['username']}")
     ip = request.client.host if request.client else ""
     if db is not None:
@@ -291,10 +351,12 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
         raise HTTPException(status_code=500, detail="Database not connected")
 
     ip = request.client.host if request.client else ""
-    email = body.email.strip().lower()
+    email = normalize_email(body.email)
+    if not email:
+        return {"message": "If this email is registered, a reset link has been sent."}
 
     # Look up user — silently succeed if not found
-    user = await db.users.find_one({"email": email})
+    user = await find_user_by_normalized_email(db, email)
     if user and user.get("is_active", True) is not False:
         raw_token = uuid.uuid4().hex
         token_hash = _hash_token(raw_token)
@@ -374,6 +436,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
             "force_password_reset": False,
         }},
     )
+    revoked_count = await revoke_user_refresh_tokens(db, username)
 
     # Mark token as used (TTL index will clean it up automatically)
     await db.password_reset_tokens.update_one(
@@ -382,6 +445,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
     )
 
     await log_action(db, user=username, action="password_reset_completed",
-                     target=username, ip=ip, result="success")
+                     target=username, ip=ip, result="success",
+                     detail=f"revoked_sessions={revoked_count}")
 
     return {"message": "Password reset successful. You can now log in."}

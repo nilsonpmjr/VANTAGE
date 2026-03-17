@@ -6,7 +6,7 @@ import uuid
 import pytest
 from datetime import datetime, timedelta, timezone
 
-from auth import create_access_token
+from auth import create_access_token, hash_refresh_token
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -14,9 +14,11 @@ from auth import create_access_token
 def _make_session(username="techuser", role="tech", revoked=False, expired=False, session_id=None):
     """Build a fake refresh_token document."""
     now = datetime.now(timezone.utc)
+    raw_token = f"tok-{uuid.uuid4()}"
     return {
         "session_id": session_id or str(uuid.uuid4()),
-        "token": f"tok-{uuid.uuid4()}",
+        "token_hash": hash_refresh_token(raw_token),
+        "_raw_token": raw_token,
         "username": username,
         "role": role,
         "ip": "127.0.0.1",
@@ -161,7 +163,7 @@ async def test_revoke_other_sessions(async_client, fake_db):
     current_tok = f"tok-current-{uuid.uuid4()}"
     current = {
         "session_id": current_sid,
-        "token": current_tok,
+        "token_hash": hash_refresh_token(current_tok),
         "username": "techuser",
         "role": "tech",
         "ip": "127.0.0.1",

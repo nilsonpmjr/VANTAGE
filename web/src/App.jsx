@@ -141,7 +141,7 @@ export default function App() {
 
   if (!user && !isTransitioning) {
     if (resetToken) return <ResetPassword token={resetToken} onSuccess={clearResetToken} />;
-    if (mfaPending) return <MFAVerify preAuthToken={mfaPending.preAuthToken} onSuccess={completeMfaLogin} onCancel={cancelMfa} />;
+    if (mfaPending) return <MFAVerify onSuccess={completeMfaLogin} onCancel={cancelMfa} />;
     if (forgotPasswordMode) return <ForgotPassword onBack={() => setForgotPasswordMode(false)} />;
     return <Login onForgotPassword={() => setForgotPasswordMode(true)} />;
   }

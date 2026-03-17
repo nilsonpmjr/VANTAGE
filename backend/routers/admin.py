@@ -3,16 +3,18 @@ import io
 import json
 import re
 import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, HTTPException, Depends, Query, Request, UploadFile, File
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from db import db_manager
 from auth import require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
-from policies import get_password_policy, DEFAULT_PASSWORD_POLICY
+from identity import email_in_use, normalize_email
+from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
 from audit import log_action
 from logging_config import get_logger
 
@@ -243,8 +245,36 @@ async def update_user_permissions(
 
 _VALID_ROLES = {"admin", "manager", "tech"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
-_EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password_history"}
+_EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password_history", "normalized_email"}
 _IMPORT_COLUMNS = {"username", "name", "role", "email", "preferred_lang"}
+
+
+def _generate_temporary_password(policy: dict) -> str:
+    """
+    Generate a temporary password that satisfies the active password policy.
+    """
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    min_length = max(int(policy.get("min_length", 12) or 12), 12)
+
+    required_parts: list[str] = []
+    if policy.get("require_uppercase", False):
+        required_parts.append(secrets.choice(string.ascii_uppercase))
+    if policy.get("require_numbers", False):
+        required_parts.append(secrets.choice(string.digits))
+    if policy.get("require_symbols", False):
+        required_parts.append(secrets.choice("!@#$%^&*()-_=+"))
+    required_parts.append(secrets.choice(string.ascii_lowercase))
+
+    for _ in range(20):
+        chars = required_parts[:]
+        while len(chars) < min_length:
+            chars.append(secrets.choice(alphabet))
+        secrets.SystemRandom().shuffle(chars)
+        password = "".join(chars)
+        if not validate_password(password, policy):
+            return password
+
+    raise RuntimeError("Could not generate temporary password satisfying active policy.")
 
 
 def _sanitize_user(u: dict) -> dict:
@@ -274,8 +304,8 @@ async def export_users(
 
     if format == "json":
         content = json.dumps(safe, ensure_ascii=False, indent=2)
-        return StreamingResponse(
-            iter([content]),
+        return Response(
+            content=content,
             media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=users_export.json"},
         )
@@ -290,8 +320,8 @@ async def export_users(
         if isinstance(row.get("extra_permissions"), list):
             row["extra_permissions"] = "|".join(row["extra_permissions"])
         writer.writerow(row)
-    return StreamingResponse(
-        iter([output.getvalue().encode("utf-8-sig")]),
+    return Response(
+        content=output.getvalue().encode("utf-8-sig"),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=users_export.csv"},
     )
@@ -333,12 +363,15 @@ async def import_users(
     created = 0
     skipped = 0
     errors: list[dict] = []
+    temporary_credentials: list[dict] = []
+    batch_usernames: set[str] = set()
+    batch_emails: set[str] = set()
 
     for i, row in enumerate(rows, start=2):  # row 1 is header
         username = (row.get("username") or "").strip().lower()
         name = (row.get("name") or "").strip()
         role = (row.get("role") or "tech").strip().lower()
-        email = (row.get("email") or "").strip().lower() or None
+        email = normalize_email(row.get("email"))
         preferred_lang = (row.get("preferred_lang") or "pt").strip().lower()
 
         # Validate
@@ -356,14 +389,22 @@ async def import_users(
             continue
         if preferred_lang not in {"pt", "en", "es"}:
             preferred_lang = "pt"
+        if username in batch_usernames:
+            errors.append({"row": i, "reason": "duplicate_username_in_file", "username": username})
+            continue
+        if email and email in batch_emails:
+            errors.append({"row": i, "reason": "duplicate_email_in_file", "username": username})
+            continue
 
         existing = await db.users.find_one({"username": username})
         if existing:
             skipped += 1
             continue
+        if await email_in_use(db, email):
+            errors.append({"row": i, "reason": "email_already_in_use", "username": username})
+            continue
 
-        # Generate a random password that satisfies basic policy
-        raw_password = secrets.token_urlsafe(14)
+        raw_password = _generate_temporary_password(policy)
         hashed = get_password_hash(raw_password)
 
         await db.users.insert_one({
@@ -371,6 +412,7 @@ async def import_users(
             "name": name,
             "role": role,
             "email": email,
+            "normalized_email": email,
             "preferred_lang": preferred_lang,
             "password_hash": hashed,
             "password_history": [hashed],
@@ -387,6 +429,14 @@ async def import_users(
             "extra_permissions": [],
         })
         created += 1
+        batch_usernames.add(username)
+        if email:
+            batch_emails.add(email)
+        temporary_credentials.append({
+            "username": username,
+            "temporary_password": raw_password,
+            "email": email,
+        })
 
     ip = request.client.host if request.client else ""
     await log_action(
@@ -397,7 +447,12 @@ async def import_users(
         result="success",
         detail=f"created={created}, skipped={skipped}, errors={len(errors)}",
     )
-    return {"created": created, "skipped": skipped, "errors": errors}
+    return {
+        "created": created,
+        "skipped": skipped,
+        "errors": errors,
+        "temporary_credentials": temporary_credentials,
+    }
 
 
 # ── PII masking (LGPD) ───────────────────────────────────────────────────────

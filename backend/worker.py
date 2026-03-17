@@ -6,6 +6,7 @@ from db import db_manager
 from clients.api_client_async import AsyncThreatIntelClient
 from analyzer import generate_heuristic_report, format_report_to_markdown
 from scoring import compute_risk_score, compute_verdict
+from scans import build_scan_payload
 
 logger = logging.getLogger("Worker")
 
@@ -114,16 +115,22 @@ async def process_single_target(
         report_es = generate_heuristic_report(target, target_type, summary, clean_results, lang="es")
 
         # 4. Update the document in db.scans (same collection used by main.py)
-        update_doc = {
-            "results": clean_results,
-            "verdict": verdict,
-            "risk_score": risk_score,
-            "analysis_report": format_report_to_markdown(report_pt),
-            "analysis_reports": {
+        payload = build_scan_payload(
+            target=target,
+            target_type=target_type,
+            results=clean_results,
+            summary=summary,
+            analysis_report=format_report_to_markdown(report_pt),
+            analysis_reports={
                 "pt": format_report_to_markdown(report_pt),
                 "en": format_report_to_markdown(report_en),
                 "es": format_report_to_markdown(report_es),
             },
+        )
+        update_doc = {
+            "verdict": verdict,
+            "risk_score": risk_score,
+            "data": payload,
             "updated_at": datetime.now(timezone.utc),
         }
 
@@ -275,10 +282,30 @@ async def run_scheduled_recon():
 
     logger.info(f"Recon scheduler: {len(items)} scheduled scan(s) due")
 
-    from routers.recon import _process_scan, _job_queues
+    from audit import log_action
+    from routers.recon import _process_scan, _job_queues, get_recon_eligibility_failure
 
     for item in items:
         try:
+            _, ineligible_reason = await get_recon_eligibility_failure(db, item["analyst"])
+            if ineligible_reason:
+                await db.recon_scheduled.update_one(
+                    {"_id": item["_id"]},
+                    {"$set": {"status": "failed", "error": ineligible_reason}},
+                )
+                await log_action(
+                    db,
+                    user=item["analyst"],
+                    action="recon_scheduled_denied",
+                    target=item["target"],
+                    result="denied",
+                    detail=ineligible_reason,
+                )
+                logger.warning(
+                    f"Recon scheduler: skipping {item['_id']} for '{item['analyst']}' ({ineligible_reason})"
+                )
+                continue
+
             # Mark as running
             await db.recon_scheduled.update_one(
                 {"_id": item["_id"]},

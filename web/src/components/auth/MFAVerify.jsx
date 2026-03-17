@@ -6,11 +6,10 @@ import API_URL from '../../config';
 /**
  * OTP input screen shown after successful password login when mfa_required=true.
  * Props:
- *   preAuthToken  – short-lived JWT from login response
  *   onSuccess(user) – called with full user object after OTP verification
  *   onCancel()    – called when user wants to go back to login
  */
-export default function MFAVerify({ preAuthToken, onSuccess, onCancel }) {
+export default function MFAVerify({ onSuccess, onCancel }) {
     const { t } = useTranslation();
     const [otp, setOtp] = useState('');
     const [error, setError] = useState('');
@@ -30,7 +29,7 @@ export default function MFAVerify({ preAuthToken, onSuccess, onCancel }) {
                 method: 'POST',
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pre_auth_token: preAuthToken, otp: otp.replace(/\s/g, '') }),
+                body: JSON.stringify({ otp: otp.replace(/\s/g, '') }),
             });
             if (!resp.ok) {
                 const err = await resp.json().catch(() => ({}));

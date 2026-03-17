@@ -61,6 +61,19 @@ async def test_forgot_password_creates_token_in_db(client, fake_db):
 
 
 @pytest.mark.asyncio
+async def test_forgot_password_uses_normalized_email_lookup(client, fake_db):
+    await fake_db.users.update_one(
+        {"username": "admin"},
+        {"$set": {"normalized_email": "admin@soc.local"}},
+    )
+    resp = await client.post("/api/auth/forgot-password", json={"email": "  ADMIN@SOC.LOCAL  "})
+    assert resp.status_code == 200
+    record = await fake_db.password_reset_tokens.find_one({"username": "admin"})
+    assert record is not None
+    assert record["email"] == "admin@soc.local"
+
+
+@pytest.mark.asyncio
 async def test_forgot_password_inactive_user_no_token(client, fake_db):
     # inactive user has no email, but even if they did — inactive should be skipped
     await client.post("/api/auth/forgot-password", json={"email": "inactive@soc.local"})
@@ -244,6 +257,21 @@ async def test_create_user_with_email(client, fake_db):
 
     user = await fake_db.users.find_one({"username": "newuser"})
     assert user["email"] == "newuser@soc.local"
+    assert user["normalized_email"] == "newuser@soc.local"
+
+
+@pytest.mark.asyncio
+async def test_create_user_rejects_duplicate_email_case_insensitive(client):
+    admin_token = create_access_token({"sub": "admin", "role": "admin"})
+    resp = await client.post("/api/users", json={
+        "username": "newuser",
+        "password": "Pass123!",
+        "role": "tech",
+        "name": "New User",
+        "email": "ADMIN@SOC.LOCAL",
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Email already in use"
 
 
 @pytest.mark.asyncio
@@ -256,3 +284,14 @@ async def test_update_user_email(client, fake_db):
 
     user = await fake_db.users.find_one({"username": "techuser"})
     assert user["email"] == "updated@soc.local"
+    assert user["normalized_email"] == "updated@soc.local"
+
+
+@pytest.mark.asyncio
+async def test_update_user_email_rejects_duplicate_case_insensitive(client):
+    admin_token = create_access_token({"sub": "admin", "role": "admin"})
+    resp = await client.put("/api/users/techuser", json={
+        "email": " ADMIN@SOC.LOCAL ",
+    }, headers={"Authorization": f"Bearer {admin_token}"})
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Email already in use"

@@ -88,7 +88,7 @@ async def test_confirm_without_enroll_fails(async_client, auth_headers):
 # ── Login MFA gate ────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_login_with_mfa_enabled_returns_pre_auth_token(async_client, fake_db):
+async def test_login_with_mfa_enabled_returns_pre_auth_cookie(async_client, fake_db):
     _enable_mfa_for(fake_db, "admin")
     resp = await async_client.post(
         "/api/auth/login",
@@ -97,7 +97,8 @@ async def test_login_with_mfa_enabled_returns_pre_auth_token(async_client, fake_
     assert resp.status_code == 200
     data = resp.json()
     assert data.get("mfa_required") is True
-    assert "pre_auth_token" in data
+    assert "pre_auth_token" not in data
+    assert "pre_auth_token" in resp.cookies
 
 
 @pytest.mark.asyncio
@@ -132,19 +133,18 @@ async def test_login_tech_without_mfa_succeeds(async_client, fake_db):
 async def test_verify_mfa_completes_login(async_client, fake_db):
     secret = _enable_mfa_for(fake_db, "admin")
 
-    # Step 1: password login → pre_auth_token
+    # Step 1: password login sets the pre_auth_token cookie
     login_resp = await async_client.post(
         "/api/auth/login",
         data={"username": "admin", "password": "admin123"},
     )
     assert login_resp.status_code == 200
-    pre_auth_token = login_resp.json()["pre_auth_token"]
 
     # Step 2: verify OTP
     otp = pyotp.TOTP(secret).now()
     verify_resp = await async_client.post(
         "/api/mfa/verify",
-        json={"pre_auth_token": pre_auth_token, "otp": otp},
+        json={"otp": otp},
     )
     assert verify_resp.status_code == 200
     data = verify_resp.json()
@@ -156,15 +156,14 @@ async def test_verify_mfa_completes_login(async_client, fake_db):
 async def test_verify_mfa_rejects_wrong_otp(async_client, fake_db):
     _enable_mfa_for(fake_db, "admin")
 
-    login_resp = await async_client.post(
+    await async_client.post(
         "/api/auth/login",
         data={"username": "admin", "password": "admin123"},
     )
-    pre_auth_token = login_resp.json()["pre_auth_token"]
 
     resp = await async_client.post(
         "/api/mfa/verify",
-        json={"pre_auth_token": pre_auth_token, "otp": "000000"},
+        json={"otp": "000000"},
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "invalid_otp"
@@ -175,9 +174,52 @@ async def test_verify_rejects_invalid_pre_auth_token(async_client, fake_db):
     _enable_mfa_for(fake_db, "admin")
     resp = await async_client.post(
         "/api/mfa/verify",
-        json={"pre_auth_token": "not.a.valid.token", "otp": "123456"},
+        json={"otp": "123456"},
+        cookies={"pre_auth_token": "not.a.valid.token"},
     )
     assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_verify_uses_current_role_from_user_doc(async_client, fake_db):
+    secret = _enable_mfa_for(fake_db, "admin")
+
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={"username": "admin", "password": "admin123"},
+    )
+    assert login_resp.status_code == 200
+
+    await fake_db.users.update_one(
+        {"username": "admin"},
+        {"$set": {"role": "tech"}},
+    )
+
+    otp = pyotp.TOTP(secret).now()
+    verify_resp = await async_client.post("/api/mfa/verify", json={"otp": otp})
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["user"]["role"] == "tech"
+
+
+@pytest.mark.asyncio
+async def test_verify_rejects_inactive_user(async_client, fake_db):
+    secret = _enable_mfa_for(fake_db, "admin")
+
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={"username": "admin", "password": "admin123"},
+    )
+    assert login_resp.status_code == 200
+
+    await fake_db.users.update_one(
+        {"username": "admin"},
+        {"$set": {"is_active": False}},
+    )
+
+    otp = pyotp.TOTP(secret).now()
+    verify_resp = await async_client.post("/api/mfa/verify", json={"otp": otp})
+    assert verify_resp.status_code == 403
+    assert verify_resp.json()["detail"] == "Inactive user account"
 
 
 # ── DELETE /api/mfa/{username} ────────────────────────────────────────────────

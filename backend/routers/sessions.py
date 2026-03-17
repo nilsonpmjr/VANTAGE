@@ -10,9 +10,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
-from auth import get_current_user, require_role
+from auth import get_current_user, require_role, hash_refresh_token
 from db import db_manager
 from audit import log_action
+from session_revocation import revoke_refresh_session, revoke_user_refresh_tokens
 
 router = APIRouter(prefix="/auth/sessions", tags=["sessions"])
 
@@ -53,6 +54,9 @@ def _parse_ua(user_agent: str) -> str:
 
 def _fmt(doc: dict, current_token: str) -> dict:
     """Serialize a refresh_token doc into a safe session payload."""
+    current_token_hash = hash_refresh_token(current_token) if current_token else None
+    stored_hash = doc.get("token_hash")
+    legacy_token = doc.get("token")
     return {
         "session_id": doc.get("session_id", ""),
         "ip": doc.get("ip") or "—",
@@ -60,7 +64,7 @@ def _fmt(doc: dict, current_token: str) -> dict:
         "user_agent": doc.get("user_agent", ""),
         "created_at": doc["created_at"].isoformat() if isinstance(doc.get("created_at"), datetime) else doc.get("created_at", ""),
         "expires_at": doc["expires_at"].isoformat() if isinstance(doc.get("expires_at"), datetime) else doc.get("expires_at", ""),
-        "is_current": doc.get("token") == current_token,
+        "is_current": (stored_hash and stored_hash == current_token_hash) or (legacy_token and legacy_token == current_token),
     }
 
 
@@ -107,14 +111,21 @@ async def revoke_other_sessions(
     })
     docs = await cursor.to_list(length=200)
 
-    revoked_count = 0
+    current_token_hash = hash_refresh_token(current_token) if current_token else None
+    current_session_id = None
     for doc in docs:
-        if doc.get("token") != current_token:
-            await db.refresh_tokens.update_one(
-                {"session_id": doc["session_id"]},
-                {"$set": {"revoked": True}},
-            )
-            revoked_count += 1
+        stored_hash = doc.get("token_hash")
+        legacy_token = doc.get("token")
+        is_current = (stored_hash and stored_hash == current_token_hash) or (legacy_token and legacy_token == current_token)
+        if is_current:
+            current_session_id = doc.get("session_id")
+            break
+
+    revoked_count = await revoke_user_refresh_tokens(
+        db,
+        current_user["username"],
+        exclude_session_id=current_session_id,
+    )
 
     ip = request.client.host if request.client else "unknown"
     await log_action(
@@ -152,10 +163,9 @@ async def revoke_session(
     if current_user["role"] != "admin" and doc.get("username") != current_user["username"]:
         raise HTTPException(status_code=403, detail="forbidden")
 
-    await db.refresh_tokens.update_one(
-        {"session_id": session_id},
-        {"$set": {"revoked": True}},
-    )
+    revoked = await revoke_refresh_session(db, session_id)
+    if not revoked:
+        raise HTTPException(status_code=404, detail="session_not_found")
 
     ip = request.client.host if request.client else "unknown"
     await log_action(

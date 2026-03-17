@@ -54,6 +54,11 @@ async def test_process_single_target_uses_scans_collection():
     call_args = mock_db.scans.update_one.call_args
     # First arg is the filter — must use _id
     assert "_id" in call_args[0][0]
+    update_doc = call_args[0][1]["$set"]
+    assert "data" in update_doc
+    assert update_doc["data"]["target"] == mock_scan["target"]
+    assert update_doc["data"]["type"] == mock_scan["type"]
+    assert "summary" in update_doc["data"]
 
 
 @pytest.mark.asyncio

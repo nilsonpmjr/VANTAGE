@@ -1,0 +1,39 @@
+/*
+ * VANTAGE — Dark theme
+ *
+ * Fonte canonica atual do branding no modo principal.
+ */
+
+:root:not([data-theme]),
+:root[data-brand='vantage']:not([data-theme]),
+:root[data-brand='vantage'][data-theme='dark'] {
+  /* Core surfaces */
+  --v-midnight: #020617;
+  --v-steel: #0f172a;
+  --v-slate-surface: #1e293b;
+
+  /* Brand accent */
+  --v-cyan: #38bdf8;
+  --v-cyan-rgb: 56, 189, 248;
+  --v-cyan-secondary: #2563eb;
+  --v-cyan-secondary-hover: #1d4ed8;
+
+  /* Text */
+  --v-silver: #f8fafc;
+  --v-text-secondary: #94a3b8;
+  --v-slate-gray: #64748b;
+
+  /* Borders & glow */
+  --v-border: rgba(56, 189, 248, 0.3);
+  --v-glow: rgba(56, 189, 248, 0.15);
+
+  /* Glass */
+  --v-glass-bg: rgba(15, 23, 42, 0.6);
+  --v-glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Gradient */
+  --v-gradient: radial-gradient(circle at calc(50% + 40px) 0%, #1e293b 0%, #020617 70%);
+
+  /* Card */
+  --v-bg-card: rgba(15, 23, 42, 0.5);
+}

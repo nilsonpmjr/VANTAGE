@@ -6,6 +6,16 @@
       "sourceType": "github",
       "computedHash": "909d9a915a11d826a89c53710c8002e7dfadc0c4e4f136f521e400fa5d0f63f2"
     },
+    "devops-engineer": {
+      "source": "jeffallan/claude-skills",
+      "sourceType": "github",
+      "computedHash": "41795f38a0cc207a5336a60313b84df732b5be2ed9215b3a0f8202f9e0e932fe"
+    },
+    "devops-rollout-plan": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "computedHash": "9c71bc5839febec1c42fdd6f5aed3beb3fa9df399460f0d20310124abd77cc31"
+    },
     "gsap": {
       "source": "martinholovsky/claude-skills-generator",
       "sourceType": "github",
@@ -20,6 +30,11 @@
       "source": "softaworks/agent-toolkit",
       "sourceType": "github",
       "computedHash": "34a38e6acc60d4529612d41ffe740bca0060d3c5e89e2a0d24ae795f67157fbb"
+    },
+    "information-security-manager-iso27001": {
+      "source": "davila7/claude-code-templates",
+      "sourceType": "github",
+      "computedHash": "c9aed76f3932b4254782fafeae1a812f996e9a722bde4e1d1aadd91b2de89f8f"
     },
     "security-audit": {
       "source": "netresearch/security-audit-skill",

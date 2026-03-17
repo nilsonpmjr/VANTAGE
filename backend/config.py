@@ -3,6 +3,8 @@ from typing import List
 
 
 class Settings(BaseSettings):
+    app_name: str = "VANTAGE"
+
     # Authentication — no default; must be set via environment variable
     jwt_secret: str
     algorithm: str = "HS256"

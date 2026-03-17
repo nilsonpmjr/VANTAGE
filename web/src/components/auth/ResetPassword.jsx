@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Lock, Loader, CheckCircle } from 'lucide-react';
 import API_URL from '../../config';
+import useBrandTheme from '../../branding/useBrandTheme';
 
 export default function ResetPassword({ token, onSuccess }) {
     const { t } = useTranslation();
@@ -10,6 +11,7 @@ export default function ResetPassword({ token, onSuccess }) {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [done, setDone] = useState(false);
+    const { brand, logoPath } = useBrandTheme();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -73,7 +75,7 @@ export default function ResetPassword({ token, onSuccess }) {
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                    <img src="/logo.svg" alt="Logo" style={{ width: '200px', height: 'auto' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                    <img src={logoPath} alt={brand.name} style={{ width: '200px', height: 'auto' }} onError={(e) => { e.target.style.display = 'none'; }} />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>

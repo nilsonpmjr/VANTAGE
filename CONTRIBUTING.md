@@ -1,6 +1,6 @@
-# Contributing to iT.eam Threat Intelligence Tool
+# Contributing to VANTAGE
 
-Thank you for your interest in contributing! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to VANTAGE. This document provides guidelines for contributing to the project.
 
 ## Code of Conduct
 

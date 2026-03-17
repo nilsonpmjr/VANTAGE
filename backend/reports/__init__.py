@@ -1,5 +1,5 @@
 """
-Reports package for Threat Intelligence Tool CLI output.
+Reports package for VANTAGE CLI output.
 
 Exposes ReportGenerator for backward compatibility with threat_check.py.
 """

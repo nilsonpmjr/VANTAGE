@@ -1,5 +1,5 @@
 """
-Heuristic report generator for Threat Intelligence Tool.
+Heuristic report generator for VANTAGE.
 
 Generates human-readable analysis reports in PT-BR, EN, and ES based on
 aggregated results from multiple threat intelligence APIs.

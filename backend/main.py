@@ -167,8 +167,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="Threat Intelligence API",
-    description="API for scanning IPs, Domains, and Hashes against multiple Threat Intel sources.",
+    title=f"{settings.app_name} API",
+    description=f"{settings.app_name} — Threat intelligence platform for SOC analysts.",
     version="1.0.0",
     lifespan=lifespan,
 )

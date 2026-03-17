@@ -1,19 +1,19 @@
 :root {
   /* Premium Dark Theme Core */
-  --bg-base: #020617;
+  --bg-base: var(--v-midnight);
   /* slate-950 */
-  --bg-gradient: radial-gradient(circle at calc(50% + 40px) 0%, #1e293b 0%, #020617 70%);
-  --text-primary: #f8fafc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
+  --bg-gradient: var(--v-gradient);
+  --text-primary: var(--v-silver);
+  --text-secondary: var(--v-text-secondary);
+  --text-muted: var(--v-slate-gray);
 
   /* Brand accents */
-  --primary: #38bdf8;
+  --primary: var(--v-cyan);
   --red: #ef4444;
   --green: #10b981;
-  --accent-glow: rgba(56, 189, 248, 0.15);
+  --accent-glow: var(--v-glow);
   /* sky-400 with opacity */
-  --accent-border: rgba(56, 189, 248, 0.3);
+  --accent-border: var(--v-border);
 
   /* Status Colors */
   --status-safe: #10b981;
@@ -26,15 +26,15 @@
   --status-neutral-bg: rgba(59, 130, 246, 0.1);
 
   /* Borders and Glass */
-  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-bg: var(--v-glass-bg);
   /* slate-900 / 60% */
-  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border: var(--v-glass-border);
   --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
   --glass-blur: blur(16px);
 
   /* Background tones (used in cards, panels, inputs) */
-  --bg-card: rgba(15, 23, 42, 0.5);
-  --bg-main: #0f172a;
+  --bg-card: var(--v-bg-card);
+  --bg-main: var(--v-steel);
 
   /* Layout */
   --gap-sm: 0.5rem;
@@ -189,16 +189,16 @@ h4 {
 
 /* Premium Primary Button */
 .btn-primary {
-  background: linear-gradient(135deg, var(--primary) 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--v-cyan-secondary) 100%);
   color: #ffffff;
-  border: 1px solid rgba(56, 189, 248, 0.5);
+  border: 1px solid rgba(var(--v-cyan-rgb), 0.5);
   padding: 0.625rem 1.5rem;
   border-radius: var(--radius-md);
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 4px 14px 0 rgba(56, 189, 248, 0.25);
+  box-shadow: 0 4px 14px 0 rgba(var(--v-cyan-rgb), 0.25);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -207,9 +207,9 @@ h4 {
 
 .btn-primary:not(:disabled):hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px 0 rgba(56, 189, 248, 0.4);
-  background: linear-gradient(135deg, #38bdf8 0%, #1d4ed8 100%);
-  border-color: rgba(56, 189, 248, 0.8);
+  box-shadow: 0 6px 20px 0 rgba(var(--v-cyan-rgb), 0.4);
+  background: linear-gradient(135deg, var(--primary) 0%, var(--v-cyan-secondary-hover) 100%);
+  border-color: rgba(var(--v-cyan-rgb), 0.8);
 }
 
 .btn-primary:active {
@@ -242,7 +242,7 @@ h4 {
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background: rgba(56, 189, 248, 0.08);
+  background: rgba(var(--v-cyan-rgb), 0.08);
   border-color: var(--accent-border);
 }
 
@@ -319,15 +319,15 @@ h4 {
 }
 
 .v-btn--primary {
-  background: linear-gradient(135deg, var(--ds-brand) 0%, #2563eb 100%);
+  background: linear-gradient(135deg, var(--ds-brand) 0%, var(--v-cyan-secondary) 100%);
   color: #ffffff;
-  border-color: rgba(56, 189, 248, 0.45);
-  box-shadow: 0 10px 28px rgba(56, 189, 248, 0.2);
+  border-color: rgba(var(--v-cyan-rgb), 0.45);
+  box-shadow: 0 10px 28px rgba(var(--v-cyan-rgb), 0.2);
 }
 
 .v-btn--primary:hover:not(:disabled) {
-  border-color: rgba(56, 189, 248, 0.75);
-  box-shadow: 0 14px 34px rgba(56, 189, 248, 0.28);
+  border-color: rgba(var(--v-cyan-rgb), 0.75);
+  box-shadow: 0 14px 34px rgba(var(--v-cyan-rgb), 0.28);
 }
 
 .v-btn--secondary {
@@ -338,7 +338,7 @@ h4 {
 }
 
 .v-btn--secondary:hover:not(:disabled) {
-  background: rgba(56, 189, 248, 0.08);
+  background: rgba(var(--v-cyan-rgb), 0.08);
   border-color: var(--ds-brand-border);
 }
 
@@ -387,7 +387,7 @@ h4 {
 .v-badge--primary {
   background: var(--ds-brand-soft);
   color: var(--ds-brand);
-  border-color: rgba(56, 189, 248, 0.28);
+  border-color: rgba(var(--v-cyan-rgb), 0.28);
 }
 
 .v-badge--success {
@@ -1148,7 +1148,7 @@ h4 {
 
 .tour-tooltip__btn--primary {
   background: var(--primary);
-  color: #0a0f1a;
+  color: var(--bg-main);
 }
 
 .tour-tooltip__btn--primary:hover {
@@ -1250,7 +1250,7 @@ h4 {
 .ctx-menu-item.active {
   color: var(--primary);
   border-left-color: var(--primary);
-  background: rgba(56, 189, 248, 0.06);
+  background: rgba(var(--v-cyan-rgb), 0.06);
   font-weight: 600;
 }
 
@@ -1588,7 +1588,7 @@ h4 {
 }
 
 .data-table tbody tr.selected {
-  background: rgba(56, 189, 248, 0.06);
+  background: rgba(var(--v-cyan-rgb), 0.06);
 }
 
 .data-table tbody tr:last-child td {

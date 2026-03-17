@@ -28,14 +28,14 @@ async def seed_admin_user():
         logger.info("Initializing default Admin user...")
         admin_doc = {
             "username": "admin",
-            "password_hash": get_password_hash("iteam123"),
+            "password_hash": get_password_hash("vantage123"),
             "role": "admin",
             "name": "Administrador SOC",
             "preferred_lang": "pt",
             "created_at": datetime.now(timezone.utc)
         }
         await db.users.insert_one(admin_doc)
-        logger.info("Default Admin user created successfully. [admin / iteam123]")
+        logger.info("Default Admin user created successfully. [admin / vantage123]")
 
         # Test: create a standard tech user
         tech_doc = {

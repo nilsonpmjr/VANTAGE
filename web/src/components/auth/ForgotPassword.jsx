@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Mail, Loader, ShieldAlert, ArrowLeft } from 'lucide-react';
 import API_URL from '../../config';
+import useBrandTheme from '../../branding/useBrandTheme';
 
 export default function ForgotPassword({ onBack }) {
     const { t } = useTranslation();
@@ -9,6 +10,7 @@ export default function ForgotPassword({ onBack }) {
     const [loading, setLoading] = useState(false);
     const [sent, setSent] = useState(false);
     const [error, setError] = useState('');
+    const { brand, logoPath } = useBrandTheme();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -37,7 +39,7 @@ export default function ForgotPassword({ onBack }) {
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-                    <img src="/logo.svg" alt="Logo" style={{ width: '200px', height: 'auto' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                    <img src={logoPath} alt={brand.name} style={{ width: '200px', height: 'auto' }} onError={(e) => { e.target.style.display = 'none'; }} />
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1rem' }}>

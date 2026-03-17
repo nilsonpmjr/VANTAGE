@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="genericCompactTitle genericCompactDesc">
+  <title id="genericCompactTitle">Generic Workspace Compact Logo</title>
+  <desc id="genericCompactDesc">Placeholder compact symbol for generic branding mode.</desc>
+  <defs>
+    <linearGradient id="genericCompactAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="#111827" />
+  <path d="M64 26 92 40v20c0 21.1-11.3 40.2-28 49-16.7-8.8-28-27.9-28-49V40l28-14Z" fill="url(#genericCompactAccent)" />
+  <path d="M64 45 79 53v8c0 11.2-5.8 21-15 26.4C54.8 82 49 72.2 49 61v-8l15-8Z" fill="#f9fafb" opacity=".95" />
+</svg>

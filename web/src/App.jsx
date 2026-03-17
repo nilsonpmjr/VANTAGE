@@ -21,6 +21,7 @@ import WatchlistSettings from './components/profile/WatchlistSettings';
 import TourOverlay from './components/shared/TourOverlay';
 import { useTranslation } from 'react-i18next';
 import API_URL from './config';
+import useBrandTheme from './branding/useBrandTheme';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -54,6 +55,7 @@ export default function App() {
   const [reconOpenHistory, setReconOpenHistory] = useState(false);
 
   const { t, i18n } = useTranslation();
+  const { brand, logoPath } = useBrandTheme();
 
   // BUG-02: Clear recon navigation state when leaving the recon view
   const setCurrentViewSafe = (view) => {
@@ -174,7 +176,7 @@ export default function App() {
           >
             <Menu size={20} />
           </button>
-          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>iT.eam</span>
+          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--text-primary)' }}>{brand.name}</span>
         </div>
 
         {/* Password expiry / force-reset notice (UX-06: role=alert) */}
@@ -217,8 +219,8 @@ export default function App() {
 
                 <div className="header-left">
                   <img
-                    src="/logo.svg"
-                    alt="iT.eam Logo"
+                    src={logoPath}
+                    alt={brand.name}
                     className="app-logo"
                     style={{ cursor: 'pointer' }}
                     onClick={() => {
@@ -228,7 +230,7 @@ export default function App() {
                     }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
-                  <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.title')}</p>
+                  <p className="app-subtitle" style={{ marginLeft: 0 }}>{t('app.tagline', { defaultValue: brand.tagline })}</p>
                 </div>
 
                 <div className="header-center" data-tour="search-bar">
@@ -406,7 +408,7 @@ export default function App() {
 
         {/* Shared footer — end of scrollable content */}
         <footer style={{ display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0, background: 'var(--bg-main)' }}>
-          <p>&copy; {new Date().getFullYear()} iT.eam Next Generation SOC. All rights reserved.</p>
+          <p>&copy; {new Date().getFullYear()} {brand.copyrightHolder}. All rights reserved.</p>
         </footer>
       </div>
 

@@ -1,5 +1,5 @@
 """
-Cliente API melhorado para Threat Intelligence Tool.
+Cliente API melhorado para VANTAGE.
 
 Features:
 - Suporte async/await para consultas paralelas

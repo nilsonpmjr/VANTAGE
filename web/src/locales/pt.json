@@ -1,6 +1,8 @@
 {
     "app": {
-        "title": "Threat Intelligence Hub",
+        "name": "VANTAGE",
+        "tagline": "Plataforma de Cibersegurança",
+        "title": "VANTAGE — Plataforma de Cibersegurança",
         "services": "Serviços Integrados",
         "scanning": "Consultando múltiplas fontes de inteligência...",
         "summary": "Resumo",

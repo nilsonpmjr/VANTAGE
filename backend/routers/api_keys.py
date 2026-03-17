@@ -1,10 +1,10 @@
 """
 API Keys management endpoints (FASE 3a).
 
-Key format : iti_{48 hex chars}  →  52 chars total, e.g. iti_a1b2c3...
+Key format : vtg_{48 hex chars}  →  52 chars total, e.g. vtg_a1b2c3...
 Storage    : only SHA-256(key) is persisted — the raw key is shown once on creation.
-Auth       : any endpoint that accepts Bearer tokens will also accept iti_* keys
-             via the patched _resolve_user() in auth.py.
+Auth       : any endpoint that accepts Bearer tokens will accept vtg_* keys and
+             legacy iti_* keys via the patched _resolve_user() in auth.py.
 """
 
 import secrets
@@ -23,7 +23,7 @@ VALID_SCOPES = ["analyze", "recon", "batch", "stats"]
 
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
-_KEY_PREFIX = "iti_"
+_KEY_PREFIX = "vtg_"
 _KEY_RAND_BYTES = 24          # 48 hex chars → 52-char total key
 
 
@@ -32,7 +32,7 @@ def _generate_raw_key() -> str:
 
 
 def _key_prefix_display(raw_key: str) -> str:
-    """Return the first 12 chars of the key for safe display, e.g. 'iti_a1b2c3d4'."""
+    """Return the first 12 chars of the key for safe display, e.g. 'vtg_a1b2c3d4'."""
     return raw_key[:12] + "…"
 
 

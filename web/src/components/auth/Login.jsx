@@ -4,6 +4,7 @@ import { ShieldAlert, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import '../../index.css';
 import { fmtTimeBRT } from '../../utils/dateFormat';
+import useBrandTheme from '../../branding/useBrandTheme';
 
 export default function Login({ onForgotPassword }) {
     const [username, setUsername] = useState('');
@@ -13,6 +14,7 @@ export default function Login({ onForgotPassword }) {
 
     const { login } = useAuth();
     const { t } = useTranslation();
+    const { brand, logoPath } = useBrandTheme();
 
     const handleLogin = async (e) => {
         e.preventDefault();
@@ -41,8 +43,8 @@ export default function Login({ onForgotPassword }) {
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
                     <img
-                        src="/logo.svg"
-                        alt="iT.eam Logo"
+                        src={logoPath}
+                        alt={brand.name}
                         style={{ width: '200px', height: 'auto', marginBottom: '0.5rem' }}
                         onError={(e) => { e.target.style.display = 'none'; }}
                     />

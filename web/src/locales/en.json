@@ -1,6 +1,8 @@
 {
     "app": {
-        "title": "Threat Intelligence Hub",
+        "name": "VANTAGE",
+        "tagline": "Cybersecurity Platform",
+        "title": "VANTAGE — Cybersecurity Platform",
         "services": "Integrated Services",
         "scanning": "Scanning multiple intelligence sources...",
         "summary": "Summary",

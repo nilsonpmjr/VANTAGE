@@ -1,5 +1,5 @@
 """
-Shared risk-scoring logic for the Threat Intelligence Tool.
+Shared risk-scoring logic for VANTAGE.
 
 Used by both the /analyze endpoint and the background worker to ensure
 consistent verdicts across all paths.

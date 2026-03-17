@@ -83,7 +83,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
     Token resolution order:
     1. HttpOnly cookie `access_token` (web session)
     2. Authorization: Bearer <token> header
-       – if token starts with 'iti_' → treat as API key (hash & lookup)
+       – if token starts with 'vtg_' or legacy 'iti_' → treat as API key (hash & lookup)
        – otherwise → decode as JWT
     """
     credentials_exception = HTTPException(
@@ -102,7 +102,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
 
     # ── API Key path ─────────────────────────────────────────────────────────
     _api_key_scopes = None
-    if token.startswith("iti_"):
+    if token.startswith(("vtg_", "iti_")):
         key_hash = hash_api_key(token)
         key_doc = await db.api_keys.find_one({"key_hash": key_hash, "revoked": False})
         if not key_doc:
@@ -242,7 +242,7 @@ def require_role(allowed_roles: list):
     Dependency to restrict endpoint access based on user role.
     Allowed roles: 'admin', 'manager', 'tech'
     """
-    def role_checker(current_user: dict = Depends(get_current_user)):
+    async def role_checker(current_user: dict = Depends(get_current_user)):
         if current_user["role"] not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -280,7 +280,7 @@ def require_permission(permission: str):
     Dependency factory that enforces a fine-grained permission check.
     Passes if the user is admin OR has the permission in extra_permissions[].
     """
-    def checker(current_user: dict = Depends(get_current_user)):
+    async def checker(current_user: dict = Depends(get_current_user)):
         if not has_permission(current_user, permission):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -296,7 +296,7 @@ def require_api_scope(scope: str):
     If the request is authenticated via JWT (no _api_key_scopes), it always passes.
     If via API key, the key must include the required scope.
     """
-    def checker(current_user: dict = Depends(get_current_user)):
+    async def checker(current_user: dict = Depends(get_current_user)):
         scopes = current_user.get("_api_key_scopes")
         if scopes is not None and scope not in scopes:
             raise HTTPException(

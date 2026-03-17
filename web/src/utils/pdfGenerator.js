@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveAs } from 'file-saver';
+import brand from '../branding/config';
 
 // Helper to format dates
 const formatDate = () => {
@@ -47,18 +48,16 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
     const loc = t[lang];
 
     // --- BRANDING HEADER ---
-    // iT.eam dark blue styling
-    doc.setFillColor(15, 23, 42); // slate-900
+    doc.setFillColor(2, 6, 23);
     doc.rect(0, 0, 210, 30, 'F');
 
-    // Custom iT.eam branding accent line
-    doc.setFillColor(56, 189, 248); // sky-400
+    doc.setFillColor(0, 212, 255);
     doc.rect(0, 30, 210, 2, 'F');
 
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('iT.eam SOC', 15, 20);
+    doc.text(brand.name, 15, 20);
 
     doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
@@ -166,7 +165,7 @@ export const generatePDFReport = (data, summaryText, lang = 'pt') => {
 
     // Format filename safely (replacing dots with underscores to prevent browser extension confusion)
     const safeTarget = data.target.replace(/[^a-zA-Z0-9]/g, '_');
-    const fileName = `iTeam_ThreatReport_${safeTarget}.pdf`;
+    const fileName = `${brand.pdfPrefix}_${safeTarget}.pdf`;
 
     // Save the PDF using FileSaver to enforce the filename in all browsers
     const pdfBlob = doc.output('blob');

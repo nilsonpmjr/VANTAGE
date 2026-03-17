@@ -1,4 +1,4 @@
-# Security Policy
+# VANTAGE Security Policy
 
 ## Supported Versions
 
@@ -11,7 +11,7 @@
 
 **Please do not open a public GitHub issue for security vulnerabilities.**
 
-If you discover a security vulnerability, please report it responsibly:
+If you discover a security vulnerability in VANTAGE, please report it responsibly:
 
 1. **Email:** Send a detailed report to the project maintainers via the email listed in the repository's GitHub profile
 2. **Include:**
@@ -29,7 +29,7 @@ If you discover a security vulnerability, please report it responsibly:
 
 ## Security Measures in Place
 
-This project implements the following security controls:
+VANTAGE implements the following security controls:
 
 - **Authentication:** JWT + HttpOnly cookies with SameSite=Strict, refresh token rotation
 - **MFA:** TOTP-based two-factor authentication with AES-256 encrypted secrets

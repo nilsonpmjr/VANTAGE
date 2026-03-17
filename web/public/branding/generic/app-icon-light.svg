@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="genericAppLightTitle genericAppLightDesc">
+  <title id="genericAppLightTitle">Generic Workspace App Icon Light</title>
+  <desc id="genericAppLightDesc">Placeholder light app icon for generic branding mode.</desc>
+  <defs>
+    <linearGradient id="genericAppLightAccent" x1="18%" y1="12%" x2="88%" y2="88%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="64" fill="#f3f4f6" />
+  <path d="M128 48 184 76v40c0 42.1-22.8 80.2-56 97.5-33.2-17.3-56-55.4-56-97.5V76l56-28Z" fill="url(#genericAppLightAccent)" />
+  <path d="M128 88 158 103v13c0 22.4-11.4 42.2-30 53.3-18.6-11.1-30-30.9-30-53.3v-13l30-15Z" fill="#eff6ff" opacity=".98" />
+</svg>

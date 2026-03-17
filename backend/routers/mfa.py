@@ -81,7 +81,7 @@ async def enroll_mfa(
     totp = pyotp.TOTP(secret)
 
     # Build provisioning URI (compatible with Google Authenticator, Authy, etc.)
-    qr_uri = totp.provisioning_uri(name=username, issuer_name="Threat Intelligence Hub")
+    qr_uri = totp.provisioning_uri(name=username, issuer_name=settings.app_name)
 
     # Generate and store backup codes (hashed)
     backup_codes = _generate_backup_codes(8)

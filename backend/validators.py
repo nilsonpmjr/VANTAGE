@@ -1,5 +1,5 @@
 """
-Módulo de validação de inputs para Threat Intelligence Tool.
+Módulo de validação de inputs para VANTAGE.
 
 Este módulo fornece validação robusta e segura de diferentes tipos de indicadores
 de ameaça (IoCs - Indicators of Compromise).

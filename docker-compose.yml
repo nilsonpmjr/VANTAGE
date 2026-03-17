@@ -1,7 +1,7 @@
 services:
   mongodb:
     image: mongo:8
-    container_name: iteam_threat_mongo
+    container_name: vantage_mongo
     restart: unless-stopped
     network_mode: host
     environment:
@@ -21,7 +21,7 @@ services:
   # Protect it with a firewall rule: ufw deny in 8081 (allow only trusted IPs).
   mongo-express:
     image: mongo-express:1.0.2
-    container_name: iteam_mongo_express
+    container_name: vantage_mongo_express
     restart: unless-stopped
     profiles: [dev]
     network_mode: host
@@ -40,7 +40,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: iteam_threat_backend
+    container_name: vantage_backend
     restart: unless-stopped
     network_mode: host
     env_file:
@@ -56,7 +56,7 @@ services:
     build:
       context: ./web
       dockerfile: Dockerfile
-    container_name: iteam_threat_frontend
+    container_name: vantage_frontend
     restart: unless-stopped
     network_mode: host
     depends_on:

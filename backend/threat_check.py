@@ -13,7 +13,7 @@ logger = get_logger("ThreatCheck")
 def main():
     setup_logging(level="INFO")
 
-    parser = argparse.ArgumentParser(description="Threat Intelligence Aggregator")
+    parser = argparse.ArgumentParser(description="VANTAGE — Threat Intelligence Aggregator")
     parser.add_argument("target", help="IP address, Domain, or File Hash")
     parser.add_argument("--lang", default="pt", help="Language for the report (default: pt)")
     parser.add_argument("--dashboard", action="store_true", help="Show results in a Dashboard view")

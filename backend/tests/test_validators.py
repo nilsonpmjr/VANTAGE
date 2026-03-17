@@ -1,5 +1,5 @@
 """
-Testes unitários para Threat Intelligence Tool.
+Testes unitários para VANTAGE.
 
 Execute com: pytest tests/test_validators.py -v
 """

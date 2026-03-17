@@ -1,6 +1,6 @@
-# Threat Intelligence Tool
+# VANTAGE
 
-[![CI](https://github.com/nilsonpmjr/Threat-Intelligence-Tool/actions/workflows/ci.yml/badge.svg)](https://github.com/nilsonpmjr/Threat-Intelligence-Tool/actions/workflows/ci.yml)
+[![CI](https://github.com/nilsonpmjr/Vantage/actions/workflows/ci.yml/badge.svg)](https://github.com/nilsonpmjr/Vantage/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688.svg)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-18-61dafb.svg)](https://reactjs.org/)
@@ -8,7 +8,9 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 
-Next-generation SOC (Security Operations Center) platform that aggregates threat intelligence from multiple sources to provide comprehensive security verdicts for IPs, domains, and file hashes.
+VANTAGE began as a terminal-first threat intelligence utility, evolved into a web platform for daily SOC operations, and now carries its own product identity. It is a threat intelligence platform for SOC analysts who need fast, explainable verdicts for IPs, domains, and file hashes across multiple intelligence sources.
+
+The project is released under AGPLv3 by design. The goal is to keep the platform transparent, auditable, and collaborative as it grows from an internal workflow accelerator into an independent cybersecurity product.
 
 ## Features
 
@@ -46,12 +48,14 @@ Next-generation SOC (Security Operations Center) platform that aggregates threat
 ### 1. Clone and configure
 
 ```bash
-git clone https://github.com/nilsonpmjr/Threat-Intelligence-Tool.git
-cd Threat-Intelligence-Tool
+git clone https://github.com/nilsonpmjr/Vantage.git
+cd Vantage
 cp .env.example .env
 ```
 
 Edit `.env` and fill in the required values (see [Environment Variables](#environment-variables) below).
+
+If you already cloned the project before the repository rename, you do not need to rename your local folder. Updating the git remotes is enough.
 
 ### 2. Start services
 

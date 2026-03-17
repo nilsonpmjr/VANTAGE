@@ -36,8 +36,8 @@ async def test_create_api_key_returns_raw_key(client, tech_headers):
     resp = await client.post("/api/api-keys", json={"name": "my-key"}, headers=tech_headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["key"].startswith("iti_")
-    assert len(data["key"]) == 52  # iti_ + 48 hex chars
+    assert data["key"].startswith("vtg_")
+    assert len(data["key"]) == 52  # vtg_ + 48 hex chars
     assert data["prefix"] == data["key"][:12] + "…"
     assert data["name"] == "my-key"
     assert data["revoked"] is False
@@ -182,11 +182,36 @@ async def test_tech_blocked_from_admin_list(client, tech_headers):
 
 @pytest.mark.asyncio
 async def test_api_key_authenticates_endpoint(client, tech_headers):
-    """An iti_ key can be used as a Bearer token for authenticated endpoints."""
+    """A vtg_ key can be used as a Bearer token for authenticated endpoints."""
     create_resp = await client.post("/api/api-keys", json={"name": "bearer-test"}, headers=tech_headers)
     raw_key = create_resp.json()["key"]
 
     # Use the raw key to call /api/auth/me
+    resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {raw_key}"})
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "techuser"
+
+
+@pytest.mark.asyncio
+async def test_legacy_iti_api_key_still_authenticates(client, fake_db):
+    """Legacy iti_ keys remain valid so existing integrations do not break."""
+    import uuid
+
+    raw_key = "iti_" + "ab" * 24
+    now = datetime.now(timezone.utc)
+    await fake_db.api_keys.insert_one({
+        "key_id": str(uuid.uuid4()),
+        "key_hash": hash_api_key(raw_key),
+        "prefix": raw_key[:12] + "…",
+        "name": "legacy-key",
+        "username": "techuser",
+        "role": "tech",
+        "created_at": now,
+        "expires_at": None,
+        "last_used_at": None,
+        "revoked": False,
+    })
+
     resp = await client.get("/api/auth/me", headers={"Authorization": f"Bearer {raw_key}"})
     assert resp.status_code == 200
     assert resp.json()["username"] == "techuser"
@@ -213,7 +238,7 @@ async def test_expired_api_key_rejected(client, fake_db, tech_headers):
     from auth import hash_api_key
     import uuid
 
-    raw_key = "iti_" + "ab" * 24
+    raw_key = "vtg_" + "ab" * 24
     now = datetime.now(timezone.utc)
     await fake_db.api_keys.insert_one({
         "key_id": str(uuid.uuid4()),

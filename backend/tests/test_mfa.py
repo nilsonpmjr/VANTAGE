@@ -4,9 +4,13 @@ Tests for MFA TOTP endpoints.
 
 import pytest
 import pyotp
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from starlette.requests import Request
 
 from auth import create_access_token
 from crypto import encrypt_secret
+from limiters import limiter
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -167,6 +171,36 @@ async def test_verify_mfa_rejects_wrong_otp(async_client, fake_db):
     )
     assert resp.status_code == 400
     assert resp.json()["detail"] == "invalid_otp"
+
+
+@pytest.mark.asyncio
+async def test_verify_mfa_is_rate_limited(monkeypatch):
+    limiter.reset()
+    monkeypatch.setattr(limiter, "enabled", True)
+    from routers.mfa import verify_mfa
+    from main import app
+
+    request = Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/api/mfa/verify",
+            "headers": [],
+            "client": ("127.0.0.1", 12345),
+            "app": app,
+        }
+    )
+
+    for _ in range(5):
+        limiter._check_request_limit(request, verify_mfa.__wrapped__, False)
+
+    with pytest.raises(RateLimitExceeded) as exc_info:
+        limiter._check_request_limit(request, verify_mfa.__wrapped__, False)
+
+    response = _rate_limit_exceeded_handler(request, exc_info.value)
+    assert response.status_code == 429
+    assert response.body == b'{"error":"Rate limit exceeded: Too many MFA verification attempts. Try again later."}'
+    limiter.reset()
 
 
 @pytest.mark.asyncio

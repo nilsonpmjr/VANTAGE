@@ -37,6 +37,7 @@ from config import settings
 from crypto import encrypt_secret, decrypt_secret
 from audit import log_action
 from logging_config import get_logger
+from limiters import limiter
 
 logger = get_logger("MFARouter")
 router = APIRouter(prefix="/mfa", tags=["mfa"])
@@ -152,6 +153,7 @@ async def confirm_mfa(
 # ── Verify (login flow) ───────────────────────────────────────────────────────
 
 @router.post("/verify")
+@limiter.limit("5/minute", error_message="Too many MFA verification attempts. Try again later.")
 async def verify_mfa(request: Request, body: MFAVerifyRequest):
     """
     Validate OTP using the pre_auth_token issued during password login.

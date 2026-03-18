@@ -20,6 +20,13 @@ class ReconModule(ABC):
     def supports(self, target_type: str) -> bool:
         return "both" in self.target_types or target_type in self.target_types
 
+    def guard_target_argument(self, target: str) -> str:
+        """Reject flag-like targets before they reach subprocess-based modules."""
+        candidate = str(target).strip()
+        if not candidate or candidate.startswith("-"):
+            raise ValueError("Unsafe target argument.")
+        return candidate
+
     @abstractmethod
     async def run(self, target: str, target_type: str) -> dict:
         """

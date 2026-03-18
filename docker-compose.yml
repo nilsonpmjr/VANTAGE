@@ -46,7 +46,10 @@ services:
     container_name: vantage_backend
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      # Bind the API to localhost only in the default compose profile.
+      # This preserves the current frontend contract (browser -> localhost:8000)
+      # without exposing the backend on all host interfaces by default.
+      - "127.0.0.1:8000:8000"
     env_file:
       - .env
     environment:

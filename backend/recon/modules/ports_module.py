@@ -5,7 +5,6 @@ Parses nmap XML output.
 """
 
 import asyncio
-import shlex
 import xml.etree.ElementTree as ET
 
 from .base import ReconModule
@@ -22,6 +21,11 @@ class PortsModule(ReconModule):
     timeout_seconds = 120
 
     async def run(self, target: str, target_type: str) -> dict:
+        try:
+            target = self.guard_target_argument(target)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
         port_range = _DEFAULT_PORTS
         # fmt: off
         cmd = [

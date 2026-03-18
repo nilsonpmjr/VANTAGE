@@ -23,7 +23,8 @@ def _module_catalog():
 
 
 @pytest.mark.asyncio
-async def test_recon_history_is_self_only_for_non_admin(async_client, fake_db):
+async def test_recon_history_is_self_only_for_non_admin(async_client, fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _: ["93.184.216.34"])
     now = datetime.now(timezone.utc)
     await fake_db.recon_jobs.insert_one(
         {
@@ -59,7 +60,8 @@ async def test_recon_history_is_self_only_for_non_admin(async_client, fake_db):
 
 
 @pytest.mark.asyncio
-async def test_recon_history_admin_can_view_cross_user(async_client, fake_db):
+async def test_recon_history_admin_can_view_cross_user(async_client, fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _: ["93.184.216.34"])
     now = datetime.now(timezone.utc)
     await fake_db.recon_jobs.insert_one(
         {
@@ -96,6 +98,7 @@ async def test_recon_history_admin_can_view_cross_user(async_client, fake_db):
 @pytest.mark.asyncio
 async def test_schedule_scan_requires_recon_scope_for_api_key(async_client, fake_db, monkeypatch):
     monkeypatch.setattr("routers.recon.get_available_modules", _module_catalog)
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _: ["93.184.216.34"])
 
     raw_key = "vtg_no_recon_scope"
     await fake_db.api_keys.insert_one(
@@ -121,6 +124,7 @@ async def test_schedule_scan_requires_recon_scope_for_api_key(async_client, fake
 @pytest.mark.asyncio
 async def test_schedule_scan_accepts_recon_scoped_api_key(async_client, fake_db, monkeypatch):
     monkeypatch.setattr("routers.recon.get_available_modules", _module_catalog)
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _: ["93.184.216.34"])
 
     raw_key = "vtg_with_recon_scope"
     await fake_db.api_keys.insert_one(

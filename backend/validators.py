@@ -85,6 +85,9 @@ class InputValidator:
         original = target
         target = target.strip()
 
+        if target.startswith("-"):
+            raise ValidationError("Target cannot start with '-'")
+
         # Validação de tamanho
         if len(target) > cls.MAX_INPUT_LENGTH:
             raise ValidationError(

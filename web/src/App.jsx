@@ -56,6 +56,7 @@ export default function App() {
 
   const { t, i18n } = useTranslation();
   const { brand, logoPath } = useBrandTheme();
+  const canAccessSettings = user?.role === 'admin';
 
   // BUG-02: Clear recon navigation state when leaving the recon view
   const setCurrentViewSafe = (view) => {
@@ -100,6 +101,12 @@ export default function App() {
       setCurrentViewSafe('profile');
     }
   }, [mfaSetupRequired, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (currentView === 'settings' && !canAccessSettings) {
+      setCurrentViewSafe('home');
+    }
+  }, [currentView, canAccessSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const handleBatchSearch = (rawTargets) => {
@@ -395,7 +402,7 @@ export default function App() {
               </Suspense>
             </div>
           )}
-          {currentView === 'settings' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
+          {currentView === 'settings' && canAccessSettings && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
           {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
           {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile /></div>}
           {currentView === 'recon' && (

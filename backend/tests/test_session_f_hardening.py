@@ -9,6 +9,8 @@ import pytest
 
 from auth import create_access_token
 from network_security import UnsafeTargetError, validate_public_scan_target, validate_public_url
+from recon.modules.ports_module import PortsModule
+from recon.modules.traceroute_module import TracerouteModule
 from recon.modules.web_module import WebModule
 
 
@@ -29,15 +31,19 @@ def test_validate_public_scan_target_blocks_domains_resolving_private(monkeypatc
         validate_public_scan_target("portal.example.com")
 
 
-def test_validate_public_scan_target_allows_unresolved_domains(monkeypatch):
+def test_validate_public_scan_target_rejects_unresolved_domains(monkeypatch):
     def _raise_dns(_hostname: str):
         raise socket.gaierror("nxdomain")
 
     monkeypatch.setattr("network_security.resolve_hostname_ips", _raise_dns)
 
-    validated = validate_public_scan_target("example.com")
-    assert validated.sanitized == "example.com"
-    assert validated.target_type == "domain"
+    with pytest.raises(UnsafeTargetError):
+        validate_public_scan_target("example.com")
+
+
+def test_validate_public_scan_target_rejects_flag_like_target():
+    with pytest.raises(UnsafeTargetError):
+        validate_public_scan_target("-sV")
 
 
 def test_validate_public_url_rejects_private_destinations(monkeypatch):
@@ -70,6 +76,27 @@ async def test_recon_scan_rejects_private_targets(async_client):
 
     assert resp.status_code == 400
     assert "not allowed" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_recon_scan_rejects_flag_like_targets(async_client):
+    resp = await async_client.post(
+        "/api/recon/scan",
+        json={"target": "-sV", "modules": ["dns"]},
+        headers=_auth_headers("techuser", "tech"),
+    )
+
+    assert resp.status_code == 400
+    assert "start with '-'" in resp.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_cli_modules_reject_flag_like_targets_without_spawning_subprocess():
+    ports_result = await PortsModule().run("-sV", "domain")
+    traceroute_result = await TracerouteModule().run("--help", "domain")
+
+    assert ports_result["error"] == "Unsafe target argument."
+    assert traceroute_result["error"] == "Unsafe target argument."
 
 
 @pytest.mark.asyncio

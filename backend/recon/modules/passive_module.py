@@ -25,6 +25,10 @@ class PassiveModule(ReconModule):
     async def run(self, target: str, target_type: str) -> dict:
         if target_type != "domain":
             return {"skipped": "Passive harvest only supports domain targets."}
+        try:
+            target = self.guard_target_argument(target)
+        except ValueError as exc:
+            return {"error": str(exc)}
 
         cmd = [
             "theHarvester",

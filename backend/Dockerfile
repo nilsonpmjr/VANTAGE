@@ -37,6 +37,9 @@ FROM python:3.12.9-slim
 
 WORKDIR /app
 
+ARG APP_UID=10001
+ARG APP_GID=10001
+
 # System tools required by the Recon Engine at runtime.
 # Note: theHarvester is installed via pip in the builder stage (not in apt repos).
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -46,15 +49,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     dnsutils \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid ${APP_GID} appuser \
+    && useradd --uid ${APP_UID} --gid ${APP_GID} --create-home --home-dir /home/appuser --shell /usr/sbin/nologin appuser
+
 # Copy installed Python packages (including subfinder) from builder
 COPY --from=builder /install /usr/local
 
 # Copy application source
-COPY . .
+COPY --chown=appuser:appuser . .
 
-# Ensure scripts in .local are usable
-ENV PATH=/root/.local/bin:$PATH
+# Runtime should not rely on root-owned home paths.
+ENV HOME=/home/appuser
+ENV PATH=/usr/local/bin:$PATH
 
 EXPOSE 8000
+
+USER appuser
 
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

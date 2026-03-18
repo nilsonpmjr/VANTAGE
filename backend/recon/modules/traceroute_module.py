@@ -22,6 +22,11 @@ class TracerouteModule(ReconModule):
         return shutil.which("traceroute") is not None
 
     async def run(self, target: str, target_type: str) -> dict:
+        try:
+            target = self.guard_target_argument(target)
+        except ValueError as exc:
+            return {"error": str(exc)}
+
         cmd = [
             "traceroute",
             "-n",        # numeric — no DNS reverse lookups

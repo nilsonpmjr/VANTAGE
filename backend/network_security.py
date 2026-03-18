@@ -51,7 +51,10 @@ def validate_public_scan_target(raw: str) -> ValidatedTarget:
 
     Unresolvable domains remain allowed for non-web recon modules such as DNS/WHOIS.
     """
-    validated = validate_target(raw)
+    try:
+        validated = validate_target(raw)
+    except ValidationError as exc:
+        raise UnsafeTargetError(str(exc)) from exc
 
     if validated.target_type not in {"ip", "domain"}:
         raise UnsafeTargetError("Recon targets must be a public IP address or a domain.")
@@ -63,8 +66,11 @@ def validate_public_scan_target(raw: str) -> ValidatedTarget:
 
     try:
         resolved_ips = resolve_hostname_ips(validated.sanitized)
-    except socket.gaierror:
-        return validated
+    except socket.gaierror as exc:
+        raise UnsafeTargetError("Recon targets must resolve to a public IP address.") from exc
+
+    if not resolved_ips:
+        raise UnsafeTargetError("Recon targets must resolve to a public IP address.")
 
     blocked = [str(ip) for ip in resolved_ips if _is_forbidden_ip(ip)]
     if blocked:
@@ -96,6 +102,9 @@ def validate_public_url(url: str) -> str:
         resolved_ips = resolve_hostname_ips(hostname)
     except socket.gaierror as exc:
         raise UnsafeTargetError("Web reconnaissance requires a resolvable public hostname.") from exc
+
+    if not resolved_ips:
+        raise UnsafeTargetError("Web reconnaissance requires a resolvable public hostname.")
 
     blocked = [str(ip) for ip in resolved_ips if _is_forbidden_ip(ip)]
     if blocked:

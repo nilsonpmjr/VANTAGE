@@ -67,6 +67,7 @@ class WebModule(ReconModule):
                     redirect_chain: list[str] = []
 
                     for _ in range(self.max_redirect_hops + 1):
+                        validate_public_url(current_url)
                         resp = await client.get(current_url)
 
                         if resp.status_code in {301, 302, 303, 307, 308}:

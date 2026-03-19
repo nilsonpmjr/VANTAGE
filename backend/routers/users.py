@@ -1,5 +1,4 @@
 import ipaddress
-import re
 
 from fastapi import APIRouter, HTTPException, Depends, Request, Query
 from datetime import datetime, timezone
@@ -12,7 +11,12 @@ from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
 from crypto import encrypt_secret, decrypt_secret
-from identity import normalize_email, email_in_use
+from identity import (
+    any_contact_email_in_use,
+    email_in_use,
+    is_valid_email_format,
+    normalize_email,
+)
 from session_revocation import revoke_user_refresh_tokens, is_sensitive_role_downgrade
 
 logger = get_logger("UsersRouter")
@@ -42,6 +46,7 @@ class UserPreferencesUpdate(BaseModel):
     password: Optional[str] = None
     preferred_lang: Optional[str] = None
     avatar_base64: Optional[str] = None
+    recovery_email: Optional[str] = None
 
 
 class ThirdPartyKeysUpdate(BaseModel):
@@ -54,7 +59,6 @@ ALLOWED_SERVICES = {
 }
 
 VALID_ROLES = {"admin", "manager", "tech"}
-_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 @router.get("")
@@ -77,7 +81,7 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
 
     normalized_email = normalize_email(user.email)
     if normalized_email:
-        if not _EMAIL_RE.match(normalized_email):
+        if not is_valid_email_format(normalized_email):
             raise HTTPException(status_code=400, detail="Invalid email format")
         if await email_in_use(db, normalized_email):
             raise HTTPException(status_code=400, detail="Email already in use")
@@ -135,6 +139,14 @@ async def update_my_preferences(
         update_data["preferred_lang"] = prefs.preferred_lang
     if prefs.avatar_base64 is not None:
         update_data["avatar_base64"] = prefs.avatar_base64
+    if prefs.recovery_email is not None:
+        normalized_recovery_email = normalize_email(prefs.recovery_email)
+        if normalized_recovery_email and not is_valid_email_format(normalized_recovery_email):
+            raise HTTPException(status_code=400, detail="Invalid email format")
+        if await any_contact_email_in_use(db, normalized_recovery_email, exclude_username=username):
+            raise HTTPException(status_code=400, detail="Email already in use")
+        update_data["recovery_email"] = normalized_recovery_email
+        update_data["normalized_recovery_email"] = normalized_recovery_email
 
     password_changed = False
     if prefs.password is not None:
@@ -316,7 +328,7 @@ async def update_user(
             revoke_sessions = True
     if user_update.email is not None:
         normalized_email = normalize_email(user_update.email)
-        if normalized_email and not _EMAIL_RE.match(normalized_email):
+        if normalized_email and not is_valid_email_format(normalized_email):
             raise HTTPException(status_code=400, detail="Invalid email format")
         if await email_in_use(db, normalized_email, exclude_username=username):
             raise HTTPException(status_code=400, detail="Email already in use")

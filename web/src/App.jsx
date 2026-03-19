@@ -16,6 +16,8 @@ import Sidebar from './components/layout/Sidebar';
 import Settings from './components/admin/Settings';
 const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 const ReconPage = React.lazy(() => import('./components/recon/ReconPage'));
+const FeedPage = React.lazy(() => import('./components/feed/FeedPage'));
+import FeedPreview from './components/feed/FeedPreview';
 import Profile from './components/Profile';
 import WatchlistSettings from './components/profile/WatchlistSettings';
 import TourOverlay from './components/shared/TourOverlay';
@@ -73,6 +75,13 @@ export default function App() {
     if (view !== 'profile') {
       setProfileInitialKey(null);
     }
+    // When navigating to home, clear search state for a clean landing
+    if (view === 'home') {
+      setHasSearched(false);
+      setData(null);
+      setError(null);
+      setBatchTargets(null);
+    }
     setCurrentView(view);
   };
 
@@ -127,6 +136,7 @@ export default function App() {
     }
   }, [currentView, canAccessSettings]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keyboard shortcut — ctrl+l focuses search bar on home view
   useEffect(() => {
     if (!user || currentView !== 'home') return;
 
@@ -252,9 +262,10 @@ export default function App() {
         {/* View content — keyed by currentView for fade-in transition (UX-01) */}
         <div key={currentView} className="fade-in" style={{ display: 'contents' }}>
 
+          {/* ── HOME — unified search + landing with animated header ── */}
           {currentView === 'home' && (
             <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-              {/* Animated Header */}
+              {/* Animated Header — hero (default) → compact (hasSearched) */}
               <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
 
                 <div className="header-left">
@@ -267,6 +278,7 @@ export default function App() {
                       setHasSearched(false);
                       setData(null);
                       setError(null);
+                      setBatchTargets(null);
                     }}
                     onError={(e) => { e.target.style.display = 'none'; }}
                   />
@@ -329,31 +341,38 @@ export default function App() {
                   </div>
                 )}
 
-                {!data && !error && (
-                  <div className="fade-in" style={{
-                    marginTop: hasSearched ? '1rem' : '2rem',
-                    textAlign: 'center',
-                    transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
-                    flexShrink: 0
-                  }}>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      {t('app.services')}
-                    </p>
-                    <div className="marquee-container">
-                      <div className="marquee-content">
-                        {MARQUEE_ITEMS.map((provider, i) => (
-                          <div key={i} className="provider-card">
-                            <img
-                              src={`https://www.google.com/s2/favicons?domain=${provider.domain}&sz=64`}
-                              alt={provider.name}
-                              className="provider-icon"
-                              onError={(e) => { e.target.style.display = 'none'; }}
-                            />
-                            <span>{provider.name}</span>
-                          </div>
-                        ))}
+                {/* Landing content — visible only before any search */}
+                {!hasSearched && !data && !error && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+                    {/* Marquee — integrated services */}
+                    <div className="fade-in" style={{
+                      marginTop: hasSearched ? '1rem' : '2rem',
+                      textAlign: 'center',
+                      transition: 'all 0.7s cubic-bezier(0.25, 1, 0.5, 1)',
+                      flexShrink: 0
+                    }}>
+                      <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', marginBottom: '1.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        {t('app.services')}
+                      </p>
+                      <div className="marquee-container">
+                        <div className="marquee-content">
+                          {MARQUEE_ITEMS.map((provider, i) => (
+                            <div key={i} className="provider-card">
+                              <img
+                                src={`https://www.google.com/s2/favicons?domain=${provider.domain}&sz=64`}
+                                alt={provider.name}
+                                className="provider-icon"
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                              />
+                              <span>{provider.name}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
+
+                    {/* Feed preview — latest threat intelligence cards */}
+                    <FeedPreview onViewAll={() => setCurrentViewSafe('feed')} />
                   </div>
                 )}
 
@@ -423,6 +442,15 @@ export default function App() {
                 )}{/* end single result */}
               </main>
 
+            </div>
+          )}
+
+          {/* ── FEED — dedicated threat intelligence feed page ── */}
+          {currentView === 'feed' && (
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+                <FeedPage />
+              </Suspense>
             </div>
           )}
 

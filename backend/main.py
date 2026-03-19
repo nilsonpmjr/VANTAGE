@@ -17,7 +17,7 @@ from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -281,7 +281,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router, recon.router, watchlist.router,
+    batch.router, recon.router, watchlist.router, feed.router,
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

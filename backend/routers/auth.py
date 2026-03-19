@@ -27,7 +27,7 @@ from limiters import limiter
 from audit import log_action
 from logging_config import get_logger
 from mailer import send_password_reset_email
-from identity import find_user_by_normalized_email, normalize_email
+from identity import find_user_by_password_reset_email, normalize_email
 from policies import get_password_policy, validate_password
 from session_revocation import revoke_user_refresh_tokens
 
@@ -225,11 +225,14 @@ async def login(request: Request):
         "username": user["username"],
         "role": role,
         "name": user.get("name", ""),
+        "email": user.get("email"),
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "mfa_enabled": user.get("mfa_enabled", False),
         "mfa_setup_required": force_mfa_setup,
+        "avatar_base64": user.get("avatar_base64", ""),
+        "recovery_email": user.get("recovery_email"),
     }
 
     response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
@@ -356,18 +359,25 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
         return {"message": "If this email is registered, a reset link has been sent."}
 
     # Look up user — silently succeed if not found
-    user = await find_user_by_normalized_email(db, email)
+    user = await find_user_by_password_reset_email(db, email)
     if user and user.get("is_active", True) is not False:
         raw_token = uuid.uuid4().hex
         token_hash = _hash_token(raw_token)
         now = datetime.now(timezone.utc)
+        target_email = (
+            user.get("normalized_recovery_email")
+            or user.get("recovery_email")
+            or user.get("normalized_email")
+            or user.get("email")
+            or email
+        )
 
         await db.password_reset_tokens.update_one(
             {"username": user["username"]},
             {"$set": {
                 "token_hash": token_hash,
                 "username": user["username"],
-                "email": email,
+                "email": target_email,
                 "created_at": now,
                 "expires_at": now + timedelta(minutes=_RESET_TOKEN_TTL_MINUTES),
                 "used": False,
@@ -375,9 +385,9 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest):
             upsert=True,
         )
 
-        await send_password_reset_email(email, raw_token)
+        await send_password_reset_email(target_email, raw_token)
         await log_action(db, user=user["username"], action="password_reset_requested",
-                         target=email, ip=ip, result="success")
+                         target=target_email, ip=ip, result="success")
 
     # Always return 200
     return {"message": "If this email is registered, a reset link has been sent."}

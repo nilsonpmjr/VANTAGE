@@ -74,6 +74,64 @@ async def test_forgot_password_uses_normalized_email_lookup(client, fake_db):
 
 
 @pytest.mark.asyncio
+async def test_forgot_password_accepts_recovery_email_lookup(client, fake_db, monkeypatch):
+    sent = {}
+
+    async def _capture_send(to_email: str, reset_token: str) -> bool:
+        sent["to_email"] = to_email
+        sent["reset_token"] = reset_token
+        return True
+
+    import routers.auth as auth_router
+    monkeypatch.setattr(auth_router, "send_password_reset_email", _capture_send)
+
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {
+            "recovery_email": "soc-recovery@example.com",
+            "normalized_recovery_email": "soc-recovery@example.com",
+        }},
+    )
+
+    resp = await client.post("/api/auth/forgot-password", json={"email": "SOC-RECOVERY@EXAMPLE.COM"})
+    assert resp.status_code == 200
+
+    record = await fake_db.password_reset_tokens.find_one({"username": "techuser"})
+    assert record is not None
+    assert record["email"] == "soc-recovery@example.com"
+    assert sent["to_email"] == "soc-recovery@example.com"
+
+
+@pytest.mark.asyncio
+async def test_forgot_password_prefers_recovery_email_as_delivery_target(client, fake_db, monkeypatch):
+    sent = {}
+
+    async def _capture_send(to_email: str, reset_token: str) -> bool:
+        sent["to_email"] = to_email
+        sent["reset_token"] = reset_token
+        return True
+
+    import routers.auth as auth_router
+    monkeypatch.setattr(auth_router, "send_password_reset_email", _capture_send)
+
+    await fake_db.users.update_one(
+        {"username": "admin"},
+        {"$set": {
+            "recovery_email": "recover-admin@soc.local",
+            "normalized_recovery_email": "recover-admin@soc.local",
+        }},
+    )
+
+    resp = await client.post("/api/auth/forgot-password", json={"email": "admin@soc.local"})
+    assert resp.status_code == 200
+
+    record = await fake_db.password_reset_tokens.find_one({"username": "admin"})
+    assert record is not None
+    assert record["email"] == "recover-admin@soc.local"
+    assert sent["to_email"] == "recover-admin@soc.local"
+
+
+@pytest.mark.asyncio
 async def test_forgot_password_inactive_user_no_token(client, fake_db):
     # inactive user has no email, but even if they did — inactive should be skipped
     await client.post("/api/auth/forgot-password", json={"email": "inactive@soc.local"})
@@ -258,6 +316,33 @@ async def test_create_user_with_email(client, fake_db):
     user = await fake_db.users.find_one({"username": "newuser"})
     assert user["email"] == "newuser@soc.local"
     assert user["normalized_email"] == "newuser@soc.local"
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_persists_normalized_recovery_email(async_client, fake_db):
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    resp = await async_client.put(
+        "/api/users/me",
+        json={"recovery_email": "  Recovery+Ops@Example.com  "},
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 200
+
+    user = await fake_db.users.find_one({"username": "techuser"})
+    assert user["recovery_email"] == "recovery+ops@example.com"
+    assert user["normalized_recovery_email"] == "recovery+ops@example.com"
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_rejects_duplicate_recovery_email(async_client, fake_db):
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    resp = await async_client.put(
+        "/api/users/me",
+        json={"recovery_email": "admin@soc.local"},
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Email already in use"
 
 
 @pytest.mark.asyncio

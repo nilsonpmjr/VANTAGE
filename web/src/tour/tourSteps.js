@@ -35,11 +35,28 @@ const TOUR_STEPS = [
         sidebarMustOpen: true,
     },
     {
+        target: 'sidebar-home',
+        titleKey: 'tour.home_title',
+        descKey: 'tour.home_desc',
+        position: 'right',
+        roles: ['admin', 'manager', 'tech'],
+        sidebarMustOpen: true,
+    },
+    {
+        target: 'sidebar-feed',
+        titleKey: 'tour.feed_title',
+        descKey: 'tour.feed_desc',
+        position: 'right',
+        roles: ['admin', 'manager', 'tech'],
+        sidebarMustOpen: true,
+    },
+    {
         target: 'sidebar-profile',
         titleKey: 'tour.profile_title',
         descKey: 'tour.profile_desc',
         position: 'right',
         roles: null,
+        sidebarMustOpen: true,
     },
     {
         target: 'sidebar-recon',
@@ -47,6 +64,7 @@ const TOUR_STEPS = [
         descKey: 'tour.recon_desc',
         position: 'right',
         roles: ['admin', 'manager', 'tech'],
+        sidebarMustOpen: true,
     },
     {
         target: 'sidebar-watchlist',
@@ -54,6 +72,7 @@ const TOUR_STEPS = [
         descKey: 'tour.watchlist_desc',
         position: 'right',
         roles: ['admin', 'manager', 'tech'],
+        sidebarMustOpen: true,
     },
     {
         target: 'sidebar-dashboard',
@@ -61,6 +80,7 @@ const TOUR_STEPS = [
         descKey: 'tour.dashboard_desc',
         position: 'right',
         roles: ['admin', 'manager', 'tech'],
+        sidebarMustOpen: true,
     },
     {
         target: 'sidebar-settings',
@@ -68,6 +88,7 @@ const TOUR_STEPS = [
         descKey: 'tour.settings_desc',
         position: 'right',
         roles: ['admin'],
+        sidebarMustOpen: true,
     },
 ];
 

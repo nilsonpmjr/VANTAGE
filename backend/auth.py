@@ -197,11 +197,13 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "username": user["username"],
         "role": user.get("role", "tech"),
         "name": user.get("name", ""),
+        "email": user.get("email"),
         "preferred_lang": user.get("preferred_lang", "pt"),
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "extra_permissions": user.get("extra_permissions", []),
         "avatar_base64": user.get("avatar_base64", ""),
+        "recovery_email": user.get("recovery_email"),
     }
     if "_api_key_scopes" in user:
         result["_api_key_scopes"] = user["_api_key_scopes"]

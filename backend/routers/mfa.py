@@ -252,10 +252,13 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
         "username": username,
         "role": role,
         "name": user_doc.get("name", ""),
+        "email": user_doc.get("email"),
         "preferred_lang": user_doc.get("preferred_lang", "pt"),
         "is_active": user_doc.get("is_active", True),
         "force_password_reset": user_doc.get("force_password_reset", False),
         "mfa_enabled": user_doc.get("mfa_enabled", False),
+        "avatar_base64": user_doc.get("avatar_base64", ""),
+        "recovery_email": user_doc.get("recovery_email"),
         **({"password_expires_in_days": days_left} if days_left is not None else {}),
     }
 

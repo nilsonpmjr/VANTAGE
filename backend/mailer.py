@@ -8,21 +8,38 @@ developers can test without a real mail server.
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from html import escape
 
 from config import settings
+from db import db_manager
 from logging_config import get_logger
+from operational_config import get_effective_operational_config
 
 logger = get_logger("Mailer")
 
 
-def is_smtp_configured() -> bool:
+async def _get_smtp_runtime_config() -> dict:
+    effective = await get_effective_operational_config(db_manager.db)
+    return {
+        "host": effective["smtp_host"],
+        "port": effective["smtp_port"],
+        "user": effective["smtp_user"],
+        "password": effective["smtp_pass"],
+        "from": effective["smtp_from"],
+        "tls": effective["smtp_tls"],
+    }
+
+
+async def is_smtp_configured() -> bool:
     """Check if SMTP settings are configured."""
-    return bool(settings.smtp_host)
+    smtp = await _get_smtp_runtime_config()
+    return bool(smtp["host"])
 
 
 async def _send_email(to_email: str, subject: str, text_body: str, html_body: str) -> bool:
     """Internal helper to send an email via SMTP."""
-    if not settings.smtp_host:
+    smtp = await _get_smtp_runtime_config()
+    if not smtp["host"]:
         return False
 
     try:
@@ -30,7 +47,7 @@ async def _send_email(to_email: str, subject: str, text_body: str, html_body: st
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = settings.smtp_from
+        msg["From"] = smtp["from"]
         msg["To"] = to_email
 
         msg.attach(MIMEText(text_body, "plain", "utf-8"))
@@ -38,11 +55,11 @@ async def _send_email(to_email: str, subject: str, text_body: str, html_body: st
 
         await aiosmtplib.send(
             msg,
-            hostname=settings.smtp_host,
-            port=settings.smtp_port,
-            username=settings.smtp_user or None,
-            password=settings.smtp_pass or None,
-            use_tls=settings.smtp_tls,
+            hostname=smtp["host"],
+            port=smtp["port"],
+            username=smtp["user"] or None,
+            password=smtp["password"] or None,
+            use_tls=smtp["tls"],
         )
         return True
 
@@ -59,8 +76,10 @@ async def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     Returns False if SMTP is not configured (graceful degradation).
     """
     reset_link = f"{settings.frontend_url}?token={reset_token}"
+    safe_reset_link = escape(reset_link, quote=True)
+    smtp = await _get_smtp_runtime_config()
 
-    if not settings.smtp_host:
+    if not smtp["host"]:
         # Dev mode: log the link so manual testing is possible without SMTP
         logger.warning(
             f"[SMTP not configured] Password reset link for {to_email}: {reset_link}"
@@ -76,7 +95,7 @@ async def send_password_reset_email(to_email: str, reset_token: str) -> bool:
     html_body = f"""
     <p>Você solicitou a redefinição da sua senha na plataforma SOC.</p>
     <p>
-      <a href="{reset_link}"
+      <a href="{safe_reset_link}"
          style="display:inline-block;background:#38bdf8;color:#0a0f1a;
                 padding:0.6rem 1.4rem;border-radius:6px;text-decoration:none;
                 font-weight:600;font-family:sans-serif;">
@@ -99,12 +118,15 @@ async def send_batch_complete(to_email: str, job_id: str, total: int, threats: i
     """
     Send notification when a batch job completes.
     """
-    if not settings.smtp_host:
+    smtp = await _get_smtp_runtime_config()
+    if not smtp["host"]:
         logger.warning(f"[SMTP not configured] Batch complete for {to_email}: job={job_id}")
         return False
 
     subject = f"Batch Analysis Complete — {total} targets"
     frontend_url = url or settings.frontend_url
+    safe_frontend_url = escape(frontend_url, quote=True)
+    safe_job_id = escape(str(job_id))
 
     text_body = (
         f"Seu lote de análise foi concluído.\n\n"
@@ -126,9 +148,9 @@ async def send_batch_complete(to_email: str, job_id: str, total: int, threats: i
           <td style="padding:0.5rem;border:1px solid #333;font-weight:700;color:{'#ef4444' if threats > 0 else '#10b981'};">{threats}</td>
         </tr>
       </table>
-      <p style="color:#888;font-size:0.85rem;">Job ID: {job_id}</p>
+      <p style="color:#888;font-size:0.85rem;">Job ID: {safe_job_id}</p>
       <p>
-        <a href="{frontend_url}" style="display:inline-block;background:#38bdf8;color:#0a0f1a;
+        <a href="{safe_frontend_url}" style="display:inline-block;background:#38bdf8;color:#0a0f1a;
            padding:0.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;">
           Ver Resultados
         </a>
@@ -148,7 +170,8 @@ async def send_watchlist_alert(to_email: str, changed_items: list) -> bool:
 
     changed_items: list of dicts with keys: target, old_verdict, new_verdict
     """
-    if not settings.smtp_host:
+    smtp = await _get_smtp_runtime_config()
+    if not smtp["host"]:
         logger.warning(f"[SMTP not configured] Watchlist alert for {to_email}: {len(changed_items)} changes")
         return False
 
@@ -165,12 +188,13 @@ async def send_watchlist_alert(to_email: str, changed_items: list) -> bool:
 
     rows_html = "".join(
         f"""<tr>
-          <td style="padding:0.4rem 0.6rem;border:1px solid #333;color:#38bdf8;font-family:monospace;">{item['target']}</td>
-          <td style="padding:0.4rem 0.6rem;border:1px solid #333;">{item.get('old_verdict', '—')}</td>
-          <td style="padding:0.4rem 0.6rem;border:1px solid #333;font-weight:700;">{item['new_verdict']}</td>
+          <td style="padding:0.4rem 0.6rem;border:1px solid #333;color:#38bdf8;font-family:monospace;">{escape(str(item['target']))}</td>
+          <td style="padding:0.4rem 0.6rem;border:1px solid #333;">{escape(str(item.get('old_verdict', '—')))}</td>
+          <td style="padding:0.4rem 0.6rem;border:1px solid #333;font-weight:700;">{escape(str(item['new_verdict']))}</td>
         </tr>"""
         for item in changed_items
     )
+    safe_frontend_url = escape(settings.frontend_url, quote=True)
     html_body = f"""
     <div style="font-family:sans-serif;max-width:600px;">
       <h2 style="color:#38bdf8;margin-bottom:0.5rem;">Watchlist Alert</h2>
@@ -186,7 +210,7 @@ async def send_watchlist_alert(to_email: str, changed_items: list) -> bool:
         <tbody>{rows_html}</tbody>
       </table>
       <p>
-        <a href="{settings.frontend_url}" style="display:inline-block;background:#38bdf8;color:#0a0f1a;
+        <a href="{safe_frontend_url}" style="display:inline-block;background:#38bdf8;color:#0a0f1a;
            padding:0.5rem 1.2rem;border-radius:6px;text-decoration:none;font-weight:600;">
           Ver Detalhes
         </a>
@@ -198,3 +222,20 @@ async def send_watchlist_alert(to_email: str, changed_items: list) -> bool:
     if result:
         logger.info(f"Watchlist alert sent to {to_email} ({len(changed_items)} changes)")
     return result
+
+
+async def send_smtp_test_email(to_email: str) -> bool:
+    """Send a simple operational test email using the effective SMTP config."""
+    subject = "VANTAGE SMTP Test"
+    text_body = (
+        "Este e-mail confirma que a configuracao SMTP do VANTAGE esta funcional.\n\n"
+        "Se voce recebeu esta mensagem, o teste foi concluido com sucesso."
+    )
+    html_body = """
+    <div style="font-family:sans-serif;max-width:560px;">
+      <h2 style="color:#38bdf8;margin-bottom:0.5rem;">VANTAGE SMTP Test</h2>
+      <p>Este e-mail confirma que a configuracao SMTP do VANTAGE esta funcional.</p>
+      <p style="color:#888;font-size:0.9rem;">Se voce recebeu esta mensagem, o teste foi concluido com sucesso.</p>
+    </div>
+    """
+    return await _send_email(to_email, subject, text_body, html_body)

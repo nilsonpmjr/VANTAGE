@@ -17,6 +17,17 @@ from identity import email_in_use, normalize_email
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
 from audit import log_action
 from logging_config import get_logger
+from limiters import limiter
+from operational_config import get_public_operational_config, update_operational_config
+from operational_status import get_operational_status_snapshot
+from mailer import send_smtp_test_email
+from threat_ingestion import (
+    get_public_threat_source,
+    get_public_threat_sources,
+    get_runtime_threat_source,
+    update_misp_source_config,
+)
+from threat_misp import MISPClient
 
 logger = get_logger("AdminRouter")
 
@@ -247,6 +258,229 @@ _VALID_ROLES = {"admin", "manager", "tech"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password_history", "normalized_email"}
 _IMPORT_COLUMNS = {"username", "name", "role", "email", "preferred_lang"}
+
+
+class SMTPConfigUpdate(BaseModel):
+    host: Optional[str] = None
+    port: Optional[int] = Field(None, ge=1, le=65535)
+    username: Optional[str] = None
+    password: Optional[str] = None
+    from_email: Optional[str] = None
+    tls: Optional[bool] = None
+
+
+class SMTPTestRequest(BaseModel):
+    to_email: Optional[str] = None
+
+
+class MISPConfigUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    display_name: Optional[str] = None
+    base_url: Optional[str] = None
+    api_key: Optional[str] = None
+    verify_tls: Optional[bool] = None
+    poll_interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
+
+
+@router.get("/operational-config/smtp")
+async def read_smtp_operational_config(current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    return (await get_public_operational_config(db))["smtp"]
+
+
+@router.put("/operational-config/smtp")
+async def update_smtp_operational_config(
+    request: Request,
+    body: SMTPConfigUpdate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    patch = {}
+    if body.host is not None:
+        patch["smtp_host"] = body.host
+    if body.port is not None:
+        patch["smtp_port"] = body.port
+    if body.username is not None:
+        patch["smtp_user"] = body.username
+    if body.password is not None:
+        patch["smtp_pass"] = body.password
+    if body.from_email is not None:
+        normalized_from_email = normalize_email(body.from_email)
+        if not normalized_from_email or not _EMAIL_RE.match(normalized_from_email):
+            raise HTTPException(status_code=400, detail="Invalid SMTP from email.")
+        patch["smtp_from"] = normalized_from_email
+    if body.tls is not None:
+        patch["smtp_tls"] = body.tls
+
+    if not patch:
+        raise HTTPException(status_code=400, detail="No SMTP fields provided.")
+
+    try:
+        public_view = await update_operational_config(
+            db,
+            patch,
+            updated_by=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    detail_fields = sorted(patch.keys())
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="smtp_config_updated",
+        ip=ip,
+        result="success",
+        detail="fields=" + ",".join(detail_fields),
+    )
+    return public_view["smtp"]
+
+
+@router.post("/operational-config/smtp/test")
+@limiter.limit("3/minute", error_message="Too many SMTP test attempts. Try again later.")
+async def test_smtp_operational_config(
+    request: Request,
+    body: SMTPTestRequest,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    to_email = normalize_email(body.to_email) if body.to_email else None
+    if not to_email:
+        current_user_record = await db.users.find_one({"username": current_user["username"]})
+        to_email = normalize_email((current_user_record or {}).get("email"))
+    if not to_email:
+        raise HTTPException(status_code=400, detail="A target email is required for SMTP test.")
+    if not _EMAIL_RE.match(to_email):
+        raise HTTPException(status_code=400, detail="Invalid target email for SMTP test.")
+
+    success = await send_smtp_test_email(to_email)
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="smtp_test_sent" if success else "smtp_test_failed",
+        target=to_email,
+        ip=ip,
+        result="success" if success else "failure",
+    )
+    if not success:
+        raise HTTPException(status_code=502, detail="SMTP test failed.")
+    return {"message": "SMTP test email sent.", "to_email": to_email}
+
+
+@router.get("/operational-status")
+async def read_operational_status(current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    return await get_operational_status_snapshot(db)
+
+
+@router.get("/threat-sources")
+async def read_threat_sources(current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    return {"sources": await get_public_threat_sources(db)}
+
+
+@router.get("/threat-sources/misp")
+async def read_misp_source(current_user: dict = Depends(require_role(["admin"]))):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    return await get_public_threat_source(db, "misp_events")
+
+
+@router.put("/threat-sources/misp")
+async def update_misp_source(
+    request: Request,
+    body: MISPConfigUpdate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    patch = body.model_dump(exclude_none=True)
+    if not patch:
+        raise HTTPException(status_code=400, detail="No MISP fields provided.")
+
+    try:
+        public_view = await update_misp_source_config(
+            db,
+            patch,
+            updated_by=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    detail_fields = sorted(patch.keys())
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="misp_config_updated",
+        ip=ip,
+        result="success",
+        detail="fields=" + ",".join(detail_fields),
+    )
+    return public_view
+
+
+@router.post("/threat-sources/misp/test")
+@limiter.limit("3/minute", error_message="Too many MISP test attempts. Try again later.")
+async def test_misp_source(
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    source = await get_runtime_threat_source(db, "misp_events")
+    config = source.get("config", {})
+    if not config.get("base_url"):
+        raise HTTPException(status_code=400, detail="MISP base URL is not configured.")
+    if config.get("api_key_decryption_error"):
+        raise HTTPException(status_code=502, detail="Stored MISP API key is unreadable. Save it again.")
+    if not config.get("api_key"):
+        raise HTTPException(status_code=400, detail="MISP API key is not configured.")
+
+    client = MISPClient(
+        base_url=config["base_url"],
+        api_key=config["api_key"],
+        verify_tls=bool(config.get("verify_tls", True)),
+    )
+
+    ip = request.client.host if request.client else ""
+    try:
+        result = await client.test_connection()
+    except Exception as exc:
+        await log_action(
+            db,
+            user=current_user["username"],
+            action="misp_test_failed",
+            ip=ip,
+            result="failure",
+            detail=str(exc),
+        )
+        raise HTTPException(status_code=502, detail="MISP connectivity test failed.") from exc
+
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="misp_test_succeeded",
+        ip=ip,
+        result="success",
+        detail=f"version={result.get('version', 'unknown')}",
+    )
+    return {"message": "MISP connectivity test succeeded.", **result}
 
 
 def _generate_temporary_password(policy: dict) -> str:

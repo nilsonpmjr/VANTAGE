@@ -42,6 +42,20 @@ const TOUR_STEPS = [
         roles: null,
     },
     {
+        target: 'sidebar-recon',
+        titleKey: 'tour.recon_title',
+        descKey: 'tour.recon_desc',
+        position: 'right',
+        roles: ['admin', 'manager', 'tech'],
+    },
+    {
+        target: 'sidebar-watchlist',
+        titleKey: 'tour.watchlist_title',
+        descKey: 'tour.watchlist_desc',
+        position: 'right',
+        roles: ['admin', 'manager', 'tech'],
+    },
+    {
         target: 'sidebar-dashboard',
         titleKey: 'tour.dashboard_title',
         descKey: 'tour.dashboard_desc',

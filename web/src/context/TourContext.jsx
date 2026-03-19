@@ -6,6 +6,7 @@ import { useAuth } from './AuthContext';
 const TourContext = createContext(null);
 
 const STORAGE_PREFIX = 'tour_completed_v1_';
+const ONBOARDING_PREFIX = 'tour_onboarding_v1_';
 
 /**
  * TourProvider — manages guided-tour state.
@@ -18,6 +19,7 @@ export const TourProvider = ({ children }) => {
 
     const [isTourActive, setIsTourActive] = useState(false);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
+    const [isOnboardingPromptVisible, setIsOnboardingPromptVisible] = useState(false);
 
     // Filter steps based on user role
     const steps = useMemo(() => {
@@ -28,22 +30,36 @@ export const TourProvider = ({ children }) => {
     }, [user]);
 
     const storageKey = user ? `${STORAGE_PREFIX}${user.username ?? user._id}` : null;
+    const onboardingKey = user ? `${ONBOARDING_PREFIX}${user.username ?? user._id}` : null;
+
+    const startTour = useCallback(() => {
+        setIsOnboardingPromptVisible(false);
+        setCurrentStepIndex(0);
+        setIsTourActive(true);
+    }, []);
 
     // Auto-start on first login — skip if password reset is required
     useEffect(() => {
         if (!user || !storageKey) return;
+        setIsOnboardingPromptVisible(false);
         // Don't start tour when user must change password first
         if (user.force_password_reset || user.password_expires_in_days === 0) return;
         const completed = localStorage.getItem(storageKey);
-        if (!completed) {
-            // Delay so the login transition animation finishes first
-            const timer = setTimeout(() => {
-                setCurrentStepIndex(0);
-                setIsTourActive(true);
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [user, storageKey]);
+        if (completed) return;
+
+        const onboardingChoice = onboardingKey ? localStorage.getItem(onboardingKey) : null;
+        const timer = setTimeout(() => {
+            if (onboardingChoice === 'tour') {
+                startTour();
+                return;
+            }
+            if (!onboardingChoice) {
+                setIsOnboardingPromptVisible(true);
+            }
+        }, 1000);
+
+        return () => clearTimeout(timer);
+    }, [user, storageKey, onboardingKey, startTour]);
 
     const markComplete = useCallback(() => {
         if (storageKey) localStorage.setItem(storageKey, 'true');
@@ -66,21 +82,32 @@ export const TourProvider = ({ children }) => {
 
     const skipTour = useCallback(() => {
         setIsTourActive(false);
+        setIsOnboardingPromptVisible(false);
         setCurrentStepIndex(0);
         markComplete();
     }, [markComplete]);
 
     const restartTour = useCallback(() => {
         if (storageKey) localStorage.removeItem(storageKey);
-        setCurrentStepIndex(0);
-        setIsTourActive(true);
-    }, [storageKey]);
+        startTour();
+    }, [storageKey, startTour]);
+
+    const acceptOnboardingPrompt = useCallback(() => {
+        if (onboardingKey) localStorage.setItem(onboardingKey, 'api_keys');
+        setIsOnboardingPromptVisible(false);
+    }, [onboardingKey]);
+
+    const declineOnboardingPrompt = useCallback(() => {
+        if (onboardingKey) localStorage.setItem(onboardingKey, 'tour');
+        startTour();
+    }, [onboardingKey, startTour]);
 
     const currentStep = steps[currentStepIndex] ?? null;
 
     const value = useMemo(
         () => ({
             isTourActive,
+            isOnboardingPromptVisible,
             currentStep,
             currentStepIndex,
             totalSteps: steps.length,
@@ -88,8 +115,22 @@ export const TourProvider = ({ children }) => {
             prevStep,
             skipTour,
             restartTour,
+            acceptOnboardingPrompt,
+            declineOnboardingPrompt,
         }),
-        [isTourActive, currentStep, currentStepIndex, steps.length, nextStep, prevStep, skipTour, restartTour],
+        [
+            isTourActive,
+            isOnboardingPromptVisible,
+            currentStep,
+            currentStepIndex,
+            steps.length,
+            nextStep,
+            prevStep,
+            skipTour,
+            restartTour,
+            acceptOnboardingPrompt,
+            declineOnboardingPrompt,
+        ],
     );
 
     return <TourContext.Provider value={value}>{children}</TourContext.Provider>;

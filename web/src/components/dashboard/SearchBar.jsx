@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Search, Loader2, Layers, Upload } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
@@ -49,11 +49,12 @@ function parseFile(file) {
     });
 }
 
-export default function SearchBar({ onSearch, onBatchSearch, loading }) {
+export default function SearchBar({ onSearch, onBatchSearch, loading, focusSignal = 0 }) {
     const { t } = useTranslation();
     const [query, setQuery] = useState('');
     const [importWarning, setImportWarning] = useState(null);
     const fileInputRef = useRef(null);
+    const inputRef = useRef(null);
 
     const targets = parseTargets(query);
     const isBatch = BATCH_PATTERN.test(query) && targets.length > 1;
@@ -105,6 +106,13 @@ export default function SearchBar({ onSearch, onBatchSearch, loading }) {
         [t],
     );
 
+    useEffect(() => {
+        if (focusSignal > 0 && !loading) {
+            inputRef.current?.focus();
+            inputRef.current?.select();
+        }
+    }, [focusSignal, loading]);
+
     return (
         <div className="search-container">
             <form onSubmit={handleSubmit} style={{ position: 'relative' }}>
@@ -113,6 +121,7 @@ export default function SearchBar({ onSearch, onBatchSearch, loading }) {
                     : <Search className="search-icon" size={20} />}
 
                 <input
+                    ref={inputRef}
                     type="text"
                     className="search-input"
                     placeholder={

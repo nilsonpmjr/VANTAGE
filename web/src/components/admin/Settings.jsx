@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Palette } from 'lucide-react';
+import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Palette, Mail, Waypoints, DatabaseZap } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import SettingsShell from '../layout/SettingsShell';
 import SettingsOverview from './SettingsOverview';
 import DesignSystemPanel from './DesignSystemPanel';
+import SMTPControlPanel from './SMTPControlPanel';
+import OperationalStatusPanel from './OperationalStatusPanel';
+import ThreatIngestionPanel from './ThreatIngestionPanel';
 import PasswordPolicyForm from './PasswordPolicyForm';
 import LockoutPolicyForm from './LockoutPolicyForm';
 import UserListPanel from './UserListPanel';
@@ -125,6 +128,25 @@ export default function Settings() {
         }
         if (isAdmin) {
             groups.push({
+                key: 'control_plane_group',
+                label: t('settings.menu_control_plane'),
+                items: [
+                    { key: 'smtp', icon: <Mail size={16} />, label: t('settings.menu_smtp') },
+                    { key: 'operational_status', icon: <Waypoints size={16} />, label: t('settings.menu_operational_status') },
+                ],
+            });
+        }
+        if (isAdmin) {
+            groups.push({
+                key: 'intelligence_group',
+                label: t('settings.menu_intelligence'),
+                items: [
+                    { key: 'threat_ingestion', icon: <DatabaseZap size={16} />, label: t('settings.menu_threat_ingestion') },
+                ],
+            });
+        }
+        if (isAdmin) {
+            groups.push({
                 key: 'security_group',
                 label: t('settings.menu_security'),
                 items: [
@@ -148,6 +170,9 @@ export default function Settings() {
         const map = {
             overview: {},
             design_system: { label: t('settings.menu_design_system') },
+            smtp: { parent: t('settings.menu_control_plane'), label: t('settings.menu_smtp') },
+            operational_status: { parent: t('settings.menu_control_plane'), label: t('settings.menu_operational_status') },
+            threat_ingestion: { parent: t('settings.menu_intelligence'), label: t('settings.menu_threat_ingestion') },
             password_policy: { parent: t('settings.menu_security'), label: t('settings.menu_password_policy') },
             lockout_policy: { parent: t('settings.menu_security'), label: t('settings.menu_lockout_policy') },
             users: { parent: t('settings.menu_users'), label: t('settings.menu_manage') },
@@ -188,6 +213,12 @@ export default function Settings() {
                 )}
 
                 {activeKey === 'design_system' && isAdmin && <DesignSystemPanel />}
+
+                {activeKey === 'smtp' && isAdmin && <SMTPControlPanel />}
+
+                {activeKey === 'operational_status' && isAdmin && <OperationalStatusPanel />}
+
+                {activeKey === 'threat_ingestion' && isAdmin && <ThreatIngestionPanel />}
 
                 {activeKey === 'password_policy' && isAdmin && <PasswordPolicyForm />}
 

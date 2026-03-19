@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { User, Lock, Webhook, ClipboardList, ShieldCheck, Monitor, Key, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -16,11 +16,15 @@ import ThirdPartyKeysManager from './profile/ThirdPartyKeysManager';
 import API_URL from '../config';
 import '../index.css';
 
-export default function Profile() {
+export default function Profile({ initialActiveKey = 'info' }) {
     const { user, updateUserContext, setMfaSetupRequired } = useAuth();
     const { t } = useTranslation();
     const [mfaEnabled, setMfaEnabled] = useState(user?.mfa_enabled || false);
-    const [activeKey, setActiveKey] = useState('info');
+    const [activeKey, setActiveKey] = useState(initialActiveKey);
+
+    useEffect(() => {
+        setActiveKey(initialActiveKey);
+    }, [initialActiveKey]);
 
     const menuGroups = useMemo(() => [
         {

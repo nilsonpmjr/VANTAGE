@@ -19,9 +19,12 @@ const ReconPage = React.lazy(() => import('./components/recon/ReconPage'));
 import Profile from './components/Profile';
 import WatchlistSettings from './components/profile/WatchlistSettings';
 import TourOverlay from './components/shared/TourOverlay';
+import OnboardingApiKeysPrompt from './components/shared/OnboardingApiKeysPrompt';
 import { useTranslation } from 'react-i18next';
 import API_URL from './config';
 import useBrandTheme from './branding/useBrandTheme';
+import { useTour } from './context/TourContext';
+import { shouldHandleSearchShortcut } from './utils/searchShortcuts';
 import './index.css';
 
 const INTEGRATIONS = [
@@ -53,9 +56,12 @@ export default function App() {
   const [forgotPasswordMode, setForgotPasswordMode] = useState(false);
   const [reconTarget, setReconTarget] = useState(null);
   const [reconOpenHistory, setReconOpenHistory] = useState(false);
+  const [profileInitialKey, setProfileInitialKey] = useState(null);
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
 
   const { t, i18n } = useTranslation();
   const { brand, logoPath } = useBrandTheme();
+  const { isOnboardingPromptVisible, acceptOnboardingPrompt, declineOnboardingPrompt } = useTour();
   const canAccessSettings = user?.role === 'admin';
 
   // BUG-02: Clear recon navigation state when leaving the recon view
@@ -64,7 +70,20 @@ export default function App() {
       setReconTarget(null);
       setReconOpenHistory(false);
     }
+    if (view !== 'profile') {
+      setProfileInitialKey(null);
+    }
     setCurrentView(view);
+  };
+
+  const handleConfigureApiKeysBeforeTour = () => {
+    acceptOnboardingPrompt();
+    setProfileInitialKey('third_party_keys');
+    setCurrentView('profile');
+  };
+
+  const handleContinueTour = () => {
+    declineOnboardingPrompt();
   };
 
   useEffect(() => {
@@ -107,6 +126,20 @@ export default function App() {
       setCurrentViewSafe('home');
     }
   }, [currentView, canAccessSettings]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!user || currentView !== 'home') return;
+
+    const handleShortcut = (event) => {
+      if (shouldHandleSearchShortcut(currentView, event)) {
+        event.preventDefault();
+        setSearchFocusSignal((current) => current + 1);
+      }
+    };
+
+    window.addEventListener('keydown', handleShortcut);
+    return () => window.removeEventListener('keydown', handleShortcut);
+  }, [user, currentView]);
 
 
   const handleBatchSearch = (rawTargets) => {
@@ -246,6 +279,7 @@ export default function App() {
                     onSearch={handleSearch}
                     onBatchSearch={handleBatchSearch}
                     loading={loading}
+                    focusSignal={searchFocusSignal}
                   />
                 </div>
 
@@ -404,7 +438,7 @@ export default function App() {
           )}
           {currentView === 'settings' && canAccessSettings && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
           {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
-          {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile /></div>}
+          {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile initialActiveKey={profileInitialKey ?? 'info'} /></div>}
           {currentView === 'recon' && (
             <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
               <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />
@@ -418,6 +452,12 @@ export default function App() {
           <p>&copy; {new Date().getFullYear()} {brand.copyrightHolder}. All rights reserved.</p>
         </footer>
       </div>
+
+      <OnboardingApiKeysPrompt
+        open={Boolean(user && currentView === 'home' && isOnboardingPromptVisible)}
+        onConfigureNow={handleConfigureApiKeysBeforeTour}
+        onContinueTour={handleContinueTour}
+      />
 
       {/* Tour only runs on the home page */}
       {currentView === 'home' && <TourOverlay />}

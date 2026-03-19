@@ -19,7 +19,7 @@ router = APIRouter(prefix="/watchlist", tags=["watchlist"])
 @router.get("/smtp-status")
 async def smtp_status(current_user: dict = Depends(get_current_user)):
     from mailer import is_smtp_configured
-    return {"smtp_configured": is_smtp_configured()}
+    return {"smtp_configured": await is_smtp_configured()}
 
 WATCHLIST_LIMIT = 50
 

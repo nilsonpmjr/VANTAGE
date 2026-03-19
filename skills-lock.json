@@ -16,6 +16,11 @@
       "sourceType": "github",
       "computedHash": "9c71bc5839febec1c42fdd6f5aed3beb3fa9df399460f0d20310124abd77cc31"
     },
+    "firecrawl": {
+      "source": "firecrawl/cli",
+      "sourceType": "github",
+      "computedHash": "fe57b3575676d1a0ef2e5dbd4a0f4c913dc70af0d2d44b28729e8cac3b7cb59a"
+    },
     "github-copilot-starter": {
       "source": "github/awesome-copilot",
       "sourceType": "github",

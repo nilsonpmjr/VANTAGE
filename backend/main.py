@@ -13,6 +13,8 @@ from db import db_manager
 from config import settings
 from logging_config import setup_logging, get_logger
 from limiters import limiter
+from operational_status import set_scheduler_runtime_provider
+from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
 from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist
@@ -21,6 +23,12 @@ logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
 
 scheduler = AsyncIOScheduler()
+set_scheduler_runtime_provider(
+    lambda: {
+        "running": bool(getattr(scheduler, "running", False)),
+        "scheduled_jobs": len(scheduler.get_jobs()) if hasattr(scheduler, "get_jobs") else 0,
+    }
+)
 API_CANONICAL_PREFIX = "/api"
 API_LEGACY_PREFIX = "/api/v1"
 API_V1_SUNSET = "Wed, 30 Sep 2026 00:00:00 GMT"
@@ -134,6 +142,20 @@ async def lifespan(app: FastAPI):
                 [("user", 1), ("created_at", -1)],
                 name="watchlist_user_created",
             )
+            await db.threat_items.create_index(
+                [("source_id", 1), ("external_id", 1)],
+                unique=True,
+                name="threat_items_source_external_id",
+            )
+            await db.threat_items.create_index(
+                [("published_at", -1)],
+                name="threat_items_published_at",
+            )
+            await db.threat_sync_status.create_index(
+                [("source_id", 1)],
+                unique=True,
+                name="threat_sync_status_source_id",
+            )
             # Service quota indexes (daily API call tracking)
             await db.service_quota.create_index(
                 [("service", 1), ("date", 1), ("user", 1)],
@@ -173,6 +195,8 @@ async def lifespan(app: FastAPI):
     logger.info("Watchlist worker task created.")
     _aio.create_task(start_recon_scheduler())
     logger.info("Recon scheduler task created.")
+    _aio.create_task(start_threat_ingestion_worker())
+    logger.info("Threat ingestion worker task created.")
 
     yield
 

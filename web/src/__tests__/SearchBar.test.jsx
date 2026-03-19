@@ -40,4 +40,15 @@ describe('SearchBar', () => {
         render(<SearchBar onSearch={vi.fn()} loading={true} />);
         expect(screen.getByRole('textbox').disabled).toBe(true);
     });
+
+    it('focuses the input when focusSignal changes', async () => {
+        const { rerender } = render(<SearchBar onSearch={vi.fn()} loading={false} focusSignal={0} />);
+        const input = screen.getByRole('textbox');
+
+        expect(document.activeElement).not.toBe(input);
+
+        rerender(<SearchBar onSearch={vi.fn()} loading={false} focusSignal={1} />);
+
+        expect(document.activeElement).toBe(input);
+    });
 });

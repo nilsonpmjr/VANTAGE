@@ -393,6 +393,29 @@ export default function ExtensionsCatalogPanel() {
                                                     </ul>
                                                 </div>
                                             ) : null}
+                                            {item.premiumFeatureType === 'exposure_provider' ? (
+                                                <div>
+                                                    <h4>{t('settings.extensions_catalog_exposure')}</h4>
+                                                    <ul className="service-status-list">
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_exposure_asset_types')}</span>
+                                                            <strong>{compactValue(item.exposureAssetTypes)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_provider_scope')}</span>
+                                                            <strong>{compactValue(item.providerScope)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_required_secrets')}</span>
+                                                            <strong>{compactValue(item.requiredSecrets)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_recommended_schedule')}</span>
+                                                            <strong>{compactValue(item.recommendedSchedule)}</strong>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     ) : null}
                                 </div>

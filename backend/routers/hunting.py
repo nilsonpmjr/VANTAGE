@@ -6,11 +6,14 @@ Provides the initial authenticated surface for premium hunting providers.
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, field_validator
 
+from audit import log_action
 from auth import get_current_user
 from hunting_runtime import (
     SHERLOCK_SUPPORTED_ARTIFACT_TYPES,
@@ -19,6 +22,8 @@ from hunting_runtime import (
     normalize_sherlock_results,
     run_sherlock_query,
 )
+from db import db_manager
+from limiters import limiter
 
 router = APIRouter(prefix="/hunting", tags=["hunting"])
 
@@ -45,6 +50,7 @@ async def list_hunting_providers(current_user: dict = Depends(get_current_user))
 
 
 @router.post("/search")
+@limiter.limit("5/minute", error_message="Too many premium hunting searches. Try again later.")
 async def run_hunting_search(
     body: HuntingSearchRequest,
     request: Request,
@@ -68,6 +74,9 @@ async def run_hunting_search(
     exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
     provider_results: list[dict[str, Any]] = []
     total_results = 0
+    db = db_manager.db
+    search_id = uuid4().hex
+    request_ip = request.client.host if request.client else ""
 
     for provider in requested:
         query_payload = build_sherlock_query(
@@ -91,6 +100,15 @@ async def run_hunting_search(
         try:
             raw_output = await run_sherlock_query(query_payload, exec_runner=exec_runner)
             results = normalize_sherlock_results(query_payload, raw_output)
+            if db is not None:
+                for result in results:
+                    result["_id"] = uuid4().hex
+                    result["search_id"] = search_id
+                    result["search_timestamp"] = datetime.now(timezone.utc)
+                    result["data_boundary"] = "premium_hunting"
+                    result["storage_scope"] = "user"
+                    result["analyst"] = current_user["username"]
+                    await db.hunting_results.insert_one(result)
             provider_results.append(
                 {
                     "provider": provider,
@@ -131,6 +149,19 @@ async def run_hunting_search(
                     "results": [],
                 }
             )
+
+    if db is not None:
+        has_success = any(item["status"] == "ok" for item in provider_results)
+        has_failure = any(item["status"] == "error" for item in provider_results)
+        await log_action(
+            db,
+            user=current_user["username"],
+            action="premium_hunting_search",
+            target=body.query,
+            ip=request_ip,
+            result="failure" if has_failure and not has_success else "success",
+            detail=f"{body.artifact_type}:{total_results}:{','.join(item['status'] for item in provider_results)}",
+        )
 
     return {
         "query": {

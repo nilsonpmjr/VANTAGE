@@ -18,7 +18,7 @@ from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, hunting
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, hunting, exposure
 
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
@@ -157,6 +157,35 @@ async def lifespan(app: FastAPI):
                 unique=True,
                 name="threat_sync_status_source_id",
             )
+            await db.exposure_monitored_assets.create_index(
+                [("customer_key", 1), ("asset_type", 1), ("value", 1)],
+                unique=True,
+                name="exposure_monitored_assets_customer_asset",
+            )
+            await db.exposure_monitored_assets.create_index(
+                [("customer_key", 1), ("recurrence.mode", 1), ("is_active", 1)],
+                name="exposure_monitored_assets_customer_recurrence",
+            )
+            await db.exposure_findings.create_index(
+                [("customer_key", 1), ("monitored_asset_id", 1), ("timestamp", -1)],
+                name="exposure_findings_customer_asset_timestamp",
+            )
+            await db.exposure_findings.create_index(
+                [("customer_key", 1), ("severity", 1), ("timestamp", -1)],
+                name="exposure_findings_customer_severity_timestamp",
+            )
+            await db.exposure_incidents.create_index(
+                [("customer_key", 1), ("status", 1), ("updated_at", -1)],
+                name="exposure_incidents_customer_status_updated",
+            )
+            await db.hunting_results.create_index(
+                [("analyst", 1), ("timestamp", -1)],
+                name="hunting_results_analyst_timestamp",
+            )
+            await db.hunting_results.create_index(
+                [("search_id", 1)],
+                name="hunting_results_search_id",
+            )
             # Service quota indexes (daily API call tracking)
             await db.service_quota.create_index(
                 [("service", 1), ("date", 1), ("user", 1)],
@@ -284,7 +313,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router, recon.router, watchlist.router, feed.router, hunting.router,
+    batch.router, recon.router, watchlist.router, feed.router, hunting.router, exposure.router,
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

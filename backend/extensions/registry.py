@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
+from exposure_contracts import build_exposure_provider_descriptor
 from hunting_contracts import build_hunting_provider_descriptor, recommend_hunting_execution_profile
 from recon.engine import get_module_inventory
 
@@ -15,7 +16,7 @@ VALID_DISTRIBUTION_TIERS = {"core", "local", "premium"}
 VALID_REPOSITORY_VISIBILITIES = {"public", "private"}
 VALID_UPDATE_CHANNELS = {"bundled", "manual", "licensed"}
 VALID_OWNERSHIP_BOUNDARIES = {"core_team", "customer_local", "vantage_premium"}
-VALID_PREMIUM_FEATURE_TYPES = {"hunting_provider"}
+VALID_PREMIUM_FEATURE_TYPES = {"hunting_provider", "exposure_provider"}
 PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_SOURCE_ROOT = PROJECT_ROOT / "web/src"
@@ -237,6 +238,22 @@ def _validate_manifest(
                 )
             except ValueError as exc:
                 errors.append(str(exc))
+        elif premium_feature_type == "exposure_provider":
+            try:
+                build_exposure_provider_descriptor(
+                    key=str(payload.get("key") or ""),
+                    name=str(payload.get("name") or ""),
+                    version=str(payload.get("version") or ""),
+                    asset_types=list(payload.get("exposureAssetTypes") or []),
+                    provider_scope=list(payload.get("providerScope") or []),
+                    entrypoint=str(payload.get("entrypoint") or ""),
+                    runtime=str(payload.get("runtime") or "plugin_premium"),
+                    capabilities=list(payload.get("capabilities") or []),
+                    required_secrets=list(payload.get("requiredSecrets") or payload.get("permissions") or []),
+                    recommended_schedule=str(payload.get("recommendedSchedule") or "daily"),
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
 
     public_asset_root = payload.get("publicAssetRoot")
     if public_asset_root and not str(public_asset_root).startswith(APPROVED_PUBLIC_ASSET_PREFIXES):
@@ -312,8 +329,10 @@ def _build_descriptor(
         "ownershipBoundary": distribution["ownershipBoundary"],
         "premiumFeatureType": payload.get("premiumFeatureType"),
         "huntingArtifactTypes": payload.get("huntingArtifactTypes", []),
+        "exposureAssetTypes": payload.get("exposureAssetTypes", []),
         "providerScope": payload.get("providerScope", []),
         "requiredSecrets": payload.get("requiredSecrets", []),
+        "recommendedSchedule": payload.get("recommendedSchedule"),
         "isolationMode": payload.get("isolationMode"),
         "requiresKali": bool(payload.get("requiresKali", False)),
         "requiresCustomBinaries": bool(payload.get("requiresCustomBinaries", False)),
@@ -430,6 +449,25 @@ def _enrich_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
             descriptor["isolationMode"] = hunting_provider["executionProfile"]["mode"]
             descriptor["requiresKali"] = hunting_provider["requiresKali"]
             descriptor["executionProfile"] = hunting_provider["executionProfile"]
+        if descriptor["status"] != "invalid" and descriptor.get("premiumFeatureType") == "exposure_provider":
+            exposure_provider = build_exposure_provider_descriptor(
+                key=str(descriptor.get("key") or ""),
+                name=str(descriptor.get("name") or ""),
+                version=str(descriptor.get("version") or ""),
+                asset_types=list(descriptor.get("exposureAssetTypes") or descriptor.get("capabilities") or []),
+                provider_scope=list(descriptor.get("providerScope") or []),
+                entrypoint=str(descriptor.get("entrypoint") or ""),
+                runtime=str(descriptor.get("runtime") or "plugin_premium"),
+                capabilities=list(descriptor.get("capabilities") or []),
+                required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
+                recommended_schedule=str(descriptor.get("recommendedSchedule") or "daily"),
+            )
+            descriptor["exposureProvider"] = exposure_provider
+            descriptor["productSurface"] = exposure_provider["providerScope"]
+            descriptor["exposureAssetTypes"] = exposure_provider["assetTypes"]
+            descriptor["providerScope"] = exposure_provider["providerScope"]
+            descriptor["requiredSecrets"] = exposure_provider["requiredSecrets"]
+            descriptor["recommendedSchedule"] = exposure_provider["recommendedSchedule"]
     return descriptor
 
 

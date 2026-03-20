@@ -18,6 +18,7 @@ const Dashboard = React.lazy(() => import('./components/dashboard/Dashboard'));
 const ReconPage = React.lazy(() => import('./components/recon/ReconPage'));
 const FeedPage = React.lazy(() => import('./components/feed/FeedPage'));
 const PremiumHuntingPage = React.lazy(() => import('./components/hunting/PremiumHuntingPage'));
+const PremiumExposurePage = React.lazy(() => import('./components/exposure/PremiumExposurePage'));
 import FeedPreview from './components/feed/FeedPreview';
 import Profile from './components/Profile';
 import WatchlistSettings from './components/profile/WatchlistSettings';
@@ -459,6 +460,14 @@ export default function App() {
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
               <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
                 <PremiumHuntingPage />
+              </Suspense>
+            </div>
+          )}
+
+          {currentView === 'exposure' && (
+            <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+                <PremiumExposurePage />
               </Suspense>
             </div>
           )}

@@ -287,6 +287,84 @@ def test_load_extensions_registry_supports_external_premium_root(tmp_path):
     assert registry[0]["executionProfile"]["performanceProfile"] == "balanced"
 
 
+def test_load_extensions_registry_supports_exposure_provider_metadata(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-exposure"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-exposure",
+        "name": "Premium Exposure",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "exposure_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "capabilities": ["credential", "brand"],
+        "providerScope": ["credential", "brand"],
+        "exposureAssetTypes": ["domain", "brand_keyword"],
+        "requiredSecrets": ["license.local"],
+        "recommendedSchedule": "daily",
+        "entrypoint": "premium.exposure",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "enabled"
+    assert registry[0]["premiumFeatureType"] == "exposure_provider"
+    assert registry[0]["exposureAssetTypes"] == ["brand_keyword", "domain"]
+    assert registry[0]["providerScope"] == ["brand", "credential"]
+    assert registry[0]["requiredSecrets"] == ["license.local"]
+    assert registry[0]["recommendedSchedule"] == "daily"
+
+
+def test_load_extensions_registry_requires_exposure_metadata_for_premium_provider(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-exposure-missing-assets"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-exposure-missing-assets",
+        "name": "Premium Exposure Missing Assets",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "exposure_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "providerScope": ["credential"],
+        "entrypoint": "premium.exposure",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "invalid"
+    assert "exposure_asset_types_required" in registry[0]["errors"]
+
+
 def test_load_extensions_registry_warns_when_distribution_tier_is_inferred(tmp_path):
     premium_root = tmp_path / "premium"
     plugin_dir = premium_root / "premium-hunting"

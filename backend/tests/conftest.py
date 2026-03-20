@@ -46,6 +46,9 @@ class FakeCollection:
     def __init__(self, data=None):
         self._data = list(data or [])
 
+    async def create_index(self, *args, **kwargs):
+        return kwargs.get("name")
+
     async def find_one(self, query, *args, **kwargs):
         for doc in self._data:
             if all(doc.get(k) == v for k, v in query.items() if not isinstance(v, dict)):
@@ -229,6 +232,10 @@ class FakeDB:
         self.threat_sources = FakeCollection()
         self.threat_sync_status = FakeCollection()
         self.threat_items = FakeCollection()
+        self.hunting_results = FakeCollection()
+        self.exposure_monitored_assets = FakeCollection()
+        self.exposure_findings = FakeCollection()
+        self.exposure_incidents = FakeCollection()
         self.recon_jobs = FakeCollection()
         self.recon_scheduled = FakeCollection()
         self.recon_results = FakeCollection()

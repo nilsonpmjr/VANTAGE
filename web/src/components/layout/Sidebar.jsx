@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu, Radar, Eye, Rss, Fingerprint } from 'lucide-react';
+import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu, Radar, Eye, Rss, Fingerprint, ShieldAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTour } from '../../context/TourContext';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +26,7 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
         { id: 'feed', label: t('sidebar.feed'), icon: Rss, roles: ['admin', 'manager', 'tech'] },
         { id: 'hunting', label: t('sidebar.hunting'), icon: Fingerprint, roles: ['admin', 'manager', 'tech'] },
+        { id: 'exposure', label: t('sidebar.exposure'), icon: ShieldAlert, roles: ['admin', 'manager', 'tech'] },
         { id: 'recon', label: t('sidebar.recon'), icon: Radar, roles: ['admin', 'manager', 'tech'] },
         { id: 'watchlist', label: t('sidebar.watchlist'), icon: Eye, roles: ['admin', 'manager', 'tech'] },
         { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },

@@ -219,6 +219,33 @@ describe('ExtensionsCatalogPanel', () => {
                         productSurface: ['hunting'],
                         errors: [],
                     },
+                    {
+                        key: 'premium-exposure',
+                        name: 'Premium Exposure',
+                        kind: 'premium_feature',
+                        premiumFeatureType: 'exposure_provider',
+                        version: '0.1.0',
+                        author: 'VANTAGE Premium',
+                        license: 'Commercial',
+                        compatibleCore: '1.x',
+                        status: 'enabled',
+                        capabilities: ['credential', 'brand'],
+                        permissions: ['license.local'],
+                        entrypoint: 'premium.exposure',
+                        distributionTier: 'premium',
+                        repositoryVisibility: 'private',
+                        updateChannel: 'licensed',
+                        ownershipBoundary: 'vantage_premium',
+                        exposureAssetTypes: ['brand_keyword', 'domain'],
+                        providerScope: ['brand', 'credential'],
+                        requiredSecrets: ['license.local'],
+                        recommendedSchedule: 'daily',
+                        source: 'premium',
+                        builtin: false,
+                        delivery: 'licensed_package',
+                        productSurface: ['brand', 'credential'],
+                        errors: [],
+                    },
                 ],
             }),
         });
@@ -227,12 +254,16 @@ describe('ExtensionsCatalogPanel', () => {
         render(<ExtensionsCatalogPanel />);
 
         await screen.findByText('Premium Hunting');
-        expect(screen.getByText('settings.extensions_catalog_field_premium_feature_type')).toBeInTheDocument();
+        expect(screen.getAllByText('settings.extensions_catalog_field_premium_feature_type')).toHaveLength(2);
         expect(screen.getByText('settings.extensions_catalog_field_hunting_artifact_types')).toBeInTheDocument();
         expect(screen.getByText('settings.extensions_catalog_field_operational_risk')).toBeInTheDocument();
+        expect(screen.getByText('settings.extensions_catalog_exposure')).toBeInTheDocument();
+        expect(screen.getByText('settings.extensions_catalog_field_exposure_asset_types')).toBeInTheDocument();
+        expect(screen.getByText('settings.extensions_catalog_field_recommended_schedule')).toBeInTheDocument();
         await user.click(screen.getByRole('button', { name: 'settings.extensions_catalog_filter_premium' }));
 
         expect(screen.getByText('Premium Hunting')).toBeInTheDocument();
+        expect(screen.getByText('Premium Exposure')).toBeInTheDocument();
         expect(screen.queryByText('VANTAGE Brand Pack')).not.toBeInTheDocument();
     });
 });

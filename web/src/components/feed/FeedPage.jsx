@@ -189,18 +189,8 @@ export default function FeedPage() {
         setPage(1);
     };
 
-    const selectStyle = {
-        background: 'var(--bg-card)',
-        border: '1px solid var(--glass-border)',
-        color: 'var(--text-primary)',
-        borderRadius: 'var(--radius-sm)',
-        padding: '0.4rem 0.6rem',
-        fontSize: '0.82rem',
-        cursor: 'pointer',
-    };
-
     return (
-        <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}>
+        <div className="v-arch-catalog">
             <SectionHeader
                 title={t('feed.page_title')}
                 description={t('feed.page_description')}
@@ -208,22 +198,12 @@ export default function FeedPage() {
             />
 
             {/* Filters bar */}
-            <div style={{
-                display: 'flex',
-                gap: '0.75rem',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                marginBottom: '1.5rem',
-                padding: '0.75rem 1rem',
-                background: 'var(--bg-card)',
-                border: '1px solid var(--glass-border)',
-                borderRadius: 'var(--radius-md)',
-            }}>
+            <div className="v-zone-filters">
                 <Filter size={16} style={{ color: 'var(--text-muted)' }} />
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {t('feed.filter_severity')}
-                    <select value={severity} onChange={(e) => handleSeverityChange(e.target.value)} style={selectStyle}>
+                    <select value={severity} onChange={(e) => handleSeverityChange(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
                         {SEVERITY_OPTIONS.map((s) => (
                             <option key={s} value={s}>{s === 'all' ? t('feed.all') : s.toUpperCase()}</option>
                         ))}
@@ -232,34 +212,22 @@ export default function FeedPage() {
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {t('feed.filter_source')}
-                    <select value={sourceType} onChange={(e) => handleSourceChange(e.target.value)} style={selectStyle}>
+                    <select value={sourceType} onChange={(e) => handleSourceChange(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
                         {SOURCE_OPTIONS.map((s) => (
                             <option key={s} value={s}>{s === 'all' ? t('feed.all') : s.toUpperCase()}</option>
                         ))}
                     </select>
                 </label>
 
-                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className="v-page-actions">
                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {t('feed.total_items', { count: total })}
                     </span>
                     <button
                         onClick={() => fetchItems(page, severity, sourceType, true)}
                         disabled={refreshing}
-                        className="hover-border"
-                        style={{
-                            '--hover-accent': 'var(--primary)',
-                            background: 'transparent',
-                            border: '1px solid var(--glass-border)',
-                            borderRadius: 'var(--radius-sm)',
-                            color: 'var(--text-secondary)',
-                            cursor: refreshing ? 'not-allowed' : 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            padding: '0.3rem 0.6rem',
-                            fontSize: '0.8rem',
-                        }}
+                        className="btn-secondary hover-border"
+                        style={{ '--hover-accent': 'var(--primary)', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
                         title={t('feed.refresh')}
                     >
                         <RefreshCw size={14} className={refreshing ? 'spin' : ''} />
@@ -269,22 +237,16 @@ export default function FeedPage() {
 
             {/* Items grid */}
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                <div className="v-empty-state">
                     <span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
                 </div>
             ) : items.length === 0 ? (
-                <div className="glass-panel" style={{ textAlign: 'center', padding: '3rem' }}>
-                    <Rss size={32} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-                        {t('feed.no_items')}
-                    </p>
+                <div className="v-empty-state">
+                    <Rss size={32} className="v-empty-state__icon" />
+                    <p className="v-empty-state__text">{t('feed.no_items')}</p>
                 </div>
             ) : (
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                    gap: '1rem',
-                }}>
+                <div className="v-zone-grid">
                     {items.map((item) => (
                         <FeedItemCard key={item._id} item={item} />
                     ))}
@@ -293,7 +255,7 @@ export default function FeedPage() {
 
             {/* Pagination */}
             {!loading && totalPages > 1 && (
-                <div style={{ marginTop: '2rem' }}>
+                <div className="v-zone-footer">
                     <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
                 </div>
             )}

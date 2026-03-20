@@ -211,24 +211,17 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', flexGrow: 1, minHeight: 0, overflow: 'hidden' }}>
-            {/* Header */}
-            <div style={{
-                padding: '1.25rem 1.5rem',
-                borderBottom: '1px solid var(--glass-border)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '1rem',
-                flexShrink: 0,
-            }}>
+            {/* Header — workbench toolbar */}
+            <div className="v-zone-toolbar">
                 <Radar size={20} color="var(--primary)" style={{ flexShrink: 0 }} />
-                <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '0.95rem', letterSpacing: '0.02em' }}>
+                <span className="v-page-title" style={{ fontSize: '0.95rem' }}>
                     {t('recon.title')}
                 </span>
 
-                <div style={{ flex: 1, maxWidth: '500px', marginLeft: '0.5rem' }}>
+                <div style={{ flex: 1, maxWidth: '500px' }}>
                     <input
                         type="text"
-                        className="search-input"
+                        className="form-input"
                         placeholder={t('recon.target_placeholder')}
                         value={target}
                         onChange={e => setTarget(e.target.value)}
@@ -240,50 +233,32 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                     />
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                <div className="v-page-actions">
                     {target.trim() && (
                         <button
+                            className="btn-secondary"
                             onClick={() => setShowHistory(true)}
                             title={t('recon.history_title', 'Histórico')}
-                            style={{
-                                display: 'flex', alignItems: 'center',
-                                background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                                color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)',
-                                padding: '0.5rem 0.75rem', cursor: 'pointer',
-                                transition: 'all 0.2s',
-                            }}
+                            style={{ padding: '0.5rem 0.75rem' }}
                         >
                             <History size={14} />
                         </button>
                     )}
                     <button
+                        className="btn-secondary"
                         onClick={handleScan}
                         disabled={!target.trim() || selected.length === 0 || scanning}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.4rem',
-                            background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
-                            color: 'var(--primary)', borderRadius: 'var(--radius-sm)',
-                            padding: '0.5rem 1rem', cursor: 'pointer', fontWeight: 600,
-                            fontSize: '0.85rem', transition: 'all 0.2s',
-                            opacity: (!target.trim() || selected.length === 0 || scanning) ? 0.5 : 1,
-                        }}
+                        style={{ padding: '0.5rem 1rem' }}
                     >
                         <Play size={14} />
                         {scanning ? t('recon.scanning') : t('recon.scan')}
                     </button>
                     {!scanning && target.trim() && selected.length > 0 && (
                         <button
+                            className={`btn-secondary ${showSchedule ? 'active' : ''}`}
                             onClick={() => setShowSchedule(p => !p)}
                             title={t('recon.schedule')}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                background: showSchedule ? 'var(--accent-glow)' : 'var(--glass-bg)',
-                                border: `1px solid ${showSchedule ? 'var(--accent-border)' : 'var(--glass-border)'}`,
-                                color: showSchedule ? 'var(--primary)' : 'var(--text-secondary)',
-                                borderRadius: 'var(--radius-sm)',
-                                padding: '0.5rem 0.75rem', cursor: 'pointer',
-                                fontSize: '0.85rem', transition: 'all 0.2s',
-                            }}
+                            style={{ padding: '0.5rem 0.75rem' }}
                         >
                             <CalendarClock size={14} />
                         </button>
@@ -292,42 +267,27 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                     {hasResults && !scanning && (
                         <>
                             <button
+                                className="btn-secondary"
                                 onClick={() => exportAllJSON(jobId, target, results)}
                                 title={t('recon.export_all')}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                                    color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)',
-                                    padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem',
-                                    transition: 'all 0.2s',
-                                }}
+                                style={{ padding: '0.5rem 0.75rem' }}
                             >
                                 <Download size={14} />
                                 JSON
                             </button>
                             <button
+                                className="btn-secondary"
                                 onClick={() => window.print()}
                                 title={t('recon.print', 'Imprimir')}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.4rem',
-                                    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                                    color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)',
-                                    padding: '0.5rem 0.75rem', cursor: 'pointer', fontSize: '0.85rem',
-                                    transition: 'all 0.2s',
-                                }}
+                                style={{ padding: '0.5rem 0.75rem' }}
                             >
                                 <Printer size={14} />
                             </button>
                             <button
+                                className="btn-secondary"
                                 onClick={handleReset}
                                 title={t('recon.new_scan')}
-                                style={{
-                                    display: 'flex', alignItems: 'center',
-                                    background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                                    color: 'var(--text-secondary)', borderRadius: 'var(--radius-sm)',
-                                    padding: '0.5rem 0.75rem', cursor: 'pointer',
-                                    transition: 'all 0.2s',
-                                }}
+                                style={{ padding: '0.5rem 0.75rem' }}
                             >
                                 <RotateCcw size={14} />
                             </button>
@@ -338,38 +298,24 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
 
             {/* Schedule picker */}
             {showSchedule && (
-                <div style={{
-                    padding: '0.75rem 1.5rem',
-                    borderBottom: '1px solid var(--glass-border)',
-                    background: 'var(--glass-bg)',
-                    display: 'flex', alignItems: 'center', gap: '0.75rem',
-                    flexShrink: 0, flexWrap: 'wrap',
-                }}>
+                <div className="v-zone-filters" style={{ borderRadius: 0, marginBottom: 0, border: 'none', borderBottom: '1px solid var(--ds-border)' }}>
                     <CalendarClock size={14} color="var(--primary)" />
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', fontWeight: 600 }}>
                         {t('recon.schedule')}
                     </span>
                     <input
                         type="datetime-local"
+                        className="form-input"
                         value={scheduleAt}
                         onChange={e => setScheduleAt(e.target.value)}
                         min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
-                        style={{
-                            background: 'var(--bg-card)', border: '1px solid var(--glass-border)',
-                            color: 'var(--text-primary)', borderRadius: 'var(--radius-sm)',
-                            padding: '0.4rem 0.6rem', fontSize: '0.82rem',
-                        }}
+                        style={{ width: 'auto', padding: '0.4rem 0.6rem', fontSize: '0.82rem' }}
                     />
                     <button
+                        className="btn-secondary"
                         onClick={handleSchedule}
                         disabled={!scheduleAt || scheduling}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.3rem',
-                            background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
-                            color: 'var(--primary)', borderRadius: 'var(--radius-sm)',
-                            padding: '0.4rem 0.8rem', cursor: 'pointer', fontWeight: 600,
-                            fontSize: '0.82rem', opacity: (!scheduleAt || scheduling) ? 0.5 : 1,
-                        }}
+                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}
                     >
                         {t('recon.schedule_confirm')}
                     </button>
@@ -469,20 +415,14 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                 <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1.5rem' }}>
                     {/* Error banner */}
                     {error && (
-                        <div style={{
-                            background: 'var(--status-risk-bg)', border: '1px solid var(--status-risk)',
-                            color: 'var(--status-risk)', borderRadius: 'var(--radius-md)',
-                            padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.875rem',
-                        }}>
-                            {error}
-                        </div>
+                        <div className="alert-banner error">{error}</div>
                     )}
 
                     {/* Idle empty state */}
                     {activeView === 'idle' && !scanning && (
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: '1rem', color: 'var(--text-muted)' }}>
-                            <Radar size={48} style={{ opacity: 0.2 }} />
-                            <p style={{ margin: 0, fontSize: '0.95rem' }}>{t('recon.empty_state')}</p>
+                        <div className="v-empty-state" style={{ height: '100%' }}>
+                            <Radar size={48} className="v-empty-state__icon" />
+                            <p className="v-empty-state__text">{t('recon.empty_state')}</p>
                         </div>
                     )}
 

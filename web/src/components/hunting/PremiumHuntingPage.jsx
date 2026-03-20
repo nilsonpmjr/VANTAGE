@@ -74,12 +74,11 @@ export default function PremiumHuntingPage() {
         : [];
 
     return (
-        <div className="v-page-stack fade-in hunting-page">
+        <div className="v-arch-workbench fade-in">
             <SectionHeader
                 title={t('hunting.page_title')}
                 subtitle={t('hunting.page_description')}
                 icon={<Fingerprint size={22} color="var(--primary)" />}
-                actions={<Badge variant="warning">{t('hunting.mvp_badge')}</Badge>}
             />
 
             <section className="glass-panel hunting-form-panel">
@@ -128,7 +127,7 @@ export default function PremiumHuntingPage() {
                 </form>
 
                 {error && (
-                    <div className="control-plane-alert error">
+                    <div className="alert-banner error">
                         <AlertTriangle size={16} />
                         <span>{error}</span>
                     </div>
@@ -157,35 +156,35 @@ export default function PremiumHuntingPage() {
                 </div>
 
                 {unsupportedProviders.length > 0 && unsupportedProviders.map((item) => (
-                    <div key={item.provider.key} className="control-plane-alert warning hunting-provider-notice">
+                    <div key={item.provider.key} className="alert-banner warning">
                         <AlertTriangle size={14} />
                         <span><strong>{item.provider.name}</strong> — {item.error}</span>
                     </div>
                 ))}
 
                 {!response && !searching && (
-                    <div className="glass-panel hunting-empty-state">
-                        <Fingerprint size={32} className="hunting-empty-state__icon" />
-                        <p>{t('hunting.results_empty_state')}</p>
+                    <div className="v-empty-state">
+                        <Fingerprint size={32} className="v-empty-state__icon" />
+                        <p className="v-empty-state__text">{t('hunting.results_empty_state')}</p>
                     </div>
                 )}
 
                 {searching && (
-                    <div className="glass-panel hunting-empty-state">
+                    <div className="v-empty-state">
                         <span className="loader-pulse hunting-loader" />
-                        <p>{t('hunting.searching')}</p>
+                        <p className="v-empty-state__text">{t('hunting.searching')}</p>
                     </div>
                 )}
 
                 {response && allResults.length === 0 && unsupportedProviders.length < response.items.length && (
-                    <div className="glass-panel hunting-empty-state">
-                        <ShieldCheck size={28} className="hunting-empty-state__icon" />
-                        <p>{t('hunting.no_matches')}</p>
+                    <div className="v-empty-state">
+                        <ShieldCheck size={28} className="v-empty-state__icon" />
+                        <p className="v-empty-state__text">{t('hunting.no_matches')}</p>
                     </div>
                 )}
 
                 {allResults.length > 0 && (
-                    <div className="service-status-grid">
+                    <div className="v-zone-grid">
                         {allResults.map((result) => (
                             <article
                                 key={`${result.provider_key}-${result.external_ref || result.data?.title}`}

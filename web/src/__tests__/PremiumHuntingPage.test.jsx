@@ -132,7 +132,7 @@ describe('PremiumHuntingPage', () => {
         await user.click(screen.getByRole('button', { name: 'hunting.search_cta' }));
 
         await waitFor(() => {
-            const notice = document.querySelector('.hunting-provider-notice');
+            const notice = document.querySelector('.alert-banner.warning');
             expect(notice).toBeTruthy();
             expect(notice.textContent).toContain('unsupported_artifact_type:email');
         });

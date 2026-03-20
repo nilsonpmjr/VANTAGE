@@ -162,23 +162,20 @@ export default function Dashboard({ onSearch, onRecon }) {
         <SettingsShell groups={menuGroups} activeKey={activeTab} onSelect={setActiveTab} breadcrumbs={breadcrumbs}>
 
             {/* Header with period selector and export */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+            <div className="v-zone-header">
                 <div>
-                    <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.25rem 0', display: 'flex', alignItems: 'center', gap: '0.75rem', fontSize: '1.3rem' }}>
+                    <h2 className="v-page-title" style={{ fontSize: '1.3rem' }}>
                         <LayoutDashboard size={24} color="var(--primary)" />
                         {t('dashboard.title')}
                     </h2>
-                    <p style={{ color: 'var(--text-secondary)', margin: 0, fontSize: '0.85rem' }}>{t('dashboard.subtitle')}</p>
+                    <p className="v-page-subtitle">{t('dashboard.subtitle')}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div className="v-page-actions">
                     <select
                         value={period}
                         onChange={(e) => setPeriod(e.target.value)}
-                        style={{
-                            background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
-                            color: 'var(--text-primary)', padding: '0.5rem 0.75rem', borderRadius: '8px',
-                            cursor: 'pointer', outline: 'none', fontWeight: 500, fontSize: '0.85rem',
-                        }}
+                        className="form-select"
+                        style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
                     >
                         <option value="day">{t('dashboard.time_day')}</option>
                         <option value="week">{t('dashboard.time_week')}</option>
@@ -186,16 +183,10 @@ export default function Dashboard({ onSearch, onRecon }) {
                         <option value="all">{t('dashboard.time_all')}</option>
                     </select>
                     <button
+                        className="btn-secondary"
                         onClick={handleExportPDF}
                         disabled={isExporting}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.4rem',
-                            color: 'var(--text-primary)', border: '1px solid var(--glass-border)',
-                            background: 'var(--glass-bg)', padding: '0.5rem 0.75rem',
-                            borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                            transition: 'all 0.2s', opacity: isExporting ? 0.7 : 1,
-                            fontSize: '0.85rem',
-                        }}
+                        style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
                     >
                         {isExporting ? <Activity size={16} className="spin" /> : <Download size={16} />}
                         {isExporting ? t('dashboard.export_active') : t('dashboard.export_idle')}

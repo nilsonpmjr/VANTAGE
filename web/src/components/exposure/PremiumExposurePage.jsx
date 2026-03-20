@@ -137,7 +137,6 @@ export default function PremiumExposurePage() {
                 title={t('exposure.page_title')}
                 subtitle={t('exposure.page_description')}
                 icon={<ShieldAlert size={22} color="var(--primary)" />}
-                actions={<Badge variant="warning">{t('exposure.mvp_badge')}</Badge>}
             />
 
             <section className="exposure-layout">
@@ -147,7 +146,6 @@ export default function PremiumExposurePage() {
                             <h3 className="hunting-results__title">{t('exposure.monitored_assets_title')}</h3>
                             <p className="hunting-results__subtitle">{t('exposure.monitored_assets_subtitle')}</p>
                         </div>
-                        <Badge variant="primary">{t('exposure.providers_count', { count: providers.length })}</Badge>
                     </div>
 
                     <form onSubmit={handleCreateAsset} className="hunting-form">
@@ -208,14 +206,6 @@ export default function PremiumExposurePage() {
                         </div>
                     </form>
 
-                    <div className="exposure-provider-list">
-                        {providers.map((provider) => (
-                            <div key={provider.key} className="exposure-provider-chip">
-                                <strong>{provider.name}</strong>
-                                <span>{(provider.exposureAssetTypes || provider.assetTypes || []).join(', ')}</span>
-                            </div>
-                        ))}
-                    </div>
                 </div>
 
                 <div className="glass-panel exposure-summary-panel">

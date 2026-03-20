@@ -110,9 +110,9 @@ export default function WatchlistSettings() {
                 subtitle={t('watchlist.subtitle')}
             />
 
-            <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px' }}>
+            <div className="v-section--bordered">
                 {/* Add form */}
-                <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                <form onSubmit={handleAdd} className="v-zone-filters" style={{ marginBottom: 0 }}>
                     <input
                         type="text"
                         className="form-input"
@@ -126,15 +126,8 @@ export default function WatchlistSettings() {
                     />
                     <button
                         type="submit"
+                        className="btn-secondary"
                         disabled={!target.trim() || adding}
-                        style={{
-                            display: 'flex', alignItems: 'center', gap: '0.3rem',
-                            background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
-                            color: 'var(--primary)', borderRadius: 'var(--radius-sm)',
-                            padding: '0.55rem 1rem', cursor: 'pointer', fontWeight: 600,
-                            fontSize: '0.85rem', transition: 'all 0.2s',
-                            opacity: (!target.trim() || adding) ? 0.5 : 1,
-                        }}
                     >
                         {adding ? <Loader2 size={14} className="spin" /> : <Plus size={14} />}
                         {t('watchlist.add_btn')}
@@ -142,32 +135,32 @@ export default function WatchlistSettings() {
                 </form>
 
                 {error && (
-                    <p style={{ color: 'var(--status-risk)', fontSize: '0.82rem', margin: '0 0 0.75rem' }}>{error}</p>
+                    <p className="alert-banner error compact" style={{ margin: '0.75rem 0 0' }}>{error}</p>
                 )}
 
                 {/* Counter */}
-                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>
+                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.75rem 0' }}>
                     {items.length} / {limit}
                 </p>
 
                 {/* Loading */}
                 {loading && (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)' }}>
+                    <div className="v-empty-state">
                         <Loader2 size={20} className="spin" color="var(--primary)" />
                     </div>
                 )}
 
                 {/* Empty */}
                 {!loading && items.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-                        <Eye size={32} style={{ opacity: 0.15, marginBottom: '0.5rem' }} />
-                        <p style={{ margin: 0 }}>{t('watchlist.empty')}</p>
+                    <div className="v-empty-state">
+                        <Eye size={32} className="v-empty-state__icon" />
+                        <p className="v-empty-state__text">{t('watchlist.empty')}</p>
                     </div>
                 )}
 
                 {/* Items list */}
                 {!loading && items.length > 0 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div className="v-zone-body" style={{ gap: '0.4rem' }}>
                         {items.map(item => (
                             <div
                                 key={item.id}

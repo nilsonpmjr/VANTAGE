@@ -112,12 +112,12 @@ export default function ExtensionsCatalogPanel() {
             />
 
             {loading ? (
-                <div className="control-plane-loading">
+                <div className="v-empty-state">
                     <RefreshCw className="spin" size={24} color="var(--primary)" />
                 </div>
             ) : (
                 <>
-                    {error ? <div className="control-plane-alert error">{error}</div> : null}
+                    {error ? <div className="alert-banner error">{error}</div> : null}
 
                     <div className="control-plane-kpi-grid">
                         <Panel title={t('settings.extensions_catalog_summary_total')} eyebrow={t('settings.extensions_catalog_summary')}>
@@ -149,7 +149,7 @@ export default function ExtensionsCatalogPanel() {
                     </Panel>
 
                     {(catalog.items || []).length > 0 ? (
-                        <div className="control-plane-inline-actions">
+                        <div className="v-zone-filters">
                             {['all', 'core', 'local', 'premium'].map((filterKey) => (
                                 <Button
                                     key={filterKey}
@@ -164,17 +164,19 @@ export default function ExtensionsCatalogPanel() {
                     ) : null}
 
                     {(catalog.items || []).length === 0 ? (
-                        <Panel
-                            title={t('settings.extensions_catalog_empty_title')}
-                            description={t('settings.extensions_catalog_empty_body')}
-                        />
+                        <div className="v-empty-state">
+                            <Blocks size={32} className="v-empty-state__icon" />
+                            <strong>{t('settings.extensions_catalog_empty_title')}</strong>
+                            <p className="v-empty-state__text">{t('settings.extensions_catalog_empty_body')}</p>
+                        </div>
                     ) : filteredItems.length === 0 ? (
-                        <Panel
-                            title={t('settings.extensions_catalog_filtered_empty_title')}
-                            description={t('settings.extensions_catalog_filtered_empty_body')}
-                        />
+                        <div className="v-empty-state">
+                            <Blocks size={32} className="v-empty-state__icon" />
+                            <strong>{t('settings.extensions_catalog_filtered_empty_title')}</strong>
+                            <p className="v-empty-state__text">{t('settings.extensions_catalog_filtered_empty_body')}</p>
+                        </div>
                     ) : (
-                    <div className="service-status-grid">
+                    <div className="v-zone-grid">
                         {filteredItems.map((item) => (
                             <Panel
                                 key={item.key}

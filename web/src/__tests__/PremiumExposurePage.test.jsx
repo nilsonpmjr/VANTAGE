@@ -112,7 +112,6 @@ describe('PremiumExposurePage', () => {
         await user.click(screen.getByRole('button', { name: 'exposure.create_cta' }));
 
         await screen.findByText('example.com');
-        expect(screen.getByText('Surface Monitor')).toBeInTheDocument();
         expect(fetch).toHaveBeenCalledWith(
             'http://localhost:8000/api/exposure/assets',
             expect.objectContaining({

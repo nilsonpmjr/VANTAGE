@@ -47,7 +47,7 @@ export default function MFAVerify({ onSuccess, onCancel }) {
     };
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <div className="v-arch-focus" style={{ background: 'var(--bg-main)' }}>
             <div className="glass-panel" style={{ width: '100%', maxWidth: '380px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
                 <ShieldCheck size={48} color="var(--primary)" style={{ marginBottom: '1rem' }} />
                 <h2 style={{ color: 'var(--text-primary)', margin: '0 0 0.5rem 0', fontSize: '1.2rem' }}>

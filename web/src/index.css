@@ -2972,6 +2972,290 @@ h4 {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISUAL GRAMMAR — Page Archetypes & Content Zones (Trilha I)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Archetype: Workbench ─────────────────────────────────────────────────── */
+/* Tool-oriented analyst pages: sticky toolbar + scrollable results.          */
+/* Pages: Home (compact), Hunting, Recon.                                     */
+.v-arch-workbench {
+  display: flex;
+  flex-direction: column;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding: var(--gap-xl);
+  min-height: 0;
+  width: 100%;
+}
+
+/* ── Archetype: Catalog ───────────────────────────────────────────────────── */
+/* Browsable collections: filter bar + card grid + pagination.                */
+/* Pages: Feed, Watchlist, Extension Catalog.                                 */
+.v-arch-catalog {
+  display: flex;
+  flex-direction: column;
+  max-width: 1400px;
+  margin-inline: auto;
+  padding: var(--gap-xl);
+  width: 100%;
+}
+
+/* ── Archetype: Focus ─────────────────────────────────────────────────────── */
+/* Single-action centered pages: login, MFA, password reset.                  */
+.v-arch-focus {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  max-width: 480px;
+  margin-inline: auto;
+  padding: var(--gap-xl) var(--gap-md);
+  width: 100%;
+}
+
+/* ── Zone: Header ─────────────────────────────────────────────────────────── */
+/* Page-level title bar with actions (export, refresh, period selector).       */
+.v-zone-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-md);
+  margin-bottom: var(--gap-lg);
+}
+
+/* ── Zone: Toolbar ────────────────────────────────────────────────────────── */
+/* Sticky action bar for search inputs, filters, buttons (workbench pages).   */
+.v-zone-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--ds-surface-strong);
+  border-bottom: 1px solid var(--ds-border);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+/* ── Zone: Filters ────────────────────────────────────────────────────────── */
+/* Non-sticky filter bar for catalog pages. Same aesthetic, no sticky.        */
+.v-zone-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  background: var(--ds-surface-strong);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--gap-md);
+}
+
+/* ── Zone: Body ───────────────────────────────────────────────────────────── */
+/* Main content area. Generic flex column container.                           */
+.v-zone-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-lg);
+}
+
+/* ── Zone: Results ────────────────────────────────────────────────────────── */
+/* Results area below toolbar (workbench). Grows to fill, scrolls.            */
+.v-zone-results {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap-md);
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── Zone: Grid ───────────────────────────────────────────────────────────── */
+/* Auto-fill card grid for catalogs and collections.                          */
+.v-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: var(--gap-md);
+}
+
+/* ── Zone: Footer ─────────────────────────────────────────────────────────── */
+/* Page footer: pagination, summary text.                                     */
+.v-zone-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-top: var(--gap-lg);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   VISUAL GRAMMAR — Sections, Chrome & Density (Trilha I)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Section: flat content grouping (replaces glass-panel overuse) ─────────── */
+.v-section {
+  margin-bottom: var(--gap-xl);
+}
+
+.v-section__title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ds-text-muted);
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--ds-border);
+  margin-bottom: 0.75rem;
+}
+
+.v-section__content {
+  padding-top: var(--gap-md);
+}
+
+/* Modifier: light border + radius (lighter than glass-panel) */
+.v-section--bordered {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--radius-sm);
+  padding: var(--gap-md);
+}
+
+/* Modifier: inset with subtle background */
+.v-section--inset {
+  padding: var(--gap-md);
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-sm);
+}
+
+/* ── Divider ──────────────────────────────────────────────────────────────── */
+.v-divider {
+  border: none;
+  border-top: 1px solid var(--ds-border);
+  margin: 0 0 var(--gap-lg);
+}
+
+/* ── Empty state ──────────────────────────────────────────────────────────── */
+.v-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem var(--gap-md);
+  color: var(--ds-text-muted);
+  text-align: center;
+  gap: var(--gap-md);
+}
+
+.v-empty-state__icon {
+  font-size: 2.5rem;
+  opacity: 0.4;
+}
+
+.v-empty-state__text {
+  font-size: 0.9rem;
+  max-width: 320px;
+  line-height: 1.5;
+}
+
+/* ── Page chrome ──────────────────────────────────────────────────────────── */
+.v-page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ds-text);
+  line-height: 1.3;
+}
+
+.v-page-subtitle {
+  font-size: 0.85rem;
+  color: var(--ds-text-secondary);
+  margin-top: 0.25rem;
+  line-height: 1.45;
+}
+
+.v-page-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-left: auto;
+}
+
+/* ── Density: compact (admin data-heavy panels) ──────────────────────────── */
+.v-density-compact {
+  font-size: 0.9em;
+}
+
+.v-density-compact .v-zone-header {
+  margin-bottom: var(--gap-md);
+  gap: 0.75rem;
+}
+
+.v-density-compact .v-zone-body {
+  gap: var(--gap-md);
+}
+
+.v-density-compact .v-zone-toolbar {
+  padding: 0.5rem 0.75rem;
+  gap: 0.5rem;
+}
+
+.v-density-compact .v-section {
+  margin-bottom: var(--gap-md);
+}
+
+.v-density-compact .v-page-title {
+  font-size: 1.1rem;
+}
+
+/* ── Density: comfortable (default, explicit opt-in) ─────────────────────── */
+.v-density-comfortable {
+  /* Default spacing — no overrides needed. Exists for explicit semantic use. */
+}
+
+/* ── Responsive: Grammar classes ─────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .v-zone-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .v-page-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+@media (max-width: 768px) {
+  .v-zone-toolbar {
+    position: static;
+  }
+
+  .v-arch-workbench,
+  .v-arch-catalog {
+    padding: var(--gap-md);
+  }
+}
+
+@media (max-width: 640px) {
+  .v-zone-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .v-zone-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .v-arch-focus {
+    padding: var(--gap-md);
+  }
+}
+
 /* ── @media print — Recon Report ───────────────────────────────────────────── */
 @media print {
   /* Hide all application chrome */

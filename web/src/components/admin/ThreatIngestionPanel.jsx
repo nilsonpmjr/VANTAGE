@@ -106,12 +106,12 @@ export default function ThreatIngestionPanel() {
             />
 
             {loading ? (
-                <div className="control-plane-loading">
+                <div className="v-empty-state">
                     <RefreshCw className="spin" size={24} color="var(--primary)" />
                 </div>
             ) : (
                 <>
-                    {error ? <div className="control-plane-alert error">{error}</div> : null}
+                    {error ? <div className="alert-banner error">{error}</div> : null}
 
                     <div className="control-plane-kpi-grid">
                         <Panel
@@ -144,7 +144,7 @@ export default function ThreatIngestionPanel() {
                         </div>
                     </Panel>
 
-                    <div className="service-status-grid">
+                    <div className="v-zone-grid">
                         {sources.map((source) => (
                             <Panel
                                 key={source.source_id}
@@ -173,7 +173,7 @@ export default function ThreatIngestionPanel() {
                                     </div>
 
                                     {source.sync_status?.last_error ? (
-                                        <div className="control-plane-alert warning">{source.sync_status.last_error}</div>
+                                        <div className="alert-banner warning compact">{source.sync_status.last_error}</div>
                                     ) : null}
 
                                     <div className="service-status-columns">

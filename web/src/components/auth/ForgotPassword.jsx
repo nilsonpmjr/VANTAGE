@@ -35,7 +35,7 @@ export default function ForgotPassword({ onBack }) {
     };
 
     return (
-        <div className="login-container" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)' }}>
+        <div className="v-arch-focus" style={{ background: 'var(--bg-main)' }}>
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>

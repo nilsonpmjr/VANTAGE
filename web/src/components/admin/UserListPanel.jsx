@@ -43,7 +43,7 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
     ) : [];
 
     return (
-        <div className="fade-in">
+        <div className="fade-in v-density-compact">
             <SectionHeader
                 icon={<Users size={22} color="var(--primary)" />}
                 title={t('settings.users')}

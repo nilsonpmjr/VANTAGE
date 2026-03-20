@@ -80,7 +80,7 @@ export default function AuditLogTable() {
     const formatTs = (raw) => fmtBRT(raw);
 
     return (
-        <div>
+        <div className="v-density-compact">
             {/* Filters */}
             <form onSubmit={handleSearch} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', flexGrow: 1, minWidth: '140px' }}>

@@ -266,7 +266,7 @@ export default function App() {
 
           {/* ── HOME — unified search + landing with animated header ── */}
           {currentView === 'home' && (
-            <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%', display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+            <div className="v-arch-workbench" style={{ flexGrow: 1 }}>
               {/* Animated Header — hero (default) → compact (hasSearched) */}
               <header className={`app-header ${hasSearched ? 'active' : ''} ${isTransitioning && !isFadingOut ? 'from-login' : ''}`}>
 
@@ -483,7 +483,7 @@ export default function App() {
             </div>
           )}
           {currentView === 'settings' && canAccessSettings && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Settings /></div>}
-          {currentView === 'watchlist' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', padding: '2rem', maxWidth: '1400px', margin: '0 auto', width: '100%' }}><WatchlistSettings /></div>}
+          {currentView === 'watchlist' && <div className="v-arch-catalog" style={{ flexGrow: 1 }}><WatchlistSettings /></div>}
           {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile initialActiveKey={profileInitialKey ?? 'info'} /></div>}
           {currentView === 'recon' && (
             <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>

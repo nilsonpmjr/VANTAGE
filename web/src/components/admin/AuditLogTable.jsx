@@ -5,9 +5,9 @@ import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 
 const RESULT_COLORS = {
-    success: 'var(--green)',
-    failure: 'var(--red)',
-    denied: '#fb923c',
+    success: 'var(--alert-success)',
+    failure: 'var(--alert-error)',
+    denied: 'var(--alert-warning)',
 };
 
 export default function AuditLogTable() {

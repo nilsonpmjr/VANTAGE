@@ -68,7 +68,7 @@ export default function ProfilePasswordPanel({ notices }) {
             />
             {notices}
             {message.text && (
-                <div style={{ background: message.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: message.type === 'error' ? 'var(--red)' : 'var(--green)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div className={`alert-banner wide ${message.type === 'error' ? 'error' : 'success'}`}>
                     {message.text}
                 </div>
             )}

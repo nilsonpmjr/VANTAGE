@@ -13,7 +13,7 @@ from typing import Optional, List
 
 from db import db_manager
 from auth import require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
-from extensions import get_extensions_catalog
+from extensions import get_configured_plugin_roots, get_extensions_catalog
 from identity import email_in_use, normalize_email
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
 from audit import log_action
@@ -273,6 +273,14 @@ async def read_extensions_catalog(
     return {
         "items": get_extensions_catalog(request.app, refresh=refresh),
         "core_version": request.app.version,
+        "search_roots": [
+            {
+                "scope": root["scope"],
+                "label": root["label"],
+                "repository_visibility": root["repositoryVisibility"],
+            }
+            for root in get_configured_plugin_roots()
+        ],
     }
 
 

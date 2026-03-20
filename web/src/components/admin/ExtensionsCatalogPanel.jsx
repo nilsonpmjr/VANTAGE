@@ -33,12 +33,18 @@ function formatCount(value) {
     return typeof value === 'number' ? String(value) : '0';
 }
 
+function humanizeSearchRoots(roots) {
+    if (!roots || roots.length === 0) return '—';
+    return roots.map((root) => `${root.label} (${root.scope}/${root.repository_visibility})`).join(', ');
+}
+
 export default function ExtensionsCatalogPanel() {
     const { t } = useTranslation();
-    const [catalog, setCatalog] = useState({ items: [], core_version: '' });
+    const [catalog, setCatalog] = useState({ items: [], core_version: '', search_roots: [] });
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
+    const [tierFilter, setTierFilter] = useState('all');
 
     const loadCatalog = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -56,6 +62,7 @@ export default function ExtensionsCatalogPanel() {
             setCatalog({
                 items: data.items || [],
                 core_version: data.core_version || '',
+                search_roots: data.search_roots || [],
             });
         } catch (err) {
             setError(err.message);
@@ -78,6 +85,12 @@ export default function ExtensionsCatalogPanel() {
             invalid: items.filter((item) => item.status === 'invalid').length,
         };
     }, [catalog.items]);
+
+    const filteredItems = useMemo(() => {
+        const items = catalog.items || [];
+        if (tierFilter === 'all') return items;
+        return items.filter((item) => item.distributionTier === tierFilter);
+    }, [catalog.items, tierFilter]);
 
     return (
         <div className="v-page-stack fade-in">
@@ -129,16 +142,40 @@ export default function ExtensionsCatalogPanel() {
                             <Badge variant="neutral">{t('settings.extensions_catalog_core_version')}</Badge>
                             <span>{catalog.core_version || '—'}</span>
                         </div>
+                        <div className="control-plane-note">
+                            <Badge variant="neutral">{t('settings.extensions_catalog_search_roots')}</Badge>
+                            <span>{humanizeSearchRoots(catalog.search_roots)}</span>
+                        </div>
                     </Panel>
+
+                    {(catalog.items || []).length > 0 ? (
+                        <div className="control-plane-inline-actions">
+                            {['all', 'core', 'local', 'premium'].map((filterKey) => (
+                                <Button
+                                    key={filterKey}
+                                    size="sm"
+                                    variant={tierFilter === filterKey ? 'secondary' : 'ghost'}
+                                    onClick={() => setTierFilter(filterKey)}
+                                >
+                                    {t(`settings.extensions_catalog_filter_${filterKey}`)}
+                                </Button>
+                            ))}
+                        </div>
+                    ) : null}
 
                     {(catalog.items || []).length === 0 ? (
                         <Panel
                             title={t('settings.extensions_catalog_empty_title')}
                             description={t('settings.extensions_catalog_empty_body')}
                         />
+                    ) : filteredItems.length === 0 ? (
+                        <Panel
+                            title={t('settings.extensions_catalog_filtered_empty_title')}
+                            description={t('settings.extensions_catalog_filtered_empty_body')}
+                        />
                     ) : (
                     <div className="service-status-grid">
-                        {(catalog.items || []).map((item) => (
+                        {filteredItems.map((item) => (
                             <Panel
                                 key={item.key}
                                 title={item.name}
@@ -178,6 +215,14 @@ export default function ExtensionsCatalogPanel() {
                                                     <span>{t('settings.extensions_catalog_field_compatible_core')}</span>
                                                     <strong>{compactValue(item.compatibleCore)}</strong>
                                                 </li>
+                                                <li>
+                                                    <span>{t('settings.extensions_catalog_field_distribution_tier')}</span>
+                                                    <strong>{compactValue(item.distributionTier)}</strong>
+                                                </li>
+                                                <li>
+                                                    <span>{t('settings.extensions_catalog_field_repository_visibility')}</span>
+                                                    <strong>{compactValue(item.repositoryVisibility)}</strong>
+                                                </li>
                                             </ul>
                                         </div>
 
@@ -203,6 +248,14 @@ export default function ExtensionsCatalogPanel() {
                                                 <li>
                                                     <span>{t('settings.extensions_catalog_field_builtin')}</span>
                                                     <strong>{compactValue(item.builtin)}</strong>
+                                                </li>
+                                                <li>
+                                                    <span>{t('settings.extensions_catalog_field_update_channel')}</span>
+                                                    <strong>{compactValue(item.updateChannel)}</strong>
+                                                </li>
+                                                <li>
+                                                    <span>{t('settings.extensions_catalog_field_ownership_boundary')}</span>
+                                                    <strong>{compactValue(item.ownershipBoundary)}</strong>
                                                 </li>
                                             </ul>
                                         </div>
@@ -279,6 +332,67 @@ export default function ExtensionsCatalogPanel() {
                                                     </li>
                                                 </ul>
                                             </div>
+                                        </div>
+                                    ) : null}
+
+                                    {item.kind === 'premium_feature' ? (
+                                        <div className="service-status-columns">
+                                            <div>
+                                                <h4>{t('settings.extensions_catalog_premium')}</h4>
+                                                <ul className="service-status-list">
+                                                    <li>
+                                                        <span>{t('settings.extensions_catalog_field_premium_feature_type')}</span>
+                                                        <strong>{compactValue(item.premiumFeatureType)}</strong>
+                                                    </li>
+                                                    <li>
+                                                        <span>{t('settings.extensions_catalog_field_delivery')}</span>
+                                                        <strong>{compactValue(item.delivery)}</strong>
+                                                    </li>
+                                                    <li>
+                                                        <span>{t('settings.extensions_catalog_field_capabilities')}</span>
+                                                        <strong>{compactValue(item.productSurface)}</strong>
+                                                    </li>
+                                                    <li>
+                                                        <span>{t('settings.extensions_catalog_field_permissions')}</span>
+                                                        <strong>{compactValue(item.permissions)}</strong>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            {item.premiumFeatureType === 'hunting_provider' ? (
+                                                <div>
+                                                    <h4>{t('settings.extensions_catalog_hunting')}</h4>
+                                                    <ul className="service-status-list">
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_hunting_artifact_types')}</span>
+                                                            <strong>{compactValue(item.huntingArtifactTypes)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_provider_scope')}</span>
+                                                            <strong>{compactValue(item.providerScope)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_required_secrets')}</span>
+                                                            <strong>{compactValue(item.requiredSecrets)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_isolation_mode')}</span>
+                                                            <strong>{compactValue(item.isolationMode)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_operational_risk')}</span>
+                                                            <strong>{compactValue(item.executionProfile?.operationalRisk)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_performance_profile')}</span>
+                                                            <strong>{compactValue(item.executionProfile?.performanceProfile)}</strong>
+                                                        </li>
+                                                        <li>
+                                                            <span>{t('settings.extensions_catalog_field_requires_kali')}</span>
+                                                            <strong>{compactValue(item.requiresKali)}</strong>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            ) : null}
                                         </div>
                                     ) : null}
                                 </div>

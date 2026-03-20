@@ -45,6 +45,10 @@ def test_load_extensions_registry_discovers_builtin_manifests():
     brand_descriptor = next(item for item in registry if item["key"] == "brand-vantage")
     assert brand_descriptor["status"] == "enabled"
     assert brand_descriptor["kind"] == "brand_pack"
+    assert brand_descriptor["distributionTier"] == "core"
+    assert brand_descriptor["repositoryVisibility"] == "public"
+    assert brand_descriptor["updateChannel"] == "bundled"
+    assert brand_descriptor["ownershipBoundary"] == "core_team"
     assert brand_descriptor["sourceOfTruthPath"] == "web/src/branding/vantage"
     assert brand_descriptor["sourceFileCount"] >= 1
     assert brand_descriptor["publicAssetCount"] >= 1
@@ -86,6 +90,10 @@ def test_load_extensions_registry_marks_incompatible_manifest(tmp_path):
         "author": "QA",
         "kind": "report_exporter",
         "compatibleCore": "2.x",
+        "distributionTier": "local",
+        "repositoryVisibility": "public",
+        "updateChannel": "manual",
+        "ownershipBoundary": "customer_local",
         "sourceOfTruthPath": "web/src/utils/pdfGenerator.js",
     }), encoding="utf-8")
 
@@ -93,6 +101,43 @@ def test_load_extensions_registry_marks_incompatible_manifest(tmp_path):
 
     assert len(registry) == 1
     assert registry[0]["status"] == "incompatible"
+
+
+def test_load_extensions_registry_supports_local_plugin_root(tmp_path):
+    local_root = tmp_path / "local"
+    plugin_dir = local_root / "customer-brand"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "customer-brand",
+        "name": "Customer Brand",
+        "version": "1.0.0",
+        "license": "Private",
+        "author": "Customer",
+        "kind": "brand_pack",
+        "compatibleCore": "1.x",
+        "distributionTier": "local",
+        "repositoryVisibility": "public",
+        "updateChannel": "manual",
+        "ownershipBoundary": "customer_local",
+        "publicAssetRoot": "/branding/generic",
+        "sourceOfTruthPath": "web/src/branding/generic",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": local_root,
+            "scope": "local",
+            "repositoryVisibility": "public",
+            "label": "local-plugins",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["key"] == "customer-brand"
+    assert registry[0]["status"] == "enabled"
+    assert registry[0]["distributionTier"] == "local"
+    assert registry[0]["ownershipBoundary"] == "customer_local"
+    assert registry[0]["searchRootScope"] == "local"
 
 
 def test_load_extensions_registry_marks_brand_pack_invalid_when_source_missing(tmp_path):
@@ -106,6 +151,10 @@ def test_load_extensions_registry_marks_brand_pack_invalid_when_source_missing(t
         "author": "QA",
         "kind": "brand_pack",
         "compatibleCore": "1.x",
+        "distributionTier": "local",
+        "repositoryVisibility": "public",
+        "updateChannel": "manual",
+        "ownershipBoundary": "customer_local",
         "publicAssetRoot": "/branding/missing",
         "sourceOfTruthPath": "web/src/branding/missing"
     }), encoding="utf-8")
@@ -128,6 +177,10 @@ def test_load_extensions_registry_marks_report_exporter_invalid_when_source_miss
         "author": "QA",
         "kind": "report_exporter",
         "compatibleCore": "1.x",
+        "distributionTier": "local",
+        "repositoryVisibility": "public",
+        "updateChannel": "manual",
+        "ownershipBoundary": "customer_local",
         "capabilities": ["pdf"],
         "entrypoint": "web.src.utils.pdfGenerator:generatePDFReport",
         "sourceOfTruthPath": "web/src/utils/missing.js"
@@ -154,6 +207,7 @@ async def test_admin_extensions_catalog_returns_registry(async_client, auth_head
     assert resp.status_code == 200
     data = resp.json()
     assert data["core_version"] == "1.0.0"
+    assert any(root["scope"] == "core" for root in data["search_roots"])
     assert any(item["key"] == "brand-vantage" for item in data["items"])
 
 
@@ -178,3 +232,242 @@ async def test_admin_extensions_catalog_forbids_tech(async_client):
     resp = await async_client.get("/api/admin/extensions", headers=tech_headers)
 
     assert resp.status_code == 403
+
+
+def test_load_extensions_registry_supports_external_premium_root(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-hunting"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-hunting",
+        "name": "Premium Hunting",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "capabilities": ["hunting"],
+        "providerScope": ["identity", "social"],
+        "huntingArtifactTypes": ["username", "alias", "email"],
+        "requiredSecrets": ["license.local"],
+        "requiresCustomBinaries": True,
+        "handlesUntrustedTargets": True,
+        "dependencyWeight": "medium",
+        "entrypoint": "premium.hunting",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["key"] == "premium-hunting"
+    assert registry[0]["status"] == "enabled"
+    assert registry[0]["distributionTier"] == "premium"
+    assert registry[0]["repositoryVisibility"] == "private"
+    assert registry[0]["searchRootScope"] == "premium"
+    assert registry[0]["runtime"] == "plugin_premium"
+    assert registry[0]["premiumFeatureType"] == "hunting_provider"
+    assert registry[0]["huntingArtifactTypes"] == ["alias", "email", "username"]
+    assert registry[0]["providerScope"] == ["identity", "social"]
+    assert registry[0]["requiredSecrets"] == ["license.local"]
+    assert registry[0]["isolationMode"] == "isolated_container"
+    assert registry[0]["requiresKali"] is False
+    assert registry[0]["executionProfile"]["operationalRisk"] == "medium"
+    assert registry[0]["executionProfile"]["performanceProfile"] == "balanced"
+
+
+def test_load_extensions_registry_warns_when_distribution_tier_is_inferred(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-hunting"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-hunting",
+        "name": "Premium Hunting",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "providerScope": ["identity"],
+        "huntingArtifactTypes": ["username"],
+        "requiredSecrets": ["license.local"],
+        "entrypoint": "premium.hunting",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "enabled"
+    assert "distribution_tier_inferred" in registry[0]["errors"]
+
+
+def test_load_extensions_registry_allows_kali_only_under_explicit_gate(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-spiderfoot"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-spiderfoot",
+        "name": "Premium SpiderFoot",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "providerScope": ["correlation"],
+        "huntingArtifactTypes": ["account"],
+        "requiredSecrets": ["license.local"],
+        "requiresPrivilegedNetwork": True,
+        "requiresLinuxToolchain": True,
+        "dependencyWeight": "heavy",
+        "requiresKali": True,
+        "entrypoint": "premium.spiderfoot",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "enabled"
+    assert registry[0]["isolationMode"] == "kali_container"
+    assert registry[0]["requiresKali"] is True
+    assert registry[0]["executionProfile"]["allowedByDefault"] is False
+
+
+def test_load_extensions_registry_requires_entrypoint_for_premium_feature(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-missing-entrypoint"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-missing-entrypoint",
+        "name": "Premium Missing Entrypoint",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "providerScope": ["identity"],
+        "huntingArtifactTypes": ["username"],
+        "requiredSecrets": ["license.local"],
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "invalid"
+    assert "missing_entrypoint" in registry[0]["errors"]
+
+
+def test_load_extensions_registry_requires_hunting_metadata_for_premium_provider(tmp_path):
+    premium_root = tmp_path / "premium"
+    plugin_dir = premium_root / "premium-hunting-missing-scope"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-hunting-missing-scope",
+        "name": "Premium Hunting Missing Scope",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "VANTAGE Premium",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "huntingArtifactTypes": ["username"],
+        "entrypoint": "premium.hunting",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": premium_root,
+            "scope": "premium",
+            "repositoryVisibility": "private",
+            "label": "premium-root-1",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "invalid"
+    assert "provider_scope_required" in registry[0]["errors"]
+
+
+def test_load_extensions_registry_rejects_premium_plugin_inside_core_root(tmp_path):
+    plugin_dir = tmp_path / "premium-inside-core"
+    plugin_dir.mkdir(parents=True)
+    (plugin_dir / "vantage-plugin.json").write_text(json.dumps({
+        "key": "premium-inside-core",
+        "name": "Premium Inside Core",
+        "version": "0.1.0",
+        "license": "Commercial",
+        "author": "QA",
+        "kind": "premium_feature",
+        "premiumFeatureType": "hunting_provider",
+        "compatibleCore": "1.x",
+        "distributionTier": "premium",
+        "repositoryVisibility": "private",
+        "updateChannel": "licensed",
+        "ownershipBoundary": "vantage_premium",
+        "providerScope": ["identity"],
+        "huntingArtifactTypes": ["username"],
+        "entrypoint": "premium.hunting",
+    }), encoding="utf-8")
+
+    registry = load_extensions_registry(plugin_roots=[
+        {
+            "path": tmp_path,
+            "scope": "core",
+            "repositoryVisibility": "public",
+            "label": "bundled-core",
+        }
+    ], current_core_version="1.0.0")
+
+    assert len(registry) == 1
+    assert registry[0]["status"] == "invalid"
+    assert "core_root_requires_core_distribution" in registry[0]["errors"]
+    assert "premium_plugin_must_live_in_premium_root" in registry[0]["errors"]

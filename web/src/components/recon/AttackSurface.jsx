@@ -11,9 +11,9 @@ const SEVERITY_COLOR = {
 };
 
 const SEVERITY_BG = {
-    critical: 'rgba(239,68,68,0.1)',
-    high: 'rgba(249,115,22,0.1)',
-    medium: 'rgba(245,158,11,0.1)',
+    critical: 'var(--alert-error-bg)',
+    high: 'var(--alert-warning-bg)',
+    medium: 'var(--ds-warning-soft)',
     low: 'rgba(255,255,255,0.04)',
     info: 'rgba(56,189,248,0.08)',
 };
@@ -221,7 +221,7 @@ export default function AttackSurface({ results }) {
                                     {Object.entries(web.security_headers).map(([h, present]) => (
                                         <span key={h} style={{
                                             fontSize: '0.7rem', borderRadius: '4px', padding: '0.1rem 0.4rem',
-                                            background: present ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.08)',
+                                            background: present ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)',
                                             color: present ? 'var(--green)' : 'var(--red)',
                                             border: `1px solid ${present ? 'var(--green)' : 'var(--red)'}`,
                                             opacity: present ? 1 : 0.7,
@@ -280,7 +280,7 @@ export default function AttackSurface({ results }) {
                         <KV label="Protocolo" value={ssl.protocol} />
                         {ssl.sans?.length > 0 && <KV label="SANs" value={ssl.sans.slice(0, 10)} />}
                         {ssl.is_self_signed && (
-                            <span style={{ fontSize: '0.72rem', color: 'var(--yellow)', background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: '4px', padding: '0.15rem 0.4rem', alignSelf: 'flex-start', marginTop: '0.25rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--ds-warning)', background: 'var(--ds-warning-soft)', border: '1px solid var(--alert-warning-border)', borderRadius: '4px', padding: '0.15rem 0.4rem', alignSelf: 'flex-start', marginTop: '0.25rem' }}>
                                 self-signed
                             </span>
                         )}
@@ -310,7 +310,7 @@ export default function AttackSurface({ results }) {
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                         {passive.emails.map((e, i) => (
                             <code key={i} style={{
-                                fontSize: '0.75rem', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.2)',
+                                fontSize: '0.75rem', background: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)',
                                 borderRadius: '4px', padding: '0.1rem 0.4rem', color: 'var(--text-secondary)',
                             }}>
                                 {e}

@@ -92,7 +92,7 @@ export default function ThirdPartyKeysManager() {
                 {t('third_party_keys.description')}
             </p>
             {error && (
-                <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.6rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.84rem', marginBottom: '0.5rem' }}>
+                <div className="alert-banner error compact">
                     {error}
                 </div>
             )}

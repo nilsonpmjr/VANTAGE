@@ -155,6 +155,7 @@ export default function SearchBar({ onSearch, onBatchSearch, loading, focusSigna
                 >
                     <button
                         type="button"
+                        className="hover-opacity"
                         onClick={() => fileInputRef.current?.click()}
                         disabled={loading}
                         title={t('batch.import_file')}
@@ -167,10 +168,7 @@ export default function SearchBar({ onSearch, onBatchSearch, loading, focusSigna
                             display: 'flex',
                             alignItems: 'center',
                             opacity: loading ? 0.4 : 0.6,
-                            transition: 'opacity 0.2s',
                         }}
-                        onMouseOver={(e) => !loading && (e.currentTarget.style.opacity = '1')}
-                        onMouseOut={(e) => (e.currentTarget.style.opacity = loading ? '0.4' : '0.6')}
                     >
                         <Upload size={16} />
                     </button>

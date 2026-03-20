@@ -55,8 +55,8 @@ export default function ForgotPassword({ onBack }) {
 
                 {sent ? (
                     <div>
-                        <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid var(--green)', borderRadius: '8px', padding: '1rem', marginBottom: '1.5rem', color: 'var(--green)', fontSize: '0.9rem' }}>
-                            <Mail size={18} style={{ verticalAlign: 'middle', marginRight: '0.4rem' }} />
+                        <div className="alert-banner success wide">
+                            <Mail size={18} />
                             {t('forgot_password.sent_notice')}
                         </div>
                         <button onClick={onBack} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
@@ -67,14 +67,14 @@ export default function ForgotPassword({ onBack }) {
                 ) : (
                     <>
                         {error && (
-                            <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                            <div className="alert-banner error">
                                 {error}
                             </div>
                         )}
 
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <div style={{ textAlign: 'left' }}>
-                                <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
+                            <div className="form-field" style={{ textAlign: 'left' }}>
+                                <label className="form-field__label" style={{ marginBottom: '0.5rem', display: 'block' }}>
                                     {t('forgot_password.email_label')}
                                 </label>
                                 <input
@@ -82,8 +82,7 @@ export default function ForgotPassword({ onBack }) {
                                     value={email}
                                     onChange={e => setEmail(e.target.value)}
                                     required
-                                    className="search-input"
-                                    style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                                    className="form-input"
                                     placeholder={t('forgot_password.email_placeholder')}
                                 />
                             </div>

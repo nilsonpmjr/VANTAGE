@@ -5,16 +5,23 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
+from hunting_contracts import build_hunting_provider_descriptor, recommend_hunting_execution_profile
 from recon.engine import get_module_inventory
 
 MANIFEST_FILENAME = "vantage-plugin.json"
-VALID_KINDS = {"brand_pack", "recon_module", "report_exporter"}
+VALID_KINDS = {"brand_pack", "recon_module", "report_exporter", "premium_feature"}
 VALID_STATUSES = {"detected", "invalid", "disabled", "enabled", "incompatible"}
+VALID_DISTRIBUTION_TIERS = {"core", "local", "premium"}
+VALID_REPOSITORY_VISIBILITIES = {"public", "private"}
+VALID_UPDATE_CHANNELS = {"bundled", "manual", "licensed"}
+VALID_OWNERSHIP_BOUNDARIES = {"core_team", "customer_local", "vantage_premium"}
+VALID_PREMIUM_FEATURE_TYPES = {"hunting_provider"}
 PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 WEB_SOURCE_ROOT = PROJECT_ROOT / "web/src"
 BRANDING_SOURCE_ROOT = PROJECT_ROOT / "web/src/branding"
 BRANDING_PUBLIC_ROOT = PROJECT_ROOT / "web/public/branding"
+LOCAL_PLUGIN_ROOT = PROJECT_ROOT / "backend/extensions/local_plugins"
 APPROVED_PUBLIC_ASSET_PREFIXES = ("/branding/",)
 REQUIRED_MANIFEST_FIELDS = ("key", "name", "version", "license", "author", "kind", "compatibleCore")
 
@@ -68,8 +75,87 @@ def _is_path_under(root: Path, candidate: Path) -> bool:
     return candidate == root or root in candidate.parents
 
 
-def _validate_manifest(payload: dict[str, Any], current_core_version: str) -> tuple[list[str], str]:
+def _resolve_configured_path(raw_path: str) -> Path:
+    candidate = Path(str(raw_path).strip())
+    if not candidate.is_absolute():
+        candidate = PROJECT_ROOT / candidate
+    return candidate.resolve()
+
+
+def _parse_root_list(raw_roots: str) -> list[str]:
+    if not raw_roots:
+        return []
+    return [item.strip() for item in str(raw_roots).split(",") if item.strip()]
+
+
+def get_configured_plugin_roots() -> list[dict[str, Any]]:
+    roots = [
+        {
+            "path": PLUGIN_ROOT.resolve(),
+            "scope": "core",
+            "repositoryVisibility": "public",
+            "label": "bundled-core",
+        },
+        {
+            "path": _resolve_configured_path(settings.local_plugin_root),
+            "scope": "local",
+            "repositoryVisibility": "public",
+            "label": "local-plugins",
+        },
+    ]
+
+    for index, raw_root in enumerate(_parse_root_list(settings.premium_plugin_roots), start=1):
+        roots.append(
+            {
+                "path": _resolve_configured_path(raw_root),
+                "scope": "premium",
+                "repositoryVisibility": "private",
+                "label": f"premium-root-{index}",
+            }
+        )
+
+    return roots
+
+
+def _normalize_distribution_fields(
+    payload: dict[str, Any],
+    root_scope: str,
+    root_visibility: str,
+) -> tuple[dict[str, Any], list[str]]:
+    warnings: list[str] = []
+    if not payload.get("distributionTier"):
+        warnings.append("distribution_tier_inferred")
+
+    distribution_tier = payload.get("distributionTier") or root_scope or ("core" if payload.get("builtin") else "local")
+    repository_visibility = payload.get("repositoryVisibility") or (
+        "private" if distribution_tier == "premium" else root_visibility
+    )
+    update_channel = payload.get("updateChannel") or (
+        "bundled" if distribution_tier == "core" else "licensed" if distribution_tier == "premium" else "manual"
+    )
+    ownership_boundary = payload.get("ownershipBoundary") or (
+        "core_team" if distribution_tier == "core" else "vantage_premium" if distribution_tier == "premium" else "customer_local"
+    )
+
+    return (
+        {
+            "distributionTier": distribution_tier,
+            "repositoryVisibility": repository_visibility,
+            "updateChannel": update_channel,
+            "ownershipBoundary": ownership_boundary,
+        },
+        warnings,
+    )
+
+
+def _validate_manifest(
+    payload: dict[str, Any],
+    current_core_version: str,
+    root_scope: str,
+    root_visibility: str,
+) -> tuple[list[str], str, dict[str, Any]]:
     errors: list[str] = []
+    distribution, warnings = _normalize_distribution_fields(payload, root_scope, root_visibility)
 
     for field in REQUIRED_MANIFEST_FIELDS:
         if not payload.get(field):
@@ -77,6 +163,80 @@ def _validate_manifest(payload: dict[str, Any], current_core_version: str) -> tu
 
     if payload.get("kind") and payload["kind"] not in VALID_KINDS:
         errors.append("invalid_kind")
+
+    if distribution["distributionTier"] not in VALID_DISTRIBUTION_TIERS:
+        errors.append("invalid_distribution_tier")
+    if distribution["repositoryVisibility"] not in VALID_REPOSITORY_VISIBILITIES:
+        errors.append("invalid_repository_visibility")
+    if distribution["updateChannel"] not in VALID_UPDATE_CHANNELS:
+        errors.append("invalid_update_channel")
+    if distribution["ownershipBoundary"] not in VALID_OWNERSHIP_BOUNDARIES:
+        errors.append("invalid_ownership_boundary")
+
+    if root_scope == "core" and distribution["distributionTier"] != "core":
+        errors.append("core_root_requires_core_distribution")
+    if root_scope == "premium" and distribution["distributionTier"] != "premium":
+        errors.append("premium_root_requires_premium_distribution")
+    if distribution["distributionTier"] == "premium" and root_scope != "premium":
+        errors.append("premium_plugin_must_live_in_premium_root")
+
+    if distribution["distributionTier"] == "core":
+        if not payload.get("builtin", False):
+            errors.append("core_plugins_must_be_builtin")
+        if payload.get("source") not in (None, "", "core"):
+            errors.append("core_plugins_must_use_core_source")
+        if distribution["repositoryVisibility"] != "public":
+            errors.append("core_plugins_must_be_public")
+        if distribution["updateChannel"] != "bundled":
+            errors.append("core_plugins_must_use_bundled_update_channel")
+        if distribution["ownershipBoundary"] != "core_team":
+            errors.append("core_plugins_must_use_core_team_ownership")
+
+    if distribution["distributionTier"] == "local":
+        if payload.get("builtin", False):
+            errors.append("local_plugins_cannot_be_builtin")
+
+    if distribution["distributionTier"] == "premium":
+        if payload.get("builtin", False):
+            errors.append("premium_plugins_cannot_be_builtin")
+        if distribution["repositoryVisibility"] != "private":
+            errors.append("premium_plugins_must_be_private")
+        if distribution["ownershipBoundary"] != "vantage_premium":
+            errors.append("premium_plugins_must_use_vantage_premium_ownership")
+
+    if payload.get("kind") == "premium_feature" and not payload.get("entrypoint"):
+        errors.append("missing_entrypoint")
+    if payload.get("kind") == "premium_feature":
+        premium_feature_type = payload.get("premiumFeatureType")
+        if not premium_feature_type:
+            errors.append("missing_premium_feature_type")
+        elif premium_feature_type not in VALID_PREMIUM_FEATURE_TYPES:
+            errors.append("invalid_premium_feature_type")
+        elif premium_feature_type == "hunting_provider":
+            try:
+                build_hunting_provider_descriptor(
+                    key=str(payload.get("key") or ""),
+                    name=str(payload.get("name") or ""),
+                    version=str(payload.get("version") or ""),
+                    artifact_types=list(payload.get("huntingArtifactTypes") or []),
+                    provider_scope=list(payload.get("providerScope") or []),
+                    entrypoint=str(payload.get("entrypoint") or ""),
+                    runtime=str(payload.get("runtime") or "plugin_premium"),
+                    isolation_mode=str(payload.get("isolationMode") or "local_process"),
+                    capabilities=list(payload.get("capabilities") or []),
+                    required_secrets=list(payload.get("requiredSecrets") or payload.get("permissions") or []),
+                    requires_kali=bool(payload.get("requiresKali", False)),
+                    execution_profile=recommend_hunting_execution_profile(
+                        requires_custom_binaries=bool(payload.get("requiresCustomBinaries", False)),
+                        requires_browser_automation=bool(payload.get("requiresBrowserAutomation", False)),
+                        requires_privileged_network=bool(payload.get("requiresPrivilegedNetwork", False)),
+                        requires_linux_toolchain=bool(payload.get("requiresLinuxToolchain", False)),
+                        handles_untrusted_targets=bool(payload.get("handlesUntrustedTargets", False)),
+                        dependency_weight=str(payload.get("dependencyWeight") or "light"),
+                    ),
+                )
+            except ValueError as exc:
+                errors.append(str(exc))
 
     public_asset_root = payload.get("publicAssetRoot")
     if public_asset_root and not str(public_asset_root).startswith(APPROVED_PUBLIC_ASSET_PREFIXES):
@@ -112,10 +272,10 @@ def _validate_manifest(payload: dict[str, Any], current_core_version: str) -> tu
                 errors.append("source_of_truth_path_missing")
 
     if errors:
-        return errors, "invalid"
+        return [*errors, *warnings], "invalid", distribution
 
     compatible = _is_core_compatible(str(payload["compatibleCore"]), current_core_version)
-    return [], "enabled" if compatible else "incompatible"
+    return warnings, "enabled" if compatible else "incompatible", distribution
 
 
 def _build_descriptor(
@@ -124,6 +284,9 @@ def _build_descriptor(
     errors: list[str],
     status: str,
     current_core_version: str,
+    distribution: dict[str, Any],
+    root_scope: str,
+    root_label: str,
 ) -> dict[str, Any]:
     descriptor = {
         "key": payload.get("key") or manifest_path.parent.name,
@@ -143,6 +306,24 @@ def _build_descriptor(
         "sourceOfTruthPath": payload.get("sourceOfTruthPath"),
         "source": payload.get("source", "local"),
         "builtin": bool(payload.get("builtin", False)),
+        "distributionTier": distribution["distributionTier"],
+        "repositoryVisibility": distribution["repositoryVisibility"],
+        "updateChannel": distribution["updateChannel"],
+        "ownershipBoundary": distribution["ownershipBoundary"],
+        "premiumFeatureType": payload.get("premiumFeatureType"),
+        "huntingArtifactTypes": payload.get("huntingArtifactTypes", []),
+        "providerScope": payload.get("providerScope", []),
+        "requiredSecrets": payload.get("requiredSecrets", []),
+        "isolationMode": payload.get("isolationMode"),
+        "requiresKali": bool(payload.get("requiresKali", False)),
+        "requiresCustomBinaries": bool(payload.get("requiresCustomBinaries", False)),
+        "requiresBrowserAutomation": bool(payload.get("requiresBrowserAutomation", False)),
+        "requiresPrivilegedNetwork": bool(payload.get("requiresPrivilegedNetwork", False)),
+        "requiresLinuxToolchain": bool(payload.get("requiresLinuxToolchain", False)),
+        "handlesUntrustedTargets": bool(payload.get("handlesUntrustedTargets", False)),
+        "dependencyWeight": payload.get("dependencyWeight"),
+        "searchRootScope": root_scope,
+        "searchRootLabel": root_label,
         "manifestPath": _serialize_manifest_path(manifest_path),
         "coreVersion": current_core_version,
     }
@@ -214,50 +395,130 @@ def _enrich_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
         )
         descriptor["sourceFileCount"] = len(descriptor["sourceFiles"])
         descriptor["publicAssetCount"] = len(descriptor["publicAssets"])
+    if descriptor["kind"] == "premium_feature":
+        descriptor["runtime"] = descriptor.get("runtime") or "plugin_premium"
+        descriptor["delivery"] = descriptor.get("delivery") or "licensed_package"
+        descriptor["productSurface"] = descriptor.get("productSurface") or descriptor.get("capabilities", [])
+        descriptor["requiresLicenseSecret"] = bool(descriptor.get("permissions"))
+        if descriptor["status"] != "invalid" and descriptor.get("premiumFeatureType") == "hunting_provider":
+            hunting_provider = build_hunting_provider_descriptor(
+                key=str(descriptor.get("key") or ""),
+                name=str(descriptor.get("name") or ""),
+                version=str(descriptor.get("version") or ""),
+                artifact_types=list(descriptor.get("huntingArtifactTypes") or descriptor.get("capabilities") or []),
+                provider_scope=list(descriptor.get("providerScope") or []),
+                entrypoint=str(descriptor.get("entrypoint") or ""),
+                runtime=str(descriptor.get("runtime") or "plugin_premium"),
+                isolation_mode=str(descriptor.get("isolationMode") or "local_process"),
+                capabilities=list(descriptor.get("capabilities") or []),
+                required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
+                requires_kali=bool(descriptor.get("requiresKali", False)),
+                execution_profile=recommend_hunting_execution_profile(
+                    requires_custom_binaries=bool(descriptor.get("requiresCustomBinaries", False)),
+                    requires_browser_automation=bool(descriptor.get("requiresBrowserAutomation", False)),
+                    requires_privileged_network=bool(descriptor.get("requiresPrivilegedNetwork", False)),
+                    requires_linux_toolchain=bool(descriptor.get("requiresLinuxToolchain", False)),
+                    handles_untrusted_targets=bool(descriptor.get("handlesUntrustedTargets", False)),
+                    dependency_weight=str(descriptor.get("dependencyWeight") or "light"),
+                ),
+            )
+            descriptor["huntingProvider"] = hunting_provider
+            descriptor["productSurface"] = hunting_provider["providerScope"]
+            descriptor["huntingArtifactTypes"] = hunting_provider["artifactTypes"]
+            descriptor["providerScope"] = hunting_provider["providerScope"]
+            descriptor["requiredSecrets"] = hunting_provider["requiredSecrets"]
+            descriptor["isolationMode"] = hunting_provider["executionProfile"]["mode"]
+            descriptor["requiresKali"] = hunting_provider["requiresKali"]
+            descriptor["executionProfile"] = hunting_provider["executionProfile"]
     return descriptor
 
 
 def load_extensions_registry(
     plugin_root: Path | None = None,
     current_core_version: str | None = None,
+    plugin_roots: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
-    root = plugin_root or PLUGIN_ROOT
     current_version = current_core_version or settings.core_version
     descriptors: list[dict[str, Any]] = []
+    roots = plugin_roots or [
+        {
+            "path": (plugin_root or PLUGIN_ROOT).resolve(),
+            "scope": "core" if plugin_root is None else "local",
+            "repositoryVisibility": "public",
+            "label": "bundled-core" if plugin_root is None else "ad-hoc-root",
+        }
+    ]
 
-    if not root.exists():
-        return descriptors
+    for root in roots:
+        root_path = Path(root["path"]).resolve()
+        root_scope = str(root["scope"])
+        root_visibility = str(root["repositoryVisibility"])
+        root_label = str(root.get("label") or root_scope)
 
-    for manifest_path in sorted(root.glob(f"*/{MANIFEST_FILENAME}")):
-        payload, load_errors = _safe_load_manifest(manifest_path)
-        if payload is None:
-            descriptors.append(
-                {
-                    "key": manifest_path.parent.name,
-                    "name": manifest_path.parent.name,
-                    "version": None,
-                    "license": None,
-                    "author": None,
-                    "kind": None,
-                    "compatibleCore": None,
-                    "status": "invalid",
-                    "errors": load_errors,
-                    "description": None,
-                    "capabilities": [],
-                    "permissions": [],
-                    "entrypoint": None,
-                    "publicAssetRoot": None,
-                    "source": "local",
-                    "builtin": False,
-                    "manifestPath": _serialize_manifest_path(manifest_path),
-                    "coreVersion": current_version,
-                }
-            )
+        if not root_path.exists():
             continue
 
-        validation_errors, status = _validate_manifest(payload, current_version)
-        descriptor = _build_descriptor(payload, manifest_path, validation_errors, status, current_version)
-        descriptors.append(_enrich_descriptor(descriptor))
+        for manifest_path in sorted(root_path.glob(f"*/{MANIFEST_FILENAME}")):
+            payload, load_errors = _safe_load_manifest(manifest_path)
+            if payload is None:
+                descriptors.append(
+                    {
+                        "key": manifest_path.parent.name,
+                        "name": manifest_path.parent.name,
+                        "version": None,
+                        "license": None,
+                        "author": None,
+                        "kind": None,
+                        "compatibleCore": None,
+                        "status": "invalid",
+                        "errors": load_errors,
+                        "description": None,
+                        "capabilities": [],
+                        "permissions": [],
+                        "entrypoint": None,
+                        "publicAssetRoot": None,
+                        "source": "local",
+                        "builtin": False,
+                        "distributionTier": root_scope,
+                        "repositoryVisibility": root_visibility,
+                        "updateChannel": None,
+                        "ownershipBoundary": None,
+                        "searchRootScope": root_scope,
+                        "searchRootLabel": root_label,
+                        "manifestPath": _serialize_manifest_path(manifest_path),
+                        "coreVersion": current_version,
+                    }
+                )
+                continue
+
+            validation_errors, status, distribution = _validate_manifest(
+                payload,
+                current_version,
+                root_scope,
+                root_visibility,
+            )
+            descriptor = _build_descriptor(
+                payload,
+                manifest_path,
+                validation_errors,
+                status,
+                current_version,
+                distribution,
+                root_scope,
+                root_label,
+            )
+            descriptors.append(_enrich_descriptor(descriptor))
+
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for descriptor in descriptors:
+        by_key.setdefault(str(descriptor["key"]), []).append(descriptor)
+
+    for key, items in by_key.items():
+        if len(items) <= 1:
+            continue
+        for descriptor in items:
+            descriptor["status"] = "invalid"
+            descriptor["errors"] = sorted(set([*descriptor.get("errors", []), f"duplicate_key:{key}"]))
 
     return descriptors
 
@@ -265,6 +526,6 @@ def load_extensions_registry(
 def get_extensions_catalog(app, refresh: bool = False) -> list[dict[str, Any]]:
     registry = getattr(app.state, "extensions_registry", None)
     if registry is None or refresh:
-        registry = load_extensions_registry()
+        registry = load_extensions_registry(plugin_roots=get_configured_plugin_roots())
         app.state.extensions_registry = registry
     return registry

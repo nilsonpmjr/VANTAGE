@@ -92,9 +92,9 @@ export default function MFAEnroll({ mfaEnabled, userRole, onStatusChange }) {
     if (mfaEnabled && step !== 'done') {
         return (
             <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(16,185,129,0.08)', border: '1px solid var(--green)', borderRadius: '8px', marginBottom: '1rem' }}>
-                    <ShieldCheck size={20} color="var(--green)" />
-                    <span style={{ color: 'var(--green)', fontWeight: 600, fontSize: '0.9rem' }}>{t('mfa.status_active')}</span>
+                <div className="alert-banner success">
+                    <ShieldCheck size={20} />
+                    <span style={{ fontWeight: 600 }}>{t('mfa.status_active')}</span>
                 </div>
                 {error && <div style={{ color: 'var(--red)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</div>}
                 {canDisable && (
@@ -114,14 +114,14 @@ export default function MFAEnroll({ mfaEnabled, userRole, onStatusChange }) {
     if (step === 'idle' || step === 'done') {
         return (
             <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', background: 'rgba(239,68,68,0.06)', border: '1px solid var(--glass-border)', borderRadius: '8px', marginBottom: '1rem' }}>
-                    <ShieldOff size={20} color="var(--text-muted)" />
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                <div className="alert-banner error" style={{ background: 'var(--alert-error-bg)', opacity: 0.7 }}>
+                    <ShieldOff size={20} />
+                    <span>
                         {step === 'done' ? t('mfa.status_active') : t('mfa.status_inactive')}
                     </span>
                 </div>
                 {MFA_REQUIRED_ROLES.includes(userRole) && (
-                    <div style={{ padding: '0.6rem 0.9rem', background: 'rgba(251,146,60,0.1)', border: '1px solid #fb923c', borderRadius: '6px', marginBottom: '1rem', fontSize: '0.82rem', color: '#fb923c' }}>
+                    <div className="alert-banner warning compact">
                         {t('mfa.mandatory_warning')}
                     </div>
                 )}
@@ -179,8 +179,8 @@ export default function MFAEnroll({ mfaEnabled, userRole, onStatusChange }) {
                     maxLength={6}
                     value={otp}
                     onChange={e => setOtp(e.target.value.replace(/\D/g, ''))}
-                    className="search-input"
-                    style={{ width: '100%', padding: '0.7rem', textAlign: 'center', fontSize: '1.4rem', letterSpacing: '0.4rem', background: 'var(--bg-main)', marginBottom: '0.75rem' }}
+                    className="form-input"
+                    style={{ padding: '0.7rem', textAlign: 'center', fontSize: '1.4rem', letterSpacing: '0.4rem', marginBottom: '0.75rem' }}
                     placeholder="000000"
                 />
                 <button type="submit" disabled={loading || otp.length < 6} className="btn-primary" style={{ width: '100%' }}>

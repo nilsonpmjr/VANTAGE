@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu, Radar, Eye, Rss } from 'lucide-react';
+import { Search, LayoutDashboard, Settings, LogOut, ShieldCheck, Menu, Radar, Eye, Rss, Fingerprint } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTour } from '../../context/TourContext';
 import { useTranslation } from 'react-i18next';
@@ -25,6 +25,7 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
     const NAV_ITEMS = [
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
         { id: 'feed', label: t('sidebar.feed'), icon: Rss, roles: ['admin', 'manager', 'tech'] },
+        { id: 'hunting', label: t('sidebar.hunting'), icon: Fingerprint, roles: ['admin', 'manager', 'tech'] },
         { id: 'recon', label: t('sidebar.recon'), icon: Radar, roles: ['admin', 'manager', 'tech'] },
         { id: 'watchlist', label: t('sidebar.watchlist'), icon: Eye, roles: ['admin', 'manager', 'tech'] },
         { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
@@ -69,31 +70,8 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
                             key={item.id}
                             data-tour={`sidebar-${item.id}`}
                             onClick={() => { setCurrentView(item.id); onMobileClose?.(); }}
-                            style={{
-                                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                                width: '100%', padding: '0.875rem 1rem',
-                                background: isActive ? 'var(--accent-glow)' : 'transparent',
-                                border: isActive ? '1px solid var(--accent-border)' : '1px solid transparent',
-                                color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
-                                borderRadius: 'var(--radius-md)',
-                                cursor: 'pointer',
-                                transition: 'all 0.2s ease',
-                                textAlign: 'left',
-                                fontWeight: isActive ? 500 : 400,
-                                justifyContent: isCollapsed ? 'center' : 'flex-start'
-                            }}
-                            onMouseOver={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                                    e.currentTarget.style.color = 'var(--text-primary)';
-                                }
-                            }}
-                            onMouseOut={(e) => {
-                                if (!isActive) {
-                                    e.currentTarget.style.background = 'transparent';
-                                    e.currentTarget.style.color = 'var(--text-secondary)';
-                                }
-                            }}
+                            className={`sidebar-nav-item ${isActive ? 'active' : ''}`}
+                            style={{ justifyContent: isCollapsed ? 'center' : 'flex-start' }}
                         >
                             <Icon size={20} style={{ flexShrink: 0 }} />
                             {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
@@ -106,9 +84,8 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
                 <div
                     onClick={() => { setCurrentView('profile'); onMobileClose?.(); }}
                     data-tour="sidebar-profile"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: '0.75rem', padding: '0.5rem', marginBottom: '1rem', cursor: 'pointer', borderRadius: '8px', transition: 'background 0.2s' }}
-                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    className="sidebar-profile-btn"
+                    style={{ justifyContent: isCollapsed ? 'center' : 'flex-start' }}
                     title={t('sidebar.profile')}
                 >
                     <div style={{ width: '36px', height: '36px', background: 'var(--glass-bg)', borderRadius: '50%', border: '1px solid var(--primary)', flexShrink: 0, overflow: 'hidden', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -128,20 +105,8 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose }) 
                 <button
                     onClick={logout}
                     aria-label={t('sidebar.logout')}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.75rem',
-                        width: '100%', padding: '0.875rem 1rem',
-                        background: 'rgba(239, 68, 68, 0.1)',
-                        border: '1px solid rgba(239, 68, 68, 0.3)',
-                        color: 'var(--red)',
-                        borderRadius: 'var(--radius-md)',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        textAlign: 'left',
-                        justifyContent: isCollapsed ? 'center' : 'flex-start'
-                    }}
-                    onMouseOver={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.2)' })}
-                    onMouseOut={(e) => Object.assign(e.currentTarget.style, { background: 'rgba(239, 68, 68, 0.1)' })}
+                    className="sidebar-logout-btn"
+                    style={{ justifyContent: isCollapsed ? 'center' : 'flex-start' }}
                 >
                     <LogOut size={20} style={{ flexShrink: 0 }} />
                     {!isCollapsed && <span style={{ whiteSpace: 'nowrap' }}>{t('sidebar.logout')}</span>}

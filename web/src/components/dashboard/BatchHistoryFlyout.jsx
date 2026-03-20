@@ -75,6 +75,7 @@ export default function BatchHistoryFlyout({ open, onClose, onLoad }) {
                         return (
                             <div
                                 key={job.job_id}
+                                className="hover-border"
                                 onClick={() => handleLoad(job)}
                                 style={{
                                     padding: '0.75rem 1rem',
@@ -82,14 +83,12 @@ export default function BatchHistoryFlyout({ open, onClose, onLoad }) {
                                     border: '1px solid var(--glass-border)',
                                     borderRadius: 'var(--radius-sm)',
                                     cursor: 'pointer',
-                                    transition: 'border-color 0.15s',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
                                     gap: '0.75rem',
+                                    '--hover-accent': 'var(--primary)',
                                 }}
-                                onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--primary)')}
-                                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--glass-border)')}
                             >
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 0 }}>
                                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>

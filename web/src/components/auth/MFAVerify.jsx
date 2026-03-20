@@ -58,7 +58,7 @@ export default function MFAVerify({ onSuccess, onCancel }) {
                 </p>
 
                 {error && (
-                    <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                    <div className="alert-banner error">
                         {error}
                     </div>
                 )}
@@ -78,12 +78,12 @@ export default function MFAVerify({ onSuccess, onCancel }) {
                                 : raw.replace(/\D/g, '').slice(0, 6)
                             );
                         }}
-                        className="search-input"
+                        className="form-input"
                         style={{
-                            width: '100%', padding: '0.9rem', textAlign: 'center',
+                            padding: '0.9rem', textAlign: 'center',
                             fontSize: isBackupMode ? '1.1rem' : '1.5rem',
                             letterSpacing: isBackupMode ? '0.15rem' : '0.4rem',
-                            background: 'var(--bg-card)', marginBottom: '1rem',
+                            marginBottom: '1rem',
                         }}
                         placeholder={isBackupMode ? 'XXXXXX-XXXXXX' : '000000'}
                     />

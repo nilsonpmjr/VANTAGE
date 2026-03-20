@@ -87,7 +87,7 @@ export default function ProfileInfoPanel({ notices }) {
             />
             {notices}
             {message.text && (
-                <div style={{ background: message.type === 'error' ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', color: message.type === 'error' ? 'var(--red)' : 'var(--green)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem' }}>
+                <div className={`alert-banner wide ${message.type === 'error' ? 'error' : 'success'}`}>
                     {message.text}
                 </div>
             )}
@@ -123,7 +123,7 @@ export default function ProfileInfoPanel({ notices }) {
                             value={user?.email || ''}
                             disabled
                             aria-label={t('profile.account_email')}
-                            className="search-input"
+                            className="form-input"
                             style={{ width: '100%', padding: '0.75rem', opacity: 0.75 }}
                         />
                     </div>
@@ -136,7 +136,7 @@ export default function ProfileInfoPanel({ notices }) {
                             value={recoveryEmail}
                             onChange={(event) => setRecoveryEmail(event.target.value)}
                             aria-label={t('profile.recovery_email')}
-                            className="search-input"
+                            className="form-input"
                             style={{ width: '100%', padding: '0.75rem' }}
                             placeholder={t('profile.recovery_email_placeholder')}
                         />

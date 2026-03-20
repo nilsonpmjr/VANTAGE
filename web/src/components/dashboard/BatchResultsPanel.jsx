@@ -136,7 +136,7 @@ function PreflightModal({ estimate, onConfirm, onCancel, t, notifyEmail, onNotif
                         <div
                             style={{
                                 flex: 1, minWidth: '120px',
-                                background: external_calls > 0 ? 'rgba(239,68,68,0.08)' : 'var(--glass-bg)',
+                                background: external_calls > 0 ? 'var(--alert-error-bg)' : 'var(--glass-bg)',
                                 border: `1px solid ${external_calls > 0 ? 'var(--status-risk)' : 'var(--glass-border)'}`,
                                 borderRadius: '8px', padding: '0.75rem 1rem',
                             }}
@@ -501,6 +501,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                         {/* history button */}
                         {isDone && (
                             <button
+                                className="hover-accent-btn"
                                 onClick={() => setShowHistory(true)}
                                 title={t('batch.history_title')}
                                 style={{
@@ -511,10 +512,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                     borderRadius: 'var(--radius-sm)',
                                     padding: '0.35rem 0.75rem',
                                     cursor: 'pointer', fontSize: '0.8rem',
-                                    transition: 'all 0.2s',
                                 }}
-                                onMouseOver={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--primary)', color: 'var(--primary)' })}
-                                onMouseOut={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' })}
                             >
                                 <Clock size={14} />
                             </button>
@@ -524,6 +522,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                         {isDone && results.length > 0 && (
                             <>
                                 <button
+                                    className="hover-accent-btn"
                                     onClick={() => exportCSV(hasFilters ? filteredResults : results)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '0.35rem',
@@ -533,14 +532,12 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                         borderRadius: 'var(--radius-sm)',
                                         padding: '0.35rem 0.75rem',
                                         cursor: 'pointer', fontSize: '0.8rem',
-                                        transition: 'all 0.2s',
                                     }}
-                                    onMouseOver={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--primary)', color: 'var(--primary)' })}
-                                    onMouseOut={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' })}
                                 >
                                     <Download size={14} /> CSV
                                 </button>
                                 <button
+                                    className="hover-accent-btn"
                                     onClick={() => exportJSON(hasFilters ? filteredResults : results)}
                                     style={{
                                         display: 'flex', alignItems: 'center', gap: '0.35rem',
@@ -550,10 +547,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                         borderRadius: 'var(--radius-sm)',
                                         padding: '0.35rem 0.75rem',
                                         cursor: 'pointer', fontSize: '0.8rem',
-                                        transition: 'all 0.2s',
                                     }}
-                                    onMouseOver={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--primary)', color: 'var(--primary)' })}
-                                    onMouseOut={(e) => Object.assign(e.currentTarget.style, { borderColor: 'var(--glass-border)', color: 'var(--text-secondary)' })}
                                 >
                                     <Download size={14} /> JSON
                                 </button>

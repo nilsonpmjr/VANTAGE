@@ -219,10 +219,10 @@ function DetailView({ module, data }) {
                         <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', margin: '0 0 0.4rem' }}>Security Headers</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                             {presentHeaders.map(([h]) => (
-                                <span key={h} style={{ fontSize: '0.72rem', background: 'rgba(16,185,129,0.1)', color: 'var(--green)', border: '1px solid var(--green)', borderRadius: '4px', padding: '0.1rem 0.4rem' }}>{h}</span>
+                                <span key={h} style={{ fontSize: '0.72rem', background: 'var(--alert-success-bg)', color: 'var(--green)', border: '1px solid var(--green)', borderRadius: '4px', padding: '0.1rem 0.4rem' }}>{h}</span>
                             ))}
                             {missingHeaders.map(([h]) => (
-                                <span key={h} style={{ fontSize: '0.72rem', background: 'rgba(239,68,68,0.08)', color: 'var(--red)', border: '1px solid var(--red)', borderRadius: '4px', padding: '0.1rem 0.4rem', opacity: 0.7 }}>✕ {h}</span>
+                                <span key={h} style={{ fontSize: '0.72rem', background: 'var(--alert-error-bg)', color: 'var(--red)', border: '1px solid var(--red)', borderRadius: '4px', padding: '0.1rem 0.4rem', opacity: 0.7 }}>✕ {h}</span>
                             ))}
                         </div>
                     </div>

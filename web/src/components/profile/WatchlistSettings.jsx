@@ -115,7 +115,7 @@ export default function WatchlistSettings() {
                 <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                     <input
                         type="text"
-                        className="search-input"
+                        className="form-input"
                         placeholder={t('watchlist.add_placeholder')}
                         value={target}
                         onChange={e => { setTarget(e.target.value); setError(null); }}
@@ -232,6 +232,7 @@ export default function WatchlistSettings() {
 
                                 {/* Remove */}
                                 <button
+                                    className="hover-danger"
                                     onClick={() => handleRemove(item.id)}
                                     title={t('watchlist.remove')}
                                     style={{
@@ -239,8 +240,6 @@ export default function WatchlistSettings() {
                                         color: 'var(--text-muted)', cursor: 'pointer',
                                         padding: '0.2rem', display: 'flex',
                                     }}
-                                    onMouseOver={e => (e.currentTarget.style.color = 'var(--status-risk)')}
-                                    onMouseOut={e => (e.currentTarget.style.color = 'var(--text-muted)')}
                                 >
                                     <Trash2 size={14} />
                                 </button>

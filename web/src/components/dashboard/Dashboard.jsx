@@ -13,9 +13,9 @@ import ReconAdminPanel from '../admin/ReconAdminPanel';
 import '../../index.css';
 
 // Pie Chart Colors
-const COLOR_SAFE = '#10b981';
-const COLOR_SUSPICIOUS = '#f59e0b';
-const COLOR_MALICIOUS = '#ef4444';
+const COLOR_SAFE = 'var(--status-safe)';
+const COLOR_SUSPICIOUS = 'var(--status-suspicious)';
+const COLOR_MALICIOUS = 'var(--status-risk)';
 
 const getVerdictColor = (verdict) => {
     if (!verdict) return 'var(--text-muted)';
@@ -151,7 +151,7 @@ export default function Dashboard({ onSearch, onRecon }) {
     if (error) {
         return (
             <div style={{ padding: '2rem', textAlign: 'center' }}>
-                <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '1rem', borderRadius: '8px', display: 'inline-block' }}>
+                <div className="alert-banner error" style={{ display: 'inline-flex' }}>
                     {error}
                 </div>
             </div>
@@ -216,7 +216,7 @@ export default function Dashboard({ onSearch, onRecon }) {
                             </div>
                         </div>
                         <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: 'rgba(239, 68, 68, 0.1)', padding: '0.75rem', borderRadius: '12px', color: 'var(--red)' }}><ShieldAlert size={28} /></div>
+                            <div style={{ background: 'var(--alert-error-bg)', padding: '0.75rem', borderRadius: '12px', color: 'var(--alert-error)' }}><ShieldAlert size={28} /></div>
                             <div>
                                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.threats')}</p>
                                 <h3 style={{ margin: '0.3rem 0 0 0', color: 'var(--text-primary)', fontSize: '1.8rem', fontWeight: 600 }}>{stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}</h3>
@@ -230,7 +230,7 @@ export default function Dashboard({ onSearch, onRecon }) {
                             </div>
                         </div>
                         <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: stats?.workerHealth?.status === 'Healthy' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(245, 158, 11, 0.1)', padding: '0.75rem', borderRadius: '12px', color: stats?.workerHealth?.status === 'Healthy' ? 'var(--green)' : 'var(--yellow)' }}><ShieldCheck size={28} /></div>
+                            <div style={{ background: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success-bg)' : 'var(--alert-warning-bg)', padding: '0.75rem', borderRadius: '12px', color: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success)' : 'var(--alert-warning)' }}><ShieldCheck size={28} /></div>
                             <div>
                                 <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.worker_mon')}</p>
                                 <h3 style={{ margin: '0.15rem 0 0 0', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600 }}>{stats?.workerHealth?.status === 'Healthy' ? t('dashboard.healthy') : t('dashboard.offline')}</h3>

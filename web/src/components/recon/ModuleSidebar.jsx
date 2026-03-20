@@ -52,6 +52,7 @@ export default function ModuleSidebar({
                 return (
                     <button
                         key={mod.name}
+                        className={!isActive ? 'hover-row' : ''}
                         onClick={() => {
                             if (!scanning) onToggle(mod.name);
                             if (progress[mod.name]) onSelectModule(mod.name);
@@ -72,12 +73,6 @@ export default function ModuleSidebar({
                             transition: 'all 0.15s',
                             marginLeft: '0.5rem',
                             marginRight: '0.5rem',
-                        }}
-                        onMouseOver={(e) => {
-                            if (!isActive) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                        }}
-                        onMouseOut={(e) => {
-                            if (!isActive) e.currentTarget.style.background = 'transparent';
                         }}
                         title={mod.display_name}
                     >
@@ -109,6 +104,7 @@ export default function ModuleSidebar({
                 <>
                     <div style={{ margin: '0.75rem 1rem 0.5rem', borderTop: '1px solid var(--glass-border)' }} />
                     <button
+                        className={activeView !== 'surface' ? 'hover-row' : ''}
                         onClick={onSelectAttackSurface}
                         style={{
                             display: 'flex',
@@ -125,12 +121,7 @@ export default function ModuleSidebar({
                             transition: 'all 0.15s',
                             marginLeft: '0.5rem',
                             marginRight: '0.5rem',
-                        }}
-                        onMouseOver={(e) => {
-                            if (activeView !== 'surface') e.currentTarget.style.background = 'rgba(56,189,248,0.08)';
-                        }}
-                        onMouseOut={(e) => {
-                            if (activeView !== 'surface') e.currentTarget.style.background = 'transparent';
+                            '--hover-accent': 'rgba(56,189,248,0.08)',
                         }}
                     >
                         <Radar size={14} />

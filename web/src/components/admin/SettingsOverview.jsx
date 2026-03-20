@@ -20,7 +20,7 @@ export default function SettingsOverview({ adminStats, onExport, exporting, onIm
                     <StatCard icon={<Users size={20} />} label={t('settings.stats_total')} value={adminStats.total_users} color="var(--primary)" />
                     <StatCard icon={<UserCheck size={20} />} label={t('settings.stats_active')} value={adminStats.active_users} color="var(--green)" />
                     <StatCard icon={<UserX size={20} />} label={t('settings.stats_suspended')} value={adminStats.suspended_users} color="var(--red)" />
-                    <StatCard icon={<Lock size={20} />} label={t('settings.stats_locked')} value={adminStats.locked_accounts} color="#fb923c" />
+                    <StatCard icon={<Lock size={20} />} label={t('settings.stats_locked')} value={adminStats.locked_accounts} color="var(--alert-warning)" />
                     <StatCard icon={<Shield size={20} />} label={t('settings.stats_mfa')} value={adminStats.users_with_mfa} color="var(--primary)" />
                     <StatCard icon={<X size={20} />} label={t('settings.stats_failed_24h')} value={adminStats.failed_logins_24h} color="var(--red)" />
                     <StatCard icon={<Terminal size={20} />} label={t('settings.stats_sessions')} value={adminStats.active_sessions} color="var(--primary)" />
@@ -47,9 +47,8 @@ export default function SettingsOverview({ adminStats, onExport, exporting, onIm
                                         key={fmt}
                                         onClick={() => onExport(fmt)}
                                         disabled={exporting}
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', color: 'var(--text-primary)', border: '1px solid var(--glass-border)', background: 'var(--glass-bg)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500, transition: 'border-color 0.2s, background 0.2s', opacity: exporting ? 0.6 : 1 }}
-                                        onMouseOver={e => Object.assign(e.currentTarget.style, { background: 'rgba(56,189,248,0.08)', borderColor: 'var(--accent-border)' })}
-                                        onMouseOut={e => Object.assign(e.currentTarget.style, { background: 'var(--glass-bg)', borderColor: 'var(--glass-border)' })}
+                                        className="btn-secondary"
+                                        style={{ gap: '0.4rem', padding: '0.5rem 1rem' }}
                                     >
                                         <Download size={15} /> {fmt.toUpperCase()}
                                     </button>
@@ -69,18 +68,18 @@ export default function SettingsOverview({ adminStats, onExport, exporting, onIm
                     </div>
 
                     {importResult && (
-                        <div style={{ marginTop: '1rem', padding: '0.75rem 1rem', borderRadius: '8px', background: importResult.error ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', fontSize: '0.875rem' }}>
+                        <div className={`alert-banner ${importResult.error ? 'error' : 'success'}`} style={{ marginTop: '1rem' }}>
                             {importResult.error ? (
-                                <span style={{ color: 'var(--red)' }}>{importResult.error}</span>
+                                <span>{importResult.error}</span>
                             ) : (
                                 <>
-                                    <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                                    <span style={{ fontWeight: 600 }}>
                                         {t('settings.import_created', { count: importResult.created })} &nbsp;
                                         {t('settings.import_skipped', { count: importResult.skipped })}
                                     </span>
                                     {importResult.errors?.length > 0 && (
                                         <details style={{ marginTop: '0.5rem' }}>
-                                            <summary style={{ cursor: 'pointer', color: '#fb923c' }}>
+                                            <summary style={{ cursor: 'pointer', color: 'var(--alert-warning)' }}>
                                                 {t('settings.import_errors', { count: importResult.errors.length })}
                                             </summary>
                                             <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>

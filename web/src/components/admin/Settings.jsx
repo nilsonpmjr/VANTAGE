@@ -206,7 +206,7 @@ export default function Settings() {
             <SettingsShell groups={menuGroups} activeKey={activeKey} onSelect={setActiveKey} breadcrumbs={breadcrumbs}>
 
                 {error && (
-                    <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '1rem', borderRadius: '8px', marginBottom: '2rem' }}>
+                    <div className="alert-banner error wide" style={{ marginBottom: '2rem' }}>
                         {error}
                     </div>
                 )}

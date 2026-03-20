@@ -50,18 +50,18 @@ export default function UserImportPanel({ onImportDone }) {
                 </label>
 
                 {result && (
-                    <div style={{ marginTop: '1.25rem', padding: '0.75rem 1rem', borderRadius: '8px', background: result.error ? 'rgba(239,68,68,0.1)' : 'rgba(34,197,94,0.1)', fontSize: '0.875rem' }}>
+                    <div className={`alert-banner ${result.error ? 'error' : 'success'}`} style={{ marginTop: '1.25rem' }}>
                         {result.error ? (
-                            <span style={{ color: 'var(--red)' }}>{result.error}</span>
+                            <span>{result.error}</span>
                         ) : (
                             <>
-                                <span style={{ color: 'var(--green)', fontWeight: 600 }}>
+                                <span style={{ fontWeight: 600 }}>
                                     {t('settings.import_created', { count: result.created })} &nbsp;
                                     {t('settings.import_skipped', { count: result.skipped })}
                                 </span>
                                 {result.errors?.length > 0 && (
                                     <details style={{ marginTop: '0.5rem' }}>
-                                        <summary style={{ cursor: 'pointer', color: '#fb923c' }}>
+                                        <summary style={{ cursor: 'pointer', color: 'var(--alert-warning)' }}>
                                             {t('settings.import_errors', { count: result.errors.length })}
                                         </summary>
                                         <ul style={{ margin: '0.5rem 0 0 1rem', padding: 0, fontSize: '0.8rem', color: 'var(--text-secondary)' }}>

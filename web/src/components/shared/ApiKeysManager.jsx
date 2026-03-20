@@ -105,8 +105,8 @@ export default function ApiKeysManager() {
             {/* Revealed key banner — shown once after creation */}
             {revealedKey && (
                 <div style={{
-                    background: 'rgba(16, 185, 129, 0.08)',
-                    border: '1px solid var(--green)',
+                    background: 'var(--alert-success-bg)',
+                    border: '1px solid var(--alert-success-border)',
                     borderRadius: '8px',
                     padding: '1rem',
                     marginBottom: '1.25rem',

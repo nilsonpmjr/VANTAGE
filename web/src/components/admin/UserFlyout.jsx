@@ -211,12 +211,12 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
 
             {/* Feedback */}
             {actionErr && (
-                <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.6rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                <div className="alert-banner error compact">
                     {actionErr}
                 </div>
             )}
             {actionMsg && (
-                <div style={{ background: 'rgba(34,197,94,0.1)', color: 'var(--green)', padding: '0.6rem 0.85rem', borderRadius: '6px', fontSize: '0.82rem', marginBottom: '1rem' }}>
+                <div className="alert-banner success compact">
                     {actionMsg}
                 </div>
             )}
@@ -260,7 +260,7 @@ export default function UserFlyout({ selectedUser, currentUser, isNew, onClose, 
                                 {selectedUser.is_active === false
                                     ? <span style={{ color: 'var(--red)' }}>{t('settings.suspended')}</span>
                                     : isLocked(selectedUser)
-                                        ? <span style={{ color: '#fb923c' }}>{t('settings.locked')}</span>
+                                        ? <span style={{ color: 'var(--alert-warning)' }}>{t('settings.locked')}</span>
                                         : <span style={{ color: 'var(--green)' }}>{t('settings.active')}</span>
                                 }
                             </span>

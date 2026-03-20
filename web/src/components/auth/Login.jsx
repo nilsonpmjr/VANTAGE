@@ -53,34 +53,32 @@ export default function Login({ onForgotPassword }) {
                 <h2 style={{ color: 'var(--text-secondary)', marginBottom: '2rem', fontSize: '0.9rem' }}>{t('login.subtitle')}</h2>
 
                 {error && (
-                    <div style={{ background: 'rgba(239, 68, 68, 0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                    <div className="alert-banner error wide">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ textAlign: 'left' }}>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>{t('login.username')}</label>
+                    <div className="form-field" style={{ textAlign: 'left' }}>
+                        <label className="form-field__label" style={{ marginBottom: '0.5rem', display: 'block' }}>{t('login.username')}</label>
                         <input
                             type="text"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             required
-                            className="search-input"
-                            style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                            className="form-input"
                             placeholder={t('login.username_placeholder', 'Enter your username...')}
                         />
                     </div>
 
-                    <div style={{ textAlign: 'left', marginBottom: '1rem' }}>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>{t('login.password')}</label>
+                    <div className="form-field" style={{ textAlign: 'left', marginBottom: '1rem' }}>
+                        <label className="form-field__label" style={{ marginBottom: '0.5rem', display: 'block' }}>{t('login.password')}</label>
                         <input
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             required
-                            className="search-input"
-                            style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                            className="form-input"
                             placeholder="••••••••"
                         />
                     </div>

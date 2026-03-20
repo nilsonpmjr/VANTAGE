@@ -34,7 +34,7 @@ function ModuleSection({ module, result }) {
     };
 
     const renderData = () => {
-        if (data.error) return <p style={{ color: '#ef4444' }}>{data.error}</p>;
+        if (data.error) return <p style={{ color: 'var(--alert-error)' }}>{data.error}</p>;
         if (data.skipped) return <p style={{ color: '#94a3b8' }}>{data.skipped}</p>;
 
         // DNS

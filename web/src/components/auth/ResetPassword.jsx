@@ -90,14 +90,14 @@ export default function ResetPassword({ token, onSuccess }) {
                 </p>
 
                 {error && (
-                    <div style={{ background: 'rgba(239,68,68,0.1)', color: 'var(--red)', padding: '0.75rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                    <div className="alert-banner error">
                         {error}
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem', textAlign: 'left' }}>
-                    <div>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
+                    <div className="form-field">
+                        <label className="form-field__label" style={{ marginBottom: '0.5rem', display: 'block' }}>
                             {t('reset_password.new_password')}
                         </label>
                         <input
@@ -106,13 +106,12 @@ export default function ResetPassword({ token, onSuccess }) {
                             onChange={e => setPassword(e.target.value)}
                             required
                             minLength={6}
-                            className="search-input"
-                            style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                            className="form-input"
                             placeholder="••••••••"
                         />
                     </div>
-                    <div>
-                        <label style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '0.5rem', display: 'block' }}>
+                    <div className="form-field">
+                        <label className="form-field__label" style={{ marginBottom: '0.5rem', display: 'block' }}>
                             {t('reset_password.confirm_password')}
                         </label>
                         <input
@@ -120,8 +119,7 @@ export default function ResetPassword({ token, onSuccess }) {
                             value={confirm}
                             onChange={e => setConfirm(e.target.value)}
                             required
-                            className="search-input"
-                            style={{ width: '100%', padding: '0.75rem', background: 'var(--bg-card)', border: '1px solid var(--glass-border)' }}
+                            className="form-input"
                             placeholder="••••••••"
                         />
                     </div>

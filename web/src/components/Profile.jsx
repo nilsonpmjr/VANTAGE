@@ -83,7 +83,7 @@ export default function Profile({ initialActiveKey = 'info' }) {
 
     // Notices shared across info/language/password panels
     const notices = user && (user.force_password_reset || user.password_expires_in_days === 0) ? (
-        <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '1rem', borderRadius: '8px', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+        <div className="alert-banner error wide">
             <Lock size={18} />
             <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
         </div>

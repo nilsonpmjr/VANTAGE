@@ -16,7 +16,7 @@ const SEVERITY_VARIANT = {
 const SEVERITY_ACCENT = {
     critical: 'var(--status-risk)',
     high: 'var(--status-risk)',
-    medium: '#fb923c',
+    medium: 'var(--alert-warning)',
     low: 'var(--primary)',
     info: 'var(--primary)',
     unknown: 'var(--glass-border)',
@@ -39,24 +39,16 @@ function FeedCard({ item, t }) {
 
     return (
         <article
-            className="glass-panel feed-card"
+            className="glass-panel feed-card hover-lift"
             style={{
+                '--hover-accent': accent,
                 padding: 0,
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'border-color 0.2s, transform 0.2s',
                 cursor: item.data?.link ? 'pointer' : 'default',
             }}
             onClick={() => item.data?.link && window.open(item.data.link, '_blank', 'noopener')}
-            onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = accent;
-                e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '';
-                e.currentTarget.style.transform = '';
-            }}
         >
             {/* Severity accent strip */}
             <div style={{ height: '3px', background: accent, flexShrink: 0 }} />
@@ -211,28 +203,8 @@ export default function FeedPreview({ onViewAll }) {
                 </h3>
                 <button
                     onClick={onViewAll}
-                    style={{
-                        background: 'transparent',
-                        border: '1px solid var(--glass-border)',
-                        color: 'var(--primary)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.35rem',
-                        fontSize: '0.85rem',
-                        fontWeight: 500,
-                        padding: '0.4rem 0.75rem',
-                        borderRadius: 'var(--radius-sm)',
-                        transition: 'all 0.2s',
-                    }}
-                    onMouseOver={(e) => {
-                        e.currentTarget.style.background = 'var(--accent-glow)';
-                        e.currentTarget.style.borderColor = 'var(--accent-border)';
-                    }}
-                    onMouseOut={(e) => {
-                        e.currentTarget.style.background = 'transparent';
-                        e.currentTarget.style.borderColor = 'var(--glass-border)';
-                    }}
+                    className="btn-secondary"
+                    style={{ padding: '0.4rem 0.75rem', color: 'var(--primary)' }}
                 >
                     {t('feed.view_all')} ({total})
                     <ArrowRight size={14} />

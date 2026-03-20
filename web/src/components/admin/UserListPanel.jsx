@@ -63,7 +63,7 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
                         { label: t('settings.stats_total'), value: adminStats.total_users, color: 'var(--primary)' },
                         { label: t('settings.stats_active'), value: adminStats.active_users, color: 'var(--green)' },
                         { label: t('settings.stats_suspended'), value: adminStats.suspended_users, color: 'var(--red)' },
-                        { label: t('settings.stats_locked'), value: adminStats.locked_accounts, color: '#fb923c' },
+                        { label: t('settings.stats_locked'), value: adminStats.locked_accounts, color: 'var(--alert-warning)' },
                         { label: t('settings.stats_mfa'), value: adminStats.users_with_mfa, color: 'var(--primary)' },
                     ].map(({ label, value, color }) => (
                         <div key={label} className="glass-panel" style={{ padding: '0.6rem 0.85rem', borderRadius: '8px' }}>
@@ -144,7 +144,7 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
                                                 <span className="badge-risk" style={{ fontSize: '0.72rem' }}>{t('settings.suspended')}</span>
                                             )}
                                             {isLocked(u) && (
-                                                <span style={{ fontSize: '0.72rem', background: 'rgba(251,146,60,0.15)', color: '#fb923c', padding: '0.1rem 0.45rem', borderRadius: '0.8rem', fontWeight: 600 }}>{t('settings.locked')}</span>
+                                                <span style={{ fontSize: '0.72rem', background: 'var(--alert-warning-bg)', color: 'var(--alert-warning)', padding: '0.1rem 0.45rem', borderRadius: '0.8rem', fontWeight: 600 }}>{t('settings.locked')}</span>
                                             )}
                                             {u.is_active !== false && !isLocked(u) && (
                                                 <span className="badge-safe" style={{ fontSize: '0.72rem' }}>{t('settings.active')}</span>

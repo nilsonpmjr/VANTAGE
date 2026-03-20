@@ -18,7 +18,7 @@ const SEVERITY_VARIANT = {
 const SEVERITY_ACCENT = {
     critical: 'var(--status-risk)',
     high: 'var(--status-risk)',
-    medium: '#fb923c',
+    medium: 'var(--alert-warning)',
     low: 'var(--primary)',
     info: 'var(--primary)',
     unknown: 'var(--glass-border)',
@@ -41,24 +41,16 @@ function FeedItemCard({ item }) {
 
     return (
         <article
-            className="glass-panel feed-card"
+            className="glass-panel feed-card hover-lift"
             style={{
+                '--hover-accent': accent,
                 padding: 0,
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
-                transition: 'border-color 0.2s, transform 0.2s',
                 cursor: item.data?.link ? 'pointer' : 'default',
             }}
             onClick={() => item.data?.link && window.open(item.data.link, '_blank', 'noopener')}
-            onMouseOver={(e) => {
-                e.currentTarget.style.borderColor = accent;
-                e.currentTarget.style.transform = 'translateY(-2px)';
-            }}
-            onMouseOut={(e) => {
-                e.currentTarget.style.borderColor = '';
-                e.currentTarget.style.transform = '';
-            }}
         >
             {/* Severity accent strip */}
             <div style={{ height: '3px', background: accent, flexShrink: 0 }} />
@@ -254,7 +246,9 @@ export default function FeedPage() {
                     <button
                         onClick={() => fetchItems(page, severity, sourceType, true)}
                         disabled={refreshing}
+                        className="hover-border"
                         style={{
+                            '--hover-accent': 'var(--primary)',
                             background: 'transparent',
                             border: '1px solid var(--glass-border)',
                             borderRadius: 'var(--radius-sm)',
@@ -265,10 +259,7 @@ export default function FeedPage() {
                             gap: '0.25rem',
                             padding: '0.3rem 0.6rem',
                             fontSize: '0.8rem',
-                            transition: 'all 0.2s',
                         }}
-                        onMouseOver={(e) => { if (!refreshing) e.currentTarget.style.borderColor = 'var(--primary)'; }}
-                        onMouseOut={(e) => e.currentTarget.style.borderColor = 'var(--glass-border)'}
                         title={t('feed.refresh')}
                     >
                         <RefreshCw size={14} className={refreshing ? 'spin' : ''} />

@@ -5,6 +5,8 @@ from typing import List
 class Settings(BaseSettings):
     app_name: str = "VANTAGE"
     core_version: str = "1.0.0"
+    local_plugin_root: str = "backend/extensions/local_plugins"
+    premium_plugin_roots: str = ""
 
     # Authentication — no default; must be set via environment variable
     jwt_secret: str

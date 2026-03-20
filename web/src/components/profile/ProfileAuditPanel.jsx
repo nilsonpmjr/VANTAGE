@@ -56,7 +56,7 @@ export default function ProfileAuditPanel() {
                                         {item.action}
                                     </span>
                                 </td>
-                                <td style={{ padding: '0.5rem 0.85rem', fontWeight: 600, color: item.result === 'success' ? 'var(--green)' : item.result === 'failure' ? 'var(--red)' : '#fb923c' }}>
+                                <td style={{ padding: '0.5rem 0.85rem', fontWeight: 600, color: item.result === 'success' ? 'var(--alert-success)' : item.result === 'failure' ? 'var(--alert-error)' : 'var(--alert-warning)' }}>
                                     {t(`audit.result_${item.result}`) || item.result}
                                 </td>
                                 <td style={{ padding: '0.5rem 0.85rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.75rem' }}>{item.ip || '—'}</td>

@@ -22,7 +22,7 @@ export default function ConfirmModal({
     cancelLabel = 'Cancelar',
 }) {
     const accentColor = danger ? 'var(--red)' : 'var(--primary)';
-    const accentBg    = danger ? 'rgba(239, 68, 68, 0.15)' : 'rgba(56, 189, 248, 0.1)';
+    const accentBg    = danger ? 'var(--alert-error-bg)' : 'rgba(56, 189, 248, 0.1)';
 
     return (
         /* Backdrop */

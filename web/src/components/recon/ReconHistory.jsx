@@ -98,14 +98,12 @@ export default function ReconHistory({ target, onLoad, onClose }) {
                                 {jobs.map((job, idx) => (
                                     <tr
                                         key={job.job_id}
+                                        className={onLoad ? 'hover-row' : ''}
                                         style={{
                                             borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none',
                                             cursor: onLoad ? 'pointer' : 'default',
-                                            transition: 'background 0.15s',
                                         }}
                                         onClick={() => onLoad && onLoad(job)}
-                                        onMouseOver={e => { if (onLoad) e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
-                                        onMouseOut={e => { e.currentTarget.style.background = 'transparent'; }}
                                     >
                                         <td style={{ padding: '0.75rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                                             {fmt(job.created_at)}

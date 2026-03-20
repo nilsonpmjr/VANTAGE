@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "Frontend Responsive Design Standards": {
+      "source": "am-will/codex-skills",
+      "sourceType": "github",
+      "computedHash": "7b16cf170e7701494d246e48cfb968ed8ef11cd3ce83c99ed6b914b1ca302e07"
+    },
     "audit-code": {
       "source": "swader/agent-skills-audit",
       "sourceType": "github",
@@ -20,6 +25,11 @@
       "source": "firecrawl/cli",
       "sourceType": "github",
       "computedHash": "fe57b3575676d1a0ef2e5dbd4a0f4c913dc70af0d2d44b28729e8cac3b7cb59a"
+    },
+    "frontend-slides": {
+      "source": "affaan-m/everything-claude-code",
+      "sourceType": "github",
+      "computedHash": "8ee93ac0e6cf1eaf606a5a1755b34fe10af42732066b64be9fbbb08d9b81418b"
     },
     "github-copilot-starter": {
       "source": "github/awesome-copilot",

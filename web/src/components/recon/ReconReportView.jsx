@@ -134,8 +134,6 @@ function ModuleSection({ module, result }) {
 export default function ReconReportView({ target, jobId, results, modules, scanDate }) {
     if (!results || Object.keys(results).length === 0) return null;
 
-    const riskColors = { critical: '#ef4444', high: '#f97316', medium: '#f59e0b', low: '#94a3b8', info: '#38bdf8' };
-
     return (
         <div className="recon-print-view" style={{ display: 'none' }}>
             {/* Cover */}

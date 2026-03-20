@@ -421,6 +421,7 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
             {/* Body: sidebar + content */}
             {showHistory && target.trim() && (
             <ReconHistory
+                key={target.trim()}
                 target={target.trim()}
                 onClose={() => setShowHistory(false)}
                 onLoad={(job) => {

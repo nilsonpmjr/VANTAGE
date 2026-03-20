@@ -16,7 +16,7 @@ function parseTargets(value) {
 function looksLikeTarget(v) {
     if (!v || v.length < 3) return false;
     // IP, domain, hash, URL — loose check
-    return /^[\w.:\/\-@]+$/.test(v);
+    return /^[\w.:/@-]+$/.test(v);
 }
 
 function parseFile(file) {

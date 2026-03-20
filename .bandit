@@ -1,0 +1,8 @@
+exclude_dirs:
+  - backend/tests
+  - backend/__pycache__
+  - backend/.pytest_cache
+  - venv
+  - web/node_modules
+skips:
+  - B101

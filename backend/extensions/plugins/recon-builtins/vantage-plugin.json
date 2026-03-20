@@ -1,0 +1,15 @@
+{
+  "key": "recon-builtins",
+  "name": "Built-in Recon Modules",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "author": "VANTAGE Core",
+  "kind": "recon_module",
+  "compatibleCore": "1.x",
+  "builtin": true,
+  "source": "core",
+  "description": "Compatibility descriptor for the built-in recon module set.",
+  "capabilities": ["history", "schedule", "module-compat"],
+  "permissions": ["recon.read"],
+  "entrypoint": "backend.recon.modules"
+}

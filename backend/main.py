@@ -13,6 +13,7 @@ from db import db_manager
 from config import settings
 from logging_config import setup_logging, get_logger
 from limiters import limiter
+from extensions import load_extensions_registry
 from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
@@ -178,6 +179,8 @@ async def lifespan(app: FastAPI):
 
     # Validate secrets before accepting traffic
     settings.validate_production()
+    app.state.extensions_registry = load_extensions_registry(current_core_version=settings.core_version)
+    logger.info("Extensions registry loaded.")
 
     scheduler.add_job(
         scan_safe_targets_job,
@@ -208,7 +211,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=f"{settings.app_name} API",
     description=f"{settings.app_name} — Threat intelligence platform for SOC analysts.",
-    version="1.0.0",
+    version=settings.core_version,
     lifespan=lifespan,
 )
 

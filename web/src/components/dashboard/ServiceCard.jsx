@@ -9,7 +9,7 @@ const SERVICE_URLS = {
     shodan:         (t) => `https://www.shodan.io/host/${t.value}`,
     greynoise:      (t) => `https://viz.greynoise.io/ip/${t.value}`,
     urlscan:        (t) => `https://urlscan.io/search/#${t.type === 'ip' ? 'ip' : 'domain'}:${t.value}`,
-    blacklistmaster:(t) => `https://www.blacklistmaster.com/`,
+    blacklistmaster:() => `https://www.blacklistmaster.com/`,
     abusech:        (t) => `https://threatfox.abuse.ch/browse.php?search=${t.value}`,
     pulsedive:      (t) => `https://pulsedive.com/indicator/?ioc=${encodeURIComponent(t.value)}`,
 };

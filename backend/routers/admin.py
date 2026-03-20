@@ -13,6 +13,7 @@ from typing import Optional, List
 
 from db import db_manager
 from auth import require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
+from extensions import get_extensions_catalog
 from identity import email_in_use, normalize_email
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
 from audit import log_action
@@ -258,6 +259,21 @@ _VALID_ROLES = {"admin", "manager", "tech"}
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 _EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password_history", "normalized_email"}
 _IMPORT_COLUMNS = {"username", "name", "role", "email", "preferred_lang"}
+
+
+@router.get("/extensions")
+async def read_extensions_catalog(
+    request: Request,
+    refresh: bool = Query(False),
+    current_user: dict = Depends(require_role(["admin", "manager"])),
+):
+    """
+    Read-only extension catalog for the extensibility MVP.
+    """
+    return {
+        "items": get_extensions_catalog(request.app, refresh=refresh),
+        "core_version": request.app.version,
+    }
 
 
 class SMTPConfigUpdate(BaseModel):

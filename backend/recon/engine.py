@@ -35,17 +35,35 @@ _AVAILABLE: dict[str, ReconModule] = {
 }
 
 
+def get_module_inventory() -> list[dict]:
+    """Return the built-in recon inventory, including unavailable modules."""
+    return [
+        {
+            "key": m.name,
+            "name": m.display_name or m.name,
+            "runtime": "builtin",
+            "entrypoint": f"backend.recon.modules.{m.__class__.__module__.split('.')[-1]}:{m.__class__.__name__}",
+            "requiredBinaries": list(m.requires),
+            "supportedTargetTypes": list(m.target_types),
+            "timeoutSeconds": m.timeout_seconds,
+            "available": m.name in _AVAILABLE,
+            "preservesCurrentOutput": True,
+        }
+        for m in _ALL_MODULES
+    ]
+
+
 def get_available_modules() -> list[dict]:
     """Returns metadata for all available modules (for sidebar rendering)."""
     return [
         {
-            "name": m.name,
-            "display_name": m.display_name,
-            "target_types": m.target_types,
-            "timeout_seconds": m.timeout_seconds,
+            "name": item["key"],
+            "display_name": item["name"],
+            "target_types": item["supportedTargetTypes"],
+            "timeout_seconds": item["timeoutSeconds"],
         }
-        for m in _ALL_MODULES
-        if m.name in _AVAILABLE
+        for item in get_module_inventory()
+        if item["available"]
     ]
 
 

@@ -39,7 +39,8 @@ function RiskBadge({ risk }) {
     );
 }
 
-function Section({ icon: Icon, title, children }) {
+function Section({ icon, title, children }) {
+    const IconComponent = icon;
     return (
         <div className="glass-panel" style={{ padding: '1.25rem' }}>
             <h4 style={{
@@ -47,7 +48,7 @@ function Section({ icon: Icon, title, children }) {
                 color: 'var(--text-primary)', fontSize: '0.85rem', fontWeight: 700,
                 textTransform: 'uppercase', letterSpacing: '0.05em',
             }}>
-                <Icon size={14} color="var(--primary)" />
+                <IconComponent size={14} color="var(--primary)" />
                 {title}
             </h4>
             {children}

@@ -19,7 +19,7 @@ export const TourProvider = ({ children }) => {
 
     const [isTourActive, setIsTourActive] = useState(false);
     const [currentStepIndex, setCurrentStepIndex] = useState(0);
-    const [isOnboardingPromptVisible, setIsOnboardingPromptVisible] = useState(false);
+    const [onboardingPromptKey, setOnboardingPromptKey] = useState(null);
 
     // Filter steps based on user role
     const steps = useMemo(() => {
@@ -31,9 +31,10 @@ export const TourProvider = ({ children }) => {
 
     const storageKey = user ? `${STORAGE_PREFIX}${user.username ?? user._id}` : null;
     const onboardingKey = user ? `${ONBOARDING_PREFIX}${user.username ?? user._id}` : null;
+    const isOnboardingPromptVisible = onboardingKey != null && onboardingPromptKey === onboardingKey;
 
     const startTour = useCallback(() => {
-        setIsOnboardingPromptVisible(false);
+        setOnboardingPromptKey(null);
         setCurrentStepIndex(0);
         setIsTourActive(true);
     }, []);
@@ -41,7 +42,6 @@ export const TourProvider = ({ children }) => {
     // Auto-start on first login — skip if password reset is required
     useEffect(() => {
         if (!user || !storageKey) return;
-        setIsOnboardingPromptVisible(false);
         // Don't start tour when user must change password first
         if (user.force_password_reset || user.password_expires_in_days === 0) return;
         const completed = localStorage.getItem(storageKey);
@@ -54,7 +54,7 @@ export const TourProvider = ({ children }) => {
                 return;
             }
             if (!onboardingChoice) {
-                setIsOnboardingPromptVisible(true);
+                setOnboardingPromptKey(onboardingKey);
             }
         }, 1000);
 
@@ -82,7 +82,7 @@ export const TourProvider = ({ children }) => {
 
     const skipTour = useCallback(() => {
         setIsTourActive(false);
-        setIsOnboardingPromptVisible(false);
+        setOnboardingPromptKey(null);
         setCurrentStepIndex(0);
         markComplete();
     }, [markComplete]);
@@ -94,7 +94,7 @@ export const TourProvider = ({ children }) => {
 
     const acceptOnboardingPrompt = useCallback(() => {
         if (onboardingKey) localStorage.setItem(onboardingKey, 'api_keys');
-        setIsOnboardingPromptVisible(false);
+        setOnboardingPromptKey(null);
     }, [onboardingKey]);
 
     const declineOnboardingPrompt = useCallback(() => {

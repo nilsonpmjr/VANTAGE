@@ -350,6 +350,26 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
         }
     }, [targets, lang, notifyEmail]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    const pollFallback = useCallback(async (job_id) => {
+        try {
+            const res = await fetch(`${API_URL}/api/analyze/batch/${job_id}`, {
+                credentials: 'include',
+            });
+            if (!res.ok) throw new Error();
+            const job = await res.json();
+            if (job.results) setResults(job.results);
+            setProgress(job.progress);
+            if (job.status === 'done') setPhase('done');
+            else if (job.status === 'failed') {
+                setErrMsg(job.error || t('batch.errors.worker_error'));
+                setPhase('error');
+            }
+        } catch {
+            setErrMsg(t('batch.errors.sse_lost'));
+            setPhase('error');
+        }
+    }, [t]);
+
     // ── SSE listener ─────────────────────────────────────────────────────────
     const openSSE = useCallback((job_id) => {
         if (esRef.current) esRef.current.close();
@@ -384,27 +404,7 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
             // Attempt a single fallback poll
             pollFallback(job_id);
         };
-    }, [t]);
-
-    const pollFallback = useCallback(async (job_id) => {
-        try {
-            const res = await fetch(`${API_URL}/api/analyze/batch/${job_id}`, {
-                credentials: 'include',
-            });
-            if (!res.ok) throw new Error();
-            const job = await res.json();
-            if (job.results) setResults(job.results);
-            setProgress(job.progress);
-            if (job.status === 'done') setPhase('done');
-            else if (job.status === 'failed') {
-                setErrMsg(job.error || t('batch.errors.worker_error'));
-                setPhase('error');
-            }
-        } catch {
-            setErrMsg(t('batch.errors.sse_lost'));
-            setPhase('error');
-        }
-    }, [t]);
+    }, [pollFallback, t]);
 
     // ── cleanup SSE on unmount ───────────────────────────────────────────────
     useEffect(() => () => esRef.current?.close(), []);

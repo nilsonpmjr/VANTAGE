@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Palette, Mail, Waypoints, DatabaseZap } from 'lucide-react';
+import { Shield, User, Terminal, BarChart2, Upload, ClipboardList, Users, KeyRound, Lock, Palette, Mail, Waypoints, DatabaseZap, Blocks } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
 import SettingsShell from '../layout/SettingsShell';
@@ -9,6 +9,7 @@ import DesignSystemPanel from './DesignSystemPanel';
 import SMTPControlPanel from './SMTPControlPanel';
 import OperationalStatusPanel from './OperationalStatusPanel';
 import ThreatIngestionPanel from './ThreatIngestionPanel';
+import ExtensionsCatalogPanel from './ExtensionsCatalogPanel';
 import PasswordPolicyForm from './PasswordPolicyForm';
 import LockoutPolicyForm from './LockoutPolicyForm';
 import UserListPanel from './UserListPanel';
@@ -52,7 +53,7 @@ export default function Settings() {
     const isAdmin = user?.role === 'admin';
     const canViewAudit = isAdmin || user?.extra_permissions?.includes('audit_logs:read');
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         try {
             setLoading(true);
             const r = await fetch(`${API_URL}/api/users`, { credentials: 'include' });
@@ -63,19 +64,19 @@ export default function Settings() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [t]);
 
-    const fetchStats = async () => {
+    const fetchStats = useCallback(async () => {
         try {
             const r = await fetch(`${API_URL}/api/admin/stats`, { credentials: 'include' });
             if (r.ok) setAdminStats(await r.json());
-        } catch (_) { /* non-critical */ }
-    };
+        } catch { /* non-critical */ }
+    }, []);
 
     useEffect(() => {
         fetchUsers();
         if (isAdmin || user?.role === 'manager') fetchStats();
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [fetchUsers, fetchStats, isAdmin, user?.role]);
 
     const handleRefresh = () => { fetchUsers(); fetchStats(); };
 
@@ -89,7 +90,7 @@ export default function Settings() {
             const a = document.createElement('a');
             a.href = url; a.download = `users_export.${format}`; a.click();
             URL.revokeObjectURL(url);
-        } catch (_) { /* non-critical */ } finally {
+        } catch { /* non-critical */ } finally {
             setExporting(false);
         }
     };
@@ -147,6 +148,15 @@ export default function Settings() {
         }
         if (isAdmin) {
             groups.push({
+                key: 'extensions_group',
+                label: t('settings.menu_extensions'),
+                items: [
+                    { key: 'extensions_catalog', icon: <Blocks size={16} />, label: t('settings.menu_extensions_catalog') },
+                ],
+            });
+        }
+        if (isAdmin) {
+            groups.push({
                 key: 'security_group',
                 label: t('settings.menu_security'),
                 items: [
@@ -173,6 +183,7 @@ export default function Settings() {
             smtp: { parent: t('settings.menu_control_plane'), label: t('settings.menu_smtp') },
             operational_status: { parent: t('settings.menu_control_plane'), label: t('settings.menu_operational_status') },
             threat_ingestion: { parent: t('settings.menu_intelligence'), label: t('settings.menu_threat_ingestion') },
+            extensions_catalog: { parent: t('settings.menu_extensions'), label: t('settings.menu_extensions_catalog') },
             password_policy: { parent: t('settings.menu_security'), label: t('settings.menu_password_policy') },
             lockout_policy: { parent: t('settings.menu_security'), label: t('settings.menu_lockout_policy') },
             users: { parent: t('settings.menu_users'), label: t('settings.menu_manage') },
@@ -219,6 +230,8 @@ export default function Settings() {
                 {activeKey === 'operational_status' && isAdmin && <OperationalStatusPanel />}
 
                 {activeKey === 'threat_ingestion' && isAdmin && <ThreatIngestionPanel />}
+
+                {activeKey === 'extensions_catalog' && isAdmin && <ExtensionsCatalogPanel />}
 
                 {activeKey === 'password_policy' && isAdmin && <PasswordPolicyForm />}
 

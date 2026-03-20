@@ -121,20 +121,20 @@ export default function App() {
     if (user.force_password_reset || user.password_expires_in_days === 0) {
       setCurrentViewSafe('profile');
     }
-  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [user]);
 
   // Force navigation to profile when MFA setup is required
   useEffect(() => {
     if (mfaSetupRequired && user) {
       setCurrentViewSafe('profile');
     }
-  }, [mfaSetupRequired, user]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mfaSetupRequired, user]);
 
   useEffect(() => {
     if (currentView === 'settings' && !canAccessSettings) {
       setCurrentViewSafe('home');
     }
-  }, [currentView, canAccessSettings]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentView, canAccessSettings]);
 
   // Keyboard shortcut — ctrl+l focuses search bar on home view
   useEffect(() => {

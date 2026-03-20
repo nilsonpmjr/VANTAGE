@@ -1,0 +1,17 @@
+{
+  "key": "brand-vantage",
+  "name": "VANTAGE Brand Pack",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "author": "VANTAGE Core",
+  "kind": "brand_pack",
+  "compatibleCore": "1.x",
+  "builtin": true,
+  "source": "core",
+  "brandKey": "vantage",
+  "description": "Built-in VANTAGE branding pack.",
+  "capabilities": ["dark", "light"],
+  "permissions": [],
+  "publicAssetRoot": "/branding/vantage",
+  "sourceOfTruthPath": "web/src/branding/vantage"
+}

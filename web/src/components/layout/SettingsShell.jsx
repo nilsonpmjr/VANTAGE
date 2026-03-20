@@ -22,7 +22,6 @@ export default function SettingsShell({ groups, activeKey, onSelect, breadcrumbs
         if (shellRef.current) {
             getScrollParent(shellRef.current).scrollTo({ top: 0, behavior: 'smooth' });
         }
-        setDrawerOpen(false);
     }, [activeKey]);
 
     const handleSelect = (key) => {

@@ -23,8 +23,6 @@ export default function ReconHistory({ target, onLoad, onClose }) {
 
     useEffect(() => {
         if (!target) return;
-        setLoading(true);
-        setError(null);
         fetch(`${API_URL}/api/recon/history/${encodeURIComponent(target)}`, { credentials: 'include' })
             .then(r => {
                 if (!r.ok) throw new Error('Failed to load history');

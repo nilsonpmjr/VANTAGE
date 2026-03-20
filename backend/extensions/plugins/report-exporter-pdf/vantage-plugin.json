@@ -1,0 +1,16 @@
+{
+  "key": "report-exporter-pdf",
+  "name": "PDF Report Exporter",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "author": "VANTAGE Core",
+  "kind": "report_exporter",
+  "compatibleCore": "1.x",
+  "builtin": true,
+  "source": "core",
+  "description": "Built-in PDF exporter used by the current frontend report flow.",
+  "capabilities": ["pdf"],
+  "permissions": [],
+  "entrypoint": "web.src.utils.pdfGenerator:generatePDFReport",
+  "sourceOfTruthPath": "web/src/utils/pdfGenerator.js"
+}

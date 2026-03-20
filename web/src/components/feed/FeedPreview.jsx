@@ -185,11 +185,11 @@ export default function FeedPreview({ onViewAll }) {
     if (items.length === 0) {
         return (
             <section style={{ textAlign: 'center' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 600 }}>
-                        <ShieldAlert size={20} style={{ color: 'var(--primary)' }} />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '-1.25rem' }}>
+                    <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 600 }}>
+                        <ShieldAlert size={18} style={{ color: 'var(--primary)' }} />
                         {t('feed.latest_threats')}
-                    </h3>
+                    </h1>
                 </div>
                 <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center' }}>
                     <Rss size={28} style={{ color: 'var(--text-muted)', marginBottom: '0.75rem' }} />

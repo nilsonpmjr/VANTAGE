@@ -38,7 +38,7 @@ export default function Login({ onForgotPassword }) {
     };
 
     return (
-        <div className="v-arch-focus" style={{ background: 'var(--bg-main)' }}>
+        <div className="v-arch-focus">
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>

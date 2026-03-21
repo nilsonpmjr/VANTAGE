@@ -41,6 +41,50 @@ export default function DesignSystemPanel() {
                 subtitle={t('settings.design_system_subtitle')}
             />
 
+            {/* Elementos Canônicos (A Verdade de Produção) */}
+            <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
+                    <h3 style={{ margin: '0 0 0.3rem 0', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>Padrão Ouro: <code style={{ color: 'var(--primary)', background: 'var(--bg-card)', padding: '0.2rem 0.4rem', borderRadius: '4px' }}>.glass-panel</code></h3>
+                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                        Estrutura canônica do VANTAGE (painel de vidro), que deve ser utilizada para manter o arranjo idêntico à página principal de usuários.
+                    </p>
+                </div>
+                
+                {/* Exemplo de Toolbar e Tabela Canônica */}
+                <div className="data-table-toolbar" style={{ margin: 0 }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        Exemplo de Toolbar
+                    </span>
+                    <div style={{ flex: 1, position: 'relative', maxWidth: '280px' }}>
+                        <input
+                            type="text"
+                            placeholder={t('settings.search')}
+                            className="data-table-search"
+                            disabled
+                        />
+                    </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                <th>COLUNA A</th>
+                                <th>COLUNA B</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td style={{ fontWeight: 500 }}>Nome do Item Principal</td>
+                                <td style={{ color: 'var(--text-secondary)' }}>Descritivo curto do Item</td>
+                                <td><Badge variant="success">SAFE</Badge></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <Panel
                 title={t('settings.design_system_intro_title')}
                 description={t('settings.design_system_intro_body')}

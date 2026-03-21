@@ -39,103 +39,92 @@ function FeedCard({ item, t }) {
 
     return (
         <article
-            className="glass-panel feed-card hover-lift"
+            className="feed-card hover-lift"
             style={{
                 '--hover-accent': accent,
-                padding: 0,
-                overflow: 'hidden',
+                background: 'var(--bg-card)',
+                border: '1px solid var(--glass-border)',
+                borderRadius: '8px',
+                padding: '1.25rem',
                 display: 'flex',
                 flexDirection: 'column',
+                gap: '0.8rem',
                 cursor: item.data?.link ? 'pointer' : 'default',
+                height: '100%',
+                transition: 'all 0.2s ease',
+                position: 'relative',
+                overflow: 'hidden'
             }}
             onClick={() => item.data?.link && window.open(item.data.link, '_blank', 'noopener')}
         >
-            {/* Severity accent strip */}
-            <div style={{ height: '3px', background: accent, flexShrink: 0 }} />
+            {/* Top accent line */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: accent }} />
 
-            {/* Card body */}
-            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
-                {/* Top row: badge + source + time */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <Badge variant={SEVERITY_VARIANT[severity] || 'neutral'}>
-                        {severity.toUpperCase()}
-                    </Badge>
+            {/* Top row: Source + Date + Badge if critical */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.2rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                     {item.source_type && (
                         <span style={{
-                            fontSize: '0.7rem',
-                            color: 'var(--text-muted)',
+                            fontSize: '0.72rem',
+                            color: 'var(--primary)',
                             textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
+                            letterSpacing: '0.05em',
                             fontWeight: 600,
-                            background: 'rgba(255,255,255,0.04)',
-                            padding: '0.15rem 0.4rem',
-                            borderRadius: '4px',
                         }}>
                             {item.source_type}
                         </span>
                     )}
-                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
-                        <Clock size={11} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>•</span>
+                    <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                         {timeAgo(item.published_at, t)}
                     </span>
                 </div>
+                {severity !== 'unknown' && severity !== 'info' && (
+                    <Badge variant={SEVERITY_VARIANT[severity] || 'neutral'}>
+                        {severity.toUpperCase()}
+                    </Badge>
+                )}
+            </div>
 
-                {/* Title */}
-                <h4 style={{
+            {/* Title */}
+            <h4 style={{
+                margin: 0,
+                fontSize: '1rem',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+                lineHeight: 1.4,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden',
+            }}>
+                {item.title}
+            </h4>
+
+            {/* Summary */}
+            {item.summary && (
+                <p style={{
                     margin: 0,
-                    fontSize: '0.92rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    lineHeight: 1.4,
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    lineHeight: 1.6,
                     display: '-webkit-box',
-                    WebkitLineClamp: 2,
+                    WebkitLineClamp: 4,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
+                    flex: 1,
                 }}>
-                    {item.title}
-                </h4>
+                    {item.summary}
+                </p>
+            )}
 
-                {/* Summary */}
-                {item.summary && (
-                    <p style={{
-                        margin: 0,
-                        fontSize: '0.82rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.55,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 3,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                    }}>
-                        {item.summary}
-                    </p>
-                )}
-
-                {/* Footer: tags + link indicator */}
-                <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                    {item.tags?.length > 0 && item.tags.slice(0, 3).map((tag) => (
-                        <span
-                            key={tag}
-                            style={{
-                                fontSize: '0.68rem',
-                                color: 'var(--primary)',
-                                background: 'var(--accent-glow)',
-                                padding: '0.12rem 0.45rem',
-                                borderRadius: '4px',
-                                fontWeight: 500,
-                            }}
-                        >
-                            {tag}
-                        </span>
-                    ))}
-                    {item.tags?.length > 3 && (
-                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>+{item.tags.length - 3}</span>
-                    )}
-                    {item.data?.link && (
-                        <ExternalLink size={12} style={{ marginLeft: 'auto', color: 'var(--text-muted)', flexShrink: 0 }} />
-                    )}
+            {/* Read more link indicator */}
+            {item.data?.link && (
+                <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'var(--primary)', fontSize: '0.78rem', fontWeight: 500, paddingTop: '0.5rem' }}>
+                    Ler artigo original
+                    <ExternalLink size={13} />
                 </div>
-            </div>
+            )}
         </article>
     );
 }
@@ -150,7 +139,7 @@ export default function FeedPreview({ onViewAll }) {
         let cancelled = false;
         (async () => {
             try {
-                const res = await fetch(`${API_URL}/api/feed?limit=6`, { credentials: 'include' });
+                const res = await fetch(`${API_URL}/api/feed?limit=6&days=7`, { credentials: 'include' });
                 if (!res.ok) throw new Error();
                 const data = await res.json();
                 if (!cancelled) {
@@ -179,7 +168,7 @@ export default function FeedPreview({ onViewAll }) {
             <section style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '-1.25rem' }}>
                     <h1 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 600 }}>
-                        <ShieldAlert size={18} style={{ color: 'var(--primary)' }} />
+                        <Rss size={18} style={{ color: 'var(--primary)' }} />
                         {t('feed.latest_threats')}
                     </h1>
                 </div>
@@ -194,11 +183,11 @@ export default function FeedPreview({ onViewAll }) {
     }
 
     return (
-        <section>
+        <section style={{ maxWidth: '1080px', margin: '0 auto', width: '100%' }}>
             {/* Section header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                 <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-primary)', fontSize: '1.05rem', fontWeight: 600 }}>
-                    <ShieldAlert size={20} style={{ color: 'var(--primary)' }} />
+                    <Rss size={20} style={{ color: 'var(--primary)' }} />
                     {t('feed.latest_threats')}
                 </h3>
                 <button
@@ -211,11 +200,11 @@ export default function FeedPreview({ onViewAll }) {
                 </button>
             </div>
 
-            {/* Cards grid — responsive: 1col mobile, 2col tablet, 3col desktop */}
+            {/* Cards grid — automatically creates smaller cards and flows cleanly */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-                gap: '1rem',
+                gridTemplateColumns: 'repeat(2, 1fr)',
+                gap: '1.25rem',
             }}>
                 {items.map((item) => (
                     <FeedCard key={item._id} item={item} t={t} />

@@ -284,6 +284,7 @@ AVAILABLE_PERMISSIONS: list[str] = [
     "users:export",
     "apikeys:manage",
     "stats:export",
+    "services:restart",
 ]
 
 

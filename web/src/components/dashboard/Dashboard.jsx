@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History, Download, AlignLeft, Radar } from 'lucide-react';
+import { LayoutDashboard, TrendingUp, ShieldAlert, Activity, Target, ShieldCheck, AlertTriangle, History, Download, AlignLeft, Radar, RefreshCw } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -10,6 +10,7 @@ import API_URL from '../../config';
 import { fmtBRT } from '../../utils/dateFormat';
 import SettingsShell from '../layout/SettingsShell';
 import ReconAdminPanel from '../admin/ReconAdminPanel';
+import Pagination from '../shared/Pagination';
 import '../../index.css';
 
 // Pie Chart Colors
@@ -66,12 +67,16 @@ export default function Dashboard({ onSearch, onRecon }) {
     const { t } = useTranslation();
     const { user } = useAuth();
     const [stats, setStats] = useState(null);
-    const [period, setPeriod] = useState('month');
+    const [period, setPeriod] = useState('week');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [isExporting, setIsExporting] = useState(false);
     const [activeTab, setActiveTab] = useState('overview');
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyScans, setHistoryScans] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
     const dashboardRef = useRef(null);
+    const HISTORY_PER_PAGE = 20;
 
     const handleExportPDF = async () => {
         if (!dashboardRef.current) return;
@@ -111,6 +116,25 @@ export default function Dashboard({ onSearch, onRecon }) {
         };
         if (user) fetchStats();
     }, [user, period]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (activeTab !== 'history' || !user) return;
+        const fetchHistory = async () => {
+            setHistoryLoading(true);
+            try {
+                const skip = (historyPage - 1) * HISTORY_PER_PAGE;
+                const res = await fetch(
+                    `${API_URL}/api/stats?period=${period}&limit=${HISTORY_PER_PAGE}&skip=${skip}`,
+                    { credentials: 'include' },
+                );
+                if (!res.ok) return;
+                const data = await res.json();
+                setHistoryScans(data.recentScans || []);
+            } catch { /* ignore */ }
+            finally { setHistoryLoading(false); }
+        };
+        fetchHistory();
+    }, [activeTab, historyPage, period, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const menuGroups = useMemo(() => [
         {
@@ -173,7 +197,7 @@ export default function Dashboard({ onSearch, onRecon }) {
                 <div className="v-page-actions">
                     <select
                         value={period}
-                        onChange={(e) => setPeriod(e.target.value)}
+                        onChange={(e) => { setPeriod(e.target.value); setHistoryPage(1); }}
                         className="form-select"
                         style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
                     >
@@ -365,39 +389,57 @@ export default function Dashboard({ onSearch, onRecon }) {
             {activeTab === 'history' && (
                 <div className="fade-in">
                     <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+                        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <History size={20} color="var(--primary)" />
                                 {t('dashboard.recent_history')}
                             </h3>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                {stats?.totalScans != null && `${t('dashboard.showing_page', { page: historyPage, total: Math.ceil((stats.totalScans || 1) / HISTORY_PER_PAGE) })}`}
+                            </span>
                         </div>
-                        <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                <caption className="sr-only">{t('dashboard.recent_history')}</caption>
-                                <thead style={{ background: 'var(--bg-main)' }}>
-                                    <tr>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst')}</th>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {!stats?.recentScans?.length ? (
-                                        <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history')}</td></tr>
-                                    ) : stats.recentScans.map((scan, idx) => (
-                                        <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><AnalystCell analyst={scan.analyst} /></td>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
-                                            <td onClick={() => onSearch?.(scan.target)} style={{ padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem', cursor: 'pointer', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
-                                                <span style={{ textDecoration: 'underline' }}>{scan.target}</span>
-                                            </td>
-                                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
+                        {historyLoading ? (
+                            <div style={{ padding: '3rem', textAlign: 'center' }}>
+                                <RefreshCw className="spin" size={22} color="var(--primary)" />
+                            </div>
+                        ) : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                    <caption className="sr-only">{t('dashboard.recent_history')}</caption>
+                                    <thead style={{ background: 'var(--bg-main)' }}>
+                                        <tr>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
+                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {!historyScans.length ? (
+                                            <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history')}</td></tr>
+                                        ) : historyScans.map((scan, idx) => (
+                                            <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
+                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><AnalystCell analyst={scan.analyst} /></td>
+                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
+                                                <td onClick={() => onSearch?.(scan.target)} style={{ padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem', cursor: 'pointer', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
+                                                    <span style={{ textDecoration: 'underline' }}>{scan.target}</span>
+                                                </td>
+                                                <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                        {stats?.totalScans > HISTORY_PER_PAGE && (
+                            <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)' }}>
+                                <Pagination
+                                    page={historyPage}
+                                    totalPages={Math.ceil(stats.totalScans / HISTORY_PER_PAGE)}
+                                    onPageChange={setHistoryPage}
+                                />
+                            </div>
+                        )}
                     </div>
                 </div>
             )}

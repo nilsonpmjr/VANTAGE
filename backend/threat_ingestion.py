@@ -205,7 +205,7 @@ async def get_runtime_threat_sources(db) -> list[dict]:
     doc = await get_threat_sources_document(db)
     statuses = {}
     if db is not None:
-        for source in await db.threat_sync_status.find({}).to_list(length=100):
+        for source in await db.threat_sync_status.find({}).to_list(length=200):
             statuses[source["source_id"]] = source
     sources = []
 
@@ -226,6 +226,18 @@ async def get_runtime_threat_sources(db) -> list[dict]:
             "items_ingested": status["items_ingested"],
         }
         sources.append(effective)
+
+    # Include custom (manual) sources
+    custom = await get_custom_threat_sources(db)
+    for cs in custom:
+        status = statuses.get(cs["source_id"], SYNC_STATUS_DEFAULT)
+        cs["sync_status"] = {
+            "status": status["status"],
+            "last_run_at": status["last_run_at"],
+            "last_error": status["last_error"],
+            "items_ingested": status["items_ingested"],
+        }
+        sources.append(cs)
 
     return sources
 
@@ -285,8 +297,6 @@ async def record_threat_sync_status(
     last_error: str | None = None,
     last_run_at: datetime | None = None,
 ) -> dict:
-    if source_id not in SOURCE_CATALOG:
-        raise ValueError(f"Unknown threat ingestion source: {source_id}")
 
     document = {
         "source_id": source_id,
@@ -312,7 +322,7 @@ async def get_public_threat_sources(db) -> list[dict]:
     statuses = {}
 
     if db is not None:
-        for source in await db.threat_sync_status.find({}).to_list(length=100):
+        for source in await db.threat_sync_status.find({}).to_list(length=200):
             statuses[source["source_id"]] = source
 
     public_sources = []
@@ -321,6 +331,32 @@ async def get_public_threat_sources(db) -> list[dict]:
         public_sources.append(
             {
                 **source,
+                "origin": "core",
+                "sync_status": {
+                    "status": status["status"],
+                    "last_run_at": status["last_run_at"],
+                    "last_error": status["last_error"],
+                    "items_ingested": status["items_ingested"],
+                },
+            }
+        )
+
+    # Append custom (manual) sources
+    custom = await get_custom_threat_sources(db)
+    for cs in custom:
+        status = statuses.get(cs["source_id"], SYNC_STATUS_DEFAULT)
+        public_sources.append(
+            {
+                "source_id": cs["source_id"],
+                "source_type": cs["source_type"],
+                "family": cs["family"],
+                "display_name": cs["display_name"],
+                "description": cs.get("description", ""),
+                "enabled": cs.get("enabled", True),
+                "origin": "manual",
+                "config": cs.get("config", {}),
+                "created_by": cs.get("created_by"),
+                "created_at": cs.get("created_at"),
                 "sync_status": {
                     "status": status["status"],
                     "last_run_at": status["last_run_at"],
@@ -386,3 +422,178 @@ async def update_misp_source_config(db, patch: dict, updated_by: str | None = No
         )
 
     return await get_public_threat_source(db, MISP_SOURCE_ID)
+
+
+# ── Custom (manual) RSS sources ──────────────────────────────────────────────
+
+CUSTOM_PREFIX = "custom_"
+
+
+def _validate_feed_url(url: str) -> str:
+    """Validate and normalize a feed URL. Rejects non-HTTP(S) and private IPs."""
+    normalized = str(url or "").strip()
+    if not normalized:
+        raise ValueError("feed_url is required.")
+
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("feed_url must use http or https.")
+    if not parsed.netloc:
+        raise ValueError("feed_url must have a valid hostname.")
+
+    # Block obvious private/localhost URLs
+    hostname = parsed.hostname or ""
+    if hostname in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}:
+        raise ValueError("feed_url cannot point to localhost.")
+    if hostname.startswith("10.") or hostname.startswith("192.168."):
+        raise ValueError("feed_url cannot point to a private network.")
+    if hostname.startswith("172."):
+        parts = hostname.split(".")
+        if len(parts) >= 2:
+            try:
+                second = int(parts[1])
+                if 16 <= second <= 31:
+                    raise ValueError("feed_url cannot point to a private network.")
+            except ValueError:
+                pass
+
+    return normalized
+
+
+def _make_custom_source_id(title: str) -> str:
+    """Generate a deterministic source_id from a title."""
+    import hashlib
+    slug = title.lower().strip().replace(" ", "_")[:30]
+    short_hash = hashlib.sha256(slug.encode()).hexdigest()[:8]
+    return f"{CUSTOM_PREFIX}{slug}_{short_hash}"
+
+
+async def create_custom_source(
+    db,
+    *,
+    title: str,
+    feed_url: str,
+    family: str = "custom",
+    poll_interval_minutes: int = 60,
+    created_by: str | None = None,
+) -> dict:
+    """Create a new manually-added RSS feed source."""
+    title = str(title or "").strip()
+    if not title:
+        raise ValueError("title is required.")
+    if len(title) > 200:
+        raise ValueError("title must be 200 characters or fewer.")
+
+    feed_url = _validate_feed_url(feed_url)
+
+    family = str(family or "custom").strip().lower()[:50] or "custom"
+
+    if not isinstance(poll_interval_minutes, int) or poll_interval_minutes < 1 or poll_interval_minutes > 1440:
+        raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+
+    source_id = _make_custom_source_id(title)
+
+    # Check for duplicate URL
+    if db is not None:
+        existing = await db.custom_threat_sources.find_one({"config.feed_url": feed_url})
+        if existing:
+            raise ValueError("A custom source with this feed URL already exists.")
+
+    document = {
+        "source_id": source_id,
+        "source_type": "rss",
+        "family": family,
+        "display_name": title,
+        "description": f"Manually added RSS feed: {title}",
+        "enabled": True,
+        "origin": "manual",
+        "config": {
+            "feed_url": feed_url,
+            "poll_interval_minutes": poll_interval_minutes,
+        },
+        "created_by": created_by,
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+
+    if db is not None:
+        await db.custom_threat_sources.replace_one(
+            {"source_id": source_id},
+            document,
+            upsert=True,
+        )
+
+    return document
+
+
+async def get_custom_threat_sources(db) -> list[dict]:
+    """Return all manually-added sources."""
+    if db is None:
+        return []
+    docs = await db.custom_threat_sources.find({}).to_list(length=200)
+    return docs
+
+
+async def update_custom_source(
+    db,
+    source_id: str,
+    patch: dict,
+    updated_by: str | None = None,
+) -> dict:
+    """Update a manually-added source. Only title, feed_url, family, enabled, poll_interval allowed."""
+    if not source_id.startswith(CUSTOM_PREFIX):
+        raise ValueError("Only custom sources can be updated via this endpoint.")
+
+    if db is None:
+        raise ValueError("Database not connected.")
+
+    existing = await db.custom_threat_sources.find_one({"source_id": source_id})
+    if not existing:
+        raise ValueError(f"Custom source not found: {source_id}")
+
+    if "display_name" in patch:
+        title = str(patch["display_name"]).strip()
+        if not title:
+            raise ValueError("display_name cannot be empty.")
+        existing["display_name"] = title
+
+    if "feed_url" in patch:
+        existing["config"]["feed_url"] = _validate_feed_url(patch["feed_url"])
+
+    if "family" in patch:
+        existing["family"] = str(patch["family"]).strip().lower()[:50] or "custom"
+
+    if "enabled" in patch:
+        existing["enabled"] = bool(patch["enabled"])
+
+    if "poll_interval_minutes" in patch:
+        try:
+            interval = int(patch["poll_interval_minutes"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("poll_interval_minutes must be an integer.") from exc
+        if interval < 1 or interval > 1440:
+            raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+        existing["config"]["poll_interval_minutes"] = interval
+
+    existing["updated_at"] = _now()
+    existing["updated_by"] = updated_by
+
+    await db.custom_threat_sources.replace_one(
+        {"source_id": source_id},
+        existing,
+        upsert=True,
+    )
+    return existing
+
+
+async def delete_custom_source(db, source_id: str) -> bool:
+    """Delete a manually-added source and its sync status."""
+    if not source_id.startswith(CUSTOM_PREFIX):
+        raise ValueError("Only custom sources can be deleted.")
+
+    if db is None:
+        return False
+
+    result = await db.custom_threat_sources.delete_one({"source_id": source_id})
+    await db.threat_sync_status.delete_one({"source_id": source_id})
+    return result.deleted_count > 0

@@ -27,6 +27,9 @@ from threat_ingestion import (
     get_public_threat_sources,
     get_runtime_threat_source,
     update_misp_source_config,
+    create_custom_source,
+    update_custom_source,
+    delete_custom_source,
 )
 from threat_misp import MISPClient
 
@@ -306,6 +309,21 @@ class MISPConfigUpdate(BaseModel):
     poll_interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
 
 
+class CustomSourceCreate(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    feed_url: str = Field(..., min_length=1)
+    family: str = Field(default="custom", max_length=50)
+    poll_interval_minutes: int = Field(default=60, ge=1, le=1440)
+
+
+class CustomSourceUpdate(BaseModel):
+    display_name: Optional[str] = Field(None, max_length=200)
+    feed_url: Optional[str] = None
+    family: Optional[str] = Field(None, max_length=50)
+    enabled: Optional[bool] = None
+    poll_interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
+
+
 @router.get("/operational-config/smtp")
 async def read_smtp_operational_config(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
@@ -407,6 +425,73 @@ async def read_operational_status(current_user: dict = Depends(require_role(["ad
     return await get_operational_status_snapshot(db)
 
 
+# ── Service restart (requires services:restart permission) ───────────────────
+
+RESTARTABLE_SERVICES = {
+    "scheduler": "APScheduler (daily scan of safe targets)",
+    "worker": "Watchlist rescan worker",
+    "recon": "Recon scheduled scan checker",
+    "threat_ingestion": "Threat ingestion feed sync",
+}
+
+
+@router.post("/services/{service_name}/restart")
+async def restart_service(
+    service_name: str,
+    request: Request,
+    current_user: dict = Depends(require_permission("services:restart")),
+):
+    if service_name not in RESTARTABLE_SERVICES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unknown service: {service_name}. Valid: {', '.join(sorted(RESTARTABLE_SERVICES))}",
+        )
+
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    ip = request.client.host if request.client else ""
+
+    try:
+        if service_name == "scheduler":
+            from worker import scan_safe_targets_job
+            await scan_safe_targets_job()
+        elif service_name == "worker":
+            from worker import run_watchlist_scan
+            await run_watchlist_scan()
+        elif service_name == "recon":
+            from worker import run_scheduled_recon
+            await run_scheduled_recon()
+        elif service_name == "threat_ingestion":
+            from threat_ingestion_runtime import execute_threat_ingestion_worker_cycle
+            await execute_threat_ingestion_worker_cycle(db)
+    except Exception as exc:
+        await log_action(
+            db,
+            user=current_user["username"],
+            action="service_restart",
+            ip=ip,
+            result="failure",
+            detail=f"service={service_name}, error={str(exc)[:200]}",
+        )
+        raise HTTPException(status_code=502, detail=f"Service restart failed: {str(exc)[:200]}") from exc
+
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="service_restart",
+        ip=ip,
+        result="success",
+        detail=f"service={service_name}",
+    )
+    return {
+        "message": f"Service '{service_name}' restarted successfully.",
+        "service": service_name,
+        "description": RESTARTABLE_SERVICES[service_name],
+    }
+
+
 @router.get("/threat-sources")
 async def read_threat_sources(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
@@ -505,6 +590,107 @@ async def test_misp_source(
         detail=f"version={result.get('version', 'unknown')}",
     )
     return {"message": "MISP connectivity test succeeded.", **result}
+
+
+# ── Custom (manual) RSS sources ──────────────────────────────────────────────
+
+
+@router.post("/threat-sources/custom", status_code=201)
+async def create_custom_threat_source(
+    request: Request,
+    body: CustomSourceCreate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    try:
+        source = await create_custom_source(
+            db,
+            title=body.title,
+            feed_url=body.feed_url,
+            family=body.family,
+            poll_interval_minutes=body.poll_interval_minutes,
+            created_by=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="custom_source_created",
+        ip=ip,
+        result="success",
+        detail=f"source_id={source['source_id']}, url={body.feed_url}",
+    )
+    return source
+
+
+@router.put("/threat-sources/custom/{source_id}")
+async def update_custom_threat_source(
+    source_id: str,
+    request: Request,
+    body: CustomSourceUpdate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    patch = body.model_dump(exclude_none=True)
+    if not patch:
+        raise HTTPException(status_code=400, detail="No fields provided.")
+
+    try:
+        updated = await update_custom_source(
+            db, source_id, patch, updated_by=current_user["username"]
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="custom_source_updated",
+        ip=ip,
+        result="success",
+        detail=f"source_id={source_id}, fields={','.join(sorted(patch.keys()))}",
+    )
+    return updated
+
+
+@router.delete("/threat-sources/custom/{source_id}")
+async def delete_custom_threat_source(
+    source_id: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    try:
+        deleted = await delete_custom_source(db, source_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Custom source not found.")
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="custom_source_deleted",
+        ip=ip,
+        result="success",
+        detail=f"source_id={source_id}",
+    )
+    return {"message": "Custom source deleted.", "source_id": source_id}
 
 
 def _generate_temporary_password(policy: dict) -> str:

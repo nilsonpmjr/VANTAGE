@@ -113,6 +113,37 @@ def adapt_cve_rss_items(source_id: str, items: list[dict[str, Any]]) -> list[dic
     return documents
 
 
+def adapt_generic_rss_items(source_id: str, family: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Generic adapter for manually-added RSS feeds."""
+    documents = []
+    for item in items:
+        cves = sorted({match.upper() for match in _CVE_RE.findall(f"{item['title']} {item['summary']}")})
+        category_tags = [c.lower().replace(" ", "_") for c in item.get("categories", [])]
+        severity = normalize_severity(_severity_from_text(item["title"], item["summary"], *category_tags))
+        tags = [family, *category_tags, *cves]
+        payload = build_threat_item_payload(
+            title=item["title"],
+            summary=item["summary"],
+            link=item.get("link", ""),
+            published_at=item.get("published_at"),
+            severity=severity,
+            tags=tags,
+            attributes={"cve_ids": cves, "categories": item.get("categories", [])},
+            raw=item.get("raw", {}),
+        )
+        documents.append(
+            build_threat_item_document(
+                source_id=source_id,
+                source_type="rss",
+                family=family,
+                external_id=item["external_id"],
+                origin="rss",
+                payload=payload,
+            )
+        )
+    return documents
+
+
 def adapt_fortinet_rss_items(source_id: str, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     documents = []
     for item in items:

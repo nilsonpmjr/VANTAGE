@@ -6,7 +6,6 @@ import SectionHeader from '../shared/SectionHeader';
 import FormField from '../shared/FormField';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
-import Panel from '../ui/Panel';
 import Input from '../ui/Input';
 
 const EMPTY_FORM = {
@@ -203,11 +202,13 @@ export default function SMTPControlPanel() {
                 </div>
             ) : (
                 <div className="control-plane-grid">
-                    <Panel
-                        title={t('settings.smtp_form_title')}
-                        description={t('settings.smtp_form_body')}
-                        eyebrow={t('settings.smtp_eyebrow')}
-                        actions={(
+                    <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
+                            <div>
+                                <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--primary)' }}>{t('settings.smtp_eyebrow')}</span>
+                                <h3 style={{ margin: '0.3rem 0', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('settings.smtp_form_title')}</h3>
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('settings.smtp_form_body')}</p>
+                            </div>
                             <Button
                                 variant="danger"
                                 size="sm"
@@ -217,8 +218,7 @@ export default function SMTPControlPanel() {
                             >
                                 {t('settings.smtp_disable')}
                             </Button>
-                        )}
-                    >
+                        </div>
                         <form className="v-page-stack" onSubmit={handleSave}>
                             <div className="form-grid form-grid-2">
                                 <FormField label={t('settings.smtp_host_label')} hint={t('settings.smtp_host_hint')} id="smtp-host">
@@ -288,14 +288,15 @@ export default function SMTPControlPanel() {
                                 {message ? <span className={`form-msg ${messageTone}`}>{message}</span> : null}
                             </div>
                         </form>
-                    </Panel>
+                    </div>
 
                     <div className="control-plane-stack">
-                        <Panel
-                            title={t('settings.smtp_state_title')}
-                            description={t('settings.smtp_state_body')}
-                            eyebrow={t('settings.smtp_eyebrow_runtime')}
-                        >
+                        <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
+                                <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--primary)' }}>{t('settings.smtp_eyebrow_runtime')}</span>
+                                <h3 style={{ margin: '0.3rem 0', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('settings.smtp_state_title')}</h3>
+                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('settings.smtp_state_body')}</p>
+                            </div>
                             <div className="smtp-state-list">
                                 {[
                                     ['host', t('settings.smtp_host_label')],
@@ -320,13 +321,15 @@ export default function SMTPControlPanel() {
                                     );
                                 })}
                             </div>
-                        </Panel>
+                        </div>
 
-                        <Panel
-                            title={t('settings.smtp_test_title')}
-                            description={t('settings.smtp_test_body')}
-                            eyebrow={t('settings.smtp_eyebrow_validation')}
-                            actions={(
+                        <div className="glass-panel" style={{ padding: '1.5rem', borderRadius: '12px', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid var(--glass-border)' }}>
+                                <div>
+                                    <span style={{ textTransform: 'uppercase', fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em', color: 'var(--primary)' }}>{t('settings.smtp_eyebrow_validation')}</span>
+                                    <h3 style={{ margin: '0.3rem 0', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-primary)' }}>{t('settings.smtp_test_title')}</h3>
+                                    <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{t('settings.smtp_test_body')}</p>
+                                </div>
                                 <Button
                                     size="sm"
                                     onClick={handleTest}
@@ -335,8 +338,7 @@ export default function SMTPControlPanel() {
                                 >
                                     {t('settings.smtp_test_action')}
                                 </Button>
-                            )}
-                        >
+                            </div>
                             <div className="v-page-stack">
                                 <FormField label={t('settings.smtp_test_target_label')} hint={t('settings.smtp_test_target_hint')} id="smtp-test-target" fullWidth>
                                     <Input
@@ -352,7 +354,7 @@ export default function SMTPControlPanel() {
                                     <span>{t('settings.smtp_test_target_body')}</span>
                                 </div>
                             </div>
-                        </Panel>
+                        </div>
                     </div>
                 </div>
             )}

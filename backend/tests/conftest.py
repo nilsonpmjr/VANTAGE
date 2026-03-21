@@ -242,6 +242,7 @@ class FakeDB:
         self.batch_jobs = FakeCollection()
         self.watchlist = FakeCollection()
         self.service_quota = FakeCollection()
+        self.custom_threat_sources = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

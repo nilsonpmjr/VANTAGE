@@ -80,6 +80,59 @@
   --ds-blur-panel: var(--glass-blur);
 }
 
+[data-theme='light'] {
+  --bg-base: #f8fafc;
+  --bg-gradient: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-main: #f1f5f9;
+  
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-border: rgba(15, 23, 42, 0.1);
+  --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
+
+  --primary: #0284c7;
+  --accent-glow: rgba(2, 132, 199, 0.1);
+  --accent-border: rgba(2, 132, 199, 0.2);
+  
+  --ds-canvas: var(--bg-base);
+  --ds-shell: var(--bg-main);
+  --ds-surface: var(--glass-bg);
+  --ds-surface-strong: var(--bg-card);
+  --ds-border: var(--glass-border);
+  --ds-text: var(--text-primary);
+  --ds-text-secondary: var(--text-secondary);
+  --ds-text-muted: var(--text-muted);
+}
+
+
+/* ── FASE 4: Navbar Dark Preservada ── 
+   Trava componentes estruturais (como a Sidebar) 
+   na paleta escura canonica, ignorando o data-theme='light' */
+.v-navbar-dark {
+  --bg-base: #020617;
+  --bg-main: #0f172a;
+  --bg-card: rgba(15, 23, 42, 0.5);
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+  --glass-bg: rgba(15, 23, 42, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --primary: #38bdf8;
+  
+  /* Update DS aliases internally */
+  --ds-canvas: var(--bg-base);
+  --ds-shell: var(--bg-main);
+  --ds-surface: var(--glass-bg);
+  --ds-surface-strong: var(--bg-card);
+  --ds-border: var(--glass-border);
+  --ds-text: var(--text-primary);
+  --ds-text-secondary: var(--text-secondary);
+  --ds-text-muted: var(--text-muted);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -1312,6 +1365,72 @@ h4 {
   margin-left: auto;
 }
 
+/* ── Restart Toast ────────────────────────────────────────────── */
+.restart-toast {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 1000;
+  min-width: 300px;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  background: rgba(15, 23, 42, 0.92);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: toast-slide-in 0.4s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  font-size: 0.875rem;
+}
+
+.restart-toast--success {
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.restart-toast--success .restart-toast__icon {
+  color: var(--ds-success);
+}
+
+.restart-toast--error {
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.restart-toast--error .restart-toast__icon {
+  color: var(--ds-danger);
+}
+
+.restart-toast__icon {
+  flex-shrink: 0;
+  display: flex;
+}
+
+.restart-toast__message {
+  flex: 1;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+.restart-toast__close {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s;
+}
+
+.restart-toast__close:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.1);
+}
+
 /* ── Guided Tour ──────────────────────────────────────────────── */
 .tour-overlay {
   position: fixed;
@@ -1798,6 +1917,7 @@ h4 {
   line-height: 1.55;
   display: -webkit-box;
   -webkit-line-clamp: 3;
+  line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
@@ -2769,7 +2889,7 @@ h4 {
 
 .dashboard-grid-2col {
   display: grid;
-  grid-template-columns: minmax(300px, 1fr) 2fr;
+  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
   gap: 2rem;
   align-items: stretch;
   margin-bottom: 2rem;
@@ -2985,7 +3105,6 @@ h4 {
   max-width: 1400px;
   margin-inline: auto;
   padding: var(--gap-xl);
-  min-height: 0;
   width: 100%;
 }
 
@@ -3009,9 +3128,13 @@ h4 {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  max-width: 480px;
-  margin-inline: auto;
+  width: 100%;
   padding: var(--gap-xl) var(--gap-md);
+  background: var(--bg-main);
+}
+
+.v-arch-focus > * {
+  max-width: 480px;
   width: 100%;
 }
 
@@ -3213,9 +3336,6 @@ h4 {
 }
 
 /* ── Density: comfortable (default, explicit opt-in) ─────────────────────── */
-.v-density-comfortable {
-  /* Default spacing — no overrides needed. Exists for explicit semantic use. */
-}
 
 /* ── Responsive: Grammar classes ─────────────────────────────────────────── */
 @media (max-width: 1024px) {

@@ -57,7 +57,7 @@ export default function ResetPassword({ token, onSuccess }) {
 
     if (done) {
         return (
-            <div className="v-arch-focus" style={{ background: 'var(--bg-main)' }}>
+            <div className="v-arch-focus">
                 <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
                     <CheckCircle size={48} color="var(--green)" style={{ marginBottom: '1rem' }} />
                     <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.75rem' }}>{t('reset_password.success_title')}</h2>
@@ -71,7 +71,7 @@ export default function ResetPassword({ token, onSuccess }) {
     }
 
     return (
-        <div className="v-arch-focus" style={{ background: 'var(--bg-main)' }}>
+        <div className="v-arch-focus">
             <div className="login-box glass-panel" style={{ width: '100%', maxWidth: '400px', padding: '2rem', borderRadius: '12px', textAlign: 'center' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>

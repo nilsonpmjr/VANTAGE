@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from db import db_manager
 from logging_config import get_logger
-from threat_ingestion import get_runtime_threat_sources, record_threat_sync_status
+from threat_ingestion import get_runtime_threat_sources, record_threat_sync_status, CUSTOM_PREFIX
 
 logger = get_logger("ThreatIngestionRuntime")
 
@@ -64,6 +64,24 @@ async def _resolve_items(fetcher_result) -> list[dict[str, Any]]:
     return fetcher_result
 
 
+def _make_custom_rss_fetcher(source: dict[str, Any]) -> Callable[[dict[str, Any]], Any]:
+    """Build a one-shot fetcher for a manually-added RSS source."""
+    import httpx
+    from threat_feed_adapters import parse_rss_items, adapt_generic_rss_items
+
+    async def _fetch(src: dict[str, Any]) -> list[dict[str, Any]]:
+        feed_url = src.get("config", {}).get("feed_url", "")
+        if not feed_url:
+            return []
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(feed_url)
+            resp.raise_for_status()
+        raw_items = parse_rss_items(resp.text)
+        return adapt_generic_rss_items(src["source_id"], src.get("family", "custom"), raw_items)
+
+    return _fetch
+
+
 async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
     source_id = source["source_id"]
 
@@ -79,6 +97,8 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
         return {"source_id": source_id, "status": "not_configured", "items_ingested": 0}
 
     fetcher = _THREAT_FETCHERS.get(source_id)
+    if fetcher is None and source_id.startswith(CUSTOM_PREFIX) and source.get("source_type") == "rss":
+        fetcher = _make_custom_rss_fetcher(source)
     if fetcher is None:
         await record_threat_sync_status(
             db,

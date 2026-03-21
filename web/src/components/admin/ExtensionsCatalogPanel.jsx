@@ -6,6 +6,7 @@ import SectionHeader from '../shared/SectionHeader';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Panel from '../ui/Panel';
+import Pagination from '../shared/Pagination';
 
 function statusVariant(status) {
     return {
@@ -45,6 +46,8 @@ export default function ExtensionsCatalogPanel() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [tierFilter, setTierFilter] = useState('all');
+    const [page, setPage] = useState(1);
+    const ITEMS_PER_PAGE = 10;
 
     const loadCatalog = useCallback(async (isRefresh = false) => {
         if (isRefresh) setRefreshing(true);
@@ -119,46 +122,46 @@ export default function ExtensionsCatalogPanel() {
                 <>
                     {error ? <div className="alert-banner error">{error}</div> : null}
 
-                    <div className="control-plane-kpi-grid">
-                        <Panel title={t('settings.extensions_catalog_summary_total')} eyebrow={t('settings.extensions_catalog_summary')}>
-                            <div className="control-plane-kpi">{summary.total}</div>
-                        </Panel>
-                        <Panel title={t('settings.extensions_catalog_summary_enabled')} eyebrow={t('settings.extensions_catalog_summary')}>
-                            <div className="control-plane-kpi success">{summary.enabled}</div>
-                        </Panel>
-                        <Panel title={t('settings.extensions_catalog_summary_incompatible')} eyebrow={t('settings.extensions_catalog_summary')}>
-                            <div className="control-plane-kpi warning">{summary.incompatible}</div>
-                        </Panel>
-                        <Panel title={t('settings.extensions_catalog_summary_invalid')} eyebrow={t('settings.extensions_catalog_summary')}>
-                            <div className="control-plane-kpi danger">{summary.invalid}</div>
-                        </Panel>
+                    {/* Mini stats inspired by UserListPanel */}
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.6rem', marginBottom: '1.5rem' }}>
+                        {[
+                            { label: t('settings.extensions_catalog_summary_total'), value: summary.total, color: 'var(--primary)' },
+                            { label: t('settings.extensions_catalog_summary_enabled'), value: summary.enabled, color: 'var(--status-safe)' },
+                            { label: t('settings.extensions_catalog_summary_incompatible'), value: summary.incompatible, color: 'var(--status-suspicious)' },
+                            { label: t('settings.extensions_catalog_summary_invalid'), value: summary.invalid, color: 'var(--status-risk)' },
+                            { label: t('settings.extensions_catalog_core_version'), value: catalog.core_version || '—', color: 'var(--text-secondary)' },
+                        ].map(({ label, value, color }) => (
+                            <div key={label} className="glass-panel" style={{ padding: '0.6rem 0.85rem', borderRadius: '8px' }}>
+                                <div style={{ fontSize: '0.68rem', color, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{label}</div>
+                                <div style={{ fontSize: '1.3rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.2 }}>{value}</div>
+                            </div>
+                        ))}
                     </div>
-
-                    <Panel
-                        title={t('settings.extensions_catalog_snapshot_title')}
-                        description={t('settings.extensions_catalog_snapshot_body')}
-                    >
-                        <div className="control-plane-note">
-                            <Badge variant="neutral">{t('settings.extensions_catalog_core_version')}</Badge>
-                            <span>{catalog.core_version || '—'}</span>
+                        <div className="glass-panel" style={{ padding: '0.6rem 0.85rem', borderRadius: '8px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '0.68rem', color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.extensions_catalog_search_roots')}</div>
+                            <div style={{ fontSize: '1rem', fontWeight: 500, color: 'var(--text-primary)', lineHeight: 1.2 }}>{humanizeSearchRoots(catalog.search_roots)}</div>
                         </div>
-                        <div className="control-plane-note">
-                            <Badge variant="neutral">{t('settings.extensions_catalog_search_roots')}</Badge>
-                            <span>{humanizeSearchRoots(catalog.search_roots)}</span>
-                        </div>
-                    </Panel>
 
                     {(catalog.items || []).length > 0 ? (
-                        <div className="v-zone-filters">
+                        <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                             {['all', 'core', 'local', 'premium'].map((filterKey) => (
-                                <Button
+                                <button
                                     key={filterKey}
-                                    size="sm"
-                                    variant={tierFilter === filterKey ? 'secondary' : 'ghost'}
-                                    onClick={() => setTierFilter(filterKey)}
+                                    onClick={() => { setTierFilter(filterKey); setPage(1); }}
+                                    style={{
+                                        background: tierFilter === filterKey ? 'var(--primary)' : 'var(--glass-bg)',
+                                        color: tierFilter === filterKey ? '#fff' : 'var(--text-primary)',
+                                        border: `1px solid ${tierFilter === filterKey ? 'var(--primary)' : 'var(--glass-border)'}`,
+                                        padding: '0.4rem 1rem',
+                                        borderRadius: '2rem',
+                                        fontSize: '0.85rem',
+                                        fontWeight: 500,
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                    }}
                                 >
                                     {t(`settings.extensions_catalog_filter_${filterKey}`)}
-                                </Button>
+                                </button>
                             ))}
                         </div>
                     ) : null}
@@ -176,253 +179,72 @@ export default function ExtensionsCatalogPanel() {
                             <p className="v-empty-state__text">{t('settings.extensions_catalog_filtered_empty_body')}</p>
                         </div>
                     ) : (
-                    <div className="v-zone-grid">
-                        {filteredItems.map((item) => (
-                            <Panel
-                                key={item.key}
-                                title={item.name}
-                                eyebrow={item.kind}
-                                actions={(
-                                    <Badge variant={statusVariant(item.status)}>
-                                        {t(`settings.extensions_catalog_status_${item.status}`)}
-                                    </Badge>
-                                )}
-                            >
-                                <div className="service-status-card">
-                                    {item.errors?.length ? (
-                                        <div className="control-plane-alert warning">{item.errors.join(', ')}</div>
-                                    ) : null}
-
-                                    <div className="service-status-columns">
-                                        <div>
-                                            <h4>{t('settings.extensions_catalog_metadata')}</h4>
-                                            <ul className="service-status-list">
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_key')}</span>
-                                                    <strong>{item.key}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_version')}</span>
-                                                    <strong>{compactValue(item.version)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_author')}</span>
-                                                    <strong>{compactValue(item.author)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_license')}</span>
-                                                    <strong>{compactValue(item.license)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_compatible_core')}</span>
-                                                    <strong>{compactValue(item.compatibleCore)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_distribution_tier')}</span>
-                                                    <strong>{compactValue(item.distributionTier)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_repository_visibility')}</span>
-                                                    <strong>{compactValue(item.repositoryVisibility)}</strong>
-                                                </li>
-                                            </ul>
-                                        </div>
-
-                                        <div>
-                                            <h4>{t('settings.extensions_catalog_runtime')}</h4>
-                                            <ul className="service-status-list">
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_capabilities')}</span>
-                                                    <strong>{compactValue(item.capabilities)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_permissions')}</span>
-                                                    <strong>{compactValue(item.permissions)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_entrypoint')}</span>
-                                                    <strong>{compactValue(item.entrypoint)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_source')}</span>
-                                                    <strong>{compactValue(item.source)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_builtin')}</span>
-                                                    <strong>{compactValue(item.builtin)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_update_channel')}</span>
-                                                    <strong>{compactValue(item.updateChannel)}</strong>
-                                                </li>
-                                                <li>
-                                                    <span>{t('settings.extensions_catalog_field_ownership_boundary')}</span>
-                                                    <strong>{compactValue(item.ownershipBoundary)}</strong>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    {item.kind === 'brand_pack' ? (
-                                        <div className="service-status-columns">
-                                            <div>
-                                                <h4>{t('settings.extensions_catalog_brand')}</h4>
-                                                <ul className="service-status-list">
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_themes')}</span>
-                                                        <strong>{compactValue(item.themes)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_source_files')}</span>
-                                                        <strong>{formatCount(item.sourceFileCount)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_public_assets')}</span>
-                                                        <strong>{formatCount(item.publicAssetCount)}</strong>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    ) : null}
-
-                                    {item.kind === 'recon_module' ? (
-                                        <div className="service-status-columns">
-                                            <div>
-                                                <h4>{t('settings.extensions_catalog_recon')}</h4>
-                                                <ul className="service-status-list">
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_module_count')}</span>
-                                                        <strong>{formatCount(item.moduleCount)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_available_modules')}</span>
-                                                        <strong>{formatCount(item.availableModuleCount)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_target_types')}</span>
-                                                        <strong>{compactValue(item.supportedTargetTypes)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_required_binaries')}</span>
-                                                        <strong>{compactValue(item.requiredBinaries)}</strong>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    ) : null}
-
-                                    {item.kind === 'report_exporter' ? (
-                                        <div className="service-status-columns">
-                                            <div>
-                                                <h4>{t('settings.extensions_catalog_exporter')}</h4>
-                                                <ul className="service-status-list">
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_formats')}</span>
-                                                        <strong>{compactValue(item.formats)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_delivery')}</span>
-                                                        <strong>{compactValue(item.delivery)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_export_function')}</span>
-                                                        <strong>{compactValue(item.exportFunction)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_source_files')}</span>
-                                                        <strong>{formatCount(item.sourceFileCount)}</strong>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    ) : null}
-
-                                    {item.kind === 'premium_feature' ? (
-                                        <div className="service-status-columns">
-                                            <div>
-                                                <h4>{t('settings.extensions_catalog_premium')}</h4>
-                                                <ul className="service-status-list">
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_premium_feature_type')}</span>
-                                                        <strong>{compactValue(item.premiumFeatureType)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_delivery')}</span>
-                                                        <strong>{compactValue(item.delivery)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_capabilities')}</span>
-                                                        <strong>{compactValue(item.productSurface)}</strong>
-                                                    </li>
-                                                    <li>
-                                                        <span>{t('settings.extensions_catalog_field_permissions')}</span>
-                                                        <strong>{compactValue(item.permissions)}</strong>
-                                                    </li>
-                                                </ul>
-                                            </div>
-                                            {item.premiumFeatureType === 'hunting_provider' ? (
-                                                <div>
-                                                    <h4>{t('settings.extensions_catalog_hunting')}</h4>
-                                                    <ul className="service-status-list">
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_hunting_artifact_types')}</span>
-                                                            <strong>{compactValue(item.huntingArtifactTypes)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_provider_scope')}</span>
-                                                            <strong>{compactValue(item.providerScope)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_required_secrets')}</span>
-                                                            <strong>{compactValue(item.requiredSecrets)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_isolation_mode')}</span>
-                                                            <strong>{compactValue(item.isolationMode)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_operational_risk')}</span>
-                                                            <strong>{compactValue(item.executionProfile?.operationalRisk)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_performance_profile')}</span>
-                                                            <strong>{compactValue(item.executionProfile?.performanceProfile)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_requires_kali')}</span>
-                                                            <strong>{compactValue(item.requiresKali)}</strong>
-                                                        </li>
-                                                    </ul>
-                                                </div>
-                                            ) : null}
-                                            {item.premiumFeatureType === 'exposure_provider' ? (
-                                                <div>
-                                                    <h4>{t('settings.extensions_catalog_exposure')}</h4>
-                                                    <ul className="service-status-list">
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_exposure_asset_types')}</span>
-                                                            <strong>{compactValue(item.exposureAssetTypes)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_provider_scope')}</span>
-                                                            <strong>{compactValue(item.providerScope)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_required_secrets')}</span>
-                                                            <strong>{compactValue(item.requiredSecrets)}</strong>
-                                                        </li>
-                                                        <li>
-                                                            <span>{t('settings.extensions_catalog_field_recommended_schedule')}</span>
-                                                            <strong>{compactValue(item.recommendedSchedule)}</strong>
-                                                        </li>
-                                                    </ul>
-                                                </div>
-                                            ) : null}
-                                        </div>
-                                    ) : null}
-                                </div>
-                            </Panel>
-                        ))}
+                    <div className="glass-panel" style={{ padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                        <div className="data-table-toolbar">
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {filteredItems.length} {t('settings.extensions_catalog_list_title').toLowerCase()}
+                            </span>
+                        </div>
+                        <div style={{ overflowX: 'auto' }}>
+                            <table className="data-table" style={{ width: '100%' }}>
+                                <thead>
+                                    <tr>
+                                        <th>Extensão</th>
+                                        <th>Tier</th>
+                                        <th>Versão / Autor</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {(() => {
+                                        const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
+                                        const displayedItems = filteredItems.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+                                        
+                                        return displayedItems.map((item, idx) => (
+                                            <tr key={item.key}>
+                                                <td style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <div style={{ width: '32px', height: '32px', borderRadius: '6px', background: 'var(--glass-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)', border: '1px solid var(--glass-border)' }}>
+                                                        <Blocks size={16} />
+                                                    </div>
+                                                    <div>
+                                                        <div style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '0.9rem' }}>{item.name}</div>
+                                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem', fontFamily: 'monospace' }}>{item.key} ({item.kind})</div>
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <span style={{ background: 'var(--bg-card)', padding: '0.2rem 0.6rem', borderRadius: '1rem', border: '1px solid var(--glass-border)', fontSize: '0.75rem', fontWeight: 500, color: 'var(--text-secondary)' }}>{compactValue(item.distributionTier)}</span>
+                                                </td>
+                                                <td>
+                                                    <div style={{ fontWeight: 500 }}>v{compactValue(item.version)}</div>
+                                                    <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{compactValue(item.author)}</div>
+                                                </td>
+                                                <td>
+                                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem', alignItems: 'flex-start' }}>
+                                                        <span style={{ background: `var(--status-${statusVariant(item.status)}-bg)`, color: `var(--status-${statusVariant(item.status)})`, padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 600, border: `1px solid var(--status-${statusVariant(item.status)})` }}>
+                                                            {t(`settings.extensions_catalog_status_${item.status}`)}
+                                                        </span>
+                                                        {item.errors?.length > 0 && (
+                                                            <div style={{ color: 'var(--alert-warning)', fontSize: '0.75rem', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.errors.join(', ')}>
+                                                                ⚠ {item.errors[0]}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ));
+                                    })()}
+                                </tbody>
+                            </table>
+                        </div>
+                        {Math.ceil(filteredItems.length / ITEMS_PER_PAGE) > 1 && (
+                            <div style={{ padding: '1rem', borderTop: '1px solid var(--glass-border)' }}>
+                                <Pagination 
+                                    page={page} 
+                                    totalPages={Math.ceil(filteredItems.length / ITEMS_PER_PAGE)} 
+                                    onPageChange={setPage} 
+                                />
+                            </div>
+                        )}
                     </div>
                     )}
                 </>

@@ -8,7 +8,11 @@ Este workflow serve como stack de alimentação para o agente buscar novas ideia
 
 ## Fonte canônica
 
-Usar sempre este mesmo caminho como origem:
+Usar preferencialmente o link interno do projeto como origem:
+
+`/home/nilsonpmjr/.gemini/antigravity/scratch/Threat-Intelligence-Tool/Obsidian/2. 💡Ideas/1. 📓 Notes/VANTAGE/VANTAGE — Acompanhamento.md`
+
+Referencia historica equivalente fora do workspace:
 
 `/home/nilsonpmjr/GoogleDrive/Obsidian/2. 💡Ideas/1. 📓 Notes/VANTAGE/VANTAGE — Acompanhamento.md`
 
@@ -217,9 +221,17 @@ Ele não continua para implementação automaticamente.
 
 ## Observação operacional
 
-Como a fonte está fora do workspace principal, a leitura desse caminho pode depender do ambiente e das permissões do agente da vez.
+Como a fonte agora está espelhada por um link interno no workspace principal, essa deve ser a rota padrão de leitura.
 
-Se o acesso direto falhar:
+O caminho externo original deve ser tratado apenas como referência secundária ou de troubleshooting.
+
+Se o link interno falhar:
+
+- verificar se o symlink `Obsidian/` continua válido;
+- registrar o problema no handoff;
+- só então tentar a referência externa.
+
+Se o acesso direto ainda falhar:
 
 - registrar que a fonte está fora do workspace;
 - pedir ajuda do usuário apenas para destravar a leitura;

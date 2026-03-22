@@ -3,6 +3,8 @@ import { Users, UserPlus, Search, Loader, Shield, User, Terminal, AlignJustify, 
 import { useTranslation } from 'react-i18next';
 import { fmtBRT } from '../../utils/dateFormat';
 import SectionHeader from '../shared/SectionHeader';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
 
 export const RoleBadge = ({ role }) => {
     let icon, color, bg, label;
@@ -49,10 +51,9 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
                 title={t('settings.users')}
                 subtitle={t('settings.subtitle')}
                 actions={
-                    <button className="btn-primary" onClick={onNewUser} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
-                        <UserPlus size={16} />
+                    <Button variant="primary" size="sm" onClick={onNewUser} iconLeading={<UserPlus size={16} />}>
                         {t('settings.new_user')}
-                    </button>
+                    </Button>
                 }
             />
 
@@ -141,13 +142,13 @@ export default function UserListPanel({ usersList, loading, adminStats, selected
                                     <td>
                                         <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
                                             {u.is_active === false && (
-                                                <span className="badge-risk" style={{ fontSize: '0.72rem' }}>{t('settings.suspended')}</span>
+                                                <Badge variant="danger">{t('settings.suspended')}</Badge>
                                             )}
                                             {isLocked(u) && (
-                                                <span style={{ fontSize: '0.72rem', background: 'var(--alert-warning-bg)', color: 'var(--alert-warning)', padding: '0.1rem 0.45rem', borderRadius: '0.8rem', fontWeight: 600 }}>{t('settings.locked')}</span>
+                                                <Badge variant="warning">{t('settings.locked')}</Badge>
                                             )}
                                             {u.is_active !== false && !isLocked(u) && (
-                                                <span className="badge-safe" style={{ fontSize: '0.72rem' }}>{t('settings.active')}</span>
+                                                <Badge variant="success">{t('settings.active')}</Badge>
                                             )}
                                         </div>
                                     </td>

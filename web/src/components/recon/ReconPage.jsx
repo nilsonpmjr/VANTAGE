@@ -7,6 +7,7 @@ import ModuleResultCard from './ModuleResultCard';
 import ReconHistory from './ReconHistory';
 import AttackSurface from './AttackSurface';
 import ReconReportView from './ReconReportView';
+import Button from '../ui/Button';
 
 function exportAllJSON(jobId, target, results) {
     const payload = {
@@ -235,62 +236,29 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
 
                 <div className="v-page-actions">
                     {target.trim() && (
-                        <button
-                            className="btn-secondary"
-                            onClick={() => setShowHistory(true)}
-                            title={t('recon.history_title', 'Histórico')}
-                            style={{ padding: '0.5rem 0.75rem' }}
-                        >
-                            <History size={14} />
-                        </button>
+                        <Button variant="secondary" size="sm" onClick={() => setShowHistory(true)} title={t('recon.history_title', 'Histórico')} iconLeading={<History size={14} />} />
                     )}
-                    <button
-                        className="btn-secondary"
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={handleScan}
                         disabled={!target.trim() || selected.length === 0 || scanning}
-                        style={{ padding: '0.5rem 1rem' }}
+                        loading={scanning}
+                        iconLeading={scanning ? undefined : <Play size={14} />}
                     >
-                        <Play size={14} />
                         {scanning ? t('recon.scanning') : t('recon.scan')}
-                    </button>
+                    </Button>
                     {!scanning && target.trim() && selected.length > 0 && (
-                        <button
-                            className={`btn-secondary ${showSchedule ? 'active' : ''}`}
-                            onClick={() => setShowSchedule(p => !p)}
-                            title={t('recon.schedule')}
-                            style={{ padding: '0.5rem 0.75rem' }}
-                        >
-                            <CalendarClock size={14} />
-                        </button>
+                        <Button variant="secondary" size="sm" onClick={() => setShowSchedule(p => !p)} title={t('recon.schedule')} iconLeading={<CalendarClock size={14} />} />
                     )}
 
                     {hasResults && !scanning && (
                         <>
-                            <button
-                                className="btn-secondary"
-                                onClick={() => exportAllJSON(jobId, target, results)}
-                                title={t('recon.export_all')}
-                                style={{ padding: '0.5rem 0.75rem' }}
-                            >
-                                <Download size={14} />
+                            <Button variant="secondary" size="sm" onClick={() => exportAllJSON(jobId, target, results)} title={t('recon.export_all')} iconLeading={<Download size={14} />}>
                                 JSON
-                            </button>
-                            <button
-                                className="btn-secondary"
-                                onClick={() => window.print()}
-                                title={t('recon.print', 'Imprimir')}
-                                style={{ padding: '0.5rem 0.75rem' }}
-                            >
-                                <Printer size={14} />
-                            </button>
-                            <button
-                                className="btn-secondary"
-                                onClick={handleReset}
-                                title={t('recon.new_scan')}
-                                style={{ padding: '0.5rem 0.75rem' }}
-                            >
-                                <RotateCcw size={14} />
-                            </button>
+                            </Button>
+                            <Button variant="secondary" size="sm" onClick={() => window.print()} title={t('recon.print', 'Imprimir')} iconLeading={<Printer size={14} />} />
+                            <Button variant="secondary" size="sm" onClick={handleReset} title={t('recon.new_scan')} iconLeading={<RotateCcw size={14} />} />
                         </>
                     )}
                 </div>
@@ -311,14 +279,9 @@ export default function ReconPage({ initialTarget, initialShowHistory }) {
                         min={new Date(Date.now() + 5 * 60000).toISOString().slice(0, 16)}
                         style={{ width: 'auto', padding: '0.4rem 0.6rem', fontSize: '0.82rem' }}
                     />
-                    <button
-                        className="btn-secondary"
-                        onClick={handleSchedule}
-                        disabled={!scheduleAt || scheduling}
-                        style={{ padding: '0.4rem 0.8rem', fontSize: '0.82rem' }}
-                    >
+                    <Button variant="secondary" size="sm" onClick={handleSchedule} disabled={!scheduleAt || scheduling}>
                         {t('recon.schedule_confirm')}
-                    </button>
+                    </Button>
                 </div>
             )}
 

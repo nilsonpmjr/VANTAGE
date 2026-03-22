@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Lock, Loader, CheckCircle } from 'lucide-react';
+import { Lock, CheckCircle } from 'lucide-react';
 import API_URL from '../../config';
 import useBrandTheme from '../../branding/useBrandTheme';
+import Button from '../ui/Button';
 
 export default function ResetPassword({ token, onSuccess }) {
     const { t } = useTranslation();
@@ -62,9 +63,9 @@ export default function ResetPassword({ token, onSuccess }) {
                     <CheckCircle size={48} color="var(--green)" style={{ marginBottom: '1rem' }} />
                     <h2 style={{ color: 'var(--text-primary)', marginBottom: '0.75rem' }}>{t('reset_password.success_title')}</h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '1.5rem' }}>{t('reset_password.success_subtitle')}</p>
-                    <button onClick={onSuccess} className="btn-primary" style={{ width: '100%' }}>
+                    <Button variant="primary" onClick={onSuccess} style={{ width: '100%' }}>
                         {t('reset_password.go_to_login')}
-                    </button>
+                    </Button>
                 </div>
             </div>
         );
@@ -123,9 +124,9 @@ export default function ResetPassword({ token, onSuccess }) {
                             placeholder="••••••••"
                         />
                     </div>
-                    <button type="submit" disabled={loading} className="btn-primary" style={{ marginTop: '0.5rem' }}>
-                        {loading ? <Loader className="spin" size={18} /> : t('reset_password.submit')}
-                    </button>
+                    <Button type="submit" variant="primary" loading={loading} style={{ width: '100%', marginTop: '0.5rem' }}>
+                        {t('reset_password.submit')}
+                    </Button>
                 </form>
             </div>
         </div>

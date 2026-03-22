@@ -9,6 +9,8 @@ import FlyoutPanel from '../shared/FlyoutPanel';
 import VerdictPanel from './VerdictPanel';
 import ServiceCard from './ServiceCard';
 import BatchHistoryFlyout from './BatchHistoryFlyout';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
 import API_URL from '../../config';
 
 // ── verdict helpers (mirrors Dashboard / VerdictPanel colours) ───────────────
@@ -187,23 +189,12 @@ function PreflightModal({ estimate, onConfirm, onCancel, t, notifyEmail, onNotif
                 </label>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
-                    <button
-                        onClick={onCancel}
-                        style={{
-                            padding: '0.5rem 1.25rem', borderRadius: '8px', cursor: 'pointer',
-                            background: 'transparent', border: '1px solid var(--glass-border)',
-                            color: 'var(--text-secondary)',
-                        }}
-                    >
+                    <Button variant="secondary" onClick={onCancel}>
                         {t('batch.preflight.cancel')}
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        className="btn-primary"
-                        style={{ padding: '0.5rem 1.25rem' }}
-                    >
+                    </Button>
+                    <Button variant="primary" onClick={onConfirm}>
                         {t('batch.preflight.confirm')}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>
@@ -458,27 +449,8 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
 
             <div className="glass-panel fade-in" style={{ marginTop: '2rem', overflow: 'hidden' }}>
                 {/* header */}
-                <div
-                    style={{
-                        padding: '1.25rem 1.5rem',
-                        borderBottom: '1px solid var(--glass-border)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        gap: '1rem',
-                        flexWrap: 'wrap',
-                    }}
-                >
-                    <h3
-                        style={{
-                            margin: 0,
-                            color: 'var(--text-primary)',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.5rem',
-                            fontSize: '1rem',
-                        }}
-                    >
+                <div className="data-table-toolbar" style={{ flexWrap: 'wrap' }}>
+                    <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1rem' }}>
                         <Layers size={18} color="var(--primary)" />
                         {t('batch.results.title')}
                     </h3>
@@ -500,57 +472,18 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
 
                         {/* history button */}
                         {isDone && (
-                            <button
-                                className="hover-accent-btn"
-                                onClick={() => setShowHistory(true)}
-                                title={t('batch.history_title')}
-                                style={{
-                                    display: 'flex', alignItems: 'center', gap: '0.35rem',
-                                    background: 'var(--glass-bg)',
-                                    border: '1px solid var(--glass-border)',
-                                    color: 'var(--text-secondary)',
-                                    borderRadius: 'var(--radius-sm)',
-                                    padding: '0.35rem 0.75rem',
-                                    cursor: 'pointer', fontSize: '0.8rem',
-                                }}
-                            >
-                                <Clock size={14} />
-                            </button>
+                            <Button variant="secondary" size="sm" onClick={() => setShowHistory(true)} title={t('batch.history_title')} iconLeading={<Clock size={14} />} />
                         )}
 
                         {/* export buttons — only when done */}
                         {isDone && results.length > 0 && (
                             <>
-                                <button
-                                    className="hover-accent-btn"
-                                    onClick={() => exportCSV(hasFilters ? filteredResults : results)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.35rem',
-                                        background: 'var(--glass-bg)',
-                                        border: '1px solid var(--glass-border)',
-                                        color: 'var(--text-secondary)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        padding: '0.35rem 0.75rem',
-                                        cursor: 'pointer', fontSize: '0.8rem',
-                                    }}
-                                >
-                                    <Download size={14} /> CSV
-                                </button>
-                                <button
-                                    className="hover-accent-btn"
-                                    onClick={() => exportJSON(hasFilters ? filteredResults : results)}
-                                    style={{
-                                        display: 'flex', alignItems: 'center', gap: '0.35rem',
-                                        background: 'var(--glass-bg)',
-                                        border: '1px solid var(--glass-border)',
-                                        color: 'var(--text-secondary)',
-                                        borderRadius: 'var(--radius-sm)',
-                                        padding: '0.35rem 0.75rem',
-                                        cursor: 'pointer', fontSize: '0.8rem',
-                                    }}
-                                >
-                                    <Download size={14} /> JSON
-                                </button>
+                                <Button variant="secondary" size="sm" onClick={() => exportCSV(hasFilters ? filteredResults : results)} iconLeading={<Download size={14} />}>
+                                    CSV
+                                </Button>
+                                <Button variant="secondary" size="sm" onClick={() => exportJSON(hasFilters ? filteredResults : results)} iconLeading={<Download size={14} />}>
+                                    JSON
+                                </Button>
                             </>
                         )}
                     </div>
@@ -732,23 +665,12 @@ export default function BatchResultsPanel({ targets, lang, onReset }) {
                                             </span>
                                         </td>
                                         <td>
-                                            <span
-                                                style={{
-                                                    display: 'inline-flex',
-                                                    alignItems: 'center',
-                                                    gap: '0.35rem',
-                                                    color: verdictColor(row.verdict),
-                                                    background: verdictBg(row.verdict),
-                                                    border: `1px solid ${verdictColor(row.verdict)}`,
-                                                    borderRadius: '1rem',
-                                                    padding: '0.25rem 0.65rem',
-                                                    fontSize: '0.75rem',
-                                                    fontWeight: 600,
-                                                }}
-                                            >
+                                            <Badge variant={
+                                                { 'SAFE': 'success', 'SUSPICIOUS': 'warning', 'HIGH RISK': 'danger', 'ERROR': 'neutral' }[(row.verdict || '').toUpperCase()] || 'neutral'
+                                            }>
                                                 <VerdictIcon verdict={row.verdict} size={12} />
                                                 {row.verdict}
-                                            </span>
+                                            </Badge>
                                         </td>
                                         <td>
                                             <span style={{ color: verdictColor(row.verdict), fontWeight: 600 }}>

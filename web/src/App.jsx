@@ -188,7 +188,7 @@ export default function App() {
   };
 
   if (authLoading) {
-    return <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-main)', color: 'var(--primary)' }}>{t('app.loading')}</div>;
+    return <div className="loading-center" style={{ height: '100vh', background: 'var(--bg-main)' }}>{t('app.loading')}</div>;
   }
 
   if (!user && !isTransitioning) {
@@ -233,9 +233,9 @@ export default function App() {
 
         {/* Password expiry / force-reset notice (UX-06: role=alert) */}
         {user && (user.force_password_reset || user.password_expires_in_days === 0) && (
-          <div role="alert" aria-live="polite" style={{ background: 'var(--status-risk-bg)', borderBottom: '1px solid var(--status-risk)', color: 'var(--status-risk)', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" className="alert-banner error stripe">
             <strong>{user.force_password_reset ? t('auth.force_reset_notice') : t('auth.password_expired_notice')}</strong>
-            <button onClick={() => setCurrentViewSafe('profile')} style={{ background: 'var(--status-risk)', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+            <button className="alert-banner-action" onClick={() => setCurrentViewSafe('profile')}>
               {t('auth.change_now')}
             </button>
           </div>
@@ -243,9 +243,9 @@ export default function App() {
 
         {/* MFA setup required banner (UX-06: role=alert) */}
         {mfaSetupRequired && (
-          <div role="alert" aria-live="polite" style={{ background: 'rgba(251,146,60,0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" className="alert-banner warning stripe">
             <strong>{t('mfa.setup_required_notice')}</strong>
-            <button onClick={() => { setCurrentViewSafe('profile'); setMfaSetupRequired(false); }} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.7rem', cursor: 'pointer', fontSize: '0.82rem' }}>
+            <button className="alert-banner-action" onClick={() => { setCurrentViewSafe('profile'); setMfaSetupRequired(false); }}>
               {t('mfa.setup_now')}
             </button>
           </div>
@@ -253,9 +253,9 @@ export default function App() {
 
         {/* Password expiry warning (UX-06: role=alert) */}
         {expiryWarningDays !== null && (
-          <div role="alert" aria-live="polite" style={{ background: 'rgba(251, 146, 60, 0.12)', borderBottom: '1px solid #fb923c', color: '#fb923c', padding: '0.5rem 1.5rem', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '1rem', justifyContent: 'center', flexShrink: 0 }}>
+          <div role="alert" aria-live="polite" className="alert-banner warning stripe">
             {t('auth.password_expiry_warning', { days: expiryWarningDays })}
-            <button onClick={() => setCurrentViewSafe('profile')} style={{ background: '#fb923c', color: '#fff', border: 'none', borderRadius: '4px', padding: '0.2rem 0.6rem', cursor: 'pointer', fontSize: '0.78rem' }}>
+            <button className="alert-banner-action" onClick={() => setCurrentViewSafe('profile')}>
               {t('auth.change_now')}
             </button>
           </div>
@@ -379,18 +379,14 @@ export default function App() {
                 )}
 
                 {loading && !data && (
-                  <div style={{ marginTop: '4rem', textAlign: 'center', color: 'var(--text-muted)', flexShrink: 0 }}>
-                    <div className="loader-pulse" style={{ width: '40px', height: '40px', background: 'var(--accent-glow)', borderRadius: '50%', margin: '0 auto 1rem' }}></div>
+                  <div className="loading-center" style={{ flexDirection: 'column', marginTop: '4rem', color: 'var(--text-muted)' }}>
+                    <span className="loader-pulse" style={{ marginBottom: '1rem' }} />
                     <p>{t('app.scanning')}</p>
                   </div>
                 )}
 
                 {batchTargets && (
-                  <Suspense fallback={
-                    <div style={{ marginTop: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <span className="loader-pulse" style={{ width: 32, height: 32, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
-                    </div>
-                  }>
+                  <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
                     <BatchResultsPanel
                       targets={batchTargets}
                       lang={lang}
@@ -403,7 +399,7 @@ export default function App() {
                   <div className="fade-in" style={{ flexGrow: 1, paddingTop: '1rem' }}>
                     {/* Stale cache notice */}
                     {data._stale_cache && (
-                      <div style={{ background: 'rgba(251,146,60,0.1)', border: '1px solid #fb923c', color: '#fb923c', padding: '0.6rem 1rem', borderRadius: '8px', marginBottom: '1rem', fontSize: '0.84rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <div className="alert-banner warning">
                         ⚠ {t('app.stale_cache_notice')}
                       </div>
                     )}
@@ -450,7 +446,7 @@ export default function App() {
           {/* ── FEED — dedicated threat intelligence feed page ── */}
           {currentView === 'feed' && (
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+              <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
                 <FeedPage />
               </Suspense>
             </div>
@@ -458,7 +454,7 @@ export default function App() {
 
           {currentView === 'hunting' && (
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+              <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
                 <PremiumHuntingPage />
               </Suspense>
             </div>
@@ -466,7 +462,7 @@ export default function App() {
 
           {currentView === 'exposure' && (
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+              <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
                 <PremiumExposurePage />
               </Suspense>
             </div>
@@ -474,7 +470,7 @@ export default function App() {
 
           {currentView === 'dashboard' && (
             <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
-              <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flexGrow: 1, padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+              <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
                 <Dashboard
                   onSearch={(query) => { setCurrentViewSafe('home'); handleSearch(query); }}
                   onRecon={(target, opts) => { setReconTarget(target); setReconOpenHistory(!!opts?.showHistory); setCurrentView('recon'); }}
@@ -486,7 +482,7 @@ export default function App() {
           {currentView === 'watchlist' && <div className="v-arch-catalog" style={{ flexGrow: 1 }}><WatchlistSettings /></div>}
           {currentView === 'profile' && <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column' }}><Profile initialActiveKey={profileInitialKey ?? 'info'} /></div>}
           {currentView === 'recon' && (
-            <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', padding: '4rem', color: 'var(--primary)' }}><span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%' }} /></div>}>
+            <Suspense fallback={<div className="loading-center"><span className="loader-pulse" /></div>}>
               <ReconPage initialTarget={reconTarget} initialShowHistory={reconOpenHistory} />
             </Suspense>
           )}
@@ -494,7 +490,7 @@ export default function App() {
         </div>{/* end view fade-in wrapper */}
 
         {/* Shared footer — end of scrollable content */}
-        <footer style={{ display: 'flex', justifyContent: 'center', width: '100%', color: 'var(--text-muted)', fontSize: '0.9rem', borderTop: '1px solid var(--glass-border)', padding: '1.2rem 0', flexShrink: 0, background: 'var(--bg-main)' }}>
+        <footer className="v-zone-footer">
           <p>&copy; {new Date().getFullYear()} {brand.copyrightHolder}. All rights reserved.</p>
         </footer>
       </div>

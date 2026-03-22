@@ -14,13 +14,13 @@ const SEVERITY_BG = {
     critical: 'var(--alert-error-bg)',
     high: 'var(--alert-warning-bg)',
     medium: 'var(--ds-warning-soft)',
-    low: 'rgba(255,255,255,0.04)',
-    info: 'rgba(56,189,248,0.08)',
+    low: 'var(--tint-hover)',
+    info: 'var(--ds-brand-soft)',
 };
 
 function RiskBadge({ risk }) {
     const color = SEVERITY_COLOR[risk.severity] || 'var(--text-muted)';
-    const bg = SEVERITY_BG[risk.severity] || 'rgba(255,255,255,0.04)';
+    const bg = SEVERITY_BG[risk.severity] || 'var(--tint-hover)';
     return (
         <div style={{
             display: 'flex', alignItems: 'flex-start', gap: '0.5rem',
@@ -189,7 +189,7 @@ export default function AttackSurface({ results }) {
                         <div style={{ marginTop: '0.75rem', display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                             {web.technologies.map((tech, i) => (
                                 <span key={i} style={{
-                                    background: 'rgba(56,189,248,0.08)', border: '1px solid var(--accent-border)',
+                                    background: 'var(--ds-brand-soft)', border: '1px solid var(--accent-border)',
                                     borderRadius: '6px', padding: '0.15rem 0.5rem', fontSize: '0.75rem',
                                     color: 'var(--primary)',
                                 }}>
@@ -219,13 +219,7 @@ export default function AttackSurface({ results }) {
                                 <p style={{ margin: '0 0 0.3rem', fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Security Headers</p>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                                     {Object.entries(web.security_headers).map(([h, present]) => (
-                                        <span key={h} style={{
-                                            fontSize: '0.7rem', borderRadius: '4px', padding: '0.1rem 0.4rem',
-                                            background: present ? 'var(--alert-success-bg)' : 'var(--alert-error-bg)',
-                                            color: present ? 'var(--green)' : 'var(--red)',
-                                            border: `1px solid ${present ? 'var(--green)' : 'var(--red)'}`,
-                                            opacity: present ? 1 : 0.7,
-                                        }}>
+                                        <span key={h} className={`v-badge v-badge--${present ? 'success' : 'danger'}`} style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', opacity: present ? 1 : 0.7 }}>
                                             {!present && '✕ '}{h}
                                         </span>
                                     ))}

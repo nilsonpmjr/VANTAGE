@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { ShieldAlert, Loader } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import Button from '../ui/Button';
 import '../../index.css';
 import { fmtTimeBRT } from '../../utils/dateFormat';
 import useBrandTheme from '../../branding/useBrandTheme';
@@ -83,22 +83,15 @@ export default function Login({ onForgotPassword }) {
                         />
                     </div>
 
-                    <button
-                        type="submit"
-                        className="btn-primary"
-                        disabled={isSubmitting}
-                    >
-                        {isSubmitting ? <Loader className="spin" size={20} /> : t('login.submit')}
-                    </button>
+                    <Button type="submit" variant="primary" loading={isSubmitting} style={{ width: '100%' }}>
+                        {t('login.submit')}
+                    </Button>
                 </form>
 
                 {onForgotPassword && (
-                    <button
-                        onClick={onForgotPassword}
-                        style={{ marginTop: '1.25rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', textDecoration: 'underline' }}
-                    >
+                    <Button variant="ghost" size="sm" onClick={onForgotPassword} style={{ marginTop: '1.25rem', textDecoration: 'underline' }}>
                         {t('login.forgot_password')}
-                    </button>
+                    </Button>
                 )}
 
             </div>

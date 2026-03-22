@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Trash2, Copy, CheckCircle, Loader, Key } from 'lucide-react';
+import { Plus, Trash2, Copy, CheckCircle, Key } from 'lucide-react';
 import API_URL from '../../config';
+import Button from '../ui/Button';
 import { fmtDateBRT } from '../../utils/dateFormat';
 import ConfirmModal from './ConfirmModal';
 
@@ -124,14 +125,10 @@ export default function ApiKeysManager() {
                             {revealedKey.key}
                         </code>
                         <button
+                            className="service-card-info-btn"
                             onClick={handleCopy}
                             title={t('api_keys.copy_key')}
-                            style={{
-                                background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
-                                borderRadius: '6px', padding: '0.5rem', cursor: 'pointer',
-                                color: copied ? 'var(--green)' : 'var(--text-primary)',
-                                display: 'flex', alignItems: 'center',
-                            }}
+                            style={{ color: copied ? 'var(--green)' : undefined }}
                         >
                             {copied ? <CheckCircle size={16} /> : <Copy size={16} />}
                         </button>
@@ -159,7 +156,7 @@ export default function ApiKeysManager() {
                                 placeholder={t('api_keys.name_placeholder')}
                                 maxLength={80}
                                 required
-                                className="search-input"
+                                className="form-input"
                                 style={{ width: '100%', padding: '0.5rem 0.75rem', background: 'var(--bg-card)', fontSize: '0.85rem' }}
                             />
                         </div>
@@ -174,7 +171,7 @@ export default function ApiKeysManager() {
                                 placeholder={t('api_keys.expiry_placeholder')}
                                 min={1}
                                 max={3650}
-                                className="search-input"
+                                className="form-input"
                                 style={{ width: '120px', padding: '0.5rem 0.75rem', background: 'var(--bg-card)', fontSize: '0.85rem' }}
                             />
                         </div>
@@ -207,29 +204,18 @@ export default function ApiKeysManager() {
                         </div>
                     </div>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button type="submit" disabled={creating} className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 1rem', fontSize: '0.85rem' }}>
-                            {creating ? <Loader className="spin" size={14} /> : <Plus size={14} />}
+                        <Button type="submit" variant="primary" size="sm" loading={creating} iconLeading={<Plus size={14} />}>
                             {t('api_keys.create_btn')}
-                        </button>
-                        <button type="button" onClick={() => { setShowForm(false); setError(''); setNewKeyScopes(['analyze']); }} style={{ padding: '0.45rem 1rem', fontSize: '0.85rem', background: 'transparent', border: '1px solid var(--glass-border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer' }}>
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setShowForm(false); setError(''); setNewKeyScopes(['analyze']); }}>
                             {t('api_keys.cancel')}
-                        </button>
+                        </Button>
                     </div>
                 </form>
             ) : (
-                <button
-                    onClick={() => { setShowForm(true); setError(''); }}
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.45rem 1rem', marginBottom: '1.25rem',
-                        background: 'var(--accent-glow)', border: '1px solid var(--accent-border)',
-                        borderRadius: 'var(--radius-sm)', color: 'var(--text-primary)',
-                        cursor: 'pointer', fontSize: '0.85rem', fontWeight: 500,
-                    }}
-                >
-                    <Plus size={15} />
+                <Button variant="secondary" size="sm" onClick={() => { setShowForm(true); setError(''); }} iconLeading={<Plus size={15} />} style={{ marginBottom: '1.25rem' }}>
                     {t('api_keys.new_key')}
-                </button>
+                </Button>
             )}
 
             {/* Keys list */}
@@ -271,12 +257,7 @@ export default function ApiKeysManager() {
                                     {k.scopes && k.scopes.length > 0 && (
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginTop: '0.3rem' }}>
                                             {k.scopes.map(s => (
-                                                <span key={s} style={{
-                                                    fontSize: '0.65rem', padding: '0.1rem 0.4rem',
-                                                    borderRadius: '4px', fontFamily: 'monospace',
-                                                    background: 'rgba(99, 102, 241, 0.12)',
-                                                    color: 'var(--primary)', border: '1px solid rgba(99, 102, 241, 0.25)',
-                                                }}>
+                                                <span key={s} className="v-badge v-badge--primary" style={{ fontSize: '0.65rem', padding: '0.1rem 0.4rem', fontFamily: 'monospace' }}>
                                                     {s}
                                                 </span>
                                             ))}

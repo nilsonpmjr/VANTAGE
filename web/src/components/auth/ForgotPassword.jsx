@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Mail, Loader, ShieldAlert, ArrowLeft } from 'lucide-react';
+import { Mail, ShieldAlert, ArrowLeft } from 'lucide-react';
 import API_URL from '../../config';
 import useBrandTheme from '../../branding/useBrandTheme';
+import Button from '../ui/Button';
 
 export default function ForgotPassword({ onBack }) {
     const { t } = useTranslation();
@@ -59,10 +60,9 @@ export default function ForgotPassword({ onBack }) {
                             <Mail size={18} />
                             {t('forgot_password.sent_notice')}
                         </div>
-                        <button onClick={onBack} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                            <ArrowLeft size={16} />
+                        <Button variant="primary" onClick={onBack} iconLeading={<ArrowLeft size={16} />} style={{ width: '100%' }}>
                             {t('forgot_password.back_to_login')}
-                        </button>
+                        </Button>
                     </div>
                 ) : (
                     <>
@@ -87,18 +87,14 @@ export default function ForgotPassword({ onBack }) {
                                 />
                             </div>
 
-                            <button type="submit" disabled={loading} className="btn-primary">
-                                {loading ? <Loader className="spin" size={18} /> : t('forgot_password.submit')}
-                            </button>
+                            <Button type="submit" variant="primary" loading={loading} style={{ width: '100%' }}>
+                                {t('forgot_password.submit')}
+                            </Button>
                         </form>
 
-                        <button
-                            onClick={onBack}
-                            style={{ marginTop: '1rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem', margin: '1rem auto 0' }}
-                        >
-                            <ArrowLeft size={14} />
+                        <Button variant="ghost" size="sm" onClick={onBack} iconLeading={<ArrowLeft size={14} />} style={{ margin: '1rem auto 0' }}>
                             {t('forgot_password.back_to_login')}
-                        </button>
+                        </Button>
                     </>
                 )}
             </div>

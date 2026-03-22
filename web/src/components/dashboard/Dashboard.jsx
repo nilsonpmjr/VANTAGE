@@ -11,42 +11,35 @@ import { fmtBRT } from '../../utils/dateFormat';
 import SettingsShell from '../layout/SettingsShell';
 import ReconAdminPanel from '../admin/ReconAdminPanel';
 import Pagination from '../shared/Pagination';
+import Badge from '../ui/Badge';
+import Button from '../ui/Button';
 import '../../index.css';
 
 // Pie Chart Colors
-const COLOR_SAFE = 'var(--status-safe)';
-const COLOR_SUSPICIOUS = 'var(--status-suspicious)';
 const COLOR_MALICIOUS = 'var(--status-risk)';
 
 const getVerdictColor = (verdict) => {
     if (!verdict) return 'var(--text-muted)';
     const v = verdict.toUpperCase();
-    if (v === 'SAFE') return COLOR_SAFE;
-    if (v === 'SUSPICIOUS') return COLOR_SUSPICIOUS;
+    if (v === 'SAFE') return 'var(--status-safe)';
+    if (v === 'SUSPICIOUS') return 'var(--status-suspicious)';
     if (v === 'HIGH RISK') return COLOR_MALICIOUS;
     return 'var(--primary)';
 };
 
-const getVerdictIcon = (verdict) => {
-    if (!verdict) return <Activity size={16} />;
-    const v = verdict.toUpperCase();
-    if (v === 'SAFE') return <ShieldCheck size={16} color={COLOR_SAFE} />;
-    if (v === 'SUSPICIOUS') return <AlertTriangle size={16} color={COLOR_SUSPICIOUS} />;
-    if (v === 'HIGH RISK') return <ShieldAlert size={16} color={COLOR_MALICIOUS} />;
-    return <Activity size={16} />;
+const VERDICT_MAP = {
+    'SAFE':       { variant: 'success', icon: ShieldCheck },
+    'SUSPICIOUS': { variant: 'warning', icon: AlertTriangle },
+    'HIGH RISK':  { variant: 'danger',  icon: ShieldAlert },
 };
 
 function VerdictBadge({ verdict }) {
+    const v = verdict ? verdict.toUpperCase() : null;
+    const { variant, icon: Icon } = VERDICT_MAP[v] || { variant: 'neutral', icon: Activity };
     return (
-        <span style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-            color: getVerdictColor(verdict),
-            fontSize: '0.8rem', fontWeight: 600,
-            background: 'var(--glass-bg)', padding: '0.3rem 0.6rem', borderRadius: '1rem',
-            border: `1px solid ${getVerdictColor(verdict)}`,
-        }}>
-            {getVerdictIcon(verdict)} {verdict || 'N/A'}
-        </span>
+        <Badge variant={variant}>
+            <Icon size={14} /> {verdict || 'N/A'}
+        </Badge>
     );
 }
 
@@ -206,15 +199,16 @@ export default function Dashboard({ onSearch, onRecon }) {
                         <option value="month">{t('dashboard.time_month')}</option>
                         <option value="all">{t('dashboard.time_all')}</option>
                     </select>
-                    <button
-                        className="btn-secondary"
+                    <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={handleExportPDF}
                         disabled={isExporting}
-                        style={{ padding: '0.5rem 0.75rem', fontSize: '0.85rem' }}
+                        loading={isExporting}
+                        iconLeading={isExporting ? undefined : <Download size={16} />}
                     >
-                        {isExporting ? <Activity size={16} className="spin" /> : <Download size={16} />}
                         {isExporting ? t('dashboard.export_active') : t('dashboard.export_idle')}
-                    </button>
+                    </Button>
                 </div>
             </div>
 
@@ -222,33 +216,33 @@ export default function Dashboard({ onSearch, onRecon }) {
             {activeTab === 'overview' && (
                 <div ref={dashboardRef} className="fade-in">
                     {/* Stat Cards */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
-                        <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: 'rgba(56, 189, 248, 0.1)', padding: '0.75rem', borderRadius: '12px', color: 'var(--primary)' }}><Activity size={28} /></div>
+                    <div className="stat-grid stat-grid--wide">
+                        <div className="stat-card stat-card--icon">
+                            <div className="stat-card-icon" style={{ background: 'var(--ds-brand-soft)', color: 'var(--primary)' }}><Activity size={28} /></div>
                             <div>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.total_scans')}</p>
-                                <h3 style={{ margin: '0.3rem 0 0 0', color: 'var(--text-primary)', fontSize: '1.8rem', fontWeight: 600 }}>{stats?.totalScans || 0}</h3>
+                                <p className="stat-card-label">{t('dashboard.total_scans')}</p>
+                                <h3 className="stat-card-value">{stats?.totalScans || 0}</h3>
                             </div>
                         </div>
-                        <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: 'var(--alert-error-bg)', padding: '0.75rem', borderRadius: '12px', color: 'var(--alert-error)' }}><ShieldAlert size={28} /></div>
+                        <div className="stat-card stat-card--icon">
+                            <div className="stat-card-icon" style={{ background: 'var(--alert-error-bg)', color: 'var(--alert-error)' }}><ShieldAlert size={28} /></div>
                             <div>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.threats')}</p>
-                                <h3 style={{ margin: '0.3rem 0 0 0', color: 'var(--text-primary)', fontSize: '1.8rem', fontWeight: 600 }}>{stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}</h3>
+                                <p className="stat-card-label">{t('dashboard.threats')}</p>
+                                <h3 className="stat-card-value">{stats?.verdictDistribution?.find(v => v.name === 'HIGH RISK')?.value || 0}</h3>
                             </div>
                         </div>
-                        <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: 'rgba(56, 189, 248, 0.08)', padding: '0.75rem', borderRadius: '12px', color: 'var(--primary)' }}><Radar size={28} /></div>
+                        <div className="stat-card stat-card--icon">
+                            <div className="stat-card-icon" style={{ background: 'var(--ds-brand-soft)', color: 'var(--primary)' }}><Radar size={28} /></div>
                             <div>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('recon.title')}</p>
-                                <h3 style={{ margin: '0.3rem 0 0 0', color: 'var(--text-primary)', fontSize: '1.8rem', fontWeight: 600 }}>{stats?.reconTotal ?? 0}</h3>
+                                <p className="stat-card-label">{t('recon.title')}</p>
+                                <h3 className="stat-card-value">{stats?.reconTotal ?? 0}</h3>
                             </div>
                         </div>
-                        <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ background: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success-bg)' : 'var(--alert-warning-bg)', padding: '0.75rem', borderRadius: '12px', color: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success)' : 'var(--alert-warning)' }}><ShieldCheck size={28} /></div>
+                        <div className="stat-card stat-card--icon">
+                            <div className="stat-card-icon" style={{ background: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success-bg)' : 'var(--alert-warning-bg)', color: stats?.workerHealth?.status === 'Healthy' ? 'var(--alert-success)' : 'var(--alert-warning)' }}><ShieldCheck size={28} /></div>
                             <div>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dashboard.worker_mon')}</p>
-                                <h3 style={{ margin: '0.15rem 0 0 0', color: 'var(--text-primary)', fontSize: '1rem', fontWeight: 600 }}>{stats?.workerHealth?.status === 'Healthy' ? t('dashboard.healthy') : t('dashboard.offline')}</h3>
+                                <p className="stat-card-label">{t('dashboard.worker_mon')}</p>
+                                <h3 className="stat-card-value" style={{ fontSize: '1rem' }}>{stats?.workerHealth?.status === 'Healthy' ? t('dashboard.healthy') : t('dashboard.offline')}</h3>
                                 {stats?.workerHealth?.last_run && (
                                     <p style={{ margin: '0.15rem 0 0 0', color: 'var(--text-muted)', fontSize: '0.7rem' }}>{t('dashboard.seen_at')}: {fmtBRT(stats.workerHealth.last_run, locale())}</p>
                                 )}
@@ -317,7 +311,7 @@ export default function Dashboard({ onSearch, onRecon }) {
                     </div>
 
                     {/* Typologies + Top Artifacts */}
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', marginTop: '2rem' }}>
+                    <div className="dashboard-grid-2col" style={{ marginTop: '2rem' }}>
                         {/* Top Threat Types */}
                         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column' }}>
                             <h3 style={{ margin: '0 0 1.5rem 0', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
@@ -346,35 +340,35 @@ export default function Dashboard({ onSearch, onRecon }) {
                         </div>
 
                         {/* Top Targets */}
-                        <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
-                                <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                        <div className="glass-panel" style={{ padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                            <div className="data-table-toolbar">
+                                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                     <Target size={20} color="var(--primary)" />
                                     {t('dashboard.top_artifacts')}
                                 </h3>
                             </div>
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table className="data-table">
                                     <caption className="sr-only">{t('dashboard.top_artifacts')}</caption>
-                                    <thead style={{ background: 'var(--bg-main)' }}>
+                                    <thead>
                                         <tr>
-                                            <th scope="col" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.8rem' }}>{t('dashboard.artifact')}</th>
-                                            <th scope="col" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.8rem' }}>{t('dashboard.type')}</th>
-                                            <th scope="col" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.8rem', textAlign: 'center' }}>{t('dashboard.searches')}</th>
-                                            <th scope="col" style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.8rem', textAlign: 'right' }}>{t('dashboard.last_risk')}</th>
+                                            <th>{t('dashboard.artifact').toUpperCase()}</th>
+                                            <th>{t('dashboard.type').toUpperCase()}</th>
+                                            <th style={{ textAlign: 'center' }}>{t('dashboard.searches').toUpperCase()}</th>
+                                            <th style={{ textAlign: 'right' }}>{t('dashboard.last_risk').toUpperCase()}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {!stats?.topTargets?.length ? (
                                             <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_artifacts')}</td></tr>
-                                        ) : stats.topTargets.map((item, idx) => (
-                                            <tr key={item.target} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
-                                                <td onClick={() => onSearch?.(item.target)} style={{ padding: '0.75rem 1rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.88rem', cursor: 'pointer', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.target}>
+                                        ) : stats.topTargets.map((item) => (
+                                            <tr key={item.target}>
+                                                <td onClick={() => onSearch?.(item.target)} className="mono" style={{ color: 'var(--primary)', cursor: 'pointer', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.target}>
                                                     <span style={{ textDecoration: 'underline' }}>{item.target}</span>
                                                 </td>
-                                                <td style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.75rem' }}>{item.type}</td>
-                                                <td style={{ padding: '0.75rem 1rem', color: 'var(--text-primary)', textAlign: 'center', fontWeight: 600 }}>{item.count}</td>
-                                                <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}><VerdictBadge verdict={item.verdict} /></td>
+                                                <td style={{ color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: '0.75rem' }}>{item.type}</td>
+                                                <td style={{ textAlign: 'center', fontWeight: 600 }}>{item.count}</td>
+                                                <td style={{ textAlign: 'right' }}><VerdictBadge verdict={item.verdict} /></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -388,9 +382,9 @@ export default function Dashboard({ onSearch, onRecon }) {
             {/* ===== TAB: HISTORY ===== */}
             {activeTab === 'history' && (
                 <div className="fade-in">
-                    <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <h3 style={{ margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
+                    <div className="glass-panel" style={{ padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                        <div className="data-table-toolbar">
+                            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <History size={20} color="var(--primary)" />
                                 {t('dashboard.recent_history')}
                             </h3>
@@ -404,27 +398,27 @@ export default function Dashboard({ onSearch, onRecon }) {
                             </div>
                         ) : (
                             <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                                <table className="data-table">
                                     <caption className="sr-only">{t('dashboard.recent_history')}</caption>
-                                    <thead style={{ background: 'var(--bg-main)' }}>
+                                    <thead>
                                         <tr>
-                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.analyst')}</th>
-                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
-                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
-                                            <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
+                                            <th>{t('dashboard.analyst').toUpperCase()}</th>
+                                            <th>{t('dashboard.datetime').toUpperCase()}</th>
+                                            <th>{t('dashboard.artifact').toUpperCase()}</th>
+                                            <th style={{ textAlign: 'right' }}>{t('dashboard.verdict').toUpperCase()}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {!historyScans.length ? (
                                             <tr><td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_history')}</td></tr>
                                         ) : historyScans.map((scan, idx) => (
-                                            <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
-                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.9rem' }}><AnalystCell analyst={scan.analyst} /></td>
-                                                <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
-                                                <td onClick={() => onSearch?.(scan.target)} style={{ padding: '1rem 1.5rem', color: 'var(--primary)', fontFamily: 'monospace', fontSize: '0.9rem', cursor: 'pointer', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
+                                            <tr key={idx}>
+                                                <td style={{ color: 'var(--text-secondary)' }}><AnalystCell analyst={scan.analyst} /></td>
+                                                <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
+                                                <td onClick={() => onSearch?.(scan.target)} className="mono" style={{ color: 'var(--primary)', cursor: 'pointer', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
                                                     <span style={{ textDecoration: 'underline' }}>{scan.target}</span>
                                                 </td>
-                                                <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
+                                                <td style={{ textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
                                             </tr>
                                         ))}
                                     </tbody>
@@ -452,33 +446,33 @@ export default function Dashboard({ onSearch, onRecon }) {
             {/* ===== TAB: ALERTS ===== */}
             {activeTab === 'alerts' && (
                 <div className="fade-in">
-                    <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-                        <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+                    <div className="glass-panel" style={{ padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                        <div className="data-table-toolbar">
                             <h3 style={{ margin: 0, color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '1.1rem' }}>
                                 <AlertTriangle size={20} color="var(--red)" />
                                 {t('dashboard.crit_incident')}
                             </h3>
                         </div>
                         <div style={{ overflowX: 'auto' }}>
-                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                            <table className="data-table">
                                 <caption className="sr-only">{t('dashboard.crit_incident')}</caption>
-                                <thead style={{ background: 'var(--bg-main)' }}>
+                                <thead>
                                     <tr>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.datetime')}</th>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem' }}>{t('dashboard.artifact')}</th>
-                                        <th scope="col" style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontWeight: 500, fontSize: '0.85rem', textAlign: 'right' }}>{t('dashboard.verdict')}</th>
+                                        <th>{t('dashboard.datetime').toUpperCase()}</th>
+                                        <th>{t('dashboard.artifact').toUpperCase()}</th>
+                                        <th style={{ textAlign: 'right' }}>{t('dashboard.verdict').toUpperCase()}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {!stats?.criticalIncidents?.length ? (
                                         <tr><td colSpan="3" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('dashboard.no_crits')}</td></tr>
                                     ) : stats.criticalIncidents.map((scan, idx) => (
-                                        <tr key={idx} style={{ borderTop: idx > 0 ? '1px solid var(--glass-border)' : 'none' }}>
-                                            <td style={{ padding: '1rem 1.5rem', color: 'var(--text-secondary)', fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
-                                            <td onClick={() => onSearch?.(scan.target)} style={{ padding: '1rem 1.5rem', color: 'var(--red)', fontFamily: 'monospace', fontSize: '0.9rem', cursor: 'pointer', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
+                                        <tr key={idx}>
+                                            <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtBRT(scan.timestamp, locale())}</td>
+                                            <td onClick={() => onSearch?.(scan.target)} className="mono" style={{ color: 'var(--red)', cursor: 'pointer', maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={scan.target}>
                                                 <span style={{ textDecoration: 'underline' }}>{scan.target}</span>
                                             </td>
-                                            <td style={{ padding: '1rem 1.5rem', textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
+                                            <td style={{ textAlign: 'right' }}><VerdictBadge verdict={scan.verdict} /></td>
                                         </tr>
                                     ))}
                                 </tbody>

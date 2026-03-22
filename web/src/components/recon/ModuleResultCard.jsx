@@ -219,10 +219,10 @@ function DetailView({ module, data }) {
                         <p style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--primary)', textTransform: 'uppercase', margin: '0 0 0.4rem' }}>Security Headers</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
                             {presentHeaders.map(([h]) => (
-                                <span key={h} style={{ fontSize: '0.72rem', background: 'var(--alert-success-bg)', color: 'var(--green)', border: '1px solid var(--green)', borderRadius: '4px', padding: '0.1rem 0.4rem' }}>{h}</span>
+                                <span key={h} className="v-badge v-badge--success" style={{ fontSize: '0.72rem', padding: '0.1rem 0.4rem' }}>{h}</span>
                             ))}
                             {missingHeaders.map(([h]) => (
-                                <span key={h} style={{ fontSize: '0.72rem', background: 'var(--alert-error-bg)', color: 'var(--red)', border: '1px solid var(--red)', borderRadius: '4px', padding: '0.1rem 0.4rem', opacity: 0.7 }}>✕ {h}</span>
+                                <span key={h} className="v-badge v-badge--danger" style={{ fontSize: '0.72rem', padding: '0.1rem 0.4rem', opacity: 0.7 }}>✕ {h}</span>
                             ))}
                         </div>
                     </div>
@@ -313,10 +313,10 @@ export default function ModuleResultCard({ module, result, target }) {
 
                     {!isRunning && data && (
                         <>
-                            <button onClick={(e) => { e.stopPropagation(); copyJSON(); }} title={t('recon.copy_json')} style={{ background: 'transparent', border: 'none', color: copied ? 'var(--green)' : 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
+                            <button className="service-card-info-btn" onClick={(e) => { e.stopPropagation(); copyJSON(); }} title={t('recon.copy_json')} style={{ color: copied ? 'var(--green)' : undefined }}>
                                 <Copy size={13} />
                             </button>
-                            <button onClick={(e) => { e.stopPropagation(); exportJSON(data, target, module.name); }} title={t('recon.export_module')} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.2rem', display: 'flex' }}>
+                            <button className="service-card-info-btn" onClick={(e) => { e.stopPropagation(); exportJSON(data, target, module.name); }} title={t('recon.export_module')}>
                                 <Download size={13} />
                             </button>
                             <div style={{ color: 'var(--text-muted)', display: 'flex', padding: '0.2rem' }}>

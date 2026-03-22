@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Loader, Download, ChevronLeft, ChevronRight, Search, Filter } from 'lucide-react';
+import { Loader, Download, Search, Filter } from 'lucide-react';
 import { fmtBRT } from '../../utils/dateFormat';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
+import Button from '../ui/Button';
+import Badge from '../ui/Badge';
+import Pagination from '../shared/Pagination';
 
-const RESULT_COLORS = {
-    success: 'var(--alert-success)',
-    failure: 'var(--alert-error)',
-    denied: 'var(--alert-warning)',
+const RESULT_VARIANT = {
+    success: 'success',
+    failure: 'danger',
+    denied: 'warning',
 };
 
 export default function AuditLogTable() {
@@ -82,26 +85,28 @@ export default function AuditLogTable() {
     return (
         <div className="v-density-compact">
             {/* Filters */}
-            <form onSubmit={handleSearch} style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1.5rem', alignItems: 'flex-end' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', flexGrow: 1, minWidth: '140px' }}>
-                    <Search size={14} color="var(--text-muted)" />
+            <form onSubmit={handleSearch} className="data-table-toolbar" style={{ flexWrap: 'wrap', marginBottom: '1.5rem', borderBottom: 'none', gap: '0.75rem' }}>
+                <div style={{ position: 'relative', flexGrow: 1, minWidth: '140px' }}>
+                    <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                     <input
                         type="text" value={filterUser} onChange={e => setFilterUser(e.target.value)}
                         placeholder={t('audit.filter_user')}
-                        style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.85rem', width: '100%' }}
+                        className="form-input"
+                        style={{ paddingLeft: '2rem' }}
                     />
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', flexGrow: 1, minWidth: '140px' }}>
-                    <Filter size={14} color="var(--text-muted)" />
+                <div style={{ position: 'relative', flexGrow: 1, minWidth: '140px' }}>
+                    <Filter size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
                     <input
                         type="text" value={filterAction} onChange={e => setFilterAction(e.target.value)}
                         placeholder={t('audit.filter_action')}
-                        style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.85rem', width: '100%' }}
+                        className="form-input"
+                        style={{ paddingLeft: '2rem' }}
                     />
                 </div>
                 <select
                     value={filterResult} onChange={e => setFilterResult(e.target.value)}
-                    style={{ background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.85rem', cursor: 'pointer' }}
+                    className="form-select"
                 >
                     <option value="">{t('audit.filter_all')}</option>
                     <option value="success">{t('audit.filter_success')}</option>
@@ -111,61 +116,59 @@ export default function AuditLogTable() {
                 <input
                     type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
                     title={t('audit.filter_from')}
-                    style={{ background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                    className="form-input"
                 />
                 <input
                     type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
                     title={t('audit.filter_to')}
-                    style={{ background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', padding: '0.4rem 0.75rem', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                    className="form-input"
                 />
-                <button type="submit" className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.85rem' }}>
+                <Button type="submit" variant="primary" size="sm" iconLeading={<Search size={14} />}>
                     {t('audit.search')}
-                </button>
-                <button type="button" onClick={() => handleExport('csv')} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.75rem', background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '8px', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}>
-                    <Download size={14} /> CSV
-                </button>
+                </Button>
+                <Button variant="secondary" size="sm" onClick={() => handleExport('csv')} iconLeading={<Download size={14} />}>
+                    CSV
+                </Button>
             </form>
 
             {/* Table */}
-            <div style={{ overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--glass-border)', paddingBottom: '2px' }}>
-                <table style={{ width: '100%', minWidth: '860px', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.82rem' }}>
-                    <thead style={{ background: 'var(--bg-main)' }}>
-                        <tr>
-                            {['col_timestamp', 'col_user', 'col_action', 'col_target', 'col_result', 'col_ip', 'col_detail'].map(k => (
-                                <th key={k} style={{ padding: '0.75rem 1rem', color: 'var(--text-secondary)', fontWeight: 500, whiteSpace: 'nowrap' }}>
-                                    {t(`audit.${k}`).toUpperCase()}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {loading && (
-                            <tr><td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader className="spin" size={20} /></td></tr>
-                        )}
-                        {!loading && items.length === 0 && (
-                            <tr><td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('audit.no_entries')}</td></tr>
-                        )}
-                        {!loading && items.map((item, idx) => (
-                            <tr key={idx} style={{ borderTop: '1px solid var(--glass-border)' }}>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatTs(item.timestamp)}</td>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-primary)', fontFamily: 'monospace' }}>{item.user}</td>
-                                <td style={{ padding: '0.6rem 1rem' }}>
-                                    <span style={{ background: 'var(--bg-card)', border: '1px solid var(--glass-border)', borderRadius: '4px', padding: '0.15rem 0.5rem', fontFamily: 'monospace', color: 'var(--primary)', fontSize: '0.78rem' }}>
-                                        {item.action}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{item.target || '—'}</td>
-                                <td style={{ padding: '0.6rem 1rem' }}>
-                                    <span style={{ color: RESULT_COLORS[item.result] || 'var(--text-muted)', fontWeight: 600, fontSize: '0.78rem' }}>
-                                        {t(`audit.result_${item.result}`) || item.result}
-                                    </span>
-                                </td>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-muted)', fontFamily: 'monospace', fontSize: '0.78rem' }}>{item.ip || '—'}</td>
-                                <td style={{ padding: '0.6rem 1rem', color: 'var(--text-secondary)', minWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.detail}>{item.detail || '—'}</td>
+            <div className="glass-panel" style={{ padding: 0, borderRadius: '12px', overflow: 'hidden' }}>
+                <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                        <thead>
+                            <tr>
+                                {['col_timestamp', 'col_user', 'col_action', 'col_target', 'col_result', 'col_ip', 'col_detail'].map(k => (
+                                    <th key={k}>{t(`audit.${k}`).toUpperCase()}</th>
+                                ))}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {loading && (
+                                <tr><td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}><Loader className="spin" size={20} /></td></tr>
+                            )}
+                            {!loading && items.length === 0 && (
+                                <tr><td colSpan="7" style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>{t('audit.no_entries')}</td></tr>
+                            )}
+                            {!loading && items.map((item, idx) => (
+                                <tr key={idx}>
+                                    <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{formatTs(item.timestamp)}</td>
+                                    <td className="mono">{item.user}</td>
+                                    <td>
+                                        <Badge variant="primary">{item.action}</Badge>
+                                    </td>
+                                    <td style={{ color: 'var(--text-secondary)' }} className="mono">{item.target || '—'}</td>
+                                    <td>
+                                        <Badge variant={RESULT_VARIANT[item.result] || 'neutral'}>
+                                            {t(`audit.result_${item.result}`) || item.result}
+                                        </Badge>
+                                    </td>
+                                    <td style={{ color: 'var(--text-muted)' }} className="mono">{item.ip || '—'}</td>
+                                    <td style={{ color: 'var(--text-secondary)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={item.detail}>{item.detail || '—'}</td>
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Pagination */}
@@ -174,14 +177,7 @@ export default function AuditLogTable() {
                     <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
                         {t('audit.page_of', { page, pages })} — {total} {t('audit.total_entries')}
                     </span>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                        <button onClick={() => fetchLogs(page - 1)} disabled={page <= 1} style={{ background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '6px', padding: '0.3rem 0.6rem', cursor: page <= 1 ? 'not-allowed' : 'pointer', color: page <= 1 ? 'var(--glass-border)' : 'var(--text-primary)' }}>
-                            <ChevronLeft size={16} />
-                        </button>
-                        <button onClick={() => fetchLogs(page + 1)} disabled={page >= pages} style={{ background: 'var(--bg-main)', border: '1px solid var(--glass-border)', borderRadius: '6px', padding: '0.3rem 0.6rem', cursor: page >= pages ? 'not-allowed' : 'pointer', color: page >= pages ? 'var(--glass-border)' : 'var(--text-primary)' }}>
-                            <ChevronRight size={16} />
-                        </button>
-                    </div>
+                    <Pagination page={page} totalPages={pages} onPageChange={fetchLogs} />
                 </div>
             )}
         </div>

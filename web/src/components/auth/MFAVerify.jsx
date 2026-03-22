@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ShieldCheck, Loader } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import API_URL from '../../config';
+import Button from '../ui/Button';
 
 /**
  * OTP input screen shown after successful password login when mfa_required=true.
@@ -87,29 +88,22 @@ export default function MFAVerify({ onSuccess, onCancel }) {
                         }}
                         placeholder={isBackupMode ? 'XXXXXX-XXXXXX' : '000000'}
                     />
-                    <button type="submit" disabled={loading || (isBackupMode ? otp.replace('-', '').length < 12 : otp.length < 6)} className="btn-primary" style={{ width: '100%', marginBottom: '0.75rem' }}>
-                        {loading ? <Loader className="spin" size={18} /> : t('mfa.verify_btn')}
-                    </button>
+                    <Button type="submit" variant="primary" loading={loading} disabled={isBackupMode ? otp.replace('-', '').length < 12 : otp.length < 6} style={{ width: '100%', marginBottom: '0.75rem' }}>
+                        {t('mfa.verify_btn')}
+                    </Button>
                 </form>
 
-                <button
-                    onClick={onCancel}
-                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.82rem' }}
-                >
+                <Button variant="ghost" size="sm" onClick={onCancel}>
                     {t('mfa.back_to_login')}
-                </button>
+                </Button>
 
                 <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--glass-border)', paddingTop: '1rem' }}>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.5rem 0' }}>
                         {t('mfa.lost_access_hint')}
                     </p>
-                    <button
-                        type="button"
-                        onClick={() => { setIsBackupMode(b => !b); setOtp(''); setError(''); inputRef.current?.focus(); }}
-                        style={{ background: 'none', border: 'none', color: 'var(--primary)', cursor: 'pointer', fontSize: '0.82rem', textDecoration: 'underline' }}
-                    >
+                    <Button variant="ghost" size="sm" onClick={() => { setIsBackupMode(b => !b); setOtp(''); setError(''); inputRef.current?.focus(); }} style={{ textDecoration: 'underline', color: 'var(--primary)' }}>
                         {isBackupMode ? t('mfa.use_totp_instead') : t('mfa.use_backup_code')}
-                    </button>
+                    </Button>
                 </div>
             </div>
         </div>

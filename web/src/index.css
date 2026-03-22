@@ -47,6 +47,24 @@
   --bg-card: var(--v-bg-card);
   --bg-main: var(--v-steel);
 
+  /* Theme-aware overlay tints — white in dark mode, black in light mode.
+     Use instead of hardcoded rgba(255,255,255,*) for subtle layering. */
+  --tint-subtlest: rgba(255, 255, 255, 0.02);
+  --tint-subtle: rgba(255, 255, 255, 0.03);
+  --tint-hover: rgba(255, 255, 255, 0.05);
+  --tint-active: rgba(255, 255, 255, 0.08);
+  --tint-emphasis: rgba(255, 255, 255, 0.12);
+  --tint-strong: rgba(255, 255, 255, 0.15);
+
+  /* Sunken surface — used for inputs and inset elements */
+  --surface-sunken: rgba(2, 6, 23, 0.42);
+  --surface-sunken-focus: rgba(2, 6, 23, 0.52);
+  --surface-sunken-subtle: rgba(2, 6, 23, 0.24);
+
+  /* Panel gradient overlay */
+  --panel-gradient-from: rgba(30, 41, 59, 0.22);
+  --panel-gradient-to: rgba(15, 23, 42, 0.08);
+
   /* Layout */
   --gap-sm: 0.5rem;
   --gap-md: 1rem;
@@ -88,7 +106,7 @@
   --text-muted: #64748b;
   --bg-card: rgba(255, 255, 255, 0.95);
   --bg-main: #f1f5f9;
-  
+
   --glass-bg: rgba(255, 255, 255, 0.85);
   --glass-border: rgba(15, 23, 42, 0.1);
   --glass-shadow: 0 4px 16px rgba(0, 0, 0, 0.05);
@@ -96,7 +114,30 @@
   --primary: #0284c7;
   --accent-glow: rgba(2, 132, 199, 0.1);
   --accent-border: rgba(2, 132, 199, 0.2);
-  
+
+  /* Overlay tints — inverted for light backgrounds */
+  --tint-subtlest: rgba(0, 0, 0, 0.015);
+  --tint-subtle: rgba(0, 0, 0, 0.025);
+  --tint-hover: rgba(0, 0, 0, 0.04);
+  --tint-active: rgba(0, 0, 0, 0.06);
+  --tint-emphasis: rgba(0, 0, 0, 0.08);
+  --tint-strong: rgba(0, 0, 0, 0.12);
+
+  /* Sunken surfaces — light inset effect */
+  --surface-sunken: rgba(0, 0, 0, 0.04);
+  --surface-sunken-focus: rgba(0, 0, 0, 0.06);
+  --surface-sunken-subtle: rgba(0, 0, 0, 0.025);
+
+  /* Panel gradient — subtle white layering on light */
+  --panel-gradient-from: rgba(255, 255, 255, 0.6);
+  --panel-gradient-to: rgba(255, 255, 255, 0.3);
+
+  /* Status backgrounds — slightly stronger on light for visibility */
+  --status-safe-bg: rgba(16, 185, 129, 0.12);
+  --status-suspicious-bg: rgba(234, 179, 8, 0.12);
+  --status-risk-bg: rgba(244, 63, 94, 0.12);
+  --status-neutral-bg: rgba(59, 130, 246, 0.12);
+
   --ds-canvas: var(--bg-base);
   --ds-shell: var(--bg-main);
   --ds-surface: var(--glass-bg);
@@ -131,6 +172,17 @@
   --ds-text: var(--text-primary);
   --ds-text-secondary: var(--text-secondary);
   --ds-text-muted: var(--text-muted);
+
+  /* Lock tints to dark-mode values inside navbar */
+  --tint-subtlest: rgba(255, 255, 255, 0.02);
+  --tint-subtle: rgba(255, 255, 255, 0.03);
+  --tint-hover: rgba(255, 255, 255, 0.05);
+  --tint-active: rgba(255, 255, 255, 0.08);
+  --tint-emphasis: rgba(255, 255, 255, 0.12);
+  --tint-strong: rgba(255, 255, 255, 0.15);
+  --surface-sunken: rgba(2, 6, 23, 0.42);
+  --surface-sunken-focus: rgba(2, 6, 23, 0.52);
+  --surface-sunken-subtle: rgba(2, 6, 23, 0.24);
 }
 
 * {
@@ -179,7 +231,7 @@ h4 {
 }
 
 .glass-panel:hover {
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--tint-strong);
   box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.5);
 }
 
@@ -190,7 +242,7 @@ h4 {
 
 .hover-lift:hover {
   transform: translateY(-2px);
-  border-color: var(--hover-accent, rgba(255, 255, 255, 0.15));
+  border-color: var(--hover-accent, var(--tint-strong));
 }
 
 .hover-border {
@@ -206,7 +258,7 @@ h4 {
 }
 
 .hover-row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
 }
 
 .hover-accent-btn {
@@ -247,7 +299,7 @@ h4 {
   padding: 1rem 1.5rem 1rem 3rem;
   font-size: 1.125rem;
   font-family: 'JetBrains Mono', monospace;
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--glass-bg);
   -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   border: 1px solid var(--glass-border);
@@ -255,7 +307,7 @@ h4 {
   color: var(--text-primary);
   outline: none;
   transition: border-color 0.2s;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  box-shadow: var(--glass-shadow);
 }
 
 .search-input:focus {
@@ -287,7 +339,7 @@ h4 {
 
 .lang-select:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-hover);
 }
 
 .lang-select:focus {
@@ -378,12 +430,12 @@ h4 {
   cursor: pointer;
   transition: all 0.2s ease;
   border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tint-emphasis);
   color: var(--text-primary);
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--tint-strong);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -460,11 +512,11 @@ h4 {
 .v-btn--ghost {
   background: transparent;
   color: var(--ds-text-secondary);
-  border-color: rgba(255, 255, 255, 0.06);
+  border-color: var(--tint-active);
 }
 
 .v-btn--ghost:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-hover);
   color: var(--ds-text);
   border-color: var(--ds-border);
 }
@@ -532,7 +584,7 @@ h4 {
 .v-panel {
   position: relative;
   background:
-    linear-gradient(180deg, rgba(30, 41, 59, 0.22), rgba(15, 23, 42, 0.08)),
+    linear-gradient(180deg, var(--panel-gradient-from), var(--panel-gradient-to)),
     var(--ds-surface);
   -webkit-backdrop-filter: var(--ds-blur-panel);
   backdrop-filter: var(--ds-blur-panel);
@@ -584,7 +636,7 @@ h4 {
   padding: 0.7rem 0.85rem;
   border-radius: var(--radius-md);
   border: 1px solid var(--ds-border);
-  background: rgba(2, 6, 23, 0.42);
+  background: var(--surface-sunken);
   color: var(--ds-text);
   font-size: 0.9rem;
   font-family: inherit;
@@ -599,7 +651,7 @@ h4 {
   outline: none;
   border-color: var(--ds-brand-border);
   box-shadow: 0 0 0 3px var(--ds-brand-soft);
-  background: rgba(2, 6, 23, 0.52);
+  background: var(--surface-sunken-focus);
 }
 
 .v-input:disabled {
@@ -633,14 +685,14 @@ h4 {
 .v-token-card {
   padding: 0.95rem;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(2, 6, 23, 0.24);
+  border: 1px solid var(--tint-active);
+  background: var(--surface-sunken-subtle);
 }
 
 .v-token-swatch {
   height: 4rem;
   border-radius: calc(var(--radius-md) - 2px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--tint-active);
   margin-bottom: 0.75rem;
 }
 
@@ -680,8 +732,8 @@ h4 {
   align-items: flex-start;
   padding: 0.85rem 0.95rem;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  background: rgba(2, 6, 23, 0.22);
+  border: 1px solid var(--tint-active);
+  background: var(--surface-sunken-subtle);
 }
 
 .v-rule-item svg {
@@ -729,7 +781,7 @@ h4 {
   border-radius: var(--radius-md);
   border: 1px solid var(--glass-border);
   background:
-    linear-gradient(135deg, rgba(var(--v-cyan-rgb), 0.12), rgba(255, 255, 255, 0.02)),
+    linear-gradient(135deg, rgba(var(--v-cyan-rgb), 0.12), var(--tint-subtlest)),
     var(--glass-bg);
   color: var(--text-secondary);
   font-size: 0.84rem;
@@ -798,6 +850,48 @@ h4 {
   padding: 1rem;
 }
 
+/* stripe variant — full-width horizontal bar (App.jsx banners) */
+.alert-banner.stripe {
+  border-radius: 0;
+  margin-bottom: 0;
+  border: none;
+  border-bottom: 1px solid currentColor;
+  padding: 0.5rem 1.5rem;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* action button inside alert-banner — inherits parent color */
+.alert-banner-action {
+  background: currentColor;
+  color: var(--bg-main);
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 0.2rem 0.7rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.alert-banner-action:hover {
+  opacity: 0.85;
+}
+
+/* centered loading spinner — used for full-page and Suspense fallbacks */
+.loading-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-grow: 1;
+  padding: 4rem;
+  color: var(--primary);
+}
+.loading-center .loader-pulse {
+  width: 36px;
+  height: 36px;
+  background: var(--accent-glow);
+  border-radius: 50%;
+}
+
 .smtp-state-list {
   display: grid;
   gap: 0.75rem;
@@ -811,7 +905,7 @@ h4 {
   padding: 0.85rem 0.95rem;
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
 }
 
 .smtp-state-row strong,
@@ -933,8 +1027,8 @@ h4 {
   gap: 0.75rem;
   padding: 0.7rem 0.8rem;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: var(--tint-subtlest);
+  border: 1px solid var(--tint-hover);
 }
 
 .service-status-list span {
@@ -949,7 +1043,9 @@ h4 {
   word-break: break-word;
 }
 
-/* Badges */
+/* Badges — legacy aliases.
+   Prefer <Badge variant="..."> (renders .v-badge + .v-badge--*).
+   These aliases exist for backward compatibility during migration. */
 .badge {
   display: inline-flex;
   align-items: center;
@@ -962,27 +1058,27 @@ h4 {
 }
 
 .badge-risk {
-  background: var(--status-risk-bg);
-  color: var(--status-risk);
-  border: 1px solid rgba(244, 63, 94, 0.2);
+  background: var(--ds-danger-soft);
+  color: var(--ds-danger);
+  border: 1px solid rgba(244, 63, 94, 0.28);
 }
 
 .badge-safe {
-  background: var(--status-safe-bg);
-  color: var(--status-safe);
-  border: 1px solid rgba(16, 185, 129, 0.2);
+  background: var(--ds-success-soft);
+  color: var(--ds-success);
+  border: 1px solid rgba(16, 185, 129, 0.28);
 }
 
 .badge-suspicious {
-  background: var(--status-suspicious-bg);
-  color: var(--status-suspicious);
-  border: 1px solid rgba(234, 179, 8, 0.2);
+  background: var(--ds-warning-soft);
+  color: var(--ds-warning);
+  border: 1px solid rgba(234, 179, 8, 0.28);
 }
 
 .badge-neutral {
-  background: var(--status-neutral-bg);
-  color: var(--status-neutral);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: var(--ds-info-soft);
+  color: var(--ds-info);
+  border: 1px solid rgba(59, 130, 246, 0.28);
 }
 
 /* Loaders */
@@ -1309,7 +1405,7 @@ h4 {
 }
 
 .toast-header:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
 }
 
 .toast-title {
@@ -1333,7 +1429,7 @@ h4 {
 
 .toast-close:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tint-emphasis);
 }
 
 .toast-body {
@@ -1428,7 +1524,7 @@ h4 {
 
 .restart-toast__close:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tint-emphasis);
 }
 
 /* ── Guided Tour ──────────────────────────────────────────────── */
@@ -1510,7 +1606,7 @@ h4 {
 
 .tour-tooltip__close:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--tint-emphasis);
 }
 
 .tour-tooltip__title {
@@ -1596,7 +1692,7 @@ h4 {
 }
 
 .tour-tooltip__btn--ghost:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tint-active);
   color: var(--text-primary);
 }
 
@@ -1618,7 +1714,7 @@ h4 {
   border-right: 1px solid var(--glass-border);
   padding: 1.25rem 0;
   overflow-y: auto;
-  background: rgba(15, 23, 42, 0.25);
+  background: var(--surface-sunken-subtle);
 }
 
 .settings-content {
@@ -1676,7 +1772,7 @@ h4 {
 }
 
 .ctx-menu-item:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tint-hover);
   color: var(--text-primary);
 }
 
@@ -2223,7 +2319,7 @@ h4 {
   position: relative;
   width: 40px;
   height: 22px;
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--tint-emphasis);
   border-radius: 11px;
   cursor: pointer;
   transition: background 0.2s ease;
@@ -2263,7 +2359,7 @@ h4 {
   align-items: center;
   justify-content: space-between;
   padding: 0.65rem 0.85rem;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--tint-subtlest);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   gap: 1rem;
@@ -2319,6 +2415,114 @@ h4 {
   gap: 0.85rem;
 }
 
+.stat-grid--wide {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card--icon {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+}
+
+.stat-card-icon {
+  padding: 0.75rem;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   SERVICE CARD (threat intel result cards)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.service-card-header {
+  padding: 1rem;
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--tint-active);
+}
+
+.service-card-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.service-card-body {
+  padding: 1.5rem;
+}
+
+.service-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+  border-bottom: 1px dashed var(--tint-hover);
+  padding-bottom: 0.5rem;
+}
+
+.service-card-row span:first-child {
+  color: var(--text-secondary);
+}
+
+.service-card-row span:last-child {
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-all;
+}
+
+.service-card-row .risk {
+  color: var(--status-risk) !important;
+  font-weight: 500;
+}
+
+.service-card-row .safe {
+  color: var(--status-safe) !important;
+  font-weight: 500;
+}
+
+.service-card-info-btn {
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: color 0.15s;
+}
+
+.service-card-info-btn:hover,
+.service-card-info-btn[data-active="true"] {
+  color: var(--primary);
+}
+
+.service-card-popup {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 50;
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  min-width: 220px;
+  max-width: 280px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
 /* ═══════════════════════════════════════════════════════════════════════════
    DATA TABLE
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -2338,7 +2542,7 @@ h4 {
 }
 
 .data-table thead {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
 }
 
 .data-table th {
@@ -2355,7 +2559,7 @@ h4 {
 
 .data-table td {
   padding: 0.7rem 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--tint-subtle);
   font-size: 0.85rem;
   color: var(--text-primary);
   vertical-align: middle;
@@ -2367,7 +2571,7 @@ h4 {
 }
 
 .data-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
 }
 
 .data-table tbody tr.selected {
@@ -2390,7 +2594,7 @@ h4 {
   flex: 1;
   max-width: 320px;
   padding: 0.45rem 0.75rem;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tint-hover);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-sm);
   color: var(--text-primary);
@@ -2479,7 +2683,7 @@ h4 {
 
 .flyout-close:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tint-active);
 }
 
 .flyout-body {
@@ -2539,15 +2743,15 @@ h4 {
   font-family: inherit;
   cursor: pointer;
   border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tint-hover);
   color: var(--text-secondary);
   transition: all 0.15s ease;
 }
 
 .btn-action:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--tint-active);
   color: var(--text-primary);
-  border-color: rgba(255, 255, 255, 0.15);
+  border-color: var(--tint-strong);
 }
 
 .btn-action.danger {
@@ -2683,7 +2887,7 @@ h4 {
     gap: 0.75rem;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--glass-border);
-    background: rgba(15, 23, 42, 0.6);
+    background: var(--glass-bg);
     flex-shrink: 0;
   }
 
@@ -2762,7 +2966,7 @@ h4 {
 
 .settings-menu-toggle:hover {
   color: var(--text-primary);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-hover);
 }
 
 .settings-mobile-title {
@@ -2820,7 +3024,7 @@ h4 {
 }
 
 .sidebar-nav-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-hover);
   color: var(--text-primary);
 }
 
@@ -2843,7 +3047,7 @@ h4 {
 }
 
 .sidebar-profile-btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-hover);
 }
 
 /* ── Sidebar logout button ── */
@@ -3013,7 +3217,7 @@ h4 {
   padding: 0.35rem 0.65rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--glass-border);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-subtle);
   color: var(--text-muted);
   cursor: pointer;
   font-size: 0.75rem;
@@ -3023,7 +3227,7 @@ h4 {
 
 .density-toggle:hover {
   color: var(--text-secondary);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--tint-active);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3212,7 +3416,13 @@ h4 {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-top: var(--gap-lg);
+  width: 100%;
+  padding: 1.2rem 0;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  border-top: 1px solid var(--glass-border);
+  flex-shrink: 0;
+  background: var(--bg-main);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -3249,7 +3459,7 @@ h4 {
 /* Modifier: inset with subtle background */
 .v-section--inset {
   padding: var(--gap-md);
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--tint-subtlest);
   border-radius: var(--radius-sm);
 }
 

@@ -62,6 +62,7 @@ export default function App() {
   const [reconOpenHistory, setReconOpenHistory] = useState(false);
   const [profileInitialKey, setProfileInitialKey] = useState(null);
   const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+  const [activeFeatures, setActiveFeatures] = useState([]);
 
   const { t, i18n } = useTranslation();
   const { brand, logoPath } = useBrandTheme();
@@ -136,7 +137,22 @@ export default function App() {
     if (currentView === 'settings' && !canAccessSettings) {
       setCurrentViewSafe('home');
     }
-  }, [currentView, canAccessSettings]);
+    if (currentView === 'hunting' && !activeFeatures.includes('hunting_provider')) {
+      setCurrentViewSafe('home');
+    }
+    if (currentView === 'exposure' && !activeFeatures.includes('exposure_provider')) {
+      setCurrentViewSafe('home');
+    }
+  }, [currentView, canAccessSettings, activeFeatures]);
+
+  // Fetch active premium features for sidebar visibility
+  useEffect(() => {
+    if (!user) return;
+    fetch(`${API_URL}/api/extensions/features`, { credentials: 'include' })
+      .then(res => res.ok ? res.json() : { features: [] })
+      .then(data => setActiveFeatures(data.features || []))
+      .catch(() => setActiveFeatures([]));
+  }, [user]);
 
   // Keyboard shortcut — ctrl+l focuses search bar on home view
   useEffect(() => {
@@ -214,7 +230,7 @@ export default function App() {
       />
 
       <div className={`sidebar-wrapper${sidebarOpen ? ' sidebar-open' : ''}`}>
-        <Sidebar currentView={currentView} setCurrentView={setCurrentViewSafe} onMobileClose={() => setSidebarOpen(false)} />
+        <Sidebar currentView={currentView} setCurrentView={setCurrentViewSafe} onMobileClose={() => setSidebarOpen(false)} activeFeatures={activeFeatures} />
       </div>
 
       <div style={{ flexGrow: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>

@@ -4,7 +4,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useTour } from '../../context/TourContext';
 import { useTranslation } from 'react-i18next';
 
-export default function Sidebar({ currentView, setCurrentView, onMobileClose, layout = 'sidebar' }) {
+export default function Sidebar({ currentView, setCurrentView, onMobileClose, layout = 'sidebar', activeFeatures = [] }) {
     const { t } = useTranslation();
     const { user, logout } = useAuth();
     const { isTourActive, currentStep } = useTour();
@@ -26,15 +26,17 @@ export default function Sidebar({ currentView, setCurrentView, onMobileClose, la
     const NAV_ITEMS = [
         { id: 'home', label: t('sidebar.home'), icon: Search, roles: ['admin', 'manager', 'tech'] },
         { id: 'feed', label: t('sidebar.feed'), icon: Rss, roles: ['admin', 'manager', 'tech'] },
-        { id: 'hunting', label: t('sidebar.hunting'), icon: Fingerprint, roles: ['admin', 'manager', 'tech'] },
-        { id: 'exposure', label: t('sidebar.exposure'), icon: ShieldAlert, roles: ['admin', 'manager', 'tech'] },
         { id: 'recon', label: t('sidebar.recon'), icon: Radar, roles: ['admin', 'manager', 'tech'] },
         { id: 'watchlist', label: t('sidebar.watchlist'), icon: Eye, roles: ['admin', 'manager', 'tech'] },
+        { id: 'hunting', label: t('sidebar.hunting'), icon: Fingerprint, roles: ['admin', 'manager', 'tech'], feature: 'hunting_provider' },
+        { id: 'exposure', label: t('sidebar.exposure'), icon: ShieldAlert, roles: ['admin', 'manager', 'tech'], feature: 'exposure_provider' },
         { id: 'dashboard', label: t('sidebar.dashboard'), icon: LayoutDashboard, roles: ['admin', 'manager', 'tech'] },
         { id: 'settings', label: t('sidebar.settings'), icon: Settings, roles: ['admin'] }
     ];
 
-    const filteredNav = NAV_ITEMS.filter(item => item.roles.includes(user.role));
+    const filteredNav = NAV_ITEMS.filter(item =>
+        item.roles.includes(user.role) && (!item.feature || activeFeatures.includes(item.feature))
+    );
 
     return (
         <aside className={`v-navbar-dark v-navbar-${layout}`} style={{

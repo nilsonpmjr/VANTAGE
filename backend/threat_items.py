@@ -9,6 +9,14 @@ from typing import Any
 
 
 SEVERITY_ORDER = {"critical", "high", "medium", "low", "info", "unknown"}
+VALID_TLP_VALUES = {"white", "green", "amber", "red"}
+
+
+def normalize_tlp(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = str(value).strip().lower().removeprefix("tlp:")
+    return normalized if normalized in VALID_TLP_VALUES else ""
 
 
 def normalize_severity(value: str | None) -> str:
@@ -38,6 +46,9 @@ def build_threat_item_payload(
     tags: list[str],
     attributes: dict[str, Any],
     raw: dict[str, Any],
+    source_name: str = "",
+    tlp: str = "",
+    sector: list[str] | None = None,
 ) -> dict[str, Any]:
     return {
         "title": title,
@@ -48,6 +59,9 @@ def build_threat_item_payload(
         "tags": sorted({tag for tag in tags if tag}),
         "attributes": attributes,
         "raw": raw,
+        "source_name": source_name,
+        "tlp": normalize_tlp(tlp),
+        "sector": sorted({s for s in (sector or []) if s}),
     }
 
 
@@ -74,6 +88,9 @@ def build_threat_item_document(
         "severity": payload["severity"],
         "published_at": payload["published_at"],
         "tags": payload["tags"],
+        "source_name": payload.get("source_name", ""),
+        "tlp": payload.get("tlp", ""),
+        "sector": payload.get("sector", []),
         "data": payload,
     }
     if extra_fields:

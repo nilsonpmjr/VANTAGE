@@ -1,0 +1,23 @@
+{
+  "key": "exposure-surface-monitor",
+  "name": "Surface Exposure Monitor",
+  "version": "1.0.0",
+  "license": "VANTAGE-Premium",
+  "author": "VANTAGE Premium",
+  "kind": "premium_feature",
+  "compatibleCore": "1.x",
+  "builtin": false,
+  "distributionTier": "premium",
+  "repositoryVisibility": "private",
+  "updateChannel": "licensed",
+  "ownershipBoundary": "vantage_premium",
+  "description": "External attack surface monitoring. Tracks domains, subdomains, and brand keywords for credential exposure and data leaks.",
+  "premiumFeatureType": "exposure_provider",
+  "exposureAssetTypes": ["domain", "subdomain", "brand_keyword"],
+  "providerScope": ["credential", "surface", "leak"],
+  "entrypoint": "backend.exposure_runtime:run_surface_monitor",
+  "runtime": "builtin_compat",
+  "capabilities": ["asset_tracking", "scheduled_scan", "finding_triage"],
+  "requiredSecrets": [],
+  "recommendedSchedule": "daily"
+}

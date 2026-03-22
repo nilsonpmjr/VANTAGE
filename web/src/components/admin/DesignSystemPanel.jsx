@@ -1,8 +1,10 @@
 import React from 'react';
-import { CheckCircle2, Layers3, Palette, ShieldAlert } from 'lucide-react';
+import { CheckCircle2, Layers3, Palette, ShieldAlert, AlertTriangle, Activity, Search, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import SectionHeader from '../shared/SectionHeader';
 import FormField from '../shared/FormField';
+import Pagination from '../shared/Pagination';
+import StatCard from '../shared/StatCard';
 import Button from '../ui/Button';
 import Badge from '../ui/Badge';
 import Panel from '../ui/Panel';
@@ -156,6 +158,128 @@ export default function DesignSystemPanel() {
                     </div>
                 </Panel>
             </div>
+
+            {/* ── Padrões de Produto (D2–D4) ── */}
+            <Panel
+                title={t('settings.design_system_patterns_title')}
+                description={t('settings.design_system_patterns_body')}
+            >
+                <div className="v-page-stack" style={{ gap: '2rem' }}>
+
+                    {/* Pagination */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_pagination_label')}</h4>
+                        <div className="v-section__content">
+                            <Pagination page={3} totalPages={8} onPageChange={() => {}} />
+                        </div>
+                    </div>
+
+                    {/* Alert Banners */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_alerts_label')}</h4>
+                        <div className="v-section__content" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <div className="alert-banner error">
+                                <ShieldAlert size={16} />
+                                <span>Error banner — ação crítica necessária.</span>
+                                <button className="alert-banner-action">Action</button>
+                            </div>
+                            <div className="alert-banner warning">
+                                <AlertTriangle size={16} />
+                                <span>Warning banner — atenção recomendada.</span>
+                            </div>
+                            <div className="alert-banner success">
+                                <CheckCircle2 size={16} />
+                                <span>Success banner — operação concluída.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Stat Cards */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_stats_label')}</h4>
+                        <div className="v-section__content">
+                            <div className="stat-grid">
+                                <StatCard icon={<Users size={16} />} label="Users" value="24" color="var(--primary)" />
+                                <StatCard icon={<Activity size={16} />} label="Events" value="1.4k" color="var(--status-safe)" />
+                                <StatCard icon={<ShieldAlert size={16} />} label="Alerts" value="7" color="var(--status-risk)" />
+                                <StatCard icon={<Search size={16} />} label="Searches" value="312" color="var(--text-muted)" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Loading States */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_loading_label')}</h4>
+                        <div className="v-section__content" style={{ display: 'flex', gap: '2rem', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="loader-pulse" />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>loader-pulse</span>
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                                <span className="loader-pulse" style={{ width: '1.5rem', height: '1.5rem' }} />
+                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>sm</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sections */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_sections_label')}</h4>
+                        <div className="v-section__content" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div className="v-section--bordered" style={{ padding: '1rem' }}>
+                                <h4 className="v-section__title">v-section--bordered</h4>
+                                <div className="v-section__content">
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Seção com borda sutil — alternativa leve ao glass-panel.</span>
+                                </div>
+                            </div>
+                            <div className="v-section--inset" style={{ padding: '1rem' }}>
+                                <h4 className="v-section__title">v-section--inset</h4>
+                                <div className="v-section__content">
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>Seção com background sutil — separação visual leve.</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Page Layouts */}
+                    <div className="v-section">
+                        <h4 className="v-section__title">{t('settings.design_system_layouts_label')}</h4>
+                        <div className="v-section__content">
+                            <ul className="v-rule-list">
+                                <li className="v-rule-item">
+                                    <Layers3 size={18} aria-hidden="true" />
+                                    <div>
+                                        <strong>{t('settings.design_system_layout_console')}</strong>
+                                        <span>Settings, Dashboard, Profile</span>
+                                    </div>
+                                </li>
+                                <li className="v-rule-item">
+                                    <Search size={18} aria-hidden="true" />
+                                    <div>
+                                        <strong>{t('settings.design_system_layout_workbench')}</strong>
+                                        <span>Home, Hunting, Recon</span>
+                                    </div>
+                                </li>
+                                <li className="v-rule-item">
+                                    <Activity size={18} aria-hidden="true" />
+                                    <div>
+                                        <strong>{t('settings.design_system_layout_catalog')}</strong>
+                                        <span>Feed, Watchlist</span>
+                                    </div>
+                                </li>
+                                <li className="v-rule-item">
+                                    <ShieldAlert size={18} aria-hidden="true" />
+                                    <div>
+                                        <strong>{t('settings.design_system_layout_focus')}</strong>
+                                        <span>Login, MFA, Forgot/Reset Password</span>
+                                    </div>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+
+                </div>
+            </Panel>
 
             <Panel
                 title={t('settings.design_system_usage_title')}

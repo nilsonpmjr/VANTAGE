@@ -475,9 +475,12 @@ async def create_custom_source(
     feed_url: str,
     family: str = "custom",
     poll_interval_minutes: int = 60,
+    default_tlp: str = "white",
     created_by: str | None = None,
 ) -> dict:
     """Create a new manually-added RSS feed source."""
+    from threat_items import normalize_tlp
+
     title = str(title or "").strip()
     if not title:
         raise ValueError("title is required.")
@@ -490,6 +493,8 @@ async def create_custom_source(
 
     if not isinstance(poll_interval_minutes, int) or poll_interval_minutes < 1 or poll_interval_minutes > 1440:
         raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+
+    default_tlp = normalize_tlp(default_tlp) or "white"
 
     source_id = _make_custom_source_id(title)
 
@@ -510,6 +515,7 @@ async def create_custom_source(
         "config": {
             "feed_url": feed_url,
             "poll_interval_minutes": poll_interval_minutes,
+            "default_tlp": default_tlp,
         },
         "created_by": created_by,
         "created_at": _now(),
@@ -574,6 +580,10 @@ async def update_custom_source(
         if interval < 1 or interval > 1440:
             raise ValueError("poll_interval_minutes must be between 1 and 1440.")
         existing["config"]["poll_interval_minutes"] = interval
+
+    if "default_tlp" in patch:
+        from threat_items import normalize_tlp
+        existing["config"]["default_tlp"] = normalize_tlp(patch["default_tlp"]) or "white"
 
     existing["updated_at"] = _now()
     existing["updated_by"] = updated_by

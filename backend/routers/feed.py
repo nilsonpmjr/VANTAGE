@@ -21,6 +21,7 @@ async def list_feed_items(
     offset: int = Query(0, ge=0),
     severity: str | None = Query(None),
     source_type: str | None = Query(None),
+    tlp: str | None = Query(None),
     current_user: dict = Depends(get_current_user),
 ):
     """Return threat feed items sorted by published_at desc."""
@@ -33,6 +34,8 @@ async def list_feed_items(
         query["severity"] = severity.lower()
     if source_type:
         query["source_type"] = source_type
+    if tlp:
+        query["tlp"] = tlp.lower()
 
     total = await db.threat_items.count_documents(query)
     cursor = (

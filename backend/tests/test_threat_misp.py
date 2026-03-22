@@ -39,6 +39,72 @@ def test_adapt_misp_events_builds_canonical_documents():
     assert "tlp:amber" in document["tags"]
     assert "domain" in document["tags"]
     assert document["data"]["link"] == "https://misp.example.test/events/view/42"
+    # Phase 6A: TLP extraction and new fields
+    assert document["tlp"] == "amber"
+    assert document["source_name"] == "MISP"
+    assert isinstance(document["sector"], list)
+
+
+def test_adapt_misp_events_extracts_tlp_from_tags():
+    """TLP should be extracted from MISP Tag[] entries with tlp: prefix."""
+    payload = {
+        "response": [
+            {
+                "Event": {
+                    "id": "99",
+                    "uuid": "uuid-99",
+                    "info": "Test event",
+                    "threat_level_id": "3",
+                    "Tag": [{"name": "tlp:red"}, {"name": "apt"}],
+                    "Attribute": [],
+                }
+            }
+        ]
+    }
+    docs = adapt_misp_events("misp_events", "https://misp.test", payload)
+    # Should pick the first valid TLP tag
+    assert docs[0]["tlp"] == "red"
+
+
+def test_adapt_misp_events_defaults_tlp_green_when_no_tlp_tag():
+    """Events without tlp:* tags should default to green."""
+    payload = {
+        "response": [
+            {
+                "Event": {
+                    "id": "100",
+                    "uuid": "uuid-100",
+                    "info": "No TLP event",
+                    "threat_level_id": "2",
+                    "Tag": [{"name": "malware"}, {"name": "osint"}],
+                    "Attribute": [],
+                }
+            }
+        ]
+    }
+    docs = adapt_misp_events("misp_events", "https://misp.test", payload)
+    assert docs[0]["tlp"] == "green"
+
+
+def test_adapt_misp_events_infers_sectors():
+    """Sector inference should work from MISP event info and tags."""
+    payload = {
+        "response": [
+            {
+                "Event": {
+                    "id": "101",
+                    "uuid": "uuid-101",
+                    "info": "Hospital network compromised via VPN",
+                    "threat_level_id": "1",
+                    "Tag": [],
+                    "Attribute": [],
+                }
+            }
+        ]
+    }
+    docs = adapt_misp_events("misp_events", "https://misp.test", payload)
+    assert "healthcare" in docs[0]["sector"]
+    assert "infrastructure" in docs[0]["sector"]
 
 
 @pytest.mark.asyncio

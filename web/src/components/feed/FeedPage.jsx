@@ -26,6 +26,7 @@ const SEVERITY_ACCENT = {
 
 const SEVERITY_OPTIONS = ['all', 'critical', 'high', 'medium', 'low', 'info'];
 const SOURCE_OPTIONS = ['all', 'rss', 'misp'];
+const TLP_OPTIONS = ['all', 'white', 'green', 'amber', 'red'];
 const PAGE_SIZE = 18;
 
 function formatDate(dateStr) {
@@ -35,105 +36,77 @@ function formatDate(dateStr) {
     return d.toLocaleString();
 }
 
-function FeedItemCard({ item }) {
+function TlpBadge({ tlp }) {
+    if (!tlp) return null;
+    const normalized = tlp.toLowerCase();
+    return (
+        <span className={`tlp-badge tlp-badge--${normalized}`}>
+            TLP:{normalized.toUpperCase()}
+        </span>
+    );
+}
+
+function FeedItemCard({ item, featured = false }) {
     const severity = item.severity || 'unknown';
     const accent = SEVERITY_ACCENT[severity] || SEVERITY_ACCENT.unknown;
+    const sourceName = item.source_name || item.source_type || '';
+    const hasLink = Boolean(item.data?.link);
 
     return (
         <article
-            className="glass-panel feed-card hover-lift"
-            style={{
-                '--hover-accent': accent,
-                padding: 0,
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                cursor: item.data?.link ? 'pointer' : 'default',
-            }}
-            onClick={() => item.data?.link && window.open(item.data.link, '_blank', 'noopener')}
+            className="feed-card"
+            style={{ '--hover-accent': accent }}
+            data-clickable={hasLink ? 'true' : 'false'}
+            onClick={() => hasLink && window.open(item.data.link, '_blank', 'noopener')}
         >
             {/* Severity accent strip */}
-            <div style={{ height: '3px', background: accent, flexShrink: 0 }} />
+            <div className="feed-card__accent" style={{ background: accent }} />
 
             {/* Card body */}
-            <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', flex: 1 }}>
-                {/* Top row: badge + source + time */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div className="feed-card__body">
+                {/* Header: source name + TLP + severity badge */}
+                <div className="feed-card__header">
+                    {sourceName && (
+                        <span className="feed-card__source">{sourceName}</span>
+                    )}
+                    <TlpBadge tlp={item.tlp} />
                     <Badge variant={SEVERITY_VARIANT[severity] || 'neutral'}>
                         {severity.toUpperCase()}
                     </Badge>
-                    {item.source_type && (
-                        <span style={{
-                            fontSize: '0.7rem',
-                            color: 'var(--text-muted)',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.04em',
-                            fontWeight: 600,
-                            background: 'rgba(255,255,255,0.04)',
-                            padding: '0.15rem 0.4rem',
-                            borderRadius: '4px',
-                        }}>
-                            {item.source_type}
-                        </span>
-                    )}
-                    <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.2rem', flexShrink: 0 }}>
+                    <span className="feed-card__time">
                         <Clock size={11} />
                         {formatDate(item.published_at)}
                     </span>
                 </div>
 
                 {/* Title */}
-                <h4 style={{
-                    margin: 0,
-                    fontSize: '0.92rem',
-                    fontWeight: 600,
-                    color: 'var(--text-primary)',
-                    lineHeight: 1.4,
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                }}>
-                    {item.title}
-                </h4>
+                <h4 className="feed-card__title">{item.title}</h4>
 
                 {/* Summary */}
                 {item.summary && (
-                    <p style={{
-                        margin: 0,
-                        fontSize: '0.82rem',
-                        color: 'var(--text-secondary)',
-                        lineHeight: 1.55,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 4,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                    }}>
-                        {item.summary}
-                    </p>
+                    <p className="feed-card__summary">{item.summary}</p>
                 )}
 
-                {/* Footer: tags + link indicator */}
-                <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap', paddingTop: '0.25rem' }}>
-                    {item.tags?.length > 0 && item.tags.slice(0, 4).map((tag) => (
-                        <span
-                            key={tag}
-                            style={{
-                                fontSize: '0.68rem',
-                                color: 'var(--primary)',
-                                background: 'var(--accent-glow)',
-                                padding: '0.12rem 0.45rem',
-                                borderRadius: '4px',
-                                fontWeight: 500,
-                            }}
-                        >
-                            {tag}
-                        </span>
-                    ))}
-                    {item.tags?.length > 4 && (
-                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>+{item.tags.length - 4}</span>
+                {/* Footer: sectors + tags + link indicator */}
+                <div className="feed-card__footer">
+                    {/* Sectors */}
+                    {item.sector?.length > 0 && (
+                        <div className="feed-card__sectors">
+                            {item.sector.slice(0, featured ? 5 : 3).map((s) => (
+                                <span key={s} className="feed-card__sector">{s}</span>
+                            ))}
+                        </div>
                     )}
-                    {item.data?.link && (
+                    {/* Tags */}
+                    {item.tags?.length > 0 && item.tags.slice(0, featured ? 6 : 4).map((tag) => (
+                        <span key={tag} className="feed-card__tag">{tag}</span>
+                    ))}
+                    {item.tags?.length > (featured ? 6 : 4) && (
+                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
+                            +{item.tags.length - (featured ? 6 : 4)}
+                        </span>
+                    )}
+                    {hasLink && (
                         <ExternalLink size={12} style={{ marginLeft: 'auto', color: 'var(--text-muted)', flexShrink: 0 }} />
                     )}
                 </div>
@@ -149,15 +122,17 @@ export default function FeedPage() {
     const [page, setPage] = useState(1);
     const [severity, setSeverity] = useState('all');
     const [sourceType, setSourceType] = useState('all');
+    const [tlpFilter, setTlpFilter] = useState('all');
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
-    const fetchItems = useCallback(async (pg, sev, src, isRefresh = false) => {
+    const fetchItems = useCallback(async (pg, sev, src, tlp, isRefresh = false) => {
         if (isRefresh) setRefreshing(true); else setLoading(true);
         try {
             const params = new URLSearchParams({ limit: PAGE_SIZE, offset: (pg - 1) * PAGE_SIZE });
             if (sev !== 'all') params.set('severity', sev);
             if (src !== 'all') params.set('source_type', src);
+            if (tlp !== 'all') params.set('tlp', tlp);
 
             const res = await fetch(`${API_URL}/api/feed?${params}`, { credentials: 'include' });
             if (!res.ok) throw new Error();
@@ -174,20 +149,27 @@ export default function FeedPage() {
     }, []);
 
     useEffect(() => {
-        fetchItems(page, severity, sourceType);
-    }, [page, severity, sourceType, fetchItems]);
+        fetchItems(page, severity, sourceType, tlpFilter);
+    }, [page, severity, sourceType, tlpFilter, fetchItems]);
 
     const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
 
-    const handleSeverityChange = (val) => {
-        setSeverity(val);
+    const handleFilterChange = (setter) => (val) => {
+        setter(val);
         setPage(1);
     };
 
-    const handleSourceChange = (val) => {
-        setSourceType(val);
-        setPage(1);
-    };
+    // Find featured item: first critical or high severity item
+    const featuredIndex = items.findIndex((item) =>
+        item.severity === 'critical' || item.severity === 'high'
+    );
+    const featuredItem = featuredIndex >= 0 ? items[featuredIndex] : null;
+    const remainingItems = featuredItem
+        ? items.filter((_, i) => i !== featuredIndex)
+        : items;
+
+    const offsetStart = (page - 1) * PAGE_SIZE + 1;
+    const offsetEnd = Math.min(page * PAGE_SIZE, total);
 
     return (
         <div className="v-arch-catalog">
@@ -203,7 +185,7 @@ export default function FeedPage() {
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {t('feed.filter_severity')}
-                    <select value={severity} onChange={(e) => handleSeverityChange(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
+                    <select value={severity} onChange={(e) => handleFilterChange(setSeverity)(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
                         {SEVERITY_OPTIONS.map((s) => (
                             <option key={s} value={s}>{s === 'all' ? t('feed.all') : s.toUpperCase()}</option>
                         ))}
@@ -212,19 +194,25 @@ export default function FeedPage() {
 
                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                     {t('feed.filter_source')}
-                    <select value={sourceType} onChange={(e) => handleSourceChange(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
+                    <select value={sourceType} onChange={(e) => handleFilterChange(setSourceType)(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
                         {SOURCE_OPTIONS.map((s) => (
                             <option key={s} value={s}>{s === 'all' ? t('feed.all') : s.toUpperCase()}</option>
                         ))}
                     </select>
                 </label>
 
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                    TLP:
+                    <select value={tlpFilter} onChange={(e) => handleFilterChange(setTlpFilter)(e.target.value)} className="form-select" style={{ fontSize: '0.82rem', padding: '0.4rem 0.6rem' }}>
+                        {TLP_OPTIONS.map((s) => (
+                            <option key={s} value={s}>{s === 'all' ? t('feed.all') : `TLP:${s.toUpperCase()}`}</option>
+                        ))}
+                    </select>
+                </label>
+
                 <div className="v-page-actions">
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                        {t('feed.total_items', { count: total })}
-                    </span>
                     <button
-                        onClick={() => fetchItems(page, severity, sourceType, true)}
+                        onClick={() => fetchItems(page, severity, sourceType, tlpFilter, true)}
                         disabled={refreshing}
                         className="btn-secondary hover-border"
                         style={{ '--hover-accent': 'var(--primary)', padding: '0.3rem 0.6rem', fontSize: '0.8rem' }}
@@ -235,7 +223,7 @@ export default function FeedPage() {
                 </div>
             </div>
 
-            {/* Items grid */}
+            {/* Content */}
             {loading ? (
                 <div className="v-empty-state">
                     <span className="loader-pulse" style={{ width: 36, height: 36, background: 'var(--accent-glow)', borderRadius: '50%', display: 'inline-block' }} />
@@ -246,17 +234,35 @@ export default function FeedPage() {
                     <p className="v-empty-state__text">{t('feed.no_items')}</p>
                 </div>
             ) : (
-                <div className="v-zone-grid">
-                    {items.map((item) => (
+                <div className="feed-grid">
+                    {/* Featured item */}
+                    {featuredItem && (
+                        <div className="feed-featured">
+                            <FeedItemCard item={featuredItem} featured />
+                        </div>
+                    )}
+
+                    {/* Remaining items in 2-col grid */}
+                    {remainingItems.map((item) => (
                         <FeedItemCard key={item._id} item={item} />
                     ))}
                 </div>
             )}
 
-            {/* Pagination */}
-            {!loading && totalPages > 1 && (
-                <div className="v-zone-footer">
-                    <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+            {/* Footer: count + pagination */}
+            {!loading && total > 0 && (
+                <div className="v-zone-footer" style={{ flexDirection: 'column', gap: '0.75rem' }}>
+                    <span className="feed-footer-summary">
+                        {t('feed.showing_range', {
+                            start: offsetStart,
+                            end: offsetEnd,
+                            total,
+                            defaultValue: `Exibindo ${offsetStart}–${offsetEnd} de ${total}`,
+                        })}
+                    </span>
+                    {totalPages > 1 && (
+                        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+                    )}
                 </div>
             )}
         </div>

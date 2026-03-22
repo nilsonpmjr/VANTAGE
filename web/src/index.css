@@ -3039,7 +3039,8 @@ h4 {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  padding: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
   margin-bottom: 1rem;
   cursor: pointer;
   border-radius: 8px;
@@ -3423,6 +3424,220 @@ h4 {
   border-top: 1px solid var(--glass-border);
   flex-shrink: 0;
   background: var(--bg-main);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FEED EDITORIAL — Featured card, 2-col grid, TLP badges
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Feed: 2-column grid ──────────────────────────────────────────────────── */
+.feed-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--gap-md);
+}
+
+/* ── Feed: Featured card (first critical/high item) ───────────────────────── */
+.feed-featured {
+  grid-column: 1 / -1;
+}
+
+.feed-featured .feed-card {
+  display: grid;
+  grid-template-columns: 4px 1fr;
+  min-height: 180px;
+}
+
+.feed-featured .feed-card__accent {
+  height: auto;
+  width: 4px;
+  border-radius: 4px 0 0 4px;
+}
+
+.feed-featured .feed-card__body {
+  padding: 1.5rem;
+  gap: 1rem;
+}
+
+.feed-featured .feed-card__title {
+  font-size: 1.1rem;
+  -webkit-line-clamp: 3;
+}
+
+.feed-featured .feed-card__summary {
+  -webkit-line-clamp: 6;
+}
+
+/* ── Feed: Card base ──────────────────────────────────────────────────────── */
+.feed-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: var(--radius-md, 8px);
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.feed-card:hover {
+  border-color: var(--hover-accent, var(--primary));
+  transform: translateY(-2px);
+}
+
+.feed-card[data-clickable="true"] {
+  cursor: pointer;
+}
+
+.feed-card__accent {
+  height: 3px;
+  flex-shrink: 0;
+  border-radius: 4px 4px 0 0;
+}
+
+.feed-card__body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  flex: 1;
+}
+
+.feed-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.feed-card__source {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.feed-card__time {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  flex-shrink: 0;
+}
+
+.feed-card__title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-card__summary {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.feed-card__footer {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  padding-top: 0.25rem;
+}
+
+.feed-card__tag {
+  font-size: 0.68rem;
+  color: var(--primary);
+  background: var(--accent-glow);
+  padding: 0.12rem 0.45rem;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+.feed-card__sectors {
+  display: flex;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.feed-card__sector {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.04);
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  text-transform: capitalize;
+}
+
+/* ── TLP Badges ───────────────────────────────────────────────────────────── */
+.tlp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.tlp-badge--white {
+  color: #333;
+  background: #f0f0f0;
+}
+
+.tlp-badge--green {
+  color: #1a5c2a;
+  background: #d4edda;
+}
+
+.tlp-badge--amber {
+  color: #7a4f01;
+  background: #fff3cd;
+}
+
+.tlp-badge--red {
+  color: #721c24;
+  background: #f8d7da;
+}
+
+/* ── Feed: footer summary ─────────────────────────────────────────────────── */
+.feed-footer-summary {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* ── Feed responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .feed-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .feed-featured .feed-card {
+    grid-template-columns: 1fr;
+  }
+
+  .feed-featured .feed-card__accent {
+    height: 4px;
+    width: auto;
+    border-radius: 4px 4px 0 0;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════

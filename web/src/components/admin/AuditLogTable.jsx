@@ -85,50 +85,57 @@ export default function AuditLogTable() {
     return (
         <div className="v-density-compact">
             {/* Filters */}
-            <form onSubmit={handleSearch} className="data-table-toolbar" style={{ flexWrap: 'wrap', marginBottom: '1.5rem', borderBottom: 'none', gap: '0.75rem' }}>
-                <div style={{ position: 'relative', flexGrow: 1, minWidth: '140px' }}>
-                    <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
-                    <input
-                        type="text" value={filterUser} onChange={e => setFilterUser(e.target.value)}
-                        placeholder={t('audit.filter_user')}
-                        className="form-input"
-                        style={{ paddingLeft: '2rem' }}
-                    />
+            <form onSubmit={handleSearch} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <Search size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                        <input
+                            type="text" value={filterUser} onChange={e => setFilterUser(e.target.value)}
+                            placeholder={t('audit.filter_user')}
+                            className="form-input"
+                            style={{ paddingLeft: '2rem', width: '100%' }}
+                        />
+                    </div>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                        <Filter size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                        <input
+                            type="text" value={filterAction} onChange={e => setFilterAction(e.target.value)}
+                            placeholder={t('audit.filter_action')}
+                            className="form-input"
+                            style={{ paddingLeft: '2rem', width: '100%' }}
+                        />
+                    </div>
                 </div>
-                <div style={{ position: 'relative', flexGrow: 1, minWidth: '140px' }}>
-                    <Filter size={14} color="var(--text-muted)" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <select
+                        value={filterResult} onChange={e => setFilterResult(e.target.value)}
+                        className="form-select"
+                        style={{ width: 'auto', minWidth: '120px' }}
+                    >
+                        <option value="">{t('audit.filter_all')}</option>
+                        <option value="success">{t('audit.filter_success')}</option>
+                        <option value="failure">{t('audit.filter_failure')}</option>
+                        <option value="denied">{t('audit.filter_denied')}</option>
+                    </select>
                     <input
-                        type="text" value={filterAction} onChange={e => setFilterAction(e.target.value)}
-                        placeholder={t('audit.filter_action')}
+                        type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
+                        title={t('audit.filter_from')}
                         className="form-input"
-                        style={{ paddingLeft: '2rem' }}
+                        style={{ width: 'auto' }}
                     />
+                    <input
+                        type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
+                        title={t('audit.filter_to')}
+                        className="form-input"
+                        style={{ width: 'auto' }}
+                    />
+                    <Button type="submit" variant="primary" size="sm" iconLeading={<Search size={14} />}>
+                        {t('audit.search')}
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => handleExport('csv')} iconLeading={<Download size={14} />}>
+                        CSV
+                    </Button>
                 </div>
-                <select
-                    value={filterResult} onChange={e => setFilterResult(e.target.value)}
-                    className="form-select"
-                >
-                    <option value="">{t('audit.filter_all')}</option>
-                    <option value="success">{t('audit.filter_success')}</option>
-                    <option value="failure">{t('audit.filter_failure')}</option>
-                    <option value="denied">{t('audit.filter_denied')}</option>
-                </select>
-                <input
-                    type="date" value={filterFrom} onChange={e => setFilterFrom(e.target.value)}
-                    title={t('audit.filter_from')}
-                    className="form-input"
-                />
-                <input
-                    type="date" value={filterTo} onChange={e => setFilterTo(e.target.value)}
-                    title={t('audit.filter_to')}
-                    className="form-input"
-                />
-                <Button type="submit" variant="primary" size="sm" iconLeading={<Search size={14} />}>
-                    {t('audit.search')}
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => handleExport('csv')} iconLeading={<Download size={14} />}>
-                    CSV
-                </Button>
             </form>
 
             {/* Table */}

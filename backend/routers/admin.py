@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from typing import Optional, List
 
 from db import db_manager
-from auth import require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
+from auth import get_current_user, require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
 from extensions import get_configured_plugin_roots, get_extensions_catalog
 from identity import email_in_use, normalize_email
 from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
@@ -287,6 +287,27 @@ async def read_extensions_catalog(
     }
 
 
+@router.get("/extensions/features")
+async def read_active_premium_features(
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Lightweight endpoint returning which premium feature types are active.
+    Available to any authenticated user (used by sidebar visibility).
+    """
+    catalog = get_extensions_catalog(request.app)
+    active = set()
+    for ext in catalog:
+        if (
+            ext.get("kind") == "premium_feature"
+            and ext.get("status") == "enabled"
+            and ext.get("premiumFeatureType")
+        ):
+            active.add(ext["premiumFeatureType"])
+    return {"features": sorted(active)}
+
+
 class SMTPConfigUpdate(BaseModel):
     host: Optional[str] = None
     port: Optional[int] = Field(None, ge=1, le=65535)
@@ -314,6 +335,7 @@ class CustomSourceCreate(BaseModel):
     feed_url: str = Field(..., min_length=1)
     family: str = Field(default="custom", max_length=50)
     poll_interval_minutes: int = Field(default=60, ge=1, le=1440)
+    default_tlp: str = Field(default="white", max_length=10)
 
 
 class CustomSourceUpdate(BaseModel):
@@ -322,6 +344,7 @@ class CustomSourceUpdate(BaseModel):
     family: Optional[str] = Field(None, max_length=50)
     enabled: Optional[bool] = None
     poll_interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    default_tlp: Optional[str] = Field(None, max_length=10)
 
 
 @router.get("/operational-config/smtp")
@@ -612,6 +635,7 @@ async def create_custom_threat_source(
             feed_url=body.feed_url,
             family=body.family,
             poll_interval_minutes=body.poll_interval_minutes,
+            default_tlp=body.default_tlp,
             created_by=current_user["username"],
         )
     except ValueError as exc:

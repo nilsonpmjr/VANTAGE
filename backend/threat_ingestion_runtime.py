@@ -27,6 +27,37 @@ def clear_threat_fetchers() -> None:
     _THREAT_FETCHERS.clear()
 
 
+def register_builtin_fetchers() -> None:
+    """Register fetchers for all builtin sources (CVE, Fortinet, MISP)."""
+    import httpx
+    from threat_feed_adapters import parse_rss_items, adapt_cve_rss_items, adapt_fortinet_rss_items
+    from threat_misp import fetch_and_adapt_misp_items
+
+    async def _fetch_rss(source: dict[str, Any], adapter, **adapter_kwargs) -> list[dict[str, Any]]:
+        feed_url = source.get("config", {}).get("feed_url", "")
+        if not feed_url:
+            return []
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(feed_url)
+            resp.raise_for_status()
+        raw_items = parse_rss_items(resp.text)
+        return adapter(source["source_id"], raw_items, **adapter_kwargs)
+
+    register_threat_fetcher(
+        "cve_recent",
+        lambda src: _fetch_rss(src, adapt_cve_rss_items, source_name="CVE Recent", tlp="white"),
+    )
+    register_threat_fetcher(
+        "fortinet_outbreakalert",
+        lambda src: _fetch_rss(src, adapt_fortinet_rss_items, source_name="FortiGuard Outbreak Alert", tlp="white"),
+    )
+    register_threat_fetcher(
+        "fortinet_threatsignal",
+        lambda src: _fetch_rss(src, adapt_fortinet_rss_items, source_name="FortiGuard Threat Signal", tlp="white"),
+    )
+    register_threat_fetcher("misp_events", fetch_and_adapt_misp_items)
+
+
 def _now() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -77,7 +108,13 @@ def _make_custom_rss_fetcher(source: dict[str, Any]) -> Callable[[dict[str, Any]
             resp = await client.get(feed_url)
             resp.raise_for_status()
         raw_items = parse_rss_items(resp.text)
-        return adapt_generic_rss_items(src["source_id"], src.get("family", "custom"), raw_items)
+        return adapt_generic_rss_items(
+            src["source_id"],
+            src.get("family", "custom"),
+            raw_items,
+            source_name=src.get("name", src.get("family", "Custom")),
+            tlp=src.get("config", {}).get("default_tlp", "white"),
+        )
 
     return _fetch
 
@@ -172,6 +209,7 @@ async def execute_threat_ingestion_worker_cycle(db) -> bool:
 
 
 async def start_threat_ingestion_worker(interval_seconds: int = 300, initial_delay_seconds: int = 15):
+    register_builtin_fetchers()
     logger.info("Threat ingestion worker started")
     await asyncio.sleep(initial_delay_seconds)
     while True:

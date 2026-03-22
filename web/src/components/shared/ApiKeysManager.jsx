@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Plus, Trash2, Copy, CheckCircle, Key } from 'lucide-react';
+import { Plus, Trash2, Copy, CheckCircle, Key, Loader } from 'lucide-react';
 import API_URL from '../../config';
 import Button from '../ui/Button';
 import { fmtDateBRT } from '../../utils/dateFormat';

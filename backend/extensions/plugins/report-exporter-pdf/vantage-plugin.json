@@ -15,6 +15,6 @@
   "description": "Built-in PDF exporter used by the current frontend report flow.",
   "capabilities": ["pdf"],
   "permissions": [],
-  "entrypoint": "web.src.utils.pdfGenerator:generatePDFReport",
-  "sourceOfTruthPath": "web/src/utils/pdfGenerator.js"
+  "entrypoint": "frontend_operational_architect.src.utils.pdfReport:generatePdfReport",
+  "sourceOfTruthPath": "web/src/utils/pdfReport.ts"
 }

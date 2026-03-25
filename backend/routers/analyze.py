@@ -47,7 +47,7 @@ _semaphore = asyncio.Semaphore(20)
 
 def _fire_and_log(coro, description: str):
     """Schedule an async task and log errors instead of silently swallowing them."""
-    task = asyncio.create_task(coro)
+    task = asyncio.ensure_future(coro)
     task.add_done_callback(
         lambda t: logger.error(f"{description}: {t.exception()}") if t.exception() else None
     )

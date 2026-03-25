@@ -1,7 +1,5 @@
 /*
- * Generic — Dark theme placeholder
- *
- * Estrutura espelha o branding VANTAGE para downstream futuro.
+ * Generic — Dark theme.
  */
 
 :root[data-brand='generic']:not([data-theme]),

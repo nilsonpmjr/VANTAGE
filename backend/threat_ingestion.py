@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import json
 from urllib.parse import urlparse
 
 from crypto import decrypt_secret, encrypt_secret
@@ -70,6 +71,7 @@ SYNC_STATUS_DEFAULT = {
     "last_run_at": None,
     "last_error": None,
     "items_ingested": 0,
+    "duration_ms": None,
 }
 
 MISP_SOURCE_ID = "misp_events"
@@ -224,6 +226,7 @@ async def get_runtime_threat_sources(db) -> list[dict]:
             "last_run_at": status["last_run_at"],
             "last_error": status["last_error"],
             "items_ingested": status["items_ingested"],
+            "duration_ms": status.get("duration_ms"),
         }
         sources.append(effective)
 
@@ -236,6 +239,7 @@ async def get_runtime_threat_sources(db) -> list[dict]:
             "last_run_at": status["last_run_at"],
             "last_error": status["last_error"],
             "items_ingested": status["items_ingested"],
+            "duration_ms": status.get("duration_ms"),
         }
         sources.append(cs)
 
@@ -296,6 +300,7 @@ async def record_threat_sync_status(
     items_ingested: int = 0,
     last_error: str | None = None,
     last_run_at: datetime | None = None,
+    duration_ms: int | None = None,
 ) -> dict:
 
     document = {
@@ -305,6 +310,7 @@ async def record_threat_sync_status(
         "last_error": last_error,
         "last_run_at": last_run_at or _now(),
         "updated_at": _now(),
+        "duration_ms": int(duration_ms) if duration_ms is not None else None,
     }
 
     if db is not None:
@@ -313,6 +319,16 @@ async def record_threat_sync_status(
             document,
             upsert=True,
         )
+        history_entry = {
+            "source_id": source_id,
+            "status": status,
+            "items_ingested": int(items_ingested),
+            "last_error": last_error,
+            "last_run_at": document["last_run_at"],
+            "duration_ms": int(duration_ms) if duration_ms is not None else None,
+            "recorded_at": _now(),
+        }
+        await db.threat_sync_history.insert_one(history_entry)
 
     return document
 
@@ -337,6 +353,7 @@ async def get_public_threat_sources(db) -> list[dict]:
                     "last_run_at": status["last_run_at"],
                     "last_error": status["last_error"],
                     "items_ingested": status["items_ingested"],
+                    "duration_ms": status.get("duration_ms"),
                 },
             }
         )
@@ -345,26 +362,7 @@ async def get_public_threat_sources(db) -> list[dict]:
     custom = await get_custom_threat_sources(db)
     for cs in custom:
         status = statuses.get(cs["source_id"], SYNC_STATUS_DEFAULT)
-        public_sources.append(
-            {
-                "source_id": cs["source_id"],
-                "source_type": cs["source_type"],
-                "family": cs["family"],
-                "display_name": cs["display_name"],
-                "description": cs.get("description", ""),
-                "enabled": cs.get("enabled", True),
-                "origin": "manual",
-                "config": cs.get("config", {}),
-                "created_by": cs.get("created_by"),
-                "created_at": cs.get("created_at"),
-                "sync_status": {
-                    "status": status["status"],
-                    "last_run_at": status["last_run_at"],
-                    "last_error": status["last_error"],
-                    "items_ingested": status["items_ingested"],
-                },
-            }
-        )
+        public_sources.append(_serialize_custom_source(cs, status=status))
 
     return public_sources
 
@@ -424,9 +422,67 @@ async def update_misp_source_config(db, patch: dict, updated_by: str | None = No
     return await get_public_threat_source(db, MISP_SOURCE_ID)
 
 
+async def get_threat_source_history(
+    db,
+    source_id: str,
+    *,
+    limit: int = 24,
+) -> list[dict]:
+    if db is None:
+        return []
+    items = (
+        await db.threat_sync_history.find({"source_id": source_id}).sort("recorded_at", -1).limit(limit).to_list(length=limit)
+    )
+    for item in items:
+        item.pop("_id", None)
+    return items
+
+
+async def estimate_threat_source_payload_bytes(
+    db,
+    source_id: str,
+    *,
+    since: datetime,
+) -> int:
+    if db is None:
+        return 0
+    items = (
+        await db.threat_items.find({"source_id": source_id, "timestamp": {"$gte": since}}).to_list(length=5000)
+    )
+    total = 0
+    for item in items:
+        total += len(json.dumps(item, default=str, ensure_ascii=False))
+    return total
+
+
 # ── Custom (manual) RSS sources ──────────────────────────────────────────────
 
 CUSTOM_PREFIX = "custom_"
+
+
+def _serialize_custom_source(source: dict, status: dict | None = None) -> dict:
+    sync_status = status or SYNC_STATUS_DEFAULT
+    return {
+        "source_id": source["source_id"],
+        "source_type": source["source_type"],
+        "family": source["family"],
+        "display_name": source["display_name"],
+        "description": source.get("description", ""),
+        "enabled": source.get("enabled", True),
+        "origin": "manual",
+        "config": source.get("config", {}),
+        "created_by": source.get("created_by"),
+        "created_at": source.get("created_at"),
+        "updated_at": source.get("updated_at"),
+        "updated_by": source.get("updated_by"),
+        "sync_status": {
+            "status": sync_status["status"],
+            "last_run_at": sync_status["last_run_at"],
+            "last_error": sync_status["last_error"],
+            "items_ingested": sync_status["items_ingested"],
+            "duration_ms": sync_status.get("duration_ms"),
+        },
+    }
 
 
 def _validate_feed_url(url: str) -> str:
@@ -537,7 +593,7 @@ async def get_custom_threat_sources(db) -> list[dict]:
     if db is None:
         return []
     docs = await db.custom_threat_sources.find({}).to_list(length=200)
-    return docs
+    return [{k: v for k, v in doc.items() if k != "_id"} for doc in docs]
 
 
 async def update_custom_source(
@@ -593,7 +649,8 @@ async def update_custom_source(
         existing,
         upsert=True,
     )
-    return existing
+    status = await db.threat_sync_status.find_one({"source_id": source_id}) if db is not None else None
+    return _serialize_custom_source(existing, status=status)
 
 
 async def delete_custom_source(db, source_id: str) -> bool:

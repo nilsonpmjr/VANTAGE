@@ -1,16 +1,27 @@
-# React + Vite
+# VANTAGE Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend oficial do VANTAGE.
 
-Currently, two official plugins are available:
+## Runtime local
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+npm install
+npm run dev
+```
 
-## React Compiler
+Por padrão, a interface sobe em `http://127.0.0.1:4177` e faz proxy de `/api` para `http://localhost:8000`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Variáveis de ambiente
 
-## Expanding the ESLint configuration
+- `VITE_PORT`: porta local opcional para `dev` e `preview`
+- `VITE_API_PROXY_TARGET`: alvo do proxy local `/api`
+- `VITE_API_URL`: base opcional para chamadas sem proxy, quando necessário
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Validação
+
+```bash
+npm run lint
+npm run build
+```
+
+`web/src/` continua sendo a fonte de verdade do frontend. `dist/` é apenas a saída gerada pelo build local.

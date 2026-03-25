@@ -143,6 +143,10 @@ async def lifespan(app: FastAPI):
                 [("user", 1), ("created_at", -1)],
                 name="watchlist_user_created",
             )
+            await db.watchlist_history.create_index(
+                [("user", 1), ("watchlist_item_id", 1), ("scanned_at", -1)],
+                name="watchlist_history_user_item_scanned",
+            )
             await db.threat_items.create_index(
                 [("source_id", 1), ("external_id", 1)],
                 unique=True,
@@ -157,6 +161,19 @@ async def lifespan(app: FastAPI):
                 unique=True,
                 name="threat_sync_status_source_id",
             )
+            await db.threat_sync_history.create_index(
+                [("source_id", 1), ("recorded_at", -1)],
+                name="threat_sync_history_source_recorded",
+            )
+            await db.operational_status_history.create_index(
+                [("recorded_at", -1)],
+                name="operational_status_history_recorded",
+            )
+            await db.extension_catalog_state.create_index(
+                [("key", 1)],
+                unique=True,
+                name="extension_catalog_state_key",
+            )
             await db.exposure_monitored_assets.create_index(
                 [("customer_key", 1), ("asset_type", 1), ("value", 1)],
                 unique=True,
@@ -165,6 +182,10 @@ async def lifespan(app: FastAPI):
             await db.exposure_monitored_assets.create_index(
                 [("customer_key", 1), ("recurrence.mode", 1), ("is_active", 1)],
                 name="exposure_monitored_assets_customer_recurrence",
+            )
+            await db.exposure_asset_groups.create_index(
+                [("customer_key", 1), ("name", 1)],
+                name="exposure_asset_groups_customer_name",
             )
             await db.exposure_findings.create_index(
                 [("customer_key", 1), ("monitored_asset_id", 1), ("timestamp", -1)],
@@ -185,6 +206,14 @@ async def lifespan(app: FastAPI):
             await db.hunting_results.create_index(
                 [("search_id", 1)],
                 name="hunting_results_search_id",
+            )
+            await db.hunting_saved_searches.create_index(
+                [("analyst", 1), ("created_at", -1)],
+                name="hunting_saved_searches_analyst_created",
+            )
+            await db.hunting_case_notes.create_index(
+                [("analyst", 1), ("search_id", 1), ("created_at", -1)],
+                name="hunting_case_notes_analyst_search_created",
             )
             # Service quota indexes (daily API call tracking)
             await db.service_quota.create_index(

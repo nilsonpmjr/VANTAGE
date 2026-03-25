@@ -37,6 +37,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     name: Optional[str] = None
     is_active: Optional[bool] = None
+    suspension_reason: Optional[str] = None
     force_password_reset: Optional[bool] = None
     email: Optional[str] = None
     allowed_ips: Optional[list[str]] = None
@@ -47,6 +48,7 @@ class UserPreferencesUpdate(BaseModel):
     preferred_lang: Optional[str] = None
     avatar_base64: Optional[str] = None
     recovery_email: Optional[str] = None
+    notification_center: Optional[dict] = None
 
 
 class ThirdPartyKeysUpdate(BaseModel):
@@ -59,6 +61,34 @@ ALLOWED_SERVICES = {
 }
 
 VALID_ROLES = {"admin", "manager", "tech"}
+
+
+def _normalize_notification_center(value: Optional[dict]) -> dict:
+    payload = value if isinstance(value, dict) else {}
+    preferences_raw = payload.get("preferences") if isinstance(payload.get("preferences"), dict) else {}
+
+    def _normalize_ids(raw: object) -> list[str]:
+        items = raw if isinstance(raw, list) else []
+        normalized: list[str] = []
+        for item in items:
+            if not isinstance(item, str):
+                continue
+            cleaned = item.strip()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+            if len(normalized) >= 500:
+                break
+        return normalized
+
+    return {
+        "read_ids": _normalize_ids(payload.get("read_ids")),
+        "archived_ids": _normalize_ids(payload.get("archived_ids")),
+        "preferences": {
+            "critical": preferences_raw.get("critical", True) is not False,
+            "system": preferences_raw.get("system", True) is not False,
+            "intelligence": preferences_raw.get("intelligence", True) is not False,
+        },
+    }
 
 
 @router.get("")
@@ -109,6 +139,7 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "password_changed_at": datetime.now(timezone.utc),
         "force_password_reset": False,
         "extra_permissions": [],
+        "notification_center": _normalize_notification_center(None),
     }
     await db.users.insert_one(new_user)
     ip = request.client.host if request.client else ""
@@ -147,6 +178,8 @@ async def update_my_preferences(
             raise HTTPException(status_code=400, detail="Email already in use")
         update_data["recovery_email"] = normalized_recovery_email
         update_data["normalized_recovery_email"] = normalized_recovery_email
+    if prefs.notification_center is not None:
+        update_data["notification_center"] = _normalize_notification_center(prefs.notification_center)
 
     password_changed = False
     if prefs.password is not None:
@@ -322,6 +355,17 @@ async def update_user(
         update_data["is_active"] = user_update.is_active
         if user_update.is_active is False:
             revoke_sessions = True
+            reason = (user_update.suspension_reason or "").strip()
+            if reason:
+                update_data["suspension_reason"] = reason[:500]
+            else:
+                update_data["suspension_reason"] = None
+            update_data["suspended_at"] = datetime.now(timezone.utc)
+            update_data["suspended_by"] = current_user["username"]
+        else:
+            update_data["suspension_reason"] = None
+            update_data["suspended_at"] = None
+            update_data["suspended_by"] = None
     if user_update.force_password_reset is not None:
         update_data["force_password_reset"] = user_update.force_password_reset
         if user_update.force_password_reset is True:
@@ -370,9 +414,12 @@ async def update_user(
                          detail=f"revoked_sessions={revoked_count}")
     if "is_active" in update_data:
         action_name = "user_reactivated" if update_data["is_active"] else "user_suspended"
+        detail = f"revoked_sessions={revoked_count}"
+        if update_data["is_active"] is False and update_data.get("suspension_reason"):
+            detail += f"; reason={update_data['suspension_reason']}"
         await log_action(db, user=current_user["username"], action=action_name,
                          target=username, ip=ip, result="success",
-                         detail=f"revoked_sessions={revoked_count}")
+                         detail=detail)
     else:
         await log_action(db, user=current_user["username"], action="user_updated",
                          target=username, ip=ip, result="success",

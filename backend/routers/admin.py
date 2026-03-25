@@ -20,18 +20,28 @@ from audit import log_action
 from logging_config import get_logger
 from limiters import limiter
 from operational_config import get_public_operational_config, update_operational_config
-from operational_status import get_operational_status_snapshot
+from operational_status import (
+    get_operational_event_stream,
+    get_operational_status_history,
+    get_operational_status_snapshot,
+)
 from mailer import send_smtp_test_email
 from threat_ingestion import (
     get_public_threat_source,
     get_public_threat_sources,
     get_runtime_threat_source,
+    get_runtime_threat_sources,
     update_misp_source_config,
     create_custom_source,
     update_custom_source,
     delete_custom_source,
+    update_threat_source,
+    get_threat_source_history,
+    estimate_threat_source_payload_bytes,
+    CUSTOM_PREFIX,
 )
 from threat_misp import MISPClient
+from threat_ingestion_runtime import sync_threat_source
 
 logger = get_logger("AdminRouter")
 
@@ -97,6 +107,8 @@ class PasswordPolicyUpdate(BaseModel):
     expiry_days: Optional[int] = Field(None, ge=0, le=3650)
     expiry_warning_days: Optional[int] = Field(None, ge=1, le=90)
     mask_pii: Optional[bool] = None
+    prevent_common_passwords: Optional[bool] = None
+    prevent_breached_passwords: Optional[bool] = None
 
 
 @router.get("/password-policy")
@@ -132,6 +144,69 @@ async def update_password_policy(
     await log_action(db, user=current_user["username"], action="password_policy_changed",
                      ip=ip, result="success", detail=str(updates))
     return current
+
+
+@router.get("/security-policies/export")
+async def export_security_policies(
+    current_user: dict = Depends(require_role(["admin"])),
+    format: str = Query("json", pattern="^(json|csv)$"),
+):
+    """Export the current password + lockout policy state."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    password_policy = await get_password_policy(db)
+    lockout_policy = await get_lockout_policy(db)
+    payload = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "password_policy": password_policy,
+        "lockout_policy": lockout_policy,
+    }
+
+    if format == "csv":
+        buffer = io.StringIO()
+        writer = csv.writer(buffer)
+        writer.writerow(["scope", "key", "value"])
+        for scope, values in (("password_policy", password_policy), ("lockout_policy", lockout_policy)):
+            for key, value in values.items():
+                writer.writerow([scope, key, value])
+        return StreamingResponse(
+            iter([buffer.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=security_policies.csv"},
+        )
+
+    return StreamingResponse(
+        iter([json.dumps(payload, ensure_ascii=False, indent=2)]),
+        media_type="application/json",
+        headers={"Content-Disposition": "attachment; filename=security_policies.json"},
+    )
+
+
+@router.get("/security-policies/timeline")
+async def get_security_policy_timeline(
+    current_user: dict = Depends(require_role(["admin"])),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    """Dedicated governance timeline for password and lockout policy changes."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    query = {"action": {"$in": ["password_policy_changed", "lockout_policy_changed"]}}
+    skip = (page - 1) * page_size
+    total = await db.audit_log.count_documents(query)
+    items = (
+        await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).skip(skip).limit(page_size).to_list(length=page_size)
+    )
+    serialized = _serialize_items(items)
+    policy = await get_password_policy(db)
+    if policy.get("mask_pii", True):
+        _mask_audit_items(serialized)
+    pages = max(1, (total + page_size - 1) // page_size)
+    return {"items": serialized, "total": total, "page": page, "pages": pages}
 
 
 @router.get("/stats")
@@ -264,6 +339,124 @@ _EXPORT_OMIT = {"password_hash", "mfa_secret_enc", "mfa_backup_codes", "password
 _IMPORT_COLUMNS = {"username", "name", "role", "email", "preferred_lang"}
 
 
+def _compute_extension_health_score(item: dict) -> int:
+    status = str(item.get("status") or "").lower()
+    base = 100
+    if status == "disabled":
+        base = 62
+    elif status == "incompatible":
+        base = 38
+    elif status == "invalid":
+        base = 25
+    elif status == "detected":
+        base = 72
+
+    base -= min(15, len(item.get("requiredSecrets") or []) * 3)
+    if item.get("requiresKali"):
+        base -= 10
+    if item.get("requiresBrowserAutomation"):
+        base -= 8
+    if item.get("requiresCustomBinaries"):
+        base -= 6
+    return max(15, min(100, base))
+
+
+def _compute_extension_runtime_overhead(item: dict) -> str:
+    weight = str(item.get("dependencyWeight") or "").lower()
+    score = 0
+    if weight == "heavy":
+        score += 2
+    elif weight == "medium":
+        score += 1
+    if item.get("requiresKali"):
+        score += 2
+    if item.get("requiresBrowserAutomation"):
+        score += 2
+    if item.get("requiresCustomBinaries"):
+        score += 1
+    if len(item.get("requiredSecrets") or []) >= 3:
+        score += 1
+    if score >= 4:
+        return "high"
+    if score >= 2:
+        return "medium"
+    return "low"
+
+
+async def _read_extension_runtime_states(db) -> dict[str, dict]:
+    if db is None:
+        return {}
+    items = await db.extension_catalog_state.find({}).to_list(length=500)
+    return {item["key"]: item for item in items if item.get("key")}
+
+
+def _merge_extension_catalog_state(catalog: list[dict], state_map: dict[str, dict]) -> list[dict]:
+    merged: list[dict] = []
+    for item in catalog:
+        key = str(item.get("key") or "")
+        state = state_map.get(key, {})
+        if state.get("hidden"):
+          continue
+
+        next_item = {
+            **item,
+            "id": key or item.get("id"),
+            "slug": key or item.get("slug"),
+            "installState": "installed" if state.get("installed_at") else "detected",
+            "operationalState": {
+                "enabled": state.get("enabled", item.get("status") != "disabled"),
+                "hidden": state.get("hidden", False),
+                "last_action": state.get("last_action"),
+                "last_action_at": state.get("last_action_at"),
+                "installed_at": state.get("installed_at"),
+                "last_updated_at": state.get("last_updated_at"),
+            },
+        }
+
+        status = str(next_item.get("status") or "unknown").lower()
+        if state.get("enabled") is False and status in {"enabled", "detected"}:
+            next_item["status"] = "disabled"
+        elif state.get("enabled") is True and status in {"disabled", "detected"}:
+            next_item["status"] = "enabled"
+
+        next_item["healthScore"] = _compute_extension_health_score(next_item)
+        next_item["runtimeOverhead"] = _compute_extension_runtime_overhead(next_item)
+        next_item["updateAvailable"] = status in {"deprecated"} or "rc" in str(next_item.get("version") or "").lower()
+        merged.append(next_item)
+
+    return merged
+
+
+async def _set_extension_catalog_state(
+    db,
+    key: str,
+    *,
+    enabled: bool | None = None,
+    hidden: bool | None = None,
+    last_action: str,
+    actor: str,
+):
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    current = await db.extension_catalog_state.find_one({"key": key}) or {"key": key}
+    now = datetime.now(timezone.utc)
+    next_state = dict(current)
+    if enabled is not None:
+        next_state["enabled"] = enabled
+    if hidden is not None:
+        next_state["hidden"] = hidden
+    if last_action == "install" and not next_state.get("installed_at"):
+        next_state["installed_at"] = now
+    if last_action == "update":
+        next_state["last_updated_at"] = now
+    next_state["last_action"] = last_action
+    next_state["last_action_at"] = now
+    next_state["updated_by"] = actor
+    await db.extension_catalog_state.replace_one({"key": key}, next_state, upsert=True)
+    return {field: value for field, value in next_state.items() if field != "_id"}
+
+
 @router.get("/extensions")
 async def read_extensions_catalog(
     request: Request,
@@ -273,8 +466,11 @@ async def read_extensions_catalog(
     """
     Read-only extension catalog for the extensibility MVP.
     """
+    db = db_manager.db
+    catalog = get_extensions_catalog(request.app, refresh=refresh)
+    state_map = await _read_extension_runtime_states(db)
     return {
-        "items": get_extensions_catalog(request.app, refresh=refresh),
+        "items": _merge_extension_catalog_state(catalog, state_map),
         "core_version": request.app.version,
         "search_roots": [
             {
@@ -285,6 +481,119 @@ async def read_extensions_catalog(
             for root in get_configured_plugin_roots()
         ],
     }
+
+
+@router.post("/extensions/{extension_key}/install")
+async def install_extension(
+    extension_key: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    catalog = get_extensions_catalog(request.app, refresh=True)
+    if not any(item.get("key") == extension_key for item in catalog):
+        raise HTTPException(status_code=404, detail="Extension not found")
+
+    state = await _set_extension_catalog_state(
+        db,
+        extension_key,
+        enabled=True,
+        hidden=False,
+        last_action="install",
+        actor=current_user["username"],
+    )
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="extension_installed",
+        target=extension_key,
+        ip=ip,
+        result="success",
+    )
+    return {"key": extension_key, "state": state}
+
+
+@router.post("/extensions/{extension_key}/enable")
+async def enable_extension(
+    extension_key: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    state = await _set_extension_catalog_state(
+        db,
+        extension_key,
+        enabled=True,
+        hidden=False,
+        last_action="enable",
+        actor=current_user["username"],
+    )
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="extension_enabled", target=extension_key, ip=ip, result="success")
+    return {"key": extension_key, "state": state}
+
+
+@router.post("/extensions/{extension_key}/disable")
+async def disable_extension(
+    extension_key: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    state = await _set_extension_catalog_state(
+        db,
+        extension_key,
+        enabled=False,
+        hidden=False,
+        last_action="disable",
+        actor=current_user["username"],
+    )
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="extension_disabled", target=extension_key, ip=ip, result="success")
+    return {"key": extension_key, "state": state}
+
+
+@router.post("/extensions/{extension_key}/update")
+async def update_extension_runtime(
+    extension_key: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    catalog = get_extensions_catalog(request.app, refresh=True)
+    if not any(item.get("key") == extension_key for item in catalog):
+        raise HTTPException(status_code=404, detail="Extension not found")
+
+    state = await _set_extension_catalog_state(
+        db,
+        extension_key,
+        last_action="update",
+        actor=current_user["username"],
+    )
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="extension_updated", target=extension_key, ip=ip, result="success")
+    return {"key": extension_key, "state": state}
+
+
+@router.delete("/extensions/{extension_key}")
+async def remove_extension_from_catalog(
+    extension_key: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    state = await _set_extension_catalog_state(
+        db,
+        extension_key,
+        enabled=False,
+        hidden=True,
+        last_action="remove",
+        actor=current_user["username"],
+    )
+    ip = request.client.host if request.client else ""
+    await log_action(db, user=current_user["username"], action="extension_removed", target=extension_key, ip=ip, result="success")
+    return {"key": extension_key, "state": state}
 
 
 @router.get("/extensions/features")
@@ -448,6 +757,25 @@ async def read_operational_status(current_user: dict = Depends(require_role(["ad
     return await get_operational_status_snapshot(db)
 
 
+@router.get("/operational-status/history")
+async def read_operational_status_history(
+    current_user: dict = Depends(require_role(["admin"])),
+    limit: int = Query(24, ge=6, le=96),
+):
+    db = db_manager.db
+    return {"items": await get_operational_status_history(db, limit=limit)}
+
+
+@router.get("/operational-events")
+async def read_operational_events(
+    current_user: dict = Depends(require_role(["admin"])),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(12, ge=1, le=50),
+):
+    db = db_manager.db
+    return await get_operational_event_stream(db, page=page, page_size=page_size)
+
+
 # ── Service restart (requires services:restart permission) ───────────────────
 
 RESTARTABLE_SERVICES = {
@@ -519,6 +847,139 @@ async def restart_service(
 async def read_threat_sources(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     return {"sources": await get_public_threat_sources(db)}
+
+
+async def _update_source_enabled_state(db, source_id: str, enabled: bool, updated_by: str) -> dict:
+    if source_id.startswith(CUSTOM_PREFIX):
+        return await update_custom_source(db, source_id, {"enabled": enabled}, updated_by=updated_by)
+    return await update_threat_source(db, source_id, {"enabled": enabled}, updated_by=updated_by)
+
+
+@router.post("/threat-sources/{source_id}/sync")
+async def sync_threat_source_now(
+    source_id: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    sources = await get_runtime_threat_sources(db)
+    source = next((item for item in sources if item["source_id"] == source_id), None)
+    if not source:
+        raise HTTPException(status_code=404, detail="Threat source not found.")
+
+    result = await sync_threat_source(db, source)
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="threat_source_sync_requested",
+        target=source_id,
+        ip=ip,
+        result="success" if result.get("status") == "success" else "partial",
+        detail=f"status={result.get('status')}, items={result.get('items_ingested', 0)}",
+    )
+    return result
+
+
+@router.post("/threat-sources/{source_id}/pause")
+async def pause_threat_source(
+    source_id: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    try:
+        updated = await _update_source_enabled_state(db, source_id, False, current_user["username"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="threat_source_paused",
+        target=source_id,
+        ip=ip,
+        result="success",
+    )
+    return updated
+
+
+@router.post("/threat-sources/{source_id}/resume")
+async def resume_threat_source(
+    source_id: str,
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    try:
+        updated = await _update_source_enabled_state(db, source_id, True, current_user["username"])
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="threat_source_resumed",
+        target=source_id,
+        ip=ip,
+        result="success",
+    )
+    return updated
+
+
+@router.get("/threat-sources/{source_id}/metrics")
+async def read_threat_source_metrics(
+    source_id: str,
+    current_user: dict = Depends(require_role(["admin"])),
+    window_hours: int = Query(24, ge=1, le=168),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    sources = await get_runtime_threat_sources(db)
+    source = next((item for item in sources if item["source_id"] == source_id), None)
+    if not source:
+        raise HTTPException(status_code=404, detail="Threat source not found.")
+
+    history = await get_threat_source_history(db, source_id, limit=24)
+    since = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+    approx_bytes = await estimate_threat_source_payload_bytes(db, source_id, since=since)
+    throughput_gb_per_day = 0.0
+    if window_hours > 0:
+        throughput_gb_per_day = round((approx_bytes * (24 / window_hours)) / (1024 ** 3), 4)
+
+    duration_series = []
+    for item in reversed(history):
+        duration_series.append(
+            {
+                "timestamp": item.get("last_run_at") or item.get("recorded_at"),
+                "duration_ms": item.get("duration_ms"),
+                "status": item.get("status"),
+                "items_ingested": item.get("items_ingested", 0),
+            }
+        )
+
+    return {
+        "source_id": source_id,
+        "window_hours": window_hours,
+        "throughput_gb_per_day": throughput_gb_per_day,
+        "approx_payload_bytes": approx_bytes,
+        "duration_series": duration_series,
+        "recent_events": history[:6],
+        "current_status": source.get("sync_status", {}),
+    }
 
 
 @router.get("/threat-sources/misp")

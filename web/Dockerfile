@@ -1,4 +1,4 @@
-# ── Stage 1: Build React app ──────────────────────────────────────────────────
+# ── Stage 1: Build the canonical Operational Architect frontend ──────────────
 FROM node:22.14.0-alpine3.21 AS builder
 
 WORKDIR /app
@@ -9,13 +9,12 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve with nginx ─────────────────────────────────────────────────
+# ── Stage 2: Serve with nginx + same-origin /api proxy ──────────────────────
 FROM nginx:1.27.4-alpine
 
-COPY --from=builder /app/dist /usr/share/nginx/html
+ENV API_UPSTREAM=http://backend:8000
 
-# SPA fallback: all routes → index.html
-RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  index index.html;\n  location / {\n    try_files $uri $uri/ /index.html;\n  }\n}\n' \
-    > /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.default.conf.template /etc/nginx/templates/default.conf.template
 
 EXPOSE 80

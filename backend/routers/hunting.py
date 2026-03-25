@@ -11,7 +11,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from audit import log_action
 from auth import get_current_user
@@ -43,10 +43,166 @@ class HuntingSearchRequest(BaseModel):
         return value.strip()
 
 
+class SavedHuntingSearchRequest(BaseModel):
+    name: str
+    artifact_type: str
+    query: str
+    provider_keys: list[str] = Field(default_factory=list)
+
+    @field_validator("name", "artifact_type", "query")
+    @classmethod
+    def _strip_saved_text(cls, value: str) -> str:
+        return value.strip()
+
+
+class HuntingCaseNoteRequest(BaseModel):
+    search_id: str
+    note: str
+
+    @field_validator("search_id", "note")
+    @classmethod
+    def _strip_note_text(cls, value: str) -> str:
+        return value.strip()
+
+
 @router.get("/providers")
 async def list_hunting_providers(current_user: dict = Depends(get_current_user)):
     _ = current_user
     return {"items": _get_hunting_providers()}
+
+
+@router.get("/saved-searches")
+async def list_saved_hunting_searches(current_user: dict = Depends(get_current_user)):
+    db = db_manager.db
+    if db is None:
+        return {"items": []}
+
+    docs = await db.hunting_saved_searches.find(
+        {"analyst": current_user["username"]},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(50).to_list(length=50)
+    return {"items": docs}
+
+
+@router.post("/saved-searches", status_code=201)
+async def create_saved_hunting_search(
+    body: SavedHuntingSearchRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="database_unavailable")
+
+    doc = {
+        "_id": uuid4().hex,
+        "analyst": current_user["username"],
+        "name": body.name,
+        "artifact_type": body.artifact_type,
+        "query": body.query,
+        "provider_keys": body.provider_keys,
+        "created_at": datetime.now(timezone.utc),
+        "last_used_at": None,
+        "use_count": 0,
+    }
+    await db.hunting_saved_searches.insert_one(doc)
+    return {"item": doc}
+
+
+@router.delete("/saved-searches/{saved_search_id}")
+async def delete_saved_hunting_search(
+    saved_search_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="database_unavailable")
+
+    result = await db.hunting_saved_searches.delete_one(
+        {"_id": saved_search_id, "analyst": current_user["username"]},
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="saved_hunting_search_not_found")
+    return {"ok": True}
+
+
+@router.get("/recent-searches")
+async def list_recent_hunting_searches(current_user: dict = Depends(get_current_user)):
+    db = db_manager.db
+    if db is None:
+        return {"items": []}
+
+    docs = await db.hunting_results.find(
+        {"analyst": current_user["username"]},
+        {"_id": 0},
+    ).sort("timestamp", -1).limit(250).to_list(length=250)
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for doc in docs:
+      search_id = doc.get("search_id")
+      if not search_id:
+          continue
+      bucket = grouped.get(search_id)
+      if bucket is None:
+          bucket = {
+              "search_id": search_id,
+              "artifact_type": doc.get("artifact_type"),
+              "query": doc.get("query"),
+              "timestamp": doc.get("search_timestamp") or doc.get("timestamp"),
+              "providers": set(),
+              "result_count": 0,
+          }
+          grouped[search_id] = bucket
+      bucket["providers"].add(doc.get("provider_key"))
+      bucket["result_count"] += 1
+
+    items = sorted(
+        [
+            {
+                **value,
+                "providers": sorted([provider for provider in value["providers"] if provider]),
+            }
+            for value in grouped.values()
+        ],
+        key=lambda item: item.get("timestamp") or datetime.now(timezone.utc),
+        reverse=True,
+    )[:20]
+    return {"items": items}
+
+
+@router.get("/case-notes")
+async def list_hunting_case_notes(
+    search_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    if db is None:
+        return {"items": []}
+
+    docs = await db.hunting_case_notes.find(
+        {"analyst": current_user["username"], "search_id": search_id},
+        {"_id": 0},
+    ).sort("created_at", -1).limit(50).to_list(length=50)
+    return {"items": docs}
+
+
+@router.post("/case-notes", status_code=201)
+async def create_hunting_case_note(
+    body: HuntingCaseNoteRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=503, detail="database_unavailable")
+
+    note = {
+        "_id": uuid4().hex,
+        "analyst": current_user["username"],
+        "search_id": body.search_id,
+        "note": body.note,
+        "created_at": datetime.now(timezone.utc),
+    }
+    await db.hunting_case_notes.insert_one(note)
+    return {"item": note}
 
 
 @router.post("/search")
@@ -151,6 +307,19 @@ async def run_hunting_search(
             )
 
     if db is not None:
+        matching_saved = await db.hunting_saved_searches.find_one(
+            {
+                "analyst": current_user["username"],
+                "artifact_type": body.artifact_type,
+                "query": body.query,
+            }
+        )
+        if matching_saved:
+            await db.hunting_saved_searches.update_one(
+                {"_id": matching_saved["_id"]},
+                {"$set": {"last_used_at": datetime.now(timezone.utc), "provider_keys": requested_keys},
+                 "$inc": {"use_count": 1}},
+            )
         has_success = any(item["status"] == "ok" for item in provider_results)
         has_failure = any(item["status"] == "error" for item in provider_results)
         await log_action(
@@ -168,6 +337,7 @@ async def run_hunting_search(
             "artifact_type": body.artifact_type,
             "query": body.query,
         },
+        "search_id": search_id,
         "items": provider_results,
         "total_results": total_results,
     }

@@ -100,3 +100,100 @@ async def test_exposure_router_rejects_duplicate_asset(async_client, auth_header
     audits = [entry for entry in fake_db.audit_log._data if entry["action"] == "premium_exposure_asset_create"]
     assert len(audits) == 2
     assert audits[-1]["result"] == "denied"
+
+
+@pytest.mark.asyncio
+async def test_exposure_group_and_bulk_scan(async_client, auth_headers, fake_db):
+    first = await async_client.post(
+        "/api/exposure/assets",
+        headers=auth_headers,
+        json={"asset_type": "domain", "value": "one.example", "schedule_mode": "manual"},
+    )
+    second = await async_client.post(
+        "/api/exposure/assets",
+        headers=auth_headers,
+        json={"asset_type": "domain", "value": "two.example", "schedule_mode": "manual"},
+    )
+    first_id = first.json()["item"]["_id"]
+    second_id = second.json()["item"]["_id"]
+
+    create_group = await async_client.post(
+        "/api/exposure/asset-groups",
+        headers=auth_headers,
+        json={"name": "Priority perimeter", "asset_ids": [first_id, second_id]},
+    )
+    assert create_group.status_code == 201
+    group_id = create_group.json()["item"]["_id"]
+
+    async def fake_fetcher(asset_payload):
+        return [{
+            "kind": "brand_abuse_signal",
+            "title": f"Signal for {asset_payload['value']}",
+            "summary": "Synthetic signal",
+            "severity": "medium",
+            "confidence": 0.6,
+            "url": "https://example.test",
+        }]
+
+    app.state.exposure_fetch_runner = fake_fetcher
+    try:
+        group_scan = await async_client.post(
+            f"/api/exposure/asset-groups/{group_id}/scan",
+            headers=auth_headers,
+        )
+        bulk_scan = await async_client.post(
+            "/api/exposure/assets/bulk-scan",
+            headers=auth_headers,
+            json={"asset_ids": [first_id]},
+        )
+    finally:
+        app.state.exposure_fetch_runner = None
+
+    assert group_scan.status_code == 200
+    assert group_scan.json()["assets_scanned"] == 2
+    assert bulk_scan.status_code == 200
+    assert bulk_scan.json()["assets_scanned"] == 1
+
+
+@pytest.mark.asyncio
+async def test_exposure_promotes_findings_to_incident(async_client, auth_headers, fake_db):
+    create_response = await async_client.post(
+        "/api/exposure/assets",
+        headers=auth_headers,
+        json={"asset_type": "domain", "value": "incident.example", "schedule_mode": "manual"},
+    )
+    asset_id = create_response.json()["item"]["_id"]
+
+    fake_db.exposure_findings._data.append(
+        {
+            "_id": "finding-1",
+            "customer_key": "admin",
+            "monitored_asset_id": asset_id,
+            "severity": "high",
+            "title": "Exposed credential",
+        }
+    )
+
+    promote = await async_client.post(
+        "/api/exposure/incidents/promote",
+        headers=auth_headers,
+        json={
+            "asset_id": asset_id,
+            "finding_ids": ["finding-1"],
+            "title": "Credential exposure",
+        },
+    )
+    assert promote.status_code == 201
+    incident_id = promote.json()["item"]["_id"]
+
+    list_incidents = await async_client.get("/api/exposure/incidents", headers=auth_headers)
+    assert list_incidents.status_code == 200
+    assert len(list_incidents.json()["items"]) == 1
+
+    patch = await async_client.patch(
+        f"/api/exposure/incidents/{incident_id}",
+        headers=auth_headers,
+        json={"status": "investigating"},
+    )
+    assert patch.status_code == 200
+    assert patch.json()["item"]["status"] == "investigating"

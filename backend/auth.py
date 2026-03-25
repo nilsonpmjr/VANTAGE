@@ -25,6 +25,20 @@ pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
+def default_notification_center(value: Optional[dict] = None) -> dict:
+    stored = value or {}
+    preferences = stored.get("preferences") if isinstance(stored.get("preferences"), dict) else {}
+    return {
+        "read_ids": [item for item in stored.get("read_ids", []) if isinstance(item, str)],
+        "archived_ids": [item for item in stored.get("archived_ids", []) if isinstance(item, str)],
+        "preferences": {
+            "critical": preferences.get("critical", True) is not False,
+            "system": preferences.get("system", True) is not False,
+            "intelligence": preferences.get("intelligence", True) is not False,
+        },
+    }
+
+
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
@@ -191,7 +205,12 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
     return user
 
 
-def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
+def _build_user_dict(
+    user: dict,
+    days_left: Optional[int],
+    *,
+    mfa_setup_required: bool = False,
+) -> dict:
     """Build the standard authenticated-user response dict."""
     result = {
         "username": user["username"],
@@ -202,8 +221,11 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "extra_permissions": user.get("extra_permissions", []),
+        "mfa_enabled": user.get("mfa_enabled", False),
+        "mfa_setup_required": mfa_setup_required,
         "avatar_base64": user.get("avatar_base64", ""),
         "recovery_email": user.get("recovery_email"),
+        "notification_center": default_notification_center(user.get("notification_center")),
     }
     if "_api_key_scopes" in user:
         result["_api_key_scopes"] = user["_api_key_scopes"]

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from bson import ObjectId
 
 from extensions.registry import load_extensions_registry
 from main import app
@@ -60,9 +61,9 @@ def test_load_extensions_registry_discovers_builtin_manifests():
     assert report_descriptor["delivery"] == "download"
     assert report_descriptor["preservesCurrentFlow"] is True
     assert report_descriptor["formats"] == ["pdf"]
-    assert report_descriptor["moduleEntrypoint"] == "web.src.utils.pdfGenerator"
-    assert report_descriptor["exportFunction"] == "generatePDFReport"
-    assert report_descriptor["sourceFiles"] == ["web/src/utils/pdfGenerator.js"]
+    assert report_descriptor["moduleEntrypoint"] == "frontend_operational_architect.src.utils.pdfReport"
+    assert report_descriptor["exportFunction"] == "generatePdfReport"
+    assert report_descriptor["sourceFiles"] == ["web/src/utils/pdfReport.ts"]
     assert report_descriptor["sourceFileCount"] == 1
 
 
@@ -94,7 +95,7 @@ def test_load_extensions_registry_marks_incompatible_manifest(tmp_path):
         "repositoryVisibility": "public",
         "updateChannel": "manual",
         "ownershipBoundary": "customer_local",
-        "sourceOfTruthPath": "web/src/utils/pdfGenerator.js",
+        "sourceOfTruthPath": "web/src/utils/pdfReport.ts",
     }), encoding="utf-8")
 
     registry = load_extensions_registry(plugin_root=tmp_path, current_core_version="1.0.0")
@@ -182,8 +183,8 @@ def test_load_extensions_registry_marks_report_exporter_invalid_when_source_miss
         "updateChannel": "manual",
         "ownershipBoundary": "customer_local",
         "capabilities": ["pdf"],
-        "entrypoint": "web.src.utils.pdfGenerator:generatePDFReport",
-        "sourceOfTruthPath": "web/src/utils/missing.js"
+        "entrypoint": "frontend_operational_architect.src.utils.pdfReport:generatePdfReport",
+        "sourceOfTruthPath": "web/src/utils/missing.ts"
     }), encoding="utf-8")
 
     registry = load_extensions_registry(plugin_root=tmp_path, current_core_version="1.0.0")
@@ -222,6 +223,40 @@ async def test_admin_extensions_catalog_can_force_refresh(async_client, auth_hea
     keys = {item["key"] for item in data["items"]}
     assert "stale-plugin" not in keys
     assert "brand-vantage" in keys
+
+
+@pytest.mark.asyncio
+async def test_admin_extensions_catalog_applies_runtime_disable(async_client, auth_headers):
+    disable_resp = await async_client.post("/api/admin/extensions/brand-vantage/disable", headers=auth_headers)
+    assert disable_resp.status_code == 200
+
+    resp = await async_client.get("/api/admin/extensions", headers=auth_headers)
+    assert resp.status_code == 200
+    data = resp.json()
+    brand = next(item for item in data["items"] if item["key"] == "brand-vantage")
+    assert brand["status"] == "disabled"
+    assert brand["operationalState"]["enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_admin_extensions_catalog_serializes_existing_runtime_state(async_client, auth_headers, fake_db):
+    fake_db.extension_catalog_state._data.append(
+        {
+            "_id": ObjectId(),
+            "key": "brand-vantage",
+            "enabled": True,
+            "hidden": False,
+            "last_action": "install",
+        }
+    )
+
+    response = await async_client.post("/api/admin/extensions/brand-vantage/disable", headers=auth_headers)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["key"] == "brand-vantage"
+    assert payload["state"]["enabled"] is False
+    assert "_id" not in payload["state"]
 
 
 @pytest.mark.asyncio

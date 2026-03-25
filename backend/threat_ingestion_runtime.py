@@ -121,6 +121,7 @@ def _make_custom_rss_fetcher(source: dict[str, Any]) -> Callable[[dict[str, Any]
 
 async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
     source_id = source["source_id"]
+    started_at = _now()
 
     configured, config_error = _is_source_configured(source)
     if not configured:
@@ -130,6 +131,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="not_configured",
             items_ingested=0,
             last_error=config_error,
+            duration_ms=0,
         )
         return {"source_id": source_id, "status": "not_configured", "items_ingested": 0}
 
@@ -143,6 +145,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="unsupported",
             items_ingested=0,
             last_error="No fetcher registered for this source.",
+            duration_ms=0,
         )
         return {"source_id": source_id, "status": "unsupported", "items_ingested": 0}
 
@@ -167,6 +170,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="success",
             items_ingested=count,
             last_error=None,
+            duration_ms=int((_now() - started_at).total_seconds() * 1000),
         )
         return {"source_id": source_id, "status": "success", "items_ingested": count}
     except Exception as exc:
@@ -177,6 +181,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="error",
             items_ingested=0,
             last_error=str(exc),
+            duration_ms=int((_now() - started_at).total_seconds() * 1000),
         )
         return {"source_id": source_id, "status": "error", "items_ingested": 0, "error": str(exc)}
 

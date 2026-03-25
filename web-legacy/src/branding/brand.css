@@ -1,0 +1,9 @@
+/*
+ * Branding matrix entrypoint
+ *
+ * Carrega todos os brandings suportados pela Sessao A.
+ * A ativacao final acontece por data-brand + data-theme no runtime.
+ */
+
+@import './vantage/brand.css';
+@import './generic/brand.css';

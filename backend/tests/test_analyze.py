@@ -2,8 +2,11 @@
 Integration tests for /api/analyze endpoint.
 """
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
+
+from routers.analyze import _fire_and_log
 
 
 @pytest.mark.asyncio
@@ -108,3 +111,14 @@ async def test_analyze_verdict_high_risk(MockClient, async_client, auth_headers)
     response = await async_client.get("/api/analyze?target=1.2.3.4", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["summary"]["verdict"] == "HIGH RISK"
+
+
+@pytest.mark.asyncio
+async def test_fire_and_log_accepts_future_objects():
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    future.set_result(None)
+
+    _fire_and_log(future, "future smoke")
+
+    await asyncio.sleep(0)

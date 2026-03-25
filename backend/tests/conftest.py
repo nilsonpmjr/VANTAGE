@@ -17,6 +17,11 @@ class _DeleteResult:
         self.deleted_count = deleted_count
 
 
+class _InsertResult:
+    def __init__(self, inserted_id):
+        self.inserted_id = inserted_id
+
+
 class FakeCursor:
     """Minimal async cursor shim that supports sort/skip/limit chaining."""
 
@@ -85,7 +90,11 @@ class FakeCollection:
         return FakeCursor([])
 
     async def insert_one(self, doc):
+        if "_id" not in doc:
+            from bson import ObjectId
+            doc["_id"] = ObjectId()
         self._data.append(doc)
+        return _InsertResult(doc["_id"])
 
     async def replace_one(self, query, replacement, upsert=False):
         for i, doc in enumerate(self._data):
@@ -101,12 +110,18 @@ class FakeCollection:
                 for op, fields in update.items():
                     if op == "$set":
                         doc.update(fields)
+                    elif op == "$inc":
+                        for key, value in fields.items():
+                            doc[key] = doc.get(key, 0) + value
                 return
         if upsert:
             new_doc = dict(query)
             for op, fields in update.items():
                 if op == "$set":
                     new_doc.update(fields)
+                elif op == "$inc":
+                    for key, value in fields.items():
+                        new_doc[key] = new_doc.get(key, 0) + value
             self._data.append(new_doc)
 
     async def delete_one(self, query):
@@ -226,14 +241,18 @@ class FakeDB:
         self.password_policy = FakeCollection()
         self.audit_log = FakeCollection()
         self.api_keys = FakeCollection()
+        self.extension_catalog_state = FakeCollection()
         self.sessions = FakeCollection()
         self.password_reset_tokens = FakeCollection()
         self.operational_config = FakeCollection()
         self.threat_sources = FakeCollection()
         self.threat_sync_status = FakeCollection()
+        self.threat_sync_history = FakeCollection()
+        self.operational_status_history = FakeCollection()
         self.threat_items = FakeCollection()
         self.hunting_results = FakeCollection()
         self.exposure_monitored_assets = FakeCollection()
+        self.exposure_asset_groups = FakeCollection()
         self.exposure_findings = FakeCollection()
         self.exposure_incidents = FakeCollection()
         self.recon_jobs = FakeCollection()
@@ -241,8 +260,11 @@ class FakeDB:
         self.recon_results = FakeCollection()
         self.batch_jobs = FakeCollection()
         self.watchlist = FakeCollection()
+        self.watchlist_history = FakeCollection()
         self.service_quota = FakeCollection()
         self.custom_threat_sources = FakeCollection()
+        self.hunting_saved_searches = FakeCollection()
+        self.hunting_case_notes = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

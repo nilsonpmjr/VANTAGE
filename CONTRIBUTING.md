@@ -82,9 +82,9 @@ docs(api): add OpenAPI examples for /analyze endpoint
 
 ### Frontend (React / Vite)
 - Use functional components with hooks
-- All user-visible strings must use `react-i18next` (`t('key')`) with entries in `pt.json`, `en.json`, and `es.json`
-- Follow the existing component structure under `web/src/components/`
-- Use CSS variables from `index.css` for theming (no hardcoded colors)
+- Follow the existing component structure under `web/src/`
+- Use shared primitives and layout rules from `web/src/index.css`
+- Prefer extending the canonical Operational Architect grammar before introducing one-off page patterns
 
 ### Security
 - Never commit secrets (`.env`, credentials, private keys)

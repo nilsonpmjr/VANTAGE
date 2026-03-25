@@ -16,6 +16,39 @@ DEFAULT_PASSWORD_POLICY = {
     "history_count": 5,
     "expiry_days": 0,           # 0 = disabled
     "expiry_warning_days": 7,
+    "mask_pii": True,
+    "prevent_common_passwords": False,
+    "prevent_breached_passwords": False,
+}
+
+COMMON_PASSWORDS = {
+    "password",
+    "password123",
+    "admin",
+    "admin123",
+    "qwerty",
+    "qwerty123",
+    "letmein",
+    "welcome",
+    "welcome123",
+    "changeme",
+    "default",
+    "soc123",
+    "vantage123",
+}
+
+BREACHED_PASSWORDS = {
+    "123456",
+    "12345678",
+    "123456789",
+    "1234567890",
+    "111111",
+    "abc123",
+    "password1",
+    "iloveyou",
+    "monkey",
+    "dragon",
+    "sunshine",
 }
 
 
@@ -42,6 +75,11 @@ def validate_password(password: str, policy: dict) -> list:
         errors.append("password_needs_number")
     if policy.get("require_symbols") and not any(not c.isalnum() for c in password):
         errors.append("password_needs_symbol")
+    normalized = password.strip().lower()
+    if policy.get("prevent_common_passwords") and normalized in COMMON_PASSWORDS:
+        errors.append("password_common_word_blocked")
+    if policy.get("prevent_breached_passwords") and normalized in BREACHED_PASSWORDS:
+        errors.append("password_breached_blocked")
     return errors
 
 

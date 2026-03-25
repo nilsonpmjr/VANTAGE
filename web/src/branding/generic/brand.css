@@ -1,12 +1,7 @@
 /*
  * Generic — Brand entrypoint
  *
- * Estrutura branding x theme:
- * - dark.css
- * - light.css
- *
- * Sessao A: dark e placeholder estrutural.
- * light existe como estrutura operacional e placeholder seguro.
+ * Shared entrypoint for the generic brand themes.
  */
 
 @import './dark.css';

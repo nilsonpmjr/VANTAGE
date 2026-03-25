@@ -66,6 +66,25 @@ docker compose up -d
 The app will be available at `http://localhost` (frontend) and `http://localhost:8000` (API).
 MongoDB stays on the internal Docker network only; it is no longer published to the host.
 
+### Frontend Runtime
+
+The default Docker stack already serves the canonical interface from [`web`](./web).
+
+Operational note: CI, branding assets, the extension registry, and Docker runtime now treat `web/` as the source of truth for the official interface.
+
+Historical note: `web-legacy/` remains in the repository only as an archived reference and is not used by the official runtime.
+
+For a local rehearsal on an alternate port, use the port override:
+
+```bash
+VANTAGE_FRONTEND_PORT=4177 docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.operational-architect.yml \
+  up -d --build
+```
+
+The override now changes only the published frontend port. The service definition itself already points to the canonical build.
+
 ### 3. Seed initial admin user
 
 ```bash

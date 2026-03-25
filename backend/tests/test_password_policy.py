@@ -49,6 +49,20 @@ def test_validate_password_all_pass():
     assert errors == []
 
 
+def test_validate_password_blocks_common_password():
+    from policies import validate_password
+    policy = {"min_length": 8, "prevent_common_passwords": True}
+    errors = validate_password("password123", policy)
+    assert "password_common_word_blocked" in errors
+
+
+def test_validate_password_blocks_breached_password():
+    from policies import validate_password
+    policy = {"min_length": 6, "prevent_breached_passwords": True}
+    errors = validate_password("123456", policy)
+    assert "password_breached_blocked" in errors
+
+
 def test_compute_expiry_days_left_disabled():
     from policies import compute_expiry_days_left
     user = {"password_changed_at": datetime.now(timezone.utc) - timedelta(days=999)}
@@ -142,6 +156,16 @@ async def test_update_password_policy(async_client, auth_headers):
     assert data["min_length"] == 12
     assert data["require_uppercase"] is True
     assert data["expiry_days"] == 90
+
+
+@pytest.mark.asyncio
+async def test_export_security_policies_json(async_client, auth_headers):
+    resp = await async_client.get("/api/admin/security-policies/export?format=json", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    data = resp.json()
+    assert "password_policy" in data
+    assert "lockout_policy" in data
 
 
 @pytest.mark.asyncio

@@ -10,6 +10,7 @@ node_modules/
 docker_build.log
 docs/
 .vscode/
+docker-compose.operational-architect.yml
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md

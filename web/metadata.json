@@ -1,0 +1,5 @@
+{
+  "name": "VANTAGE Web",
+  "description": "Official VANTAGE interface for threat intelligence, reconnaissance, monitoring, and administration.",
+  "requestFramePermissions": []
+}

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 from time import monotonic
+from typing import Any
 
 from operational_config import get_public_operational_config
 
@@ -15,6 +16,12 @@ _scheduler_runtime_provider = lambda: {"running": False, "scheduled_jobs": 0}
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _sort_key(value: Any) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromtimestamp(0, tz=timezone.utc)
 
 
 def _base_service(status: str, *, last_checked=None, error=None, details=None, consumption=None) -> dict:
@@ -154,7 +161,104 @@ SERVICE_COLLECTORS = {
 }
 
 
-async def get_operational_status_snapshot(db) -> dict:
+async def _persist_operational_snapshot(db, snapshot: dict) -> None:
+    if db is None:
+        return
+
+    checked_at = snapshot.get("checked_at") or _now()
+    await db.operational_status_history.insert_one({
+        "recorded_at": checked_at,
+        "summary": snapshot.get("summary", {}),
+        "services": snapshot.get("services", {}),
+    })
+
+
+async def get_operational_status_history(db, *, limit: int = 24) -> list[dict]:
+    if db is None:
+        return []
+
+    raw_items = await db.operational_status_history.find({}, {"_id": 0}).to_list(length=max(limit * 3, limit))
+    items = sorted(raw_items, key=lambda item: _sort_key(item.get("recorded_at")))
+    if not items:
+        snapshot = await get_operational_status_snapshot(db, persist=True)
+        items = [{
+            "recorded_at": snapshot.get("checked_at"),
+            "summary": snapshot.get("summary", {}),
+            "services": snapshot.get("services", {}),
+        }]
+    return items[-limit:]
+
+
+def _matches_operational_event(action: str) -> bool:
+    if not action:
+        return False
+    return (
+        action == "service_restart"
+        or action.startswith("threat_source_")
+        or action.startswith("smtp_test_")
+        or action.startswith("extension_")
+    )
+
+
+def _infer_service_name(entry: dict) -> str:
+    detail = str(entry.get("detail") or "")
+    target = str(entry.get("target") or "")
+    action = str(entry.get("action") or "")
+
+    if "service=" in detail:
+        for chunk in detail.split(","):
+            chunk = chunk.strip()
+            if chunk.startswith("service="):
+                return chunk.split("=", 1)[1] or "runtime"
+    if action.startswith("threat_source_"):
+        return target or "threat_ingestion"
+    if action.startswith("smtp_test_"):
+        return "mailer"
+    if action.startswith("extension_"):
+        return target or "extensions"
+    return target or "runtime"
+
+
+def _infer_category(action: str) -> str:
+    if action == "service_restart":
+        return "runtime"
+    if action.startswith("threat_source_"):
+        return "ingestion"
+    if action.startswith("smtp_test_"):
+        return "mailer"
+    if action.startswith("extension_"):
+        return "extensions"
+    return "runtime"
+
+
+async def get_operational_event_stream(db, *, page: int = 1, page_size: int = 20) -> dict:
+    if db is None:
+        return {"items": [], "total": 0, "page": page, "pages": 1}
+
+    raw_items = await db.audit_log.find({}, {"_id": 0}).to_list(length=250)
+    filtered = [
+        {
+            **item,
+            "service": _infer_service_name(item),
+            "category": _infer_category(str(item.get("action") or "")),
+        }
+        for item in raw_items
+        if _matches_operational_event(str(item.get("action") or ""))
+    ]
+    filtered.sort(key=lambda item: _sort_key(item.get("timestamp")), reverse=True)
+    total = len(filtered)
+    pages = max(1, (total + page_size - 1) // page_size)
+    start = (page - 1) * page_size
+    end = start + page_size
+    return {
+        "items": filtered[start:end],
+        "total": total,
+        "page": page,
+        "pages": pages,
+    }
+
+
+async def get_operational_status_snapshot(db, *, persist: bool = True) -> dict:
     services: dict[str, dict] = {}
     summary = {"healthy": 0, "degraded": 0, "error": 0}
 
@@ -166,8 +270,11 @@ async def get_operational_status_snapshot(db) -> dict:
         services[name] = service
         summary[service["status"]] = summary.get(service["status"], 0) + 1
 
-    return {
+    snapshot = {
         "checked_at": _now(),
         "summary": summary,
         "services": services,
     }
+    if persist:
+        await _persist_operational_snapshot(db, snapshot)
+    return snapshot

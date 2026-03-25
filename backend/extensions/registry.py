@@ -19,7 +19,7 @@ VALID_OWNERSHIP_BOUNDARIES = {"core_team", "customer_local", "vantage_premium"}
 VALID_PREMIUM_FEATURE_TYPES = {"hunting_provider", "exposure_provider"}
 PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-WEB_SOURCE_ROOT = PROJECT_ROOT / "web/src"
+FRONTEND_SOURCE_ROOT = PROJECT_ROOT / "web/src"
 BRANDING_SOURCE_ROOT = PROJECT_ROOT / "web/src/branding"
 BRANDING_PUBLIC_ROOT = PROJECT_ROOT / "web/public/branding"
 LOCAL_PLUGIN_ROOT = PROJECT_ROOT / "backend/extensions/local_plugins"
@@ -283,7 +283,7 @@ def _validate_manifest(
             errors.append("missing_source_of_truth_path")
         else:
             source_path = (PROJECT_ROOT / str(source_of_truth_path)).resolve()
-            if not _is_path_under(WEB_SOURCE_ROOT, source_path):
+            if not _is_path_under(FRONTEND_SOURCE_ROOT, source_path):
                 errors.append("source_of_truth_path_not_approved")
             elif not source_path.exists():
                 errors.append("source_of_truth_path_missing")

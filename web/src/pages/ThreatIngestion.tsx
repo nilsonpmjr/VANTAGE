@@ -10,9 +10,11 @@ import {
   Eye,
   Pencil,
   Power,
+  X,
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 type ThreatSource = {
   source_id: string;
@@ -126,6 +128,7 @@ function protocolLabel(source: ThreatSource) {
 }
 
 export default function ThreatIngestion() {
+  const { t } = useLanguage();
   const [sources, setSources] = useState<ThreatSource[]>([]);
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfig | null>(null);
   const [mispConfig, setMispConfig] = useState<MispSourceConfig | null>(null);
@@ -272,6 +275,14 @@ export default function ThreatIngestion() {
         || [];
     return values.length ? values.slice(0, 8) : [40, 55, 45, 70, 30, 50, 85, 40];
   }, [selectedSourceMetrics]);
+  const fortinetSources = useMemo(
+    () => sources.filter((item) => item.family === "fortinet"),
+    [sources],
+  );
+  const fortinetActiveCount = useMemo(
+    () => fortinetSources.filter((item) => item.enabled).length,
+    [fortinetSources],
+  );
 
   async function saveSmtpConfig() {
     setBusy("smtp");
@@ -551,17 +562,16 @@ export default function ThreatIngestion() {
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Administration</div>
-          <h1 className="page-heading">Threat Ingestion & SMTP</h1>
+          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
+          <h1 className="page-heading">{t("settingsPages.threatIngestionTitle", "Threat Ingestion & SMTP")}</h1>
           <p className="page-subheading">
-            Administre conectores, cadência de sincronização e o gateway SMTP em uma
-            única área de gestão.
+            {t("settingsPages.threatIngestionSubtitle", "Administre conectores, cadência de sincronização e o gateway SMTP em uma única área de gestão.")}
           </p>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Global actions</div>
+        <div className="page-toolbar-copy">{t("settingsPages.threatIngestionActions", "Global actions")}</div>
         <div className="page-toolbar-actions">
           <button
             onClick={() => void loadRuntime()}
@@ -569,7 +579,7 @@ export default function ThreatIngestion() {
           >
             <span className="inline-flex items-center gap-2">
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-              Refresh
+              {t("admin.refresh", "Refresh")}
             </span>
           </button>
           <button
@@ -579,7 +589,7 @@ export default function ThreatIngestion() {
             className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
-            {showCustomSourceForm ? "Close Form" : "New Source"}
+            {showCustomSourceForm ? t("settingsPages.closeForm", "Close Form") : t("settingsPages.newSource", "New Source")}
           </button>
         </div>
       </div>
@@ -591,213 +601,129 @@ export default function ThreatIngestion() {
         </div>
       )}
 
-      <section className="surface-section">
-        <div className="surface-section-header">
-          <div className="flex items-center gap-3">
-            <Database className="w-5 h-5 text-primary" />
-          <h2 className="surface-section-title">Threat Sources</h2>
-          </div>
-          <span className="summary-pill-muted">
-            {activeCount} Active Sources
-          </span>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant/10">
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-                  Source
-                </th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-center">
-                  Protocol
-                </th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-right">
-                  Volume (Items)
-                </th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-right">
-                  Last Sync
-                </th>
-                <th className="px-6 py-3 w-10"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-outline-variant/10">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-sm text-on-surface-variant">
-                    Carregando fontes operacionais...
-                  </td>
-                </tr>
-              ) : sources.length > 0 ? (
-                sources.map((source) => {
-                  const meta = statusMeta(source);
-                  const sourceIdentifier =
-                    (source.config?.feed_url as string | undefined) ||
-                    source.display_name ||
-                    source.source_id;
-                  return (
-                    <tr
-                      key={source.source_id}
-                      className="hover:bg-surface-container-low transition-colors group"
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex flex-col">
-                          <span className="text-sm font-bold text-on-surface">
-                            {source.display_name}
-                          </span>
-                          <span className="text-[11px] text-on-surface-variant font-mono">
-                            {sourceIdentifier}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <span className="text-[11px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded">
-                          {protocolLabel(source)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${meta.dot}`}></span>
-                          <span className="text-xs font-semibold text-on-surface">{meta.label}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm font-mono text-on-surface font-semibold">
-                          {source.sync_status?.items_ingested ?? "—"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-[11px] text-on-surface-variant">
-                          {formatTimestamp(source.sync_status?.last_run_at)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex justify-end gap-2">
-                          <RowPrimaryAction
-                            label="Inspect"
-                            icon={<Eye className="h-3.5 w-3.5" />}
-                            onClick={() => setSelectedSourceId(source.source_id)}
-                          />
-                          <RowActionsMenu
-                            items={buildThreatSourceActions({
-                              source,
-                              onInspect: () => setSelectedSourceId(source.source_id),
-                              onSync: () => void syncSourceNow(source),
-                              onEdit: () => openEditCustomSourceForm(source),
-                              onToggle: () =>
-                                source.source_id.startsWith("custom_")
-                                  ? void toggleCustomSourceEnabled(source)
-                                  : void setSourceEnabled(source, !source.enabled),
-                              onDelete: () => void deleteCustomSource(source.source_id),
-                              notify: setNotice,
-                            })}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-sm text-on-surface-variant">
-                    Nenhuma fonte de ingestão configurada.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      {showCustomSourceForm && (
-        <section className="bg-surface-container-lowest border border-outline-variant/15 rounded shadow-sm overflow-hidden">
-          <div className="px-6 py-4 bg-surface-container-high border-b border-outline-variant/10">
-            <div className="flex items-center gap-3">
-              <Radar className="w-5 h-5 text-primary" />
-              <h2 className="font-bold text-sm tracking-tight text-on-surface">
-                {editingCustomSourceId ? "Manual Source Editing" : "Manual Source Provisioning"}
-              </h2>
-            </div>
-          </div>
-          <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField label="Display Title">
-              <input
-                className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                value={customSourceDraft.title}
-                onChange={(event) => setCustomSourceDraft((current) => ({ ...current, title: event.target.value }))}
-                placeholder="Partner CTI Feed"
-              />
-            </FormField>
-            <FormField label="Family">
-              <input
-                className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                value={customSourceDraft.family}
-                onChange={(event) => setCustomSourceDraft((current) => ({ ...current, family: event.target.value }))}
-              />
-            </FormField>
-            <FormField label="Feed URL">
-              <input
-                className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                value={customSourceDraft.feed_url}
-                onChange={(event) => setCustomSourceDraft((current) => ({ ...current, feed_url: event.target.value }))}
-                placeholder="https://..."
-              />
-            </FormField>
-            <FormField label="Poll Interval">
-              <input
-                className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                value={customSourceDraft.poll_interval_minutes}
-                onChange={(event) => setCustomSourceDraft((current) => ({ ...current, poll_interval_minutes: event.target.value }))}
-              />
-            </FormField>
-            <FormField label="Default TLP">
-              <select
-                className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all appearance-none"
-                value={customSourceDraft.default_tlp}
-                onChange={(event) => setCustomSourceDraft((current) => ({ ...current, default_tlp: event.target.value }))}
-              >
-                <option value="white">White</option>
-                <option value="green">Green</option>
-                <option value="amber">Amber</option>
-                <option value="red">Red</option>
-              </select>
-            </FormField>
-          </div>
-          <div className="px-8 pb-8 flex justify-end gap-4">
-            <button
-              onClick={() => {
-                setShowCustomSourceForm(false);
-                resetCustomSourceDraft();
-              }}
-              className="px-6 py-2.5 border-2 border-primary text-primary text-xs font-bold rounded uppercase tracking-widest hover:bg-primary/5 transition-all"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() =>
-                void (
-                  editingCustomSourceId
-                    ? updateExistingCustomSource(editingCustomSourceId)
-                    : createCustomSource()
-                )
-              }
-              disabled={busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)}
-              className="px-6 py-2.5 bg-primary text-white text-xs font-bold rounded uppercase tracking-widest shadow-lg hover:shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-60"
-            >
-              {busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)
-                ? "Saving..."
-                : editingCustomSourceId
-                  ? "Update Source"
-                  : "Create Source"}
-            </button>
-          </div>
-        </section>
-      )}
-
       <div className="page-with-side-rail">
         <div className="page-main-pane space-y-8">
+          <section className="surface-section">
+            <div className="surface-section-header">
+              <div className="flex items-center gap-3">
+                <Database className="w-5 h-5 text-primary" />
+                <h2 className="surface-section-title">Threat Sources</h2>
+              </div>
+              <span className="summary-pill-muted">{activeCount} Active Sources</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant/10">
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
+                      Source
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-center">
+                      Protocol
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-right">
+                      Volume (Items)
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-widest text-right">
+                      Last Sync
+                    </th>
+                    <th className="px-6 py-3 w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-outline-variant/10">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-sm text-on-surface-variant">
+                        Carregando fontes operacionais...
+                      </td>
+                    </tr>
+                  ) : sources.length > 0 ? (
+                    sources.map((source) => {
+                      const meta = statusMeta(source);
+                      const sourceIdentifier =
+                        (source.config?.feed_url as string | undefined) ||
+                        source.display_name ||
+                        source.source_id;
+                      const isSelected = selectedSourceId === source.source_id;
+                      return (
+                        <tr
+                          key={source.source_id}
+                          className={`group transition-colors ${
+                            isSelected ? "bg-primary/5" : "hover:bg-surface-container-low"
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-on-surface">
+                                {source.display_name}
+                              </span>
+                              <span className="text-[11px] text-on-surface-variant font-mono">
+                                {sourceIdentifier}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-center">
+                            <span className="text-[11px] font-bold bg-secondary-container text-on-secondary-container px-2 py-0.5 rounded">
+                              {protocolLabel(source)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${meta.dot}`}></span>
+                              <span className="text-xs font-semibold text-on-surface">{meta.label}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm font-mono text-on-surface font-semibold">
+                              {source.sync_status?.items_ingested ?? "—"}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-[11px] text-on-surface-variant">
+                              {formatTimestamp(source.sync_status?.last_run_at)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex justify-end gap-2">
+                              <RowPrimaryAction
+                                label="Inspect"
+                                icon={<Eye className="h-3.5 w-3.5" />}
+                                onClick={() => setSelectedSourceId(source.source_id)}
+                              />
+                              <RowActionsMenu
+                                items={buildThreatSourceActions({
+                                  source,
+                                  onInspect: () => setSelectedSourceId(source.source_id),
+                                  onSync: () => void syncSourceNow(source),
+                                  onEdit: () => openEditCustomSourceForm(source),
+                                  onToggle: () =>
+                                    source.source_id.startsWith("custom_")
+                                      ? void toggleCustomSourceEnabled(source)
+                                      : void setSourceEnabled(source, !source.enabled),
+                                  onDelete: () => void deleteCustomSource(source.source_id),
+                                  notify: setNotice,
+                                })}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-8 text-sm text-on-surface-variant">
+                        Nenhuma fonte de ingestão configurada.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
         <section className="bg-surface-container-lowest border border-outline-variant/15 rounded shadow-sm overflow-hidden">
           <div className="px-6 py-4 bg-surface-container-high border-b border-outline-variant/10">
             <div className="flex items-center gap-3">
@@ -969,66 +895,6 @@ export default function ThreatIngestion() {
         </div>
 
         <aside className="page-side-rail-right">
-          <div className="bg-inverse-surface p-6 rounded shadow-xl text-white">
-            <h3 className="font-bold text-xs uppercase tracking-[0.2em] opacity-60 mb-4">
-              Service Integrity
-            </h3>
-            <div className="flex items-end justify-between mb-2">
-              <span className="text-3xl font-black">
-                {sources.length > 0 ? `${Math.round((activeCount / sources.length) * 100)}%` : "0%"}
-              </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
-                {activeCount > 0 ? "Optimal" : "Degraded"}
-              </span>
-            </div>
-            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-primary"
-                style={{ width: `${sources.length > 0 ? Math.max(8, Math.round((activeCount / sources.length) * 100)) : 0}%` }}
-              ></div>
-            </div>
-            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
-              {syncingCount} source(s) are synchronizing. SMTP changes trigger a
-              validation cycle across the reporting flow.
-            </p>
-          </div>
-
-          <div className="bg-surface-container-high p-6 rounded border border-outline-variant/20">
-            <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant mb-4">
-              Source Activity
-            </h3>
-            <div className="relative h-24 flex items-end gap-1">
-              {latencyBars.map((height, index) => (
-                <div
-                  key={`${height}-${index}`}
-                  className={`flex-1 rounded-t-sm ${height > 75 ? "bg-primary/60" : "bg-primary/20"}`}
-                  style={{ height: `${height}%` }}
-                ></div>
-              ))}
-            </div>
-            <div className="flex justify-between mt-2 text-[10px] font-bold text-on-surface-variant">
-              <span>SYNC DURATION</span>
-              <span>{selectedSourceMetrics?.window_hours || 24}H WINDOW</span>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
-              <div className="rounded-sm bg-surface-container-lowest px-3 py-2">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  Approx Throughput
-                </div>
-                <div className="mt-1 font-mono font-bold text-on-surface">
-                  {selectedSourceMetrics ? `${selectedSourceMetrics.throughput_gb_per_day.toFixed(4)} GB/day` : "—"}
-                </div>
-              </div>
-              <div className="rounded-sm bg-surface-container-lowest px-3 py-2">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  Last Duration
-                </div>
-                <div className="mt-1 font-mono font-bold text-on-surface">
-                  {selectedSource?.sync_status?.duration_ms ? `${selectedSource.sync_status.duration_ms} ms` : "—"}
-                </div>
-              </div>
-            </div>
-          </div>
           {selectedSource && (
             <div className="bg-surface-container-lowest border border-outline-variant/15 rounded shadow-sm p-6 space-y-4">
               <div>
@@ -1047,6 +913,7 @@ export default function ThreatIngestion() {
               </p>
               <SourceMeta label="Last Sync" value={formatTimestamp(selectedSource.sync_status?.last_run_at)} />
               <SourceMeta label="Status" value={statusMeta(selectedSource).label} />
+              <SourceMeta label="Family" value={selectedSource.family || "—"} />
               <SourceMeta label="Ingested" value={String(selectedSource.sync_status?.items_ingested ?? "—")} />
               <SourceMeta
                 label="Sync Duration"
@@ -1133,8 +1000,199 @@ export default function ThreatIngestion() {
               )}
             </div>
           )}
+
+          {fortinetSources.length > 0 && (
+            <div className="bg-surface-container-lowest border border-outline-variant/15 rounded shadow-sm p-6 space-y-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  FortiGuard RSS Bundle
+                </p>
+                <h3 className="text-sm font-bold text-on-surface mt-1">
+                  Curated Fortinet intake
+                </h3>
+              </div>
+              <p className="text-sm text-on-surface-variant">
+                Keep the Fortinet outbreak and threat signal channels organized as one operational family inside the ingestion runtime.
+              </p>
+              <SourceMeta label="Channels" value={String(fortinetSources.length)} />
+              <SourceMeta label="Active" value={String(fortinetActiveCount)} />
+              <SourceMeta
+                label="Sources"
+                value={fortinetSources.map((item) => item.display_name).join(" • ")}
+              />
+            </div>
+          )}
+
+          <div className="bg-inverse-surface p-6 rounded shadow-xl text-white">
+            <h3 className="font-bold text-xs uppercase tracking-[0.2em] opacity-60 mb-4">
+              Service Integrity
+            </h3>
+            <div className="flex items-end justify-between mb-2">
+              <span className="text-3xl font-black">
+                {sources.length > 0 ? `${Math.round((activeCount / sources.length) * 100)}%` : "0%"}
+              </span>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
+                {activeCount > 0 ? "Optimal" : "Degraded"}
+              </span>
+            </div>
+            <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-primary"
+                style={{ width: `${sources.length > 0 ? Math.max(8, Math.round((activeCount / sources.length) * 100)) : 0}%` }}
+              ></div>
+            </div>
+            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+              {syncingCount} source(s) are synchronizing. SMTP changes trigger a
+              validation cycle across the reporting flow.
+            </p>
+          </div>
+
+          <div className="bg-surface-container-high p-6 rounded border border-outline-variant/20">
+            <h3 className="font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant mb-4">
+              Source Activity
+            </h3>
+            <div className="relative h-24 flex items-end gap-1">
+              {latencyBars.map((height, index) => (
+                <div
+                  key={`${height}-${index}`}
+                  className={`flex-1 rounded-t-sm ${height > 75 ? "bg-primary/60" : "bg-primary/20"}`}
+                  style={{ height: `${height}%` }}
+                ></div>
+              ))}
+            </div>
+            <div className="flex justify-between mt-2 text-[10px] font-bold text-on-surface-variant">
+              <span>SYNC DURATION</span>
+              <span>{selectedSourceMetrics?.window_hours || 24}H WINDOW</span>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+              <div className="rounded-sm bg-surface-container-lowest px-3 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  Approx Throughput
+                </div>
+                <div className="mt-1 font-mono font-bold text-on-surface">
+                  {selectedSourceMetrics ? `${selectedSourceMetrics.throughput_gb_per_day.toFixed(4)} GB/day` : "—"}
+                </div>
+              </div>
+              <div className="rounded-sm bg-surface-container-lowest px-3 py-2">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  Last Duration
+                </div>
+                <div className="mt-1 font-mono font-bold text-on-surface">
+                  {selectedSource?.sync_status?.duration_ms ? `${selectedSource.sync_status.duration_ms} ms` : "—"}
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
+
+      {showCustomSourceForm && (
+        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
+          <div className="modal-surface mx-auto w-full max-w-4xl overflow-hidden">
+            <div className="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-4">
+              <div className="flex items-center gap-3">
+                <Radar className="h-5 w-5 text-primary" />
+                <div>
+                  <h2 className="text-sm font-bold tracking-tight text-on-surface">
+                    {editingCustomSourceId ? "Edit Manual Source" : "Provision Manual Source"}
+                  </h2>
+                  <p className="mt-1 text-[11px] uppercase tracking-widest text-on-surface-variant">
+                    Feed identity, cadence and trust posture
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomSourceForm(false);
+                  resetCustomSourceDraft();
+                }}
+                className="text-on-surface-variant hover:text-on-surface"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+              <FormField label="Display Title">
+                <input
+                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={customSourceDraft.title}
+                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, title: event.target.value }))}
+                  placeholder="Partner CTI Feed"
+                />
+              </FormField>
+              <FormField label="Family">
+                <input
+                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={customSourceDraft.family}
+                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, family: event.target.value }))}
+                />
+              </FormField>
+              <FormField label="Feed URL">
+                <input
+                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={customSourceDraft.feed_url}
+                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, feed_url: event.target.value }))}
+                  placeholder="https://..."
+                />
+              </FormField>
+              <FormField label="Poll Interval">
+                <input
+                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={customSourceDraft.poll_interval_minutes}
+                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, poll_interval_minutes: event.target.value }))}
+                />
+              </FormField>
+              <FormField label="Default TLP">
+                <select
+                  className="w-full appearance-none bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={customSourceDraft.default_tlp}
+                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, default_tlp: event.target.value }))}
+                >
+                  <option value="white">White</option>
+                  <option value="green">Green</option>
+                  <option value="amber">Amber</option>
+                  <option value="red">Red</option>
+                </select>
+              </FormField>
+              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                Manual sources follow the same operational lane as native feeds. Save the source here and keep the
+                selected-row context in the right rail for sync telemetry and quick actions.
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 pb-6">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCustomSourceForm(false);
+                  resetCustomSourceDraft();
+                }}
+                className="btn btn-outline"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  void (
+                    editingCustomSourceId
+                      ? updateExistingCustomSource(editingCustomSourceId)
+                      : createCustomSource()
+                  )
+                }
+                disabled={busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)}
+                className="btn btn-primary"
+              >
+                {busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)
+                  ? "Saving..."
+                  : editingCustomSourceId
+                    ? "Update Source"
+                    : "Create Source"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

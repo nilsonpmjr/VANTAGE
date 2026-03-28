@@ -8,16 +8,11 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import API_URL from "../../config";
 
-const CATEGORIES = [
-  { value: "bug", label: "Bug Report" },
-  { value: "question", label: "Question" },
-  { value: "feature", label: "Feature Request" },
-  { value: "other", label: "Other" },
-];
-
 export default function ContactSupportPage() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [category, setCategory] = useState("bug");
   const [subject, setSubject] = useState("");
@@ -25,23 +20,29 @@ export default function ContactSupportPage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const categories = [
+    { value: "bug", label: t("help.categoryBug", "Bug Report") },
+    { value: "question", label: t("help.categoryQuestion", "Question") },
+    { value: "feature", label: t("help.categoryFeature", "Feature Request") },
+    { value: "other", label: t("help.categoryOther", "Other") },
+  ];
 
   const systemInfo = [
-    { label: "Platform", value: "VANTAGE" },
-    { label: "User", value: user?.username || "—" },
-    { label: "Role", value: (user?.role || "—").toUpperCase() },
+    { label: t("help.systemInfoPlatform", "Platform"), value: "VANTAGE" },
+    { label: t("help.systemInfoUser", "User"), value: user?.username || "—" },
+    { label: t("help.systemInfoRole", "Role"), value: (user?.role || "—").toUpperCase() },
     {
-      label: "Browser",
+      label: t("help.systemInfoBrowser", "Browser"),
       value: navigator.userAgent.includes("Chrome")
         ? "Chrome"
         : navigator.userAgent.includes("Firefox")
           ? "Firefox"
           : navigator.userAgent.includes("Safari")
             ? "Safari"
-            : "Other",
+            : t("help.other", "Other"),
     },
-    { label: "Language", value: navigator.language },
-    { label: "MFA", value: user?.mfa_enabled ? "Enabled" : "Disabled" },
+    { label: t("help.systemInfoLanguage", "Language"), value: navigator.language },
+    { label: t("help.systemInfoMfa", "MFA"), value: user?.mfa_enabled ? t("help.enabled", "Enabled") : t("help.disabled", "Disabled") },
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -65,9 +66,7 @@ export default function ContactSupportPage() {
       setSubject("");
       setDescription("");
     } catch {
-      setError(
-        "Could not send the message. Please try again or use the email channel below.",
-      );
+      setError(t("help.sendError", "Could not send the message. Please try again or use the email channel below."));
     } finally {
       setSending(false);
     }
@@ -79,7 +78,7 @@ export default function ContactSupportPage() {
         <div className="page-main-pane">
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Send a Message</h3>
+              <h3 className="surface-section-title">{t("help.sendMessage", "Send a Message")}</h3>
             </div>
             <div className="p-6">
               {sent ? (
@@ -88,19 +87,17 @@ export default function ContactSupportPage() {
                     <CheckCircle className="w-8 h-8 text-emerald-600" />
                   </div>
                   <h3 className="text-lg font-bold text-on-surface">
-                    Message Sent
+                    {t("help.messageSent", "Message Sent")}
                   </h3>
                   <p className="text-sm text-on-surface-variant text-center max-w-md">
-                    Your support request has been submitted. Our team will review
-                    it and respond via email. You can also check the status in
-                    your notifications.
+                    {t("help.messageSentBody", "Your support request has been submitted. Our team will review it and respond via email. You can also check the status in your notifications.")}
                   </p>
                   <button
                     type="button"
                     onClick={() => setSent(false)}
                     className="btn btn-outline mt-4"
                   >
-                    Send Another Message
+                    {t("help.sendAnotherMessage", "Send Another Message")}
                   </button>
                 </div>
               ) : (
@@ -114,16 +111,16 @@ export default function ContactSupportPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      Category
+                      {t("help.category", "Category")}
                     </label>
                     <select
                       value={category}
                       onChange={(e) => setCategory(e.target.value)}
-                      aria-label="Category"
-                      title="Category"
+                      aria-label={t("help.category", "Category")}
+                      title={t("help.category", "Category")}
                       className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-sm text-on-surface focus:ring-2 focus:ring-primary/20 outline-none"
                     >
-                      {CATEGORIES.map((c) => (
+                      {categories.map((c) => (
                         <option key={c.value} value={c.value}>
                           {c.label}
                         </option>
@@ -133,13 +130,13 @@ export default function ContactSupportPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      Subject
+                      {t("help.subject", "Subject")}
                     </label>
                     <input
                       type="text"
                       value={subject}
                       onChange={(e) => setSubject(e.target.value)}
-                      placeholder="Brief description of your issue"
+                      placeholder={t("help.subjectPlaceholder", "Brief description of your issue")}
                       required
                       className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 outline-none"
                     />
@@ -147,12 +144,12 @@ export default function ContactSupportPage() {
 
                   <div className="space-y-1.5">
                     <label className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      Description
+                      {t("help.description", "Description")}
                     </label>
                     <textarea
                       value={description}
                       onChange={(e) => setDescription(e.target.value)}
-                      placeholder="Provide as much detail as possible: what happened, what you expected, steps to reproduce..."
+                      placeholder={t("help.descriptionPlaceholder", "Provide as much detail as possible: what happened, what you expected, steps to reproduce...")}
                       required
                       rows={6}
                       className="w-full px-3 py-2.5 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-sm text-on-surface placeholder:text-outline-variant focus:ring-2 focus:ring-primary/20 outline-none resize-y"
@@ -166,7 +163,7 @@ export default function ContactSupportPage() {
                       className="btn btn-primary"
                     >
                       <Send className="w-4 h-4" />
-                      {sending ? "Sending..." : "Send Message"}
+                      {sending ? t("help.sending", "Sending...") : t("help.sendButton", "Send Message")}
                     </button>
                   </div>
                 </form>
@@ -178,7 +175,7 @@ export default function ContactSupportPage() {
         <div className="page-side-rail">
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">System Information</h3>
+              <h3 className="surface-section-title">{t("help.systemInformation", "System Information")}</h3>
             </div>
             <div className="p-4 space-y-3">
               {systemInfo.map((item) => (
@@ -196,11 +193,10 @@ export default function ContactSupportPage() {
 
           <div className="card p-4 space-y-3">
             <h4 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant">
-              Response Time
+              {t("help.responseTime", "Response Time")}
             </h4>
             <p className="text-sm text-on-surface-variant">
-              We typically respond within <strong className="text-on-surface">24 hours</strong> for
-              bug reports and <strong className="text-on-surface">48 hours</strong> for feature requests.
+              {t("help.responseTimeBody", "We typically respond within 24 hours for bug reports and 48 hours for feature requests.")}
             </p>
           </div>
         </div>
@@ -208,7 +204,7 @@ export default function ContactSupportPage() {
 
       <div className="surface-section">
         <div className="surface-section-header">
-          <h3 className="surface-section-title">Other Channels</h3>
+          <h3 className="surface-section-title">{t("help.otherChannels", "Other Channels")}</h3>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-surface-container">
           <a
@@ -219,7 +215,7 @@ export default function ContactSupportPage() {
               <Mail className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <h4 className="text-sm font-bold text-on-surface">Email</h4>
+              <h4 className="text-sm font-bold text-on-surface">{t("help.emailLabel", "Email")}</h4>
               <p className="text-xs text-on-surface-variant">
                 suporte@vantage.security
               </p>
@@ -237,10 +233,10 @@ export default function ContactSupportPage() {
             </div>
             <div>
               <h4 className="text-sm font-bold text-on-surface">
-                GitHub Issues
+                {t("help.githubIssues", "GitHub Issues")}
               </h4>
               <p className="text-xs text-on-surface-variant">
-                Report bugs and request features
+                {t("help.reportBugs", "Report bugs and request features")}
               </p>
             </div>
           </a>
@@ -254,10 +250,10 @@ export default function ContactSupportPage() {
             </div>
             <div>
               <h4 className="text-sm font-bold text-on-surface">
-                Documentation
+                {t("help.documentationLink", "Documentation")}
               </h4>
               <p className="text-xs text-on-surface-variant">
-                Browse guides and tutorials
+                {t("help.browseGuides", "Browse guides and tutorials")}
               </p>
             </div>
           </a>

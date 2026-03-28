@@ -22,6 +22,8 @@ from session_revocation import revoke_user_refresh_tokens, is_sensitive_role_dow
 logger = get_logger("UsersRouter")
 
 router = APIRouter(prefix="/users", tags=["users"])
+FIELD_EXCLUDED = 0
+PASSWORD_RESET_NOT_REQUIRED = False
 
 
 class UserCreate(BaseModel):
@@ -96,7 +98,7 @@ async def list_users(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-    users_cursor = db.users.find({}, {"password_hash": 0, "password_history": 0, "_id": 0})
+    users_cursor = db.users.find({}, {"password_hash": FIELD_EXCLUDED, "password_history": FIELD_EXCLUDED, "_id": FIELD_EXCLUDED})
     return await users_cursor.to_list(length=100)
 
 
@@ -137,7 +139,7 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "created_at": datetime.now(timezone.utc),
         "password_history": [password_hash],
         "password_changed_at": datetime.now(timezone.utc),
-        "force_password_reset": False,
+        "force_password_reset": PASSWORD_RESET_NOT_REQUIRED,
         "extra_permissions": [],
         "notification_center": _normalize_notification_center(None),
     }
@@ -259,6 +261,7 @@ async def get_third_party_keys(current_user: dict = Depends(get_current_user)):
 
 @router.patch("/me/third-party-keys")
 async def update_third_party_keys(
+    request: Request,
     body: ThirdPartyKeysUpdate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -273,16 +276,39 @@ async def update_third_party_keys(
 
     user_doc = await db.users.find_one({"username": current_user["username"]})
     existing = user_doc.get("third_party_keys", {}) if user_doc else {}
+    changed_services: list[str] = []
+    configured_services: list[str] = []
+    removed_services: list[str] = []
 
     for svc, value in body.keys.items():
         if value and value.strip():
             existing[svc] = encrypt_secret(value.strip())
+            changed_services.append(svc)
+            configured_services.append(svc)
         elif svc in existing:
             del existing[svc]
+            changed_services.append(svc)
+            removed_services.append(svc)
 
     await db.users.update_one(
         {"username": current_user["username"]},
         {"$set": {"third_party_keys": existing}}
+    )
+    ip = request.client.host if request.client else ""
+    detail_parts = []
+    if configured_services:
+        detail_parts.append(f"configured={','.join(sorted(configured_services))}")
+    if removed_services:
+        detail_parts.append(f"removed={','.join(sorted(removed_services))}")
+    detail_parts.append(f"changed={len(changed_services)}")
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="third_party_keys_updated",
+        target=current_user["username"],
+        ip=ip,
+        result="success",
+        detail="; ".join(detail_parts),
     )
     return {"status": "success", "message": "Third-party keys updated"}
 

@@ -46,6 +46,8 @@ from threat_ingestion_runtime import sync_threat_source
 logger = get_logger("AdminRouter")
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+PASSWORD_RESET_REQUIRED = True
+EMPTY_SECRET_VALUE = None
 
 _DEFAULT_MAX_ATTEMPTS = 5
 _DEFAULT_LOCKOUT_MINUTES = 15
@@ -1346,14 +1348,14 @@ async def import_users(
             "password_hash": hashed,
             "password_history": [hashed],
             "password_changed_at": now,
-            "force_password_reset": True,
+            "force_password_reset": PASSWORD_RESET_REQUIRED,
             "is_active": True,
             "failed_login_count": 0,
             "locked_until": None,
             "last_failed_at": None,
             "last_login_at": None,
             "mfa_enabled": False,
-            "mfa_secret_enc": None,
+            "mfa_secret_enc": EMPTY_SECRET_VALUE,
             "mfa_backup_codes": [],
             "extra_permissions": [],
         })

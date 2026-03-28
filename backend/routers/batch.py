@@ -567,8 +567,8 @@ async def _process_batch(
                     {"_id": job_id},
                     {"$set": {"status": "failed", "error": str(e)}},
                 )
-            except Exception:
-                pass
+            except Exception as persist_exc:
+                logger.warning(f"Batch {job_id}: could not persist failure state: {persist_exc}")
         await queue.put({"type": "error", "message": str(e)})
 
     finally:

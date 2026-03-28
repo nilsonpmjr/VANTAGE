@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 type ExtensionItem = {
   id?: string;
@@ -134,6 +135,7 @@ function displayName(item: ExtensionItem) {
 }
 
 export default function ExtensionsCatalog() {
+  const { t } = useLanguage();
   const [payload, setPayload] = useState<ExtensionsPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -228,6 +230,10 @@ export default function ExtensionsCatalog() {
         return rows;
     }
   }, [filter, rows]);
+  const disabledRows = useMemo(
+    () => rows.filter((item) => normalizeStatus(item.status) === "disabled"),
+    [rows],
+  );
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
@@ -258,18 +264,16 @@ export default function ExtensionsCatalog() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Administration</div>
-          <h2 className="page-heading">Extensions Catalog</h2>
+          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
+          <h2 className="page-heading">{t("settingsPages.extensionsTitle", "Extensions Catalog")}</h2>
           <p className="page-subheading">
-            Orquestre módulos, conectores e recursos adicionais em um catálogo
-            administrativo consistente. O backend atual ainda expõe parte desse
-            estado em modo leitura.
+            {t("settingsPages.extensionsSubtitle", "Orquestre módulos, conectores e recursos adicionais em um catálogo administrativo consistente. O backend atual ainda expõe parte desse estado em modo leitura.")}
           </p>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Catalog actions</div>
+        <div className="page-toolbar-copy">{t("settingsPages.extensionsActions", "Catalog actions")}</div>
         <div className="page-toolbar-actions">
             <button
               onClick={() => void loadCatalog(true)}
@@ -277,20 +281,24 @@ export default function ExtensionsCatalog() {
             >
               <span className="inline-flex items-center gap-2">
                 <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                Refresh
+                {t("admin.refresh", "Refresh")}
               </span>
             </button>
           <button
-            onClick={() =>
-              {
-                setFilter("disabled");
-                setNotice("Use o filtro Disabled para adotar extensões já descobertas pelo registry.");
+            onClick={() => {
+              setFilter("disabled");
+              setPage(1);
+              if (disabledRows[0]) {
+                setSelectedId(disabledRows[0].id || disabledRows[0].slug || disabledRows[0].name || "");
+                setNotice("Fila de adoção carregada com as extensões desabilitadas descobertas pelo registry.");
+              } else {
+                setNotice("Nenhuma extensão desabilitada disponível para adoção no momento.");
               }
-            }
+            }}
             className="btn btn-primary uppercase tracking-widest flex items-center gap-2"
           >
               <Plus className="w-4 h-4" />
-              Add Extension
+              {t("settingsPages.reviewDisabled", "Review Disabled")}
             </button>
         </div>
       </div>
@@ -348,135 +356,38 @@ export default function ExtensionsCatalog() {
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-6 items-start">
-        <div className="col-span-12 lg:col-span-3 space-y-6">
-          <section className="card p-6 border-b-2 border-primary-container">
-            <h3 className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest mb-4">
-              Active Extensions
-            </h3>
-            <ul className="space-y-4">
-              {activeExtensions.length > 0 ? (
-                activeExtensions.map((item) => {
-                  const meta = statusMeta(item);
-                  return (
-                    <ActiveExtItem
-                      key={item.id || item.slug || item.name}
-                      name={displayName(item)}
-                      type={humanizeKind(item)}
-                      status={meta.label}
-                      statusColor={meta.badgeClass}
-                      onClick={() => setSelectedId(item.id || item.slug || item.name || "")}
-                    />
-                  );
-                })
-              ) : (
-                <li className="text-sm text-on-surface-variant">
-                  Nenhuma extensão ativa retornada pelo backend.
-                </li>
-              )}
-            </ul>
-            <button
-              onClick={() => setNotice("Métricas de performance por extensão ainda não são expostas pelo backend atual.")}
-              className="w-full mt-6 py-2 text-[10px] font-bold text-primary uppercase tracking-widest hover:underline text-center"
-            >
-              View Performance Stats
-            </button>
-          </section>
-
-          <section className="card p-6 space-y-4">
-            <h3 className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-              System Health
-            </h3>
-            <MetricRow label="Core Version" value={payload?.core_version || "—"} />
-            <MetricRow label="Search Roots" value={String(payload?.search_roots?.length || 0)} />
-            <MetricRow label="Feature Modules" value={String(premiumCount)} />
-            <MetricRow label="Required Secrets" value={String(configuredSecrets)} />
-            <div className="space-y-2 pt-2">
-              <div className="flex justify-between items-center text-xs">
-                <span className="text-on-surface-variant">Catalog Coverage</span>
-                <span className="font-mono font-bold">
-                  {counts.all > 0 ? `${Math.round((counts.active / counts.all) * 100)}%` : "0%"}
-                </span>
+      <div className="page-with-side-rail">
+        <div className="page-main-pane space-y-6">
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Catalog Overview</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Active coverage and extension footprint
+                </p>
               </div>
-              <div className="w-full h-1 bg-surface-container-highest">
-                <div
-                  className="h-1 bg-primary"
-                  style={{ width: `${counts.all > 0 ? Math.max(6, Math.round((counts.active / counts.all) * 100)) : 0}%` }}
-                ></div>
+            </div>
+            <div className="grid gap-4 p-6 md:grid-cols-3">
+              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Active Extensions</div>
+                <div className="mt-2 text-2xl font-black text-on-surface">{counts.active}</div>
+                <div className="mt-1 text-xs text-on-surface-variant">of {counts.all} catalog entries</div>
+              </div>
+              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Core Version</div>
+                <div className="mt-2 text-2xl font-black text-on-surface">{payload?.core_version || "—"}</div>
+                <div className="mt-1 text-xs text-on-surface-variant">{payload?.search_roots?.length || 0} search root(s)</div>
+              </div>
+              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Catalog Coverage</div>
+                <div className="mt-2 text-2xl font-black text-on-surface">
+                  {counts.all > 0 ? `${Math.round((counts.active / counts.all) * 100)}%` : "0%"}
+                </div>
+                <div className="mt-1 text-xs text-on-surface-variant">{configuredSecrets} required secret slot(s)</div>
               </div>
             </div>
           </section>
 
-          {selectedExtension && (
-            <section className="card p-6 space-y-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-surface-container-high flex items-center justify-center rounded-sm">
-                  {(() => {
-                    const Icon = iconForExtension(selectedExtension);
-                    return <Icon className="w-5 h-5 text-primary" />;
-                  })()}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-on-surface">{displayName(selectedExtension)}</h3>
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">
-                    {(selectedExtension.id || selectedExtension.slug || "catalog extension").toUpperCase()}
-                  </p>
-                </div>
-              </div>
-              <p className="text-sm text-on-surface-variant">
-                {selectedExtension.description || "Sem descrição detalhada no catálogo atual."}
-              </p>
-              <MetricRow label="Version" value={selectedExtension.version || "—"} />
-              <MetricRow label="Kind" value={humanizeKind(selectedExtension)} />
-              <MetricRow label="Execution" value={selectedExtension.executionProfile || "default"} />
-              <MetricRow label="Health Score" value={`${selectedExtension.healthScore ?? 0}/100`} />
-              <MetricRow label="Operational Load" value={String(selectedExtension.runtimeOverhead || "low")} />
-              <MetricRow
-                label="Providers"
-                value={(selectedExtension.providerScope || []).join(", ") || "—"}
-              />
-              <MetricRow
-                label="Secrets"
-                value={String(selectedExtension.requiredSecrets?.length || 0)}
-              />
-              <MetricRow
-                label="Lifecycle"
-                value={selectedExtension.installState || "detected"}
-              />
-              <MetricRow
-                label="Last Action"
-                value={selectedExtension.operationalState?.last_action || "—"}
-              />
-              <div className="grid grid-cols-1 gap-2 pt-2">
-                <button
-                  onClick={() =>
-                    void runExtensionAction(
-                      selectedExtension,
-                      isEnabled(selectedExtension) ? "disable" : "enable",
-                    )
-                  }
-                  className="btn btn-outline"
-                >
-                  {busy === `${isEnabled(selectedExtension) ? "disable" : "enable"}-${selectedExtension.key || selectedExtension.id || selectedExtension.slug || selectedExtension.name}`
-                    ? "Applying..."
-                    : isEnabled(selectedExtension)
-                      ? "Disable"
-                      : "Enable"}
-                </button>
-                <button
-                  onClick={() => void runExtensionAction(selectedExtension, "update")}
-                  className="btn btn-primary"
-                >
-                  {busy === `update-${selectedExtension.key || selectedExtension.id || selectedExtension.slug || selectedExtension.name}`
-                    ? "Refreshing..."
-                    : "Refresh / Update"}
-                </button>
-              </div>
-            </section>
-          )}
-        </div>
-
-        <div className="col-span-12 lg:col-span-9">
           <div className="card p-0 overflow-hidden">
             <table className="w-full text-left border-collapse">
               <thead>
@@ -579,6 +490,112 @@ export default function ExtensionsCatalog() {
             </div>
           </div>
         </div>
+
+        <aside className="page-side-rail-right">
+          {selectedExtension && (
+            <section className="surface-section overflow-hidden">
+              <div className="surface-section-header">
+                <div>
+                  <h3 className="surface-section-title">Selected Extension</h3>
+                  <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                    Detail context for the selected catalog row
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-4 p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-surface-container-high flex items-center justify-center rounded-sm">
+                    {(() => {
+                      const Icon = iconForExtension(selectedExtension);
+                      return <Icon className="w-5 h-5 text-primary" />;
+                    })()}
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-on-surface">{displayName(selectedExtension)}</h3>
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">
+                      {(selectedExtension.id || selectedExtension.slug || "catalog extension").toUpperCase()}
+                    </p>
+                  </div>
+                </div>
+                <p className="text-sm text-on-surface-variant">
+                  {selectedExtension.description || "Sem descrição detalhada no catálogo atual."}
+                </p>
+                <MetricRow label="Version" value={selectedExtension.version || "—"} />
+                <MetricRow label="Kind" value={humanizeKind(selectedExtension)} />
+                <MetricRow label="Execution" value={selectedExtension.executionProfile || "default"} />
+                <MetricRow label="Health Score" value={`${selectedExtension.healthScore ?? 0}/100`} />
+                <MetricRow label="Operational Load" value={String(selectedExtension.runtimeOverhead || "low")} />
+                <MetricRow label="Providers" value={(selectedExtension.providerScope || []).join(", ") || "—"} />
+                <MetricRow label="Secrets" value={String(selectedExtension.requiredSecrets?.length || 0)} />
+                <MetricRow label="Lifecycle" value={selectedExtension.installState || "detected"} />
+                <MetricRow label="Last Action" value={selectedExtension.operationalState?.last_action || "—"} />
+                <div className="grid grid-cols-1 gap-2 pt-2">
+                  <button
+                    onClick={() =>
+                      void runExtensionAction(
+                        selectedExtension,
+                        isEnabled(selectedExtension) ? "disable" : "enable",
+                      )
+                    }
+                    className="btn btn-outline"
+                  >
+                    {busy === `${isEnabled(selectedExtension) ? "disable" : "enable"}-${selectedExtension.key || selectedExtension.id || selectedExtension.slug || selectedExtension.name}`
+                      ? "Applying..."
+                      : isEnabled(selectedExtension)
+                        ? "Disable"
+                        : "Enable"}
+                  </button>
+                  <button
+                    onClick={() => void runExtensionAction(selectedExtension, "update")}
+                    className="btn btn-primary"
+                  >
+                    {busy === `update-${selectedExtension.key || selectedExtension.id || selectedExtension.slug || selectedExtension.name}`
+                      ? "Refreshing..."
+                      : "Refresh / Update"}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Active Extensions</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Quick navigation to enabled items
+                </p>
+              </div>
+            </div>
+            <div className="p-6">
+              <ul className="space-y-4">
+                {activeExtensions.length > 0 ? (
+                  activeExtensions.map((item) => {
+                    const meta = statusMeta(item);
+                    return (
+                      <ActiveExtItem
+                        key={item.id || item.slug || item.name}
+                        name={displayName(item)}
+                        type={humanizeKind(item)}
+                        status={meta.label}
+                        statusColor={meta.badgeClass}
+                        onClick={() => setSelectedId(item.id || item.slug || item.name || "")}
+                      />
+                    );
+                  })
+                ) : (
+                  <li className="text-sm text-on-surface-variant">
+                    Nenhuma extensão ativa retornada pelo backend.
+                  </li>
+                )}
+              </ul>
+              <div className="mt-6 rounded-sm bg-surface-container-low p-3 text-[11px] text-on-surface-variant">
+                Performance telemetry per extension is not exposed by the backend yet. Use health score,
+                runtime load, and lifecycle fields above for the current operational context.
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
     </div>
   );

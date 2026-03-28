@@ -21,6 +21,8 @@ import {
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
+import API_URL from "../config";
 import { canAccessPath } from "../lib/access";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
@@ -30,27 +32,31 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 const navItems = [
-  { path: "/", label: "Home", icon: Home },
-  { path: "/feed", label: "Feed", icon: Rss },
-  { path: "/recon", label: "Recon", icon: Radar },
-  { path: "/watchlist", label: "Watchlist", icon: Eye },
-  { path: "/hunting", label: "Hunting", icon: Crosshair },
-  { path: "/exposure", label: "Exposure", icon: ShieldAlert },
-  { path: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { path: "/", labelKey: "layout.nav.home", fallback: "Home", icon: Home },
+  { path: "/feed", labelKey: "layout.nav.feed", fallback: "Feed", icon: Rss },
+  { path: "/recon", labelKey: "layout.nav.recon", fallback: "Recon", icon: Radar },
+  { path: "/watchlist", labelKey: "layout.nav.watchlist", fallback: "Watchlist", icon: Eye },
+  { path: "/hunting", labelKey: "layout.nav.hunting", fallback: "Hunting", icon: Crosshair },
+  { path: "/exposure", labelKey: "layout.nav.exposure", fallback: "Exposure", icon: ShieldAlert },
+  { path: "/dashboard", labelKey: "layout.nav.dashboard", fallback: "Dashboard", icon: LayoutDashboard },
 ];
 
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { language, t } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isScanLauncherOpen, setIsScanLauncherOpen] = useState(false);
+  const [showApiKeyToast, setShowApiKeyToast] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
   const canAccessSettings = canAccessPath(user, "/settings");
+  const apiKeyToastDismissKey = `vantage.api-keys-toast.dismissed.${user?.username || "anon"}`;
+  const languageLabel = language === "en" ? "EN" : language === "es" ? "ES" : "PT";
 
   const visibleNavItems = navItems.filter((item) => {
     if ((item.path === "/hunting" || item.path === "/exposure") && user?.role === "tech") {
@@ -95,6 +101,39 @@ export default function Layout() {
     return () => document.removeEventListener("keydown", handleKeydown);
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    if (sessionStorage.getItem(apiKeyToastDismissKey) === "true") return;
+
+    let cancelled = false;
+
+    async function checkThirdPartyKeys() {
+      try {
+        const response = await fetch(`${API_URL}/api/users/me/third-party-keys`, {
+          credentials: "include",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as Record<string, { configured?: boolean }>;
+        const hasConfiguredService = Object.values(payload).some((item) => item?.configured);
+        if (!cancelled && !hasConfiguredService) {
+          setShowApiKeyToast(true);
+        }
+      } catch {
+        // Ignore onboarding toast failures and keep the shell stable.
+      }
+    }
+
+    void checkThirdPartyKeys();
+    return () => {
+      cancelled = true;
+    };
+  }, [apiKeyToastDismissKey, user]);
+
+  const dismissApiKeyToast = () => {
+    sessionStorage.setItem(apiKeyToastDismissKey, "true");
+    setShowApiKeyToast(false);
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       <aside className={cn("fixed left-0 top-0 h-screen bg-inverse-surface flex flex-col z-50 transition-all duration-300", isSidebarCollapsed ? "w-20" : "w-64")}>
@@ -124,7 +163,7 @@ export default function Layout() {
               <NavLink
                 key={item.path}
                 to={item.path}
-                title={isSidebarCollapsed ? item.label : undefined}
+                title={isSidebarCollapsed ? t(item.labelKey, item.fallback) : undefined}
                 className={cn(
                   "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
                   isActive
@@ -134,14 +173,14 @@ export default function Layout() {
                 )}
               >
                 <item.icon className="w-4 h-4 shrink-0" />
-                {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                {!isSidebarCollapsed && <span className="whitespace-nowrap">{t(item.labelKey, item.fallback)}</span>}
               </NavLink>
             );
           })}
 
           {!isSidebarCollapsed ? (
             <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-outline uppercase tracking-widest whitespace-nowrap">
-              Administration
+              {t("layout.sections.administration", "Administration")}
             </div>
           ) : (
             <div className="pt-4 pb-2 border-t border-white/5 mt-4"></div>
@@ -149,7 +188,7 @@ export default function Layout() {
           {canAccessSettings && (
             <NavLink
               to="/settings"
-              title={isSidebarCollapsed ? "Settings" : undefined}
+              title={isSidebarCollapsed ? t("layout.nav.settings", "Settings") : undefined}
               className={cn(
                 "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
                 location.pathname.startsWith("/settings")
@@ -159,7 +198,7 @@ export default function Layout() {
               )}
             >
               <Settings className="w-4 h-4 shrink-0" />
-              {!isSidebarCollapsed && <span className="whitespace-nowrap">Settings</span>}
+              {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.nav.settings", "Settings")}</span>}
             </NavLink>
           )}
         </nav>
@@ -168,14 +207,14 @@ export default function Layout() {
           <button
             type="button"
             onClick={() => setIsScanLauncherOpen(true)}
-            title={isSidebarCollapsed ? "Start Scan" : undefined}
+            title={isSidebarCollapsed ? t("layout.topbar.startScan", "Start Scan") : undefined}
             className={cn(
               "btn btn-primary w-full",
               isSidebarCollapsed && "px-0"
             )}
           >
             <Zap className="w-4 h-4 shrink-0" />
-            {!isSidebarCollapsed && <span className="whitespace-nowrap">Start Scan</span>}
+            {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.topbar.startScan", "Start Scan")}</span>}
           </button>
         </div>
       </aside>
@@ -191,11 +230,12 @@ export default function Layout() {
             </button>
             <div className="flex items-center gap-2 text-on-surface-variant uppercase tracking-widest text-[10px] font-bold">
               <Activity className="w-3 h-3" />
-              Analyst
+              {t("layout.topbar.analyst", "Analyst")}
             </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
+              <div className="summary-pill-muted">{languageLabel}</div>
               <Link to="/notifications" className="p-1.5 text-on-surface-variant hover:bg-surface-container-highest rounded transition-colors relative">
                 <Bell className="w-4 h-4" />
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full border border-surface-container-high"></span>
@@ -217,32 +257,32 @@ export default function Layout() {
                 {isHelpOpen && (
                   <div className="absolute right-0 mt-2 w-56 bg-surface-container-high border border-outline-variant/20 rounded-md shadow-lg py-1 z-50">
                     <div className="px-4 py-2 border-b border-outline-variant/20">
-                      <p className="text-xs font-bold text-on-surface uppercase tracking-widest">Support & Resources</p>
+                      <p className="text-xs font-bold text-on-surface uppercase tracking-widest">{t("layout.topbar.supportResources", "Support & Resources")}</p>
                     </div>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest hover:text-white transition-colors text-left"
                       onClick={() => { setIsHelpOpen(false); navigate("/help/docs"); }}
                     >
-                      Documentation
+                      {t("layout.topbar.documentation", "Documentation")}
                     </button>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest hover:text-white transition-colors text-left"
                       onClick={() => { setIsHelpOpen(false); navigate("/help/shortcuts"); }}
                     >
-                      Keyboard Shortcuts
+                      {t("layout.topbar.keyboardShortcuts", "Keyboard Shortcuts")}
                     </button>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest hover:text-white transition-colors text-left"
                       onClick={() => { setIsHelpOpen(false); navigate("/help/api"); }}
                     >
-                      API Reference
+                      {t("layout.topbar.apiReference", "API Reference")}
                     </button>
                     <div className="border-t border-outline-variant/20 my-1"></div>
                     <button
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-on-surface hover:bg-surface-container-highest hover:text-white transition-colors text-left"
                       onClick={() => { setIsHelpOpen(false); navigate("/help/support"); }}
                     >
-                      Contact Support
+                      {t("layout.topbar.contactSupport", "Contact Support")}
                     </button>
                   </div>
                 )}
@@ -275,7 +315,7 @@ export default function Layout() {
                       onClick={() => setIsProfileOpen(false)}
                     >
                       <User className="w-4 h-4" />
-                      Profile
+                      {t("layout.topbar.profile", "Profile")}
                     </Link>
                     {canAccessSettings && (
                       <Link 
@@ -284,7 +324,7 @@ export default function Layout() {
                         onClick={() => setIsProfileOpen(false)}
                       >
                         <Settings className="w-4 h-4" />
-                        Settings
+                        {t("layout.nav.settings", "Settings")}
                       </Link>
                     )}
                     <div className="border-t border-outline-variant/20 my-1"></div>
@@ -296,7 +336,7 @@ export default function Layout() {
                       }}
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign Out
+                      {t("layout.topbar.signOut", "Sign Out")}
                     </button>
                   </div>
                 )}
@@ -306,6 +346,39 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 p-8 overflow-x-hidden">
+          {showApiKeyToast && !location.pathname.startsWith("/profile") && (
+            <div className="mb-6 rounded-sm border border-primary/20 bg-primary/10 px-4 py-4 text-sm text-on-surface">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                    {t("layout.onboarding.eyebrow", "Integration onboarding")}
+                  </div>
+                  <p className="mt-1 text-sm text-on-surface">
+                    {t("layout.onboarding.title", "Connect your own intelligence provider API keys to unlock richer analysis and hunting results.")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => {
+                      dismissApiKeyToast();
+                      navigate("/profile?tab=external_api_keys&source=onboarding");
+                    }}
+                  >
+                    {t("layout.onboarding.cta", "Configure keys")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    onClick={dismissApiKeyToast}
+                  >
+                    {t("layout.onboarding.dismiss", "Dismiss")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

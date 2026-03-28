@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 type BatchEstimate = {
   total: number;
@@ -92,6 +93,7 @@ function exportBatchResults(results: BatchResult[], type: "csv" | "json") {
 }
 
 export default function BatchAnalysis() {
+  const { t } = useLanguage();
   const location = useLocation();
   const navigate = useNavigate();
   const targets = useMemo(() => {
@@ -286,14 +288,14 @@ export default function BatchAnalysis() {
     return (
       <div className="page-frame">
         <div className="surface-section px-6 py-8">
-          <div className="page-eyebrow">Batch Operations</div>
-          <h1 className="page-heading">No Batch Targets Loaded</h1>
+          <div className="page-eyebrow">{t("batch.eyebrow", "Batch Operations")}</div>
+          <h1 className="page-heading">{t("batch.emptyTitle", "No Batch Targets Loaded")}</h1>
           <p className="page-subheading">
-            Start a batch run from the global launcher in the sidebar or return to Home.
+            {t("batch.emptySubtitle", "Start a batch run from the global launcher in the sidebar or return to Home.")}
           </p>
           <div className="mt-6 flex gap-3">
             <button className="btn btn-primary" onClick={() => navigate("/")}>
-              Go to Home
+              {t("batch.goHome", "Go to Home")}
             </button>
           </div>
         </div>
@@ -305,21 +307,19 @@ export default function BatchAnalysis() {
     <div className="page-frame space-y-6">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Batch Operations</div>
-          <h1 className="page-heading">Batch Analysis Workbench</h1>
+          <div className="page-eyebrow">{t("batch.eyebrow", "Batch Operations")}</div>
+          <h1 className="page-heading">{t("batch.title", "Batch Analysis Workbench")}</h1>
           <p className="page-subheading">
-            The global launcher now routes multi-target scans into the native
-            VANTAGE backend batch engine with pre-flight estimate, live progress,
-            and exportable results.
+            {t("batch.subtitle", "The global launcher now routes multi-target scans into the native VANTAGE backend batch engine with pre-flight estimate, live progress, and exportable results.")}
           </p>
         </div>
         <div className="summary-strip">
           <div className="summary-pill">
             <Layers className="h-3.5 w-3.5 text-primary" />
-            {targets.length} queued targets
+            {targets.length} {t("batch.queuedTargets", "queued targets")}
           </div>
           <div className="summary-pill-muted">
-            {progress.done}/{progress.total} completed
+            {progress.done}/{progress.total} {t("batch.completed", "completed")}
           </div>
         </div>
       </div>
@@ -327,12 +327,12 @@ export default function BatchAnalysis() {
       <div className="page-toolbar">
         <div className="page-toolbar-copy">
           {phase === "ready"
-            ? "Ready to launch"
+            ? t("batch.readyToLaunch", "Ready to launch")
             : phase === "running"
-              ? "Live execution"
+              ? t("batch.liveExecution", "Live execution")
               : phase === "done"
-                ? "Execution completed"
-                : "Batch controls"}
+                ? t("batch.executionCompleted", "Execution completed")
+                : t("batch.controls", "Batch controls")}
         </div>
         <div className="page-toolbar-actions">
           {phase === "ready" && (
@@ -344,10 +344,10 @@ export default function BatchAnalysis() {
                   onChange={(event) => setNotifyEmail(event.target.checked)}
                 />
                 <Mail className="h-3.5 w-3.5 text-primary" />
-                Email on completion
+                {t("batch.emailOnCompletion", "Email on completion")}
               </label>
               <button className="btn btn-primary" onClick={startBatch}>
-                Run batch
+                {t("batch.runBatch", "Run batch")}
               </button>
             </>
           )}
@@ -358,14 +358,14 @@ export default function BatchAnalysis() {
                 onClick={() => exportBatchResults(results, "csv")}
               >
                 <Download className="h-4 w-4" />
-                Export CSV
+                {t("batch.exportCsv", "Export CSV")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => exportBatchResults(results, "json")}
               >
                 <Download className="h-4 w-4" />
-                Export JSON
+                {t("batch.exportJson", "Export JSON")}
               </button>
             </>
           )}
@@ -384,7 +384,7 @@ export default function BatchAnalysis() {
             <div className="surface-section px-6 py-8 text-sm text-on-surface-variant">
               <div className="flex items-center gap-2">
                 <LoaderCircle className="h-4 w-4 animate-spin text-primary" />
-                Estimating cache hits, external calls, and quota impact...
+                {t("batch.estimating", "Estimating cache hits, external calls, and quota impact...")}
               </div>
             </div>
           )}
@@ -394,7 +394,7 @@ export default function BatchAnalysis() {
               <header className="surface-section-header">
                 <div>
                   <h2 className="surface-section-title uppercase">
-                    Execution Results
+                    {t("batch.executionResults", "Execution Results")}
                   </h2>
                   <p className="mt-1 text-[10px] font-medium text-on-surface-variant">
                     Live output from `/api/analyze/batch`
@@ -460,8 +460,8 @@ export default function BatchAnalysis() {
                           className="px-6 py-10 text-sm text-on-surface-variant"
                         >
                           {phase === "ready"
-                            ? "Approve the batch run to start filling this table."
-                            : "Results will stream here as each target completes."}
+                            ? t("batch.approveRun", "Approve the batch run to start filling this table.")
+                            : t("batch.streamHere", "Results will stream here as each target completes.")}
                         </td>
                       </tr>
                     )}
@@ -476,7 +476,7 @@ export default function BatchAnalysis() {
           {estimate && (
             <section className="surface-section overflow-hidden">
               <header className="surface-section-header">
-                <h2 className="surface-section-title uppercase">Pre-flight</h2>
+                <h2 className="surface-section-title uppercase">{t("batch.preflight", "Pre-flight")}</h2>
               </header>
               <div className="space-y-4 p-4">
                 <div className="summary-pill">
@@ -506,7 +506,7 @@ export default function BatchAnalysis() {
 
           <section className="surface-section overflow-hidden">
             <header className="surface-section-header">
-              <h2 className="surface-section-title uppercase">Batch Summary</h2>
+              <h2 className="surface-section-title uppercase">{t("batch.summary", "Batch Summary")}</h2>
             </header>
             <div className="space-y-4 p-4">
               <div className="summary-pill">
@@ -539,7 +539,7 @@ export default function BatchAnalysis() {
           {estimate?.validation_errors?.length ? (
             <section className="surface-section overflow-hidden">
               <header className="surface-section-header">
-                <h2 className="surface-section-title uppercase">Validation Errors</h2>
+                <h2 className="surface-section-title uppercase">{t("batch.validationErrors", "Validation Errors")}</h2>
               </header>
               <div className="space-y-3 p-4">
                 {estimate.validation_errors.map((item) => (

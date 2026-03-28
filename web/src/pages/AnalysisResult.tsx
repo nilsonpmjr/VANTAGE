@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 import { generatePdfReport } from "../utils/pdfReport";
 
 type AnalyzePayload = {
@@ -202,12 +203,18 @@ function riskBadgeClasses(level: EvidenceRow["riskLabel"]) {
 }
 
 export default function AnalysisResult() {
+  const { language, t } = useLanguage();
+  const navigate = useNavigate();
   const { target } = useParams();
   const displayTarget = decodeTarget(target);
   const [payload, setPayload] = useState<AnalyzePayload | null>(null);
-  const [reportLanguage, setReportLanguage] = useState<"pt" | "en" | "es">("pt");
+  const [reportLanguage, setReportLanguage] = useState<"pt" | "en" | "es">(language);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setReportLanguage(language);
+  }, [language]);
 
   useEffect(() => {
     localStorage.setItem("lastSearch", displayTarget);
@@ -297,7 +304,7 @@ export default function AnalysisResult() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Analysis</div>
+          <div className="page-eyebrow">{t("analysis.eyebrow", "Analysis")}</div>
           <h1 className="page-heading">{displayTarget}</h1>
           <p className="page-subheading">
             Consolidated intelligence profile assembled from {summary?.total_sources || 0} active sources for this{" "}
@@ -310,16 +317,16 @@ export default function AnalysisResult() {
             <span>{meta.status}</span>
           </div>
           <div className="summary-pill-muted">
-            <span>{threatScore}% threat score</span>
+            <span>{threatScore}% {t("analysis.threatScore", "threat score")}</span>
           </div>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Evidence actions</div>
+        <div className="page-toolbar-copy">{t("analysis.evidenceActions", "Evidence actions")}</div>
         <div className="page-toolbar-actions">
           <label className="inline-flex items-center gap-2 rounded-sm bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface">
-            Report language
+            {t("analysis.reportLanguage", "Report language")}
             <select
               value={reportLanguage}
               onChange={(event) =>
@@ -349,7 +356,7 @@ export default function AnalysisResult() {
               URL.revokeObjectURL(url);
             }}
           >
-            Export JSON
+            {t("analysis.exportJson", "Export JSON")}
           </button>
           <button
             className="btn btn-primary"
@@ -358,7 +365,7 @@ export default function AnalysisResult() {
               generatePdfReport(payload, currentReport, reportLanguage);
             }}
           >
-            Export PDF
+            {t("analysis.exportPdf", "Export PDF")}
           </button>
         </div>
       </div>
@@ -409,7 +416,12 @@ export default function AnalysisResult() {
                           </div>
                         </td>
                         <td className="px-6 py-2 text-right">
-                          <button className="text-primary-dim hover:underline text-[11px] font-bold">Pivot</button>
+                          <button
+                            className="text-primary-dim hover:underline text-[11px] font-bold"
+                            onClick={() => navigate(`/analyze/${encodeURIComponent(row.signal)}`)}
+                          >
+                            Pivot
+                          </button>
                         </td>
                       </tr>
                     ))

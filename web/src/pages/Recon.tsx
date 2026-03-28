@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Radar, Target, Map, Activity, Zap, ShieldAlert, Server, Globe, Clock3, RefreshCw, Eye, History, Radio } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 interface ReconModule {
   name: string;
@@ -68,6 +69,7 @@ function statusClasses(status?: string) {
 }
 
 export default function Recon() {
+  const { t } = useLanguage();
   const [modules, setModules] = useState<ReconModule[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [target, setTarget] = useState("");
@@ -265,30 +267,29 @@ export default function Recon() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Analyst</div>
-          <h1 className="page-heading">Reconnaissance Engine</h1>
+          <div className="page-eyebrow">{t("recon.eyebrow", "Analyst")}</div>
+          <h1 className="page-heading">{t("recon.title", "Reconnaissance Engine")}</h1>
           <p className="page-subheading">
-            Execute scanning ativo, orquestração agendada, histórico e correlação de
-            superfície em uma única bancada analítica.
+            {t("recon.subtitle", "Execute scanning ativo, orquestração agendada, histórico e correlação de superfície em uma única bancada analítica.")}
           </p>
         </div>
         <div className="summary-strip">
           <div className="summary-pill">
             <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-            <span>{activeScans} / 10 Active Scans</span>
+            <span>{activeScans} / 10 {t("recon.activeScans", "Active Scans")}</span>
           </div>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Recon actions</div>
+        <div className="page-toolbar-copy">{t("recon.actions", "Recon actions")}</div>
         <div className="page-toolbar-actions">
           <button
             onClick={loadReconRuntime}
             className="btn btn-outline"
           >
             <RefreshCw className="w-4 h-4" />
-            Refresh
+            {t("recon.refresh", "Refresh")}
           </button>
         </div>
       </div>
@@ -305,28 +306,28 @@ export default function Recon() {
           <div className="surface-section p-6">
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
               <Target className="w-4 h-4 text-primary" />
-              Target Configuration
+              {t("recon.targetConfiguration", "Target Configuration")}
             </h3>
             <div className="space-y-4">
               <div>
                 <label className="block text-[10px] font-bold text-outline uppercase tracking-wider mb-1">
-                  Target IP / Domain
+                  {t("recon.targetLabel", "Target IP / Domain")}
                 </label>
                 <input
                   value={target}
                   onChange={(event) => setTarget(event.target.value)}
                   type="text"
-                  placeholder="e.g., example.com or 8.8.8.8"
+                  placeholder={t("recon.targetPlaceholder", "e.g., example.com or 8.8.8.8")}
                   className="w-full bg-surface-container-low border-b-2 border-outline focus:border-primary border-t-0 border-x-0 px-0 py-2 text-sm font-medium transition-all focus:ring-0 outline-none"
                 />
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-outline uppercase tracking-wider mb-2">
-                  Module Selection
+                  {t("recon.moduleSelection", "Module Selection")}
                 </label>
                 <div className="space-y-2">
                   {loading ? (
-                    <div className="text-sm text-on-surface-variant">Loading modules</div>
+                    <div className="text-sm text-on-surface-variant">{t("recon.loadingModules", "Loading modules")}</div>
                   ) : (
                     modules.map((module) => {
                       const active = selectedModules.includes(module.name);
@@ -358,7 +359,7 @@ export default function Recon() {
               </div>
               <div>
                 <label className="block text-[10px] font-bold text-outline uppercase tracking-wider mb-1">
-                  Schedule for Later
+                  {t("recon.scheduleLater", "Schedule for Later")}
                 </label>
                 <input
                   type="datetime-local"
@@ -373,14 +374,14 @@ export default function Recon() {
                   disabled={!target.trim() || selectedModules.length === 0 || busy === "scan"}
                   className="w-full py-3 bg-primary text-white text-xs font-bold uppercase tracking-widest rounded-sm shadow-sm hover:bg-primary-dim transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {busy === "scan" ? "Running" : "Initialize Recon"}
+                  {busy === "scan" ? t("recon.running", "Running") : t("recon.initializeRecon", "Initialize Recon")}
                 </button>
                 <button
                   onClick={scheduleScan}
                   disabled={!target.trim() || selectedModules.length === 0 || !scheduleAt || busy === "schedule"}
                   className="w-full py-3 bg-surface-container-high text-on-surface text-xs font-bold uppercase tracking-widest rounded-sm hover:bg-surface-container-highest transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {busy === "schedule" ? "Scheduling" : "Schedule"}
+                  {busy === "schedule" ? t("recon.scheduling", "Scheduling") : t("recon.schedule", "Schedule")}
                 </button>
               </div>
             </div>
@@ -389,12 +390,12 @@ export default function Recon() {
           <div className="surface-section p-6">
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
               <Clock3 className="w-4 h-4 text-primary" />
-              Pending Schedules
+              {t("recon.pendingSchedules", "Pending Schedules")}
             </h3>
             <div className="space-y-3">
               {scheduled.length === 0 ? (
                 <div className="rounded-sm bg-surface-container-low px-4 py-4 text-xs text-on-surface-variant">
-                  Nenhum agendamento pendente.
+                  {t("recon.noPendingSchedules", "Nenhum agendamento pendente.")}
                 </div>
               ) : (
                 scheduled.map((item) => (
@@ -412,7 +413,7 @@ export default function Recon() {
                         disabled={busy === item.id}
                         className="rounded-sm bg-error/10 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-error hover:bg-error/20"
                       >
-                        Cancel
+                        {t("recon.cancel", "Cancel")}
                       </button>
                     </div>
                   </div>
@@ -427,28 +428,28 @@ export default function Recon() {
             <div className="bg-surface-container-high px-6 py-3 flex justify-between items-center">
               <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface flex items-center gap-2">
                 <Map className="w-4 h-4 text-primary" />
-                Correlated Attack Surface
+                {t("recon.correlatedAttackSurface", "Correlated Attack Surface")}
               </h3>
               <div className="flex gap-2">
                 <span className="px-2 py-1 bg-surface-container-lowest text-[10px] font-bold rounded">
-                  {activeJob?.status || "IDLE"}
+                  {activeJob?.status || t("recon.idle", "IDLE")}
                 </span>
               </div>
             </div>
             <div className="flex-1 p-6">
               {!activeJob ? (
                 <div className="h-full flex items-center justify-center text-sm text-on-surface-variant">
-                  Execute ou selecione um recon job para visualizar a superfície correlacionada.
+                  {t("recon.selectJobEmpty", "Execute ou selecione um recon job para visualizar a superfície correlacionada.")}
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                   <div className="rounded-sm bg-surface-container-low p-5">
                     <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-                      Exposed Services
+                      {t("recon.exposedServices", "Exposed Services")}
                     </div>
                     <div className="mt-4 space-y-3">
                       {(activeJob.attack_surface?.exposed_services || []).length === 0 ? (
-                        <div className="text-xs text-on-surface-variant">No exposed services correlated yet.</div>
+                        <div className="text-xs text-on-surface-variant">{t("recon.noExposedServices", "No exposed services correlated yet.")}</div>
                       ) : (
                         (activeJob.attack_surface?.exposed_services || []).map((service, index) => (
                           <div key={`${service.port}-${index}`} className="rounded-sm bg-surface-container-lowest px-4 py-3">
@@ -465,17 +466,17 @@ export default function Recon() {
                   </div>
                   <div className="rounded-sm bg-surface-container-low p-5">
                     <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-                      Risk Indicators
+                      {t("recon.riskIndicators", "Risk Indicators")}
                     </div>
                     <div className="mt-4 space-y-3">
                       {(activeJob.risk_indicators || []).length === 0 ? (
-                        <div className="text-xs text-on-surface-variant">No explicit risk indicators extracted yet.</div>
+                        <div className="text-xs text-on-surface-variant">{t("recon.noRiskIndicators", "No explicit risk indicators extracted yet.")}</div>
                       ) : (
                         (activeJob.risk_indicators || []).map((risk, index) => (
                           <div key={`${risk.category}-${index}`} className="rounded-sm bg-surface-container-lowest px-4 py-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="text-sm font-bold text-on-surface">{risk.category}</div>
-                              <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                              <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
                                 risk.severity === "critical" || risk.severity === "high"
                                   ? "bg-error/10 text-error"
                                   : risk.severity === "medium"
@@ -500,17 +501,17 @@ export default function Recon() {
             <div className="surface-section-header">
               <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface flex items-center gap-2">
                 <Server className="w-4 h-4 text-primary" />
-                Recent Scan Results
+                {t("recon.recentResults", "Recent Scan Results")}
               </h3>
             </div>
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-container-low text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
-                  <th className="px-6 py-3">Target</th>
-                  <th className="px-6 py-3">Status</th>
-                  <th className="px-6 py-3">Modules</th>
-                  <th className="px-6 py-3">Created</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  <th className="px-6 py-3">{t("recon.target", "Target")}</th>
+                  <th className="px-6 py-3">{t("recon.status", "Status")}</th>
+                  <th className="px-6 py-3">{t("recon.modules", "Modules")}</th>
+                  <th className="px-6 py-3">{t("recon.created", "Created")}</th>
+                  <th className="px-6 py-3 text-right">{t("recon.actionsColumn", "Actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
@@ -562,7 +563,7 @@ export default function Recon() {
                     <div key={moduleName} className="rounded-sm bg-surface-container-low px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-bold text-on-surface">{moduleName}</div>
-                        <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                        <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
                           entry.status === "done"
                             ? "bg-primary/10 text-primary"
                             : "bg-error/10 text-error"

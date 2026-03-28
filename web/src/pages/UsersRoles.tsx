@@ -5,13 +5,13 @@ import {
   Upload,
   UserPlus,
   Edit,
+  Eye,
   Ban,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
   X,
-  Eye,
   LockKeyhole,
   Monitor,
   Smartphone,
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 type UserItem = {
   username: string;
@@ -207,6 +208,7 @@ function buildUserActions({
 }
 
 export default function UsersRoles() {
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -221,6 +223,7 @@ export default function UsersRoles() {
   const [editorMode, setEditorMode] = useState<EditorMode>(null);
   const [createMode, setCreateMode] = useState<CreateMode>("standard");
   const [editorUsername, setEditorUsername] = useState("");
+  const [selectedUsername, setSelectedUsername] = useState("");
   const [selectedUserForSessions, setSelectedUserForSessions] = useState<UserItem | null>(null);
   const [selectedUserSessions, setSelectedUserSessions] = useState<AdminSession[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);
@@ -264,6 +267,8 @@ export default function UsersRoles() {
       setUsers(usersData as UserItem[]);
       setStats(statsData as AdminStats);
       setAvailablePermissions((permissionsData as PermissionPayload).permissions || []);
+      const loadedUsers = usersData as UserItem[];
+      setSelectedUsername((current) => current || loadedUsers[0]?.username || "");
     } catch {
       setError("Não foi possível carregar o diretório de usuários.");
     } finally {
@@ -315,8 +320,17 @@ export default function UsersRoles() {
     );
   }, [users]);
 
+  useEffect(() => {
+    setSelectedUsername((current) => {
+      if (users.length === 0) return "";
+      if (current && users.some((user) => user.username === current)) return current;
+      return users[0].username;
+    });
+  }, [users]);
+
   const allVisibleSelected =
     pagedUsers.length > 0 && pagedUsers.every((user) => selectedUsernames.includes(user.username));
+  const selectedUser = users.find((user) => user.username === selectedUsername) || null;
 
   function toggleSelectedUser(username: string) {
     setSelectedUsernames((current) =>
@@ -373,6 +387,7 @@ export default function UsersRoles() {
   }
 
   function openEdit(user: UserItem) {
+    setSelectedUsername(user.username);
     setCreateMode("standard");
     setEditorMode("edit");
     setEditorUsername(user.username);
@@ -552,6 +567,7 @@ export default function UsersRoles() {
   }
 
   async function loadUserSessions(user: UserItem) {
+    setSelectedUsername(user.username);
     setSelectedUserForSessions(user);
     setSessionsLoading(true);
     setError("");
@@ -638,11 +654,10 @@ export default function UsersRoles() {
     <div className="max-w-6xl mx-auto space-y-6">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Administration</div>
-          <h1 className="page-heading">Users & Roles</h1>
+          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
+          <h1 className="page-heading">{t("settingsPages.usersRolesTitle", "Users & Roles")}</h1>
           <p className="page-subheading">
-            Gerencie diretório, autenticação pendente e operações de importação em
-            uma superfície administrativa única.
+            {t("settingsPages.usersRolesSubtitle", "Gerencie diretório, autenticação pendente e operações de importação em uma superfície administrativa única.")}
           </p>
         </div>
         <div className="summary-strip">
@@ -658,7 +673,7 @@ export default function UsersRoles() {
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Directory actions</div>
+        <div className="page-toolbar-copy">{t("settingsPages.usersRolesActions", "Directory actions")}</div>
         <div className="page-toolbar-actions">
           <input
             ref={fileInputRef}
@@ -677,35 +692,35 @@ export default function UsersRoles() {
             className="btn btn-secondary"
           >
             <Upload className="w-3 h-3" />
-            {busy === "import" ? "Importing..." : "Import"}
+            {busy === "import" ? t("settingsPages.importing", "Importing...") : t("settingsPages.import", "Import")}
           </button>
           <button
             onClick={exportUsers}
             className="btn btn-outline"
           >
             <Download className="w-3 h-3" />
-            Export
+            {t("settingsPages.export", "Export")}
           </button>
           <button
             onClick={() => void loadRuntime()}
             className="btn btn-outline"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {t("admin.refresh", "Refresh")}
           </button>
           <button
             onClick={openInvite}
             className="btn btn-primary"
           >
             <UserPlus className="w-3 h-3" />
-            Invite Operator
+            {t("settingsPages.inviteOperator", "Invite Operator")}
           </button>
           <button
             onClick={openCreate}
             className="btn btn-outline"
           >
             <Edit className="w-3 h-3" />
-            Add User
+            {t("settingsPages.addUser", "Add User")}
           </button>
         </div>
       </div>
@@ -717,172 +732,384 @@ export default function UsersRoles() {
         </div>
       )}
 
-      <section className="bg-surface-container-lowest border border-outline-variant/15 rounded-sm shadow-sm overflow-hidden">
-        <div className="px-6 py-4 bg-surface-container-high flex items-center justify-between border-b border-outline-variant/10">
-          <div className="flex items-center gap-3">
-            <h2 className="font-bold text-sm tracking-tight text-on-surface mr-4">User Directory</h2>
-            <div className="flex gap-2">
-              <div className="flex items-center gap-2 px-3 py-1.5 border border-outline-variant/30 text-[11px] uppercase tracking-widest font-bold text-on-surface rounded-sm bg-surface-container-low">
-                <Filter className="w-3 h-3" />
-                <input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Filter"
-                  className="bg-transparent outline-none w-28"
-                />
+      <div className="page-with-side-rail">
+        <div className="page-main-pane">
+          <section className="bg-surface-container-lowest border border-outline-variant/15 rounded-sm shadow-sm overflow-hidden">
+            <div className="px-6 py-4 bg-surface-container-high flex items-center justify-between border-b border-outline-variant/10">
+              <div className="flex items-center gap-3">
+                <h2 className="font-bold text-sm tracking-tight text-on-surface mr-4">User Directory</h2>
+                <div className="flex gap-2">
+                  <div className="flex items-center gap-2 px-3 py-1.5 border border-outline-variant/30 text-[11px] uppercase tracking-widest font-bold text-on-surface rounded-sm bg-surface-container-low">
+                    <Filter className="w-3 h-3" />
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Filter"
+                      className="bg-transparent outline-none w-28"
+                    />
+                  </div>
+                  <select
+                    value={statusFilter}
+                    onChange={(event) => setStatusFilter(event.target.value)}
+                    className="px-3 py-1.5 border border-outline-variant/30 text-[11px] uppercase tracking-widest font-bold text-on-surface rounded-sm bg-surface-container-low"
+                  >
+                    <option value="all">All</option>
+                    <option value="active">Active</option>
+                    <option value="pending mfa">Pending MFA</option>
+                    <option value="locked">Locked</option>
+                    <option value="deactivated">Deactivated</option>
+                  </select>
+                </div>
               </div>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="px-3 py-1.5 border border-outline-variant/30 text-[11px] uppercase tracking-widest font-bold text-on-surface rounded-sm bg-surface-container-low"
-              >
-                <option value="all">All</option>
-                <option value="active">Active</option>
-                <option value="pending mfa">Pending MFA</option>
-                <option value="locked">Locked</option>
-                <option value="deactivated">Deactivated</option>
-              </select>
             </div>
-          </div>
-        </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-surface-container-low border-b border-outline-variant/10">
-                <th className="px-4 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
-                  <input
-                    type="checkbox"
-                    checked={allVisibleSelected}
-                    onChange={toggleAllVisibleUsers}
-                    className="h-3.5 w-3.5 accent-primary"
-                    aria-label="Select visible users"
-                  />
-                </th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Name</th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Email</th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Role</th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-surface-container">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-6 text-sm text-on-surface-variant">
-                    Carregando usuários...
-                  </td>
-                </tr>
-              ) : pagedUsers.length > 0 ? (
-                pagedUsers.map((user) => {
-                  const status = currentStatus(user);
-                  return (
-                    <tr key={user.username} className="hover:bg-surface-container-low transition-colors h-[40px]">
-                      <td className="px-4 py-3">
-                        <input
-                          type="checkbox"
-                          checked={selectedUsernames.includes(user.username)}
-                          onChange={() => toggleSelectedUser(user.username)}
-                          className="h-3.5 w-3.5 accent-primary"
-                          aria-label={`Select ${user.username}`}
-                        />
-                      </td>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-7 h-7 bg-surface-container-highest rounded-full flex items-center justify-center text-[10px] font-black text-primary">
-                            {initials(user.name || user.username)}
-                          </div>
-                          <div>
-                            <span className="text-sm font-semibold text-on-surface">{user.name || user.username}</span>
-                            <div className="text-[10px] font-mono text-on-surface-variant">{user.username}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3 text-sm text-on-surface-variant">{user.email || "—"}</td>
-                      <td className="px-6 py-3">
-                        <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase tracking-tighter ${roleTone(user.role)}`}>
-                          {user.role}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`}></span>
-                          <div className="flex flex-col">
-                            <span className={`text-xs ${status.tone}`}>{status.label}</span>
-                            {status.label === "Deactivated" && user.suspension_reason ? (
-                              <span className="text-[10px] text-on-surface-variant">
-                                {user.suspension_reason}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-3 text-right space-x-2">
-                        <div className="flex justify-end gap-2">
-                          <RowPrimaryAction
-                            label="Edit"
-                            icon={<Eye className="h-3.5 w-3.5" />}
-                            onClick={() => openEdit(user)}
-                          />
-                          <RowActionsMenu
-                            items={buildUserActions({
-                              user,
-                              statusLabel: status.label,
-                              onEdit: () => openEdit(user),
-                              onInspectSessions: () => void loadUserSessions(user),
-                              onToggleState: () =>
-                                user.is_active === false
-                                  ? void toggleUserState(user)
-                                  : openSuspend(user),
-                              onUnlock: () => void unlockUser(user.username),
-                            })}
-                          />
-                        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-surface-container-low border-b border-outline-variant/10">
+                    <th className="px-4 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">
+                      <input
+                        type="checkbox"
+                        checked={allVisibleSelected}
+                        onChange={toggleAllVisibleUsers}
+                        className="h-3.5 w-3.5 accent-primary"
+                        aria-label="Select visible users"
+                      />
+                    </th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Name</th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Email</th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Role</th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-[11px] font-bold text-on-surface-variant uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-surface-container">
+                  {loading ? (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-6 text-sm text-on-surface-variant">
+                        Carregando usuários...
                       </td>
                     </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={6} className="px-6 py-6 text-sm text-on-surface-variant">
-                    Nenhum usuário encontrado para os filtros atuais.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          <div className="px-6 py-3 bg-surface-container-low border-t border-outline-variant/10 flex items-center justify-between">
-            <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
-              Showing {filteredUsers.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-{Math.min(filteredUsers.length, currentPage * PAGE_SIZE)} of {filteredUsers.length} users
-            </span>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((value) => Math.max(1, value - 1))}
-                className="p-1 text-outline hover:text-on-surface transition-colors disabled:opacity-40"
-                disabled={currentPage === 1}
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((value) => (
-                <button
-                  key={value}
-                  onClick={() => setPage(value)}
-                  className={value === currentPage ? "p-1 text-on-surface font-bold text-xs underline underline-offset-4 px-2" : "p-1 text-on-surface-variant font-medium text-xs hover:text-on-surface px-2 transition-colors"}
-                >
-                  {value}
-                </button>
-              ))}
-              <button
-                onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
-                className="p-1 text-outline hover:text-on-surface transition-colors disabled:opacity-40"
-                disabled={currentPage === totalPages}
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+                  ) : pagedUsers.length > 0 ? (
+                    pagedUsers.map((user) => {
+                      const status = currentStatus(user);
+                      const isInspected =
+                        selectedUsername === user.username ||
+                        selectedUserForSessions?.username === user.username;
+                      return (
+                        <tr
+                          key={user.username}
+                          className={`h-[40px] transition-colors ${
+                            isInspected ? "bg-primary/5" : "hover:bg-surface-container-low"
+                          }`}
+                        >
+                          <td className="px-4 py-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedUsernames.includes(user.username)}
+                              onChange={() => toggleSelectedUser(user.username)}
+                              className="h-3.5 w-3.5 accent-primary"
+                              aria-label={`Select ${user.username}`}
+                            />
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-7 h-7 bg-surface-container-highest rounded-full flex items-center justify-center text-[10px] font-black text-primary">
+                                {initials(user.name || user.username)}
+                              </div>
+                              <div>
+                                <span className="text-sm font-semibold text-on-surface">{user.name || user.username}</span>
+                                <div className="text-[10px] font-mono text-on-surface-variant">{user.username}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-sm text-on-surface-variant">{user.email || "—"}</td>
+                          <td className="px-6 py-3">
+                            <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase tracking-tighter ${roleTone(user.role)}`}>
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`}></span>
+                              <div className="flex flex-col">
+                                <span className={`text-xs ${status.tone}`}>{status.label}</span>
+                                {status.label === "Deactivated" && user.suspension_reason ? (
+                                  <span className="text-[10px] text-on-surface-variant">
+                                    {user.suspension_reason}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-3 text-right space-x-2">
+                            <div className="flex justify-end gap-2">
+                              <RowPrimaryAction
+                                label="Inspect"
+                                icon={<Eye className="h-3.5 w-3.5" />}
+                                onClick={() => setSelectedUsername(user.username)}
+                              />
+                              <RowActionsMenu
+                                items={buildUserActions({
+                                  user,
+                                  statusLabel: status.label,
+                                  onEdit: () => openEdit(user),
+                                  onInspectSessions: () => void loadUserSessions(user),
+                                  onToggleState: () =>
+                                    user.is_active === false
+                                      ? void toggleUserState(user)
+                                      : openSuspend(user),
+                                  onUnlock: () => void unlockUser(user.username),
+                                })}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-6 text-sm text-on-surface-variant">
+                        Nenhum usuário encontrado para os filtros atuais.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div className="px-6 py-3 bg-surface-container-low border-t border-outline-variant/10 flex items-center justify-between">
+                <span className="text-[11px] font-bold text-on-surface-variant uppercase tracking-widest">
+                  Showing {filteredUsers.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1}-{Math.min(filteredUsers.length, currentPage * PAGE_SIZE)} of {filteredUsers.length} users
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => setPage((value) => Math.max(1, value - 1))}
+                    className="p-1 text-outline hover:text-on-surface transition-colors disabled:opacity-40"
+                    disabled={currentPage === 1}
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 5).map((value) => (
+                    <button
+                      key={value}
+                      onClick={() => setPage(value)}
+                      className={value === currentPage ? "p-1 text-on-surface font-bold text-xs underline underline-offset-4 px-2" : "p-1 text-on-surface-variant font-medium text-xs hover:text-on-surface px-2 transition-colors"}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                    className="p-1 text-outline hover:text-on-surface transition-colors disabled:opacity-40"
+                    disabled={currentPage === totalPages}
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          </section>
         </div>
-      </section>
+
+        <aside className="page-side-rail-right">
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Selected Operator</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Directory context for the inspected operator
+                </p>
+              </div>
+            </div>
+            {selectedUser ? (
+              <div className="space-y-4 p-6">
+                <div className="rounded-sm bg-surface-container-low p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-on-surface">
+                        {selectedUser.name || selectedUser.username}
+                      </div>
+                      <div className="mt-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">
+                        {selectedUser.username}
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase tracking-tighter ${roleTone(selectedUser.role)}`}>
+                      {selectedUser.role}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${currentStatus(selectedUser).dot}`}></span>
+                    <span className="text-xs text-on-surface">{currentStatus(selectedUser).label}</span>
+                  </div>
+                  {selectedUser.suspension_reason ? (
+                    <div className="mt-3 rounded-sm bg-surface-container-high p-3 text-xs text-on-surface-variant">
+                      Suspension rationale on file: {selectedUser.suspension_reason}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-3">
+                  <CompactMetric label="Email" value={selectedUser.email || "—"} />
+                  <CompactMetric label="Language" value={(selectedUser.preferred_lang || "pt").toUpperCase()} />
+                  <CompactMetric label="MFA" value={selectedUser.mfa_enabled ? "Enabled" : "Pending"} />
+                  <CompactMetric
+                    label="Recovery Posture"
+                    value={selectedUser.force_password_reset ? "Password reset queued" : "Stable"}
+                  />
+                </div>
+
+                <div className="grid gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(selectedUser)}
+                    className="btn btn-primary"
+                  >
+                    <Edit className="w-3 h-3" />
+                    Edit Operator
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void loadUserSessions(selectedUser)}
+                    className="btn btn-outline"
+                  >
+                    <Monitor className="w-3 h-3" />
+                    Inspect Active Sessions
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-6">
+                <div className="rounded-sm border border-dashed border-outline-variant/30 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  Select a row to keep operator context visible while you review the directory.
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Directory Health</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Identity and access summary
+                </p>
+              </div>
+            </div>
+            <div className="grid gap-3 p-6">
+              <CompactMetric label="Total Operators" value={String(stats?.total_users ?? 0)} />
+              <CompactMetric label="Active Sessions" value={String(stats?.active_sessions ?? 0)} />
+              <CompactMetric label="Locked Accounts" value={String(stats?.locked_accounts ?? 0)} />
+              <CompactMetric label="MFA Coverage" value={`${stats?.total_users ? Math.round(((stats.users_with_mfa || 0) / stats.total_users) * 100) : 0}%`} />
+            </div>
+          </section>
+
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Session Inspection</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Active sessions for the selected operator
+                </p>
+              </div>
+              {selectedUserForSessions ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedUserForSessions(null);
+                    setSelectedUserSessions([]);
+                  }}
+                  className="btn btn-outline"
+                >
+                  Close
+                </button>
+              ) : null}
+            </div>
+            {selectedUserForSessions ? (
+              <div className="space-y-4 p-6">
+                <div className="rounded-sm bg-surface-container-low p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-on-surface">
+                        {selectedUserForSessions.name || selectedUserForSessions.username}
+                      </div>
+                      <div className="mt-1 text-[10px] font-mono uppercase tracking-widest text-on-surface-variant">
+                        {selectedUserForSessions.username}
+                      </div>
+                    </div>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-sm uppercase tracking-tighter ${roleTone(selectedUserForSessions.role)}`}>
+                      {selectedUserForSessions.role}
+                    </span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <span className={`h-1.5 w-1.5 rounded-full ${currentStatus(selectedUserForSessions).dot}`}></span>
+                    <span className="text-xs text-on-surface">{currentStatus(selectedUserForSessions).label}</span>
+                  </div>
+                </div>
+
+                <div className="rounded-sm bg-surface-container-low p-4 text-xs text-on-surface-variant">
+                  {sessionsLoading
+                    ? "Loading active sessions..."
+                    : `${selectedUserSessions.length} session(s) returned for this operator.`}
+                </div>
+
+                <div className="space-y-3">
+                  {sessionsLoading ? null : selectedUserSessions.length > 0 ? (
+                    selectedUserSessions.map((session) => (
+                      <div
+                        key={session.session_id}
+                        className="rounded-sm border border-outline-variant/15 bg-surface-container-lowest p-4"
+                      >
+                        <div className="flex items-start gap-3">
+                          {/android|iphone|ipad/i.test(session.user_agent) ? (
+                            <Smartphone className="mt-0.5 h-4 w-4 text-on-surface-variant" />
+                          ) : (
+                            <Monitor className="mt-0.5 h-4 w-4 text-on-surface-variant" />
+                          )}
+                          <div className="min-w-0 flex-1 space-y-1">
+                            <div className="text-sm font-medium text-on-surface">{session.device}</div>
+                            <div className="font-mono text-[11px] text-on-surface-variant">{session.ip || "—"}</div>
+                            <div className="text-[11px] text-on-surface-variant">
+                              Created {new Intl.DateTimeFormat("pt-BR", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              }).format(new Date(session.created_at))}
+                            </div>
+                            <div className="text-[11px] text-on-surface-variant">
+                              Expires {new Intl.DateTimeFormat("pt-BR", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              }).format(new Date(session.expires_at))}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-sm border border-dashed border-outline-variant/30 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                      No active sessions were returned for this user.
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="p-6">
+                <div className="rounded-sm border border-dashed border-outline-variant/30 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  {selectedUser ? (
+                    <>
+                      Use <span className="font-semibold text-on-surface">Inspect Active Sessions</span> to
+                      load live session context for the currently inspected operator.
+                    </>
+                  ) : (
+                    <>
+                      Use <span className="font-semibold text-on-surface">Inspect</span> on a row first, then
+                      load active sessions without losing the directory table.
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+          </section>
+        </aside>
+      </div>
 
       {selectedUsernames.length > 0 && (
         <section className="surface-section overflow-hidden">
@@ -963,25 +1190,26 @@ export default function UsersRoles() {
       )}
 
       {editorMode && (
-        <section className="bg-surface-container-lowest border border-outline-variant/15 rounded-sm shadow-sm overflow-hidden">
-          <div className="px-6 py-4 bg-surface-container-high border-b border-outline-variant/10 flex items-center justify-between">
-            <div>
-              <h3 className="font-bold text-sm tracking-tight text-on-surface">
-                {editorMode === "create"
-                  ? createMode === "invite"
-                    ? "Invite New Operator"
-                    : "Provision New Operator"
-                  : `Edit Operator ${editorUsername}`}
-              </h3>
-              <p className="text-[11px] text-on-surface-variant uppercase tracking-widest mt-1">
-                Identity, privileges and recovery posture
-              </p>
+        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
+          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-4">
+              <div>
+                <h3 className="font-bold text-sm tracking-tight text-on-surface">
+                  {editorMode === "create"
+                    ? createMode === "invite"
+                      ? "Invite New Operator"
+                      : "Provision New Operator"
+                    : `Edit Operator ${editorUsername}`}
+                </h3>
+                <p className="text-[11px] text-on-surface-variant uppercase tracking-widest mt-1">
+                  Identity, privileges and recovery posture
+                </p>
+              </div>
+              <button onClick={resetForm} className="text-on-surface-variant hover:text-on-surface">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <button onClick={resetForm} className="text-on-surface-variant hover:text-on-surface">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="grid flex-1 grid-cols-1 gap-8 overflow-y-auto p-6 lg:grid-cols-2">
             <div className="space-y-5">
               <FormField label="Username">
                 <input
@@ -1058,6 +1286,28 @@ export default function UsersRoles() {
             </div>
 
             <div className="space-y-5">
+              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 space-y-3">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                  {editorMode === "edit" ? "Operator Context" : "Provisioning Context"}
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <ContextMetric
+                    label={editorMode === "edit" ? "Username" : "Mode"}
+                    value={editorMode === "edit" ? editorUsername : createMode === "invite" ? "Invite" : "Standard"}
+                  />
+                  <ContextMetric
+                    label="Status"
+                    value={editorMode === "edit" ? currentStatus(editingUser || form).label : form.is_active ? "Active" : "Inactive"}
+                  />
+                  <ContextMetric label="Language" value={(form.preferred_lang || "pt").toUpperCase()} />
+                  <ContextMetric label="Role" value={form.role} />
+                </div>
+                {editorMode === "edit" && editingUser?.suspension_reason ? (
+                  <div className="rounded-sm bg-surface-container-high p-3 text-xs text-on-surface-variant">
+                    Suspension rationale on file: {editingUser.suspension_reason}
+                  </div>
+                ) : null}
+              </div>
               <div className="space-y-3">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
                   Extra Permissions
@@ -1175,29 +1425,30 @@ export default function UsersRoles() {
                 desbloqueio, import/export em CSV e permissões extras por usuário.
               </div>
             </div>
+            </div>
+            <div className="sticky bottom-0 flex justify-end gap-3 border-t border-outline-variant/10 bg-surface-container-high px-6 py-4">
+              <button
+                onClick={resetForm}
+                className="px-4 py-2 border border-outline-variant/30 text-xs font-bold uppercase tracking-widest text-on-surface"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => void saveUser()}
+                disabled={busy === "save-user"}
+                className="px-4 py-2 bg-primary text-white text-xs font-bold uppercase tracking-widest rounded-sm disabled:opacity-60"
+              >
+                {busy === "save-user"
+                  ? "Saving..."
+                  : editorMode === "create" && createMode === "invite"
+                  ? "Send Invite"
+                  : editorMode === "create"
+                    ? "Create User"
+                    : "Save Changes"}
+              </button>
+            </div>
           </div>
-          <div className="px-6 pb-6 flex justify-end gap-3">
-            <button
-              onClick={resetForm}
-              className="px-4 py-2 border border-outline-variant/30 text-xs font-bold uppercase tracking-widest text-on-surface"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={() => void saveUser()}
-              disabled={busy === "save-user"}
-              className="px-4 py-2 bg-primary text-white text-xs font-bold uppercase tracking-widest rounded-sm disabled:opacity-60"
-            >
-              {busy === "save-user"
-                ? "Saving..."
-                : editorMode === "create" && createMode === "invite"
-                ? "Send Invite"
-                : editorMode === "create"
-                  ? "Create User"
-                  : "Save Changes"}
-            </button>
-          </div>
-        </section>
+        </div>
       )}
 
       {invitedCredential && (
@@ -1339,94 +1590,6 @@ export default function UsersRoles() {
         </section>
       )}
 
-      {selectedUserForSessions && (
-        <section className="surface-section overflow-hidden">
-          <div className="surface-section-header">
-            <div>
-              <h3 className="surface-section-title">Per-user Session Inspection</h3>
-              <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
-                Active sessions for {selectedUserForSessions.username}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedUserForSessions(null);
-                setSelectedUserSessions([]);
-              }}
-              className="btn btn-outline"
-            >
-              Close Inspection
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left">
-              <thead>
-                <tr className="bg-surface-container-low text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
-                  <th className="px-4 py-3">Device</th>
-                  <th className="px-4 py-3">IP</th>
-                  <th className="px-4 py-3">Created</th>
-                  <th className="px-4 py-3">Expires</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-surface-container">
-                {sessionsLoading ? (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-sm text-on-surface-variant">
-                      Loading active sessions...
-                    </td>
-                  </tr>
-                ) : selectedUserSessions.length > 0 ? (
-                  selectedUserSessions.map((session) => (
-                    <tr key={session.session_id} className="hover:bg-surface-container-low">
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-3">
-                          {/android|iphone|ipad/i.test(session.user_agent) ? (
-                            <Smartphone className="h-4 w-4 text-on-surface-variant" />
-                          ) : (
-                            <Monitor className="h-4 w-4 text-on-surface-variant" />
-                          )}
-                          <div className="text-sm font-medium text-on-surface">
-                            {session.device}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-sm text-on-surface-variant">
-                        {session.ip || "—"}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-on-surface-variant">
-                        {new Intl.DateTimeFormat("pt-BR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        }).format(new Date(session.created_at))}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-on-surface-variant">
-                        {new Intl.DateTimeFormat("pt-BR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                        }).format(new Date(session.expires_at))}
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan={4} className="px-4 py-6 text-sm text-on-surface-variant">
-                      No active sessions were returned for this user.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard label="Policy Compliance" value={`${stats?.total_users ? Math.round(((stats.active_users || 0) / stats.total_users) * 1000) / 10 : 0}%`} helper="active vs total" />
-        <StatCard label="MFA Adoption" value={`${stats?.users_with_mfa || 0} / ${stats?.total_users || 0}`} helper={`${stats?.users_with_mfa || 0} enrolled`} />
-        <StatCard label="Privileged Access" value={String((users || []).filter((user) => user.role === "admin").length)} helper="Global Admins" />
-        <StatCard label="Audit Interval" value="On Demand" helper={`Failed logins 24h: ${stats?.failed_logins_24h || 0}`} accent />
-      </div>
     </div>
   );
 }
@@ -1465,24 +1628,36 @@ function ToggleField({
   );
 }
 
-function StatCard({
+function ContextMetric({
   label,
   value,
-  helper,
-  accent,
 }: {
   label: string;
   value: string;
-  helper: string;
-  accent?: boolean;
 }) {
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant/15 p-6 space-y-2 rounded-sm shadow-sm">
-      <p className="text-[11px] text-on-surface-variant uppercase tracking-widest font-bold">{label}</p>
-      <p className={`text-2xl font-black ${accent ? "text-primary" : "text-on-surface"}`}>{value}</p>
-      <div className="flex items-center gap-2 mt-2">
-        <span className="text-[10px] font-bold text-on-surface-variant bg-surface-container-high px-2 py-0.5 rounded-sm">{helper}</span>
+    <div className="rounded-sm bg-surface-container-high p-3">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        {label}
       </div>
+      <div className="mt-1 text-sm font-semibold text-on-surface">{value}</div>
+    </div>
+  );
+}
+
+function CompactMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="rounded-sm bg-surface-container-low p-4">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+        {label}
+      </div>
+      <div className="mt-2 text-xl font-black text-on-surface">{value}</div>
     </div>
   );
 }

@@ -2,6 +2,8 @@
 
 Thank you for your interest in contributing to VANTAGE. This document provides guidelines for contributing to the project.
 
+This repository is the public core of the product. Contributions should strengthen the open core: analysis, feed, recon, watchlist, hunting, exposure, auth, admin surfaces, documentation, and release quality.
+
 ## Code of Conduct
 
 Be respectful, inclusive, and constructive. Harassment or discrimination of any kind will not be tolerated.
@@ -23,6 +25,20 @@ Be respectful, inclusive, and constructive. Harassment or discrimination of any 
    cd web && npm install
    ```
 4. Copy `.env.example` to `.env` and configure your API keys
+
+## Contribution Focus
+
+Good fits for this repository:
+
+- bug fixes and UX improvements in the public core
+- tests, documentation, and release hardening
+- feed, recon, hunting, watchlist, exposure, and admin improvements that belong in the public product
+
+Out of scope for this repository:
+
+- contract-specific deployments
+- managed-service internals
+- premium extensions that do not live in the public core
 
 ## Branch Naming
 
@@ -71,6 +87,8 @@ docs(api): add OpenAPI examples for /analyze endpoint
    - Link to related issue (if any)
 5. Wait for at least one maintainer review before merging
 
+For larger changes, open an issue or discussion first so scope, fit, and licensing boundary are clear before implementation starts.
+
 ## Development Guidelines
 
 ### Backend (Python / FastAPI)
@@ -107,3 +125,5 @@ Open a GitHub Issue with:
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [AGPLv3](LICENSE).
+
+This repository is the public core of VANTAGE. Commercial services, premium extensions, and contract-specific deliverables may exist outside this repository, but contributions submitted here land in the AGPLv3 core.

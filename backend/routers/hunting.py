@@ -17,9 +17,11 @@ from audit import log_action
 from auth import get_current_user
 from hunting_runtime import (
     SHERLOCK_SUPPORTED_ARTIFACT_TYPES,
+    build_hunting_runtime_catalog,
     build_sherlock_provider_descriptor,
     build_sherlock_query,
     normalize_sherlock_results,
+    resolve_hunting_provider_runtime,
     run_sherlock_query,
 )
 from db import db_manager
@@ -28,8 +30,15 @@ from limiters import limiter
 router = APIRouter(prefix="/hunting", tags=["hunting"])
 
 
-def _get_hunting_providers() -> list[dict[str, Any]]:
-    return [build_sherlock_provider_descriptor()]
+def _get_hunting_providers(exec_runner=None) -> list[dict[str, Any]]:
+    providers = [build_sherlock_provider_descriptor()]
+    return [
+        {
+            **provider,
+            "runtimeStatus": resolve_hunting_provider_runtime(provider, exec_runner=exec_runner),
+        }
+        for provider in providers
+    ]
 
 
 class HuntingSearchRequest(BaseModel):
@@ -66,9 +75,13 @@ class HuntingCaseNoteRequest(BaseModel):
 
 
 @router.get("/providers")
-async def list_hunting_providers(current_user: dict = Depends(get_current_user)):
+async def list_hunting_providers(request: Request, current_user: dict = Depends(get_current_user)):
     _ = current_user
-    return {"items": _get_hunting_providers()}
+    exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
+    return {
+        "items": _get_hunting_providers(exec_runner=exec_runner),
+        "runtime": build_hunting_runtime_catalog(exec_runner=exec_runner),
+    }
 
 
 @router.get("/saved-searches")
@@ -217,7 +230,8 @@ async def run_hunting_search(
     if not body.artifact_type:
         raise HTTPException(status_code=400, detail="artifact_type_required")
 
-    providers = _get_hunting_providers()
+    exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
+    providers = _get_hunting_providers(exec_runner=exec_runner)
     requested_keys = body.provider_keys or [provider["key"] for provider in providers]
     requested = [provider for provider in providers if provider["key"] in requested_keys]
     unknown_keys = sorted(set(requested_keys) - {provider["key"] for provider in providers})
@@ -227,7 +241,6 @@ async def run_hunting_search(
             detail=f"unknown_hunting_provider:{','.join(unknown_keys)}",
         )
 
-    exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
     provider_results: list[dict[str, Any]] = []
     total_results = 0
     db = db_manager.db
@@ -248,6 +261,19 @@ async def run_hunting_search(
                     "query": query_payload,
                     "status": "unsupported",
                     "error": f"unsupported_artifact_type:{body.artifact_type}",
+                    "results": [],
+                }
+            )
+            continue
+
+        runtime_status = provider.get("runtimeStatus") or resolve_hunting_provider_runtime(provider, exec_runner=exec_runner)
+        if not runtime_status.get("ready"):
+            provider_results.append(
+                {
+                    "provider": provider,
+                    "query": query_payload,
+                    "status": "error",
+                    "error": runtime_status.get("blocker") or "provider_runtime_missing",
                     "results": [],
                 }
             )

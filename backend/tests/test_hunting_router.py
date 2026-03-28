@@ -11,9 +11,11 @@ async def test_list_hunting_providers_returns_initial_catalog(async_client):
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["items"]) == 1
+    assert "runtime" in data
     provider = data["items"][0]
     assert provider["key"] == "premium-hunting-sherlock"
     assert provider["premiumFeatureType"] == "hunting_provider"
+    assert "runtimeStatus" in provider
 
 
 async def test_hunting_search_returns_normalized_results(async_client, fake_db):
@@ -64,6 +66,38 @@ async def test_hunting_search_reports_unsupported_artifact_per_provider(async_cl
     audit = await fake_db.audit_log.find_one({"action": "premium_hunting_search"})
     assert audit is not None
     assert audit["result"] == "success"
+
+
+async def test_hunting_search_reports_runtime_missing_when_provider_is_not_ready(async_client):
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+
+    from routers import hunting as hunting_router
+
+    original = hunting_router.resolve_hunting_provider_runtime
+    hunting_router.resolve_hunting_provider_runtime = lambda provider, exec_runner=None: {
+        "ready": False,
+        "state": "blocked",
+        "recommendedMode": "isolated_container",
+        "preferredMode": "isolated_container",
+        "activeMode": None,
+        "requiresKali": False,
+        "availableModes": [],
+        "wiredModes": [],
+        "blocker": "provider_runtime_missing",
+    }
+    try:
+        resp = await async_client.post(
+            "/api/hunting/search",
+            json={"artifact_type": "username", "query": "example"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    finally:
+        hunting_router.resolve_hunting_provider_runtime = original
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items"][0]["status"] == "error"
+    assert data["items"][0]["error"] == "provider_runtime_missing"
 
 
 async def test_saved_hunting_search_lifecycle(async_client, fake_db):

@@ -12,6 +12,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 
 type FeedItem = {
   _id: string;
@@ -56,18 +57,19 @@ function severityMeta(level?: string) {
   }
 }
 
-function formatRelative(dateStr?: string) {
-  if (!dateStr) return "RECENT";
+function formatRelative(dateStr: string | undefined, t: (key: string, fallback?: string) => string) {
+  if (!dateStr) return t("home.recentLabel", "RECENT");
   const date = new Date(dateStr);
-  if (Number.isNaN(date.getTime())) return "RECENT";
+  if (Number.isNaN(date.getTime())) return t("home.recentLabel", "RECENT");
   const diff = Date.now() - date.getTime();
   const hours = Math.max(1, Math.round(diff / 36e5));
-  if (hours < 24) return `${hours} HOURS AGO`;
+  if (hours < 24) return `${hours} ${t("home.hoursAgo", "HOURS AGO")}`;
   const days = Math.max(1, Math.round(hours / 24));
-  return `${days} DAYS AGO`;
+  return `${days} ${t("home.daysAgo", "DAYS AGO")}`;
 }
 
 export default function Home() {
+  const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const navigate = useNavigate();
@@ -114,9 +116,9 @@ export default function Home() {
       <section className="flex flex-col items-center justify-center py-16">
         <div className="w-full max-w-3xl space-y-4">
           <div className="flex items-center gap-3 text-on-surface-variant/60 font-mono text-[11px] tracking-widest mb-2 uppercase">
-            <span className="text-primary font-bold">threat intelligence</span>
+            <span className="text-primary font-bold">{t("home.eyebrowThreat", "threat intelligence")}</span>
             <span>/</span>
-            <span>global search</span>
+            <span>{t("home.eyebrowSearch", "global search")}</span>
           </div>
           <form onSubmit={handleSearch} className="relative group">
             <div className="absolute inset-y-0 left-6 flex items-center pointer-events-none">
@@ -126,7 +128,7 @@ export default function Home() {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Enter an IP, domain, or hash"
+              placeholder={t("home.placeholder", "Enter an IP, domain, or hash")}
               className="w-full h-20 pl-16 pr-32 bg-surface-container-lowest text-on-surface border-none shadow-sm focus:ring-2 focus:ring-primary/20 text-xl font-medium tracking-tight rounded-lg placeholder:text-outline-variant/50 transition-all outline-none"
             />
             <div className="absolute inset-y-0 right-4 flex items-center">
@@ -134,20 +136,20 @@ export default function Home() {
                 type="submit"
                 className="px-6 py-2.5 bg-primary text-white text-sm font-bold rounded shadow-sm hover:bg-primary-dim active:scale-95 transition-all"
               >
-                EXECUTE
+                {t("home.execute", "EXECUTE")}
               </button>
             </div>
           </form>
           <div className="flex flex-wrap gap-6 mt-4 px-2">
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant/70 uppercase tracking-wider">
-              <span className="text-primary">TIP:</span> Use{" "}
+              <span className="text-primary">{t("home.tip", "TIP:")}</span> {t("home.tipCidr", "Use")}{" "}
               <code className="bg-surface-container-high px-1 rounded">cidr:</code>{" "}
-              for range searches
+              {t("home.tipCidrTail", "for range searches")}
             </div>
             <div className="flex items-center gap-1.5 text-[11px] font-bold text-on-surface-variant/70 uppercase tracking-wider">
-              <span className="text-primary">TIP:</span> Prefix with{" "}
+              <span className="text-primary">{t("home.tip", "TIP:")}</span> {t("home.tipTag", "Prefix with")}{" "}
               <code className="bg-surface-container-high px-1 rounded">tag:</code>{" "}
-              for labels
+              {t("home.tipTagTail", "for labels")}
             </div>
           </div>
         </div>
@@ -157,17 +159,17 @@ export default function Home() {
         <div className="flex items-center justify-between border-b border-outline-variant/20 pb-4">
           <div className="space-y-1">
             <h2 className="text-xl font-extrabold tracking-tighter uppercase text-on-surface">
-              Recent Intelligence
+              {t("home.recentIntel", "Recent Intelligence")}
             </h2>
             <p className="text-[11px] font-medium text-on-surface-variant uppercase tracking-[0.2em]">
-              Live threat feed indexed from the VANTAGE backend
+              {t("home.liveFeed", "Live threat feed indexed from the VANTAGE backend")}
             </p>
           </div>
           <button
             onClick={() => navigate("/feed")}
             className="flex items-center gap-2 text-primary font-bold text-xs uppercase hover:underline"
           >
-            View Feed Archive
+            {t("home.feedArchive", "View Feed Archive")}
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -184,8 +186,8 @@ export default function Home() {
                     icon={Icon}
                     title={item.title}
                     source={(item.source_name || item.source_type || "VANTAGE").toUpperCase()}
-                    time={formatRelative(item.published_at)}
-                    desc={item.summary || "No summary available for this feed item."}
+                    time={formatRelative(item.published_at, t)}
+                    desc={item.summary || t("home.noSummary", "No summary available for this feed item.")}
                     tags={item.tags?.slice(0, 3) || [`#${(item.source_type || "intel").toUpperCase()}`]}
                     onClick={() => {
                       if (item.data?.link) {
@@ -199,20 +201,23 @@ export default function Home() {
           ) : (
             <div className="md:col-span-2 bg-surface-container-lowest p-8 rounded shadow-sm text-on-surface-variant flex items-center gap-4">
               <Rss className="w-5 h-5 text-primary" />
-              No recent feed items were returned by the backend.
+              {t("home.noFeedItems", "No recent feed items were returned by the backend.")}
             </div>
           )}
         </div>
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 bg-surface-container-high/40 border border-outline-variant/10 rounded-lg p-6 flex flex-col gap-4">
+        <div className="xl:col-span-2 surface-section p-6">
           <div className="flex items-center gap-2 mb-2">
             <Activity className="w-4 h-4 text-primary" />
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-on-surface">
-              VANTAGE Global Node Status
+              {t("home.feedDistribution", "Feed Distribution Snapshot")}
             </h4>
           </div>
+          <p className="mb-4 text-xs text-on-surface-variant">
+            {t("home.informationalOnly", "Passive health readout for the current intelligence sample. This panel is informational only.")}
+          </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
             <NodeStatus name="AMER-EAST" value="99.98%" color="bg-emerald-500" />
             <NodeStatus name="EMEA-CENTRAL" value="99.42%" color="bg-emerald-500" />
@@ -221,33 +226,26 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="bg-primary p-6 rounded-lg text-on-primary flex flex-col justify-between overflow-hidden relative">
-          <div className="absolute -bottom-4 -right-4 opacity-10">
-            <Shield className="w-32 h-32" />
-          </div>
-          <div className="z-10">
-            <div className="text-[10px] font-black uppercase tracking-[0.25em] mb-4 opacity-80">
-              Quick Summary
+        <div className="surface-section overflow-hidden">
+          <div className="surface-section-header">
+            <div>
+              <h3 className="surface-section-title">Feed Summary</h3>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                {t("home.currentSampleOnly", "Current sample only")}
+              </p>
             </div>
-            <div className="text-3xl font-black tracking-tighter mb-1">{feedVolume}</div>
-            <div className="text-xs font-bold opacity-70 uppercase tracking-wider mb-6">
-              Signals Indexed (Current Sample)
+            <Shield className="h-5 w-5 text-primary/70" />
+          </div>
+          <div className="space-y-4 p-6">
+            <div>
+              <div className="text-3xl font-black tracking-tighter text-on-surface">{feedVolume}</div>
+              <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                {t("home.totalLoaded", "TOTAL ITEMS LOADED")}
+              </div>
             </div>
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-[11px] font-bold">
-                <span>Critical Feed Items</span>
-                <span>{criticalCount}</span>
-              </div>
-              <div className="w-full h-1 bg-white/20 rounded-full">
-                <div className="h-full bg-white" style={{ width: `${Math.max(10, criticalCount * 20)}%` }} />
-              </div>
-              <div className="flex items-center justify-between text-[11px] font-bold">
-                <span>High Priority Items</span>
-                <span>{highCount}</span>
-              </div>
-              <div className="w-full h-1 bg-white/20 rounded-full">
-                <div className="h-full bg-white" style={{ width: `${Math.max(10, highCount * 20)}%` }} />
-              </div>
+              <SummaryMeter label={t("home.criticalItems", "CRITICAL ITEMS")} value={criticalCount} />
+              <SummaryMeter label={t("home.elevatedItems", "ELEVATED ITEMS")} value={highCount} />
             </div>
           </div>
         </div>
@@ -290,7 +288,9 @@ function FeedCard({
 
   return (
     <div
-      className={`card card-hover card-accent-left ${accentClass} p-6 flex flex-col gap-4 relative overflow-hidden cursor-pointer`}
+      className={`card card-accent-left ${accentClass} p-6 flex flex-col gap-4 relative overflow-hidden ${
+        onClick ? "card-hover cursor-pointer" : ""
+      }`}
       onClick={onClick}
     >
       <div className="absolute top-0 right-0 p-3">
@@ -313,7 +313,7 @@ function FeedCard({
           <Icon className="w-5 h-5" />
         </div>
         <div className="space-y-1 pr-16">
-          <h3 className="font-bold text-on-surface leading-tight text-base group-hover:text-primary transition-colors">
+          <h3 className={`font-bold text-on-surface leading-tight text-base ${onClick ? "group-hover:text-primary transition-colors" : ""}`}>
             {title}
           </h3>
           <div className="flex items-center gap-3 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant/60">
@@ -332,6 +332,20 @@ function FeedCard({
             {tag}
           </span>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function SummaryMeter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-[11px] font-bold text-on-surface">
+        <span>{label}</span>
+        <span>{value}</span>
+      </div>
+      <div className="h-1 rounded-full bg-surface-container-high">
+        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(10, value * 20)}%` }} />
       </div>
     </div>
   );

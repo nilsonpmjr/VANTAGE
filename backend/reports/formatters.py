@@ -101,8 +101,8 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
                 try:
                     dt = datetime.fromisoformat(last_reported).strftime('%Y-%m-%d')
                     lines.append(f"• {t['last_reported']}: {dt}")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Could not parse AbuseIPDB lastReportedAt={last_reported!r}: {exc}")
 
             lines.append(f"• {t['usage_type']}: {d.get('usageType', 'N/A')}")
             if 'countryCode' in d:
@@ -131,8 +131,8 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
                 try:
                     dt = datetime.fromisoformat(last_update.split('.')[0]).strftime('%Y-%m-%d')
                     lines.append(f"• {t['last_analysis']}: {dt}")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Could not parse Shodan last_update={last_update!r}: {exc}")
 
             ports = data.get('ports', [])
             lines.append(f"• {t['ports']}: {', '.join(map(str, ports)) if ports else 'None'}")
@@ -211,8 +211,8 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
                     try:
                         dt = datetime.fromisoformat(task.get('time').replace('Z', '+00:00')).strftime('%Y-%m-%d')
                         lines.append(f"• {t['last_analysis']}: {dt}")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(f"Could not parse UrlScan time={task.get('time')!r}: {exc}")
         except Exception as e:
             logger.error(f"Error parsing UrlScan data: {e}")
             lines.append("[yellow]Error parsing data[/]")
@@ -222,7 +222,7 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
             if isinstance(data, dict) and data.get("_meta_msg") == "No content returned":
                 lines.append("• [green]Status: Clean (Not found on any blacklists)[/]")
             elif isinstance(data, dict) and data.get("_meta_error"):
-                pass  # Handled by _meta_error block above
+                lines.append(f"• [yellow]Status: {data.get('_meta_msg', 'Source returned an error')}[/]")
             else:
                 lines.append("• [red]Status: Found on blacklists[/]")
                 try:
@@ -230,8 +230,8 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
                     if len(raw_str) > 150:
                         raw_str = raw_str[:147] + "..."
                     lines.append(f"  [dim]Data: {raw_str}[/]")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug(f"Could not serialize BlacklistMaster payload: {exc}")
         except Exception as e:
             logger.error(f"Error parsing BlacklistMaster data: {e}")
             lines.append("[yellow]Error parsing data[/]")

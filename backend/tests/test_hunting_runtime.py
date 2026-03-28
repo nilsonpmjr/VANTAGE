@@ -5,10 +5,12 @@ import json
 import pytest
 
 from hunting_runtime import (
+    build_hunting_runtime_catalog,
     build_sherlock_command,
     build_sherlock_provider_descriptor,
     build_sherlock_query,
     normalize_sherlock_results,
+    resolve_hunting_provider_runtime,
     run_sherlock_query,
 )
 
@@ -28,6 +30,32 @@ def test_build_sherlock_command_only_accepts_supported_artifact_types():
 
     with pytest.raises(ValueError, match="unsupported_sherlock_artifact_type:email"):
         build_sherlock_command(build_sherlock_query(artifact_type="email", query="user@example.com"))
+
+
+def test_build_hunting_runtime_catalog_reports_native_and_optional_lanes(monkeypatch):
+    monkeypatch.setenv("HUNTING_ISOLATED_RUNTIME_ENABLED", "true")
+    monkeypatch.setenv("HUNTING_KALI_RUNTIME_ENABLED", "false")
+    monkeypatch.setattr("hunting_runtime.shutil.which", lambda _: "/usr/bin/sherlock")
+
+    catalog = build_hunting_runtime_catalog()
+
+    assert catalog["configuredMode"] == "auto"
+    assert catalog["modes"]["native_local"]["ready"] is True
+    assert catalog["modes"]["isolated_container"]["ready"] is True
+    assert catalog["modes"]["kali_container"]["ready"] is False
+
+
+def test_resolve_hunting_provider_runtime_falls_back_to_native_local_when_container_not_wired(monkeypatch):
+    monkeypatch.setenv("HUNTING_ISOLATED_RUNTIME_ENABLED", "true")
+    monkeypatch.delenv("HUNTING_KALI_RUNTIME_ENABLED", raising=False)
+    monkeypatch.setattr("hunting_runtime.shutil.which", lambda _: "/usr/bin/sherlock")
+
+    runtime = resolve_hunting_provider_runtime(build_sherlock_provider_descriptor())
+
+    assert runtime["ready"] is True
+    assert runtime["state"] == "fallback"
+    assert runtime["recommendedMode"] == "isolated_container"
+    assert runtime["activeMode"] == "native_local"
 
 
 @pytest.mark.asyncio

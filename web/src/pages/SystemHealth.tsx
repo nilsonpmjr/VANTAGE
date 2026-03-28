@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 type OperationalService = {
   status: "healthy" | "degraded" | "error";
@@ -114,6 +115,7 @@ function isFiniteNumber(value: unknown): value is number {
 }
 
 export default function SystemHealth() {
+  const { t } = useLanguage();
   const [payload, setPayload] = useState<OperationalStatusPayload | null>(null);
   const [adminStats, setAdminStats] = useState<AdminStats | null>(null);
   const [events, setEvents] = useState<OperationalEvent[]>([]);
@@ -132,6 +134,10 @@ export default function SystemHealth() {
       { key: "threat_ingestion", label: "Threat Ingestion", helper: "Feed sync worker" },
     ],
     [],
+  );
+  const restartableServiceKeys = useMemo(
+    () => new Set(restartableServices.map((service) => service.key)),
+    [restartableServices],
   );
 
   async function loadRuntime() {
@@ -270,34 +276,33 @@ export default function SystemHealth() {
     <div className="max-w-6xl mx-auto space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Observability</div>
-          <h2 className="page-heading">Operational Status</h2>
+          <div className="page-eyebrow">{t("settingsPages.systemHealthEyebrow", "Observability")}</div>
+          <h2 className="page-heading">{t("settingsPages.systemHealthTitle", "Operational Status")}</h2>
           <p className="page-subheading">
-            Monitore saúde dos serviços, consumo operacional e eventos recentes da
-            infraestrutura sem depender de trilhas de navegação artificiais.
+            {t("settingsPages.systemHealthSubtitle", "Monitore saúde dos serviços, consumo operacional e eventos recentes da infraestrutura sem depender de trilhas de navegação artificiais.")}
           </p>
         </div>
-        <div className="summary-strip text-xs font-mono text-on-surface-variant">
-          <div className="flex items-center">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>
-            GLOBAL UPTIME: {uptimeRatio.toFixed(1)}%
+        <div className="summary-strip">
+          <div className="summary-pill">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+            <span>Global Uptime: {uptimeRatio.toFixed(1)}%</span>
           </div>
-          <div className="flex items-center">
-            <span className="w-2 h-2 rounded-full bg-amber-500 mr-2"></span>
-            ACTIVE ALERTS: {Number(payload?.summary?.degraded || 0) + Number(payload?.summary?.error || 0)}
+          <div className="summary-pill-muted">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
+            <span>Active Alerts: {Number(payload?.summary?.degraded || 0) + Number(payload?.summary?.error || 0)}</span>
           </div>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Service actions</div>
+        <div className="page-toolbar-copy">{t("settingsPages.systemHealthActions", "Service actions")}</div>
         <div className="page-toolbar-actions">
           <button
             onClick={() => void loadRuntime()}
             className="btn btn-outline"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
+            {t("admin.refresh", "Refresh")}
           </button>
           <button
             onClick={() => void restartRuntimeService("threat_ingestion")}
@@ -305,7 +310,7 @@ export default function SystemHealth() {
             disabled={busyService === "threat_ingestion"}
           >
             <RotateCcw className={`w-4 h-4 ${busyService === "threat_ingestion" ? "animate-spin" : ""}`} />
-            {busyService === "threat_ingestion" ? "Restarting..." : "Restart Ingestion"}
+            {busyService === "threat_ingestion" ? t("settingsPages.restarting", "Restarting...") : t("settingsPages.restartIngestion", "Restart Ingestion")}
           </button>
         </div>
       </div>
@@ -318,90 +323,142 @@ export default function SystemHealth() {
       )}
 
       <div className="page-with-side-rail">
-        <div className="page-main-pane grid grid-cols-12 gap-6">
-        {serviceEntries.length > 0 ? (
-          serviceEntries.map(([name, service]) => {
-            const Icon = serviceIcon(name);
-            const firstMetric = Object.entries(service.consumption || {}).find(([, value]) => typeof value === "number");
-            const secondMetric = Object.entries(service.details || {}).find(([, value]) => typeof value === "boolean" || typeof value === "string");
-            const barValue = firstMetric && typeof firstMetric[1] === "number" ? Math.min(100, Math.max(5, Number(firstMetric[1]) % 100 || 10)) : 42;
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => setSelectedService(name)}
-                className={`col-span-12 lg:col-span-4 rounded-sm border bg-surface-container-lowest p-6 text-left shadow-sm transition-all hover:shadow-md ${
-                  selectedService === name
-                    ? "border-primary/40 ring-1 ring-primary/20"
-                    : "border-outline-variant/15"
-                }`}
-              >
-                <div className="flex justify-between items-start mb-6">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-surface-container flex items-center justify-center rounded-sm">
-                      <Icon className="w-5 h-5 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-on-surface">{serviceTitle(name)}</h3>
-                      <p className="text-[11px] text-on-surface-variant uppercase font-bold tracking-widest">
-                        {name}
-                      </p>
-                    </div>
-                  </div>
-                  <span className={`px-2 py-1 text-[10px] font-bold rounded flex items-center ${statusPill(service.status)}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${service.status === "healthy" ? "bg-emerald-500" : service.status === "degraded" ? "bg-amber-500" : "bg-error"}`}></span>
-                    {service.status.toUpperCase()}
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <MetricBox
-                    label="LAST CHECK"
-                    value={formatTimestamp(service.last_checked)}
-                    compact
-                  />
-                  <MetricBox
-                    label={firstMetric ? firstMetric[0].replace(/_/g, " ").toUpperCase() : "ERROR STATE"}
-                    value={
-                      firstMetric
-                        ? `${firstMetric[1]}`
-                        : service.error || "—"
-                    }
-                    highlight={service.status !== "healthy"}
-                    compact
-                  />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-[10px] font-bold text-on-surface-variant">
-                    <span>LOAD DISTRIBUTION</span>
-                    <span>{barValue}%</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-surface-container rounded-full overflow-hidden">
-                    <div className={`h-full ${service.status === "healthy" ? "bg-primary" : service.status === "degraded" ? "bg-amber-500" : "bg-error"}`} style={{ width: `${barValue}%` }}></div>
-                  </div>
-                </div>
-                <div className="mt-6 pt-6 border-t border-outline-variant/10">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-mono text-on-surface-variant">
-                      {secondMetric ? `${secondMetric[0]}=${String(secondMetric[1])}` : "snapshot"}
-                    </span>
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
-                      {selectedService === name ? "Selected" : "Inspect"}
-                    </span>
-                  </div>
-                  {service.error && (
-                    <p className="mt-3 text-[11px] text-error font-medium">{service.error}</p>
-                  )}
-                </div>
-              </button>
-            );
-          })
-        ) : (
-          <div className="col-span-12 rounded-sm bg-surface-container-lowest px-6 py-8 text-sm text-on-surface-variant shadow-sm">
-            {loading ? "Carregando serviços..." : "Nenhum serviço operacional foi retornado."}
+        <div className="page-main-pane space-y-6">
+        <section className="surface-section overflow-hidden">
+          <div className="surface-section-header">
+            <div>
+              <h3 className="surface-section-title">Operational Status</h3>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                Core services, runtime health, and selection-aware drilldown
+              </p>
+            </div>
+            <div className="text-[11px] font-bold uppercase tracking-widest text-on-surface-variant">
+              {serviceEntries.length} service(s)
+            </div>
           </div>
-        )}
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] text-on-surface-variant font-bold uppercase tracking-widest">
+                <tr>
+                  <th className="px-6 py-3">Service</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Last Check</th>
+                  <th className="px-6 py-3">Primary Signal</th>
+                  <th className="px-6 py-3">Context</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/5">
+                {serviceEntries.length > 0 ? (
+                  serviceEntries.map(([name, service]) => {
+                    const Icon = serviceIcon(name);
+                    const firstMetric = Object.entries(service.consumption || {}).find(([, value]) => typeof value === "number");
+                    const secondMetric = Object.entries(service.details || {}).find(([, value]) => typeof value === "boolean" || typeof value === "string");
+                    const canRestart = restartableServiceKeys.has(name);
+                    return (
+                      <tr
+                        key={name}
+                        className={`transition-colors ${
+                          selectedService === name
+                            ? "bg-primary/5"
+                            : "hover:bg-surface-container-low"
+                        }`}
+                      >
+                        <td className="px-6 py-4">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedService(name)}
+                            className="flex items-start gap-3 text-left"
+                          >
+                            <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-sm bg-surface-container">
+                              <Icon className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-bold text-on-surface">{serviceTitle(name)}</div>
+                              <div className="text-[11px] uppercase tracking-widest text-on-surface-variant">{name}</div>
+                            </div>
+                          </button>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold ${statusPill(service.status)}`}>
+                            <span className={`mr-1.5 h-1.5 w-1.5 rounded-full ${service.status === "healthy" ? "bg-emerald-500" : service.status === "degraded" ? "bg-amber-500" : "bg-error"}`}></span>
+                            {service.status.toUpperCase()}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-on-surface-variant">
+                          {formatTimestamp(service.last_checked)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm font-bold text-on-surface">
+                            {firstMetric ? String(firstMetric[1]) : service.error || "—"}
+                          </div>
+                          <div className="text-[11px] uppercase tracking-widest text-on-surface-variant">
+                            {firstMetric ? firstMetric[0].replace(/_/g, " ") : "error state"}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="max-w-[240px] text-sm text-on-surface-variant">
+                            {secondMetric ? `${secondMetric[0].replace(/_/g, " ")}: ${String(secondMetric[1])}` : "Snapshot available in drilldown"}
+                          </div>
+                          {service.error && <div className="mt-1 text-[11px] font-medium text-error">{service.error}</div>}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex justify-end gap-2">
+                            <RowPrimaryAction
+                              label={selectedService === name ? "Selected" : "Inspect"}
+                              icon={<Eye className="h-3.5 w-3.5" />}
+                              onClick={() => setSelectedService(name)}
+                            />
+                            <RowActionsMenu
+                              items={[
+                                {
+                                  key: "inspect",
+                                  label: "Inspect service",
+                                  icon: <Eye className="h-3.5 w-3.5" />,
+                                  onSelect: () => setSelectedService(name),
+                                },
+                                {
+                                  key: "copy",
+                                  label: "Copy health summary",
+                                  icon: <Copy className="h-3.5 w-3.5" />,
+                                  onSelect: async () => {
+                                    const summary = `${serviceTitle(name)} | ${service.status} | ${formatTimestamp(service.last_checked)}`;
+                                    try {
+                                      await navigator.clipboard.writeText(summary);
+                                      setNotice("Resumo do serviço copiado.");
+                                    } catch {
+                                      setNotice(summary);
+                                    }
+                                  },
+                                  dividerBefore: true,
+                                },
+                                {
+                                  key: "restart",
+                                  label: "Restart service",
+                                  icon: <RotateCcw className="h-3.5 w-3.5" />,
+                                  onSelect: () => void restartRuntimeService(name),
+                                  disabled: !canRestart || busyService === name,
+                                },
+                              ]}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-8 text-sm text-on-surface-variant">
+                      {loading ? "Carregando serviços..." : "Nenhum serviço operacional foi retornado."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
 
-        <div className="col-span-12 rounded-sm border border-outline-variant/15 bg-surface-container-lowest p-8 shadow-sm">
+        <div className="rounded-sm border border-outline-variant/15 bg-surface-container-lowest p-8 shadow-sm">
           <div className="flex justify-between items-start mb-10">
             <div>
               <h3 className="text-sm font-black uppercase tracking-widest text-on-surface">
@@ -444,7 +501,7 @@ export default function SystemHealth() {
           </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-7 surface-section">
+        <div className="surface-section">
           <div className="surface-section-header">
             <h3 className="surface-section-title">Recent Infrastructure Events</h3>
             <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
@@ -476,7 +533,7 @@ export default function SystemHealth() {
                         {event.action.replace(/_/g, " ")}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-0.5 text-[9px] font-bold rounded ${event.result === "success" ? "bg-emerald-500/10 text-emerald-700" : event.result === "failure" ? "bg-error/10 text-error" : "bg-blue-500/10 text-blue-700"}`}>
+                        <span className={`inline-flex items-center whitespace-nowrap rounded px-2 py-0.5 text-[9px] font-bold ${event.result === "success" ? "bg-emerald-500/10 text-emerald-700" : event.result === "failure" ? "bg-error/10 text-error" : "bg-blue-500/10 text-blue-700"}`}>
                           {(event.result || "info").toUpperCase()}
                         </span>
                       </td>
@@ -525,7 +582,7 @@ export default function SystemHealth() {
           </div>
         </div>
 
-        <div className="col-span-12 lg:col-span-5 grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Healthy Services" value={String(payload?.summary.healthy || 0)} helper="Current snapshot" />
           <MetricCard label="Active Sessions" value={String(adminStats?.active_sessions || 0)} helper="Refresh tokens alive" />
           <MetricCard label="Locked Accounts" value={String(adminStats?.locked_accounts || 0)} helper="IAM security pressure" />
@@ -546,7 +603,7 @@ export default function SystemHealth() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className={`px-2 py-1 text-[10px] font-bold rounded ${statusPill(selectedServiceSnapshot?.status || "error")}`}>
+                <span className={`inline-flex items-center whitespace-nowrap rounded px-2 py-1 text-[10px] font-bold ${statusPill(selectedServiceSnapshot?.status || "error")}`}>
                   {(selectedServiceSnapshot?.status || "error").toUpperCase()}
                 </span>
                 <span className="text-[11px] text-on-surface-variant">
@@ -651,27 +708,6 @@ function buildSystemEventActions({
       dividerBefore: true,
     },
   ];
-}
-
-function MetricBox({
-  label,
-  value,
-  highlight,
-  compact,
-}: {
-  label: string;
-  value: string;
-  highlight?: boolean;
-  compact?: boolean;
-}) {
-  return (
-    <div className="bg-surface-container-low p-3 rounded-sm">
-      <p className="text-[11px] text-on-surface-variant font-medium">{label}</p>
-      <p className={`font-black tracking-tighter ${compact ? "text-sm" : "text-lg"} ${highlight ? "text-amber-600" : "text-on-surface"}`}>
-        {value}
-      </p>
-    </div>
-  );
 }
 
 function MetricCard({

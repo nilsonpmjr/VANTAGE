@@ -12,6 +12,7 @@ from passlib.context import CryptContext
 
 from config import settings
 from db import db_manager
+from logging_config import get_logger
 from policies import compute_expiry_days_left, get_password_policy
 
 SECRET_KEY = settings.jwt_secret
@@ -19,6 +20,7 @@ ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+logger = get_logger("Auth")
 
 # auto_error=False so the dependency doesn't raise 401 immediately;
 # get_current_user will check both cookie and header.
@@ -153,8 +155,8 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
                 {"key_hash": key_hash},
                 {"$set": {"last_used_at": datetime.now(timezone.utc)}},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Failed to update api_keys.last_used_at for {key_doc.get('username')}: {exc}")
         username = key_doc["username"]
         _api_key_scopes = key_doc.get("scopes", ["analyze"])
     else:

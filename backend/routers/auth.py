@@ -36,6 +36,8 @@ from session_revocation import revoke_user_refresh_tokens
 logger = get_logger("AuthRouter")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+AUTH_TOKEN_TYPE = "bearer"  # nosec B105
+PASSWORD_RESET_NOT_REQUIRED = False
 
 
 async def _parse_login_credentials(request: Request) -> tuple[str, str]:
@@ -231,7 +233,7 @@ async def login(request: Request):
         mfa_setup_required=force_mfa_setup,
     )
 
-    response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
+    response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, access_token, refresh_token)
     _clear_pre_auth_cookie(response)
     logger.info(f"Login successful: {user['username']}")
@@ -287,7 +289,7 @@ async def refresh_access_token(request: Request):
         "revoked": False,
     })
 
-    response = JSONResponse(content={"token_type": "bearer"})
+    response = JSONResponse(content={"token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, new_access_token, new_refresh_token)
     return response
 
@@ -439,7 +441,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
             "password_hash": new_hash,
             "password_history": new_history,
             "password_changed_at": now,
-            "force_password_reset": False,
+            "force_password_reset": PASSWORD_RESET_NOT_REQUIRED,
         }},
     )
     revoked_count = await revoke_user_refresh_tokens(db, username)

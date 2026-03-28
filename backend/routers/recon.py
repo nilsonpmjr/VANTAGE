@@ -562,8 +562,8 @@ async def _process_scan(
                     {"_id": job_id},
                     {"$set": {"status": "error", "error": str(e)}},
                 )
-            except Exception:
-                pass
+            except Exception as persist_exc:
+                logger.warning(f"Recon {job_id}: could not persist failure state: {persist_exc}")
         await queue.put({"type": "error", "message": str(e)})
 
     finally:

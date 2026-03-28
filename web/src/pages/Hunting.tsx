@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Bookmark, Crosshair, Fingerprint, Search, ShieldCheck, StickyNote, History } from "lucide-react";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 
 interface HuntingProvider {
   key: string;
@@ -13,6 +14,29 @@ interface HuntingProvider {
     performanceClass?: string;
     riskClass?: string;
   };
+  runtimeStatus?: {
+    ready?: boolean;
+    state?: string;
+    recommendedMode?: string;
+    preferredMode?: string;
+    activeMode?: string | null;
+    availableModes?: string[];
+    wiredModes?: string[];
+    blocker?: string | null;
+  };
+}
+
+interface HuntingRuntimeCatalog {
+  configuredMode?: string;
+  modes?: Record<
+    string,
+    {
+      label?: string;
+      ready?: boolean;
+      wired?: boolean;
+      detail?: string;
+    }
+  >;
 }
 
 interface HuntingResultDocument {
@@ -75,7 +99,9 @@ function formatTimestamp(value?: string | null) {
 }
 
 export default function Hunting() {
+  const { t } = useLanguage();
   const [providers, setProviders] = useState<HuntingProvider[]>([]);
+  const [runtimeCatalog, setRuntimeCatalog] = useState<HuntingRuntimeCatalog | null>(null);
   const [artifactType, setArtifactType] = useState("username");
   const [query, setQuery] = useState("");
   const [selectedProviderKeys, setSelectedProviderKeys] = useState<string[]>([]);
@@ -104,12 +130,13 @@ export default function Hunting() {
         if (!providersRes.ok || !savedRes.ok || !recentRes.ok) {
           throw new Error("hunting_bootstrap_failed");
         }
-        const providersData = (await providersRes.json()) as { items: HuntingProvider[] };
+        const providersEnvelope = (await providersRes.json()) as { items: HuntingProvider[]; runtime?: HuntingRuntimeCatalog };
         const savedData = (await savedRes.json()) as { items: SavedHuntingSearch[] };
         const recentData = (await recentRes.json()) as { items: RecentHuntingSearch[] };
         if (cancelled) return;
-        const nextProviders = providersData.items || [];
+        const nextProviders = providersEnvelope.items || [];
         setProviders(nextProviders);
+        setRuntimeCatalog(providersEnvelope.runtime || null);
         setSavedSearches(savedData.items || []);
         setRecentSearches(recentData.items || []);
         setSelectedProviderKeys(nextProviders.map((provider) => provider.key));
@@ -172,6 +199,67 @@ export default function Hunting() {
     () => items.reduce((acc, item) => acc + item.results.length, 0),
     [items],
   );
+
+  const readyProviderCount = useMemo(
+    () => providers.filter((provider) => provider.runtimeStatus?.ready).length,
+    [providers],
+  );
+
+  const runtimeModes = useMemo(
+    () => Object.entries(runtimeCatalog?.modes || {}) as Array<
+      [
+        string,
+        {
+          label?: string;
+          ready?: boolean;
+          wired?: boolean;
+          detail?: string;
+        },
+      ]
+    >,
+    [runtimeCatalog],
+  );
+
+  function formatRuntimeMode(mode?: string | null) {
+    if (!mode) return "Unavailable";
+    if (mode === "native_local") return "Native local";
+    if (mode === "isolated_container") return "Isolated container";
+    if (mode === "kali_container") return "Kali container";
+    return mode;
+  }
+
+  function formatRuntimeBlocker(code?: string | null) {
+    switch (code) {
+      case "provider_runtime_missing":
+        return "The provider is not executable in the current runtime.";
+      case "runtime_declared_but_not_wired":
+        return "The runtime lane is declared, but the backend has no execution bridge for it yet.";
+      case "kali_runtime_required":
+        return "This provider requires the optional Kali runtime lane.";
+      case "isolated_container_unavailable":
+        return "The recommended isolated container lane is not available in this environment.";
+      case "recommended_runtime_unavailable":
+        return "The recommended runtime lane is unavailable; fallback rules were applied.";
+      case "kali_container_unavailable":
+        return "The optional Kali runtime lane is unavailable in this environment.";
+      default:
+        return code || "Runtime unavailable.";
+    }
+  }
+
+  function formatSourceLabel(provider: HuntingProvider, index: number) {
+    const scope = provider.providerScope || [];
+    if (scope.includes("identity") && scope.includes("social")) {
+      return t("hunting.sourceIdentitySocial", `Identity & social source ${index + 1}`);
+    }
+    if (scope.includes("identity")) {
+      return t("hunting.sourceIdentity", `Identity source ${index + 1}`);
+    }
+    if (scope.includes("social")) {
+      return t("hunting.sourceSocial", `Social source ${index + 1}`);
+    }
+    return t("hunting.sourceGeneric", `Installed source ${index + 1}`);
+  }
 
   async function refreshSideData() {
     const [savedRes, recentRes] = await Promise.all([
@@ -347,27 +435,24 @@ export default function Hunting() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Analyst</div>
-          <h1 className="page-heading">Proactive Threat Hunting</h1>
+          <div className="page-eyebrow">{t("hunting.eyebrow", "Analyst")}</div>
+          <h1 className="page-heading">{t("hunting.title", "Proactive Threat Hunting")}</h1>
           <p className="page-subheading">
-            Execute buscas por usernames, aliases, e-mails e contas com buscas
-            salvas, comparação por fonte e notas analíticas por pesquisa.
+            {t("hunting.subtitle", "Execute buscas por usernames, aliases, e-mails e contas com buscas salvas, comparação por fonte e notas analíticas por pesquisa.")}
           </p>
         </div>
         <div className="summary-strip">
           <div className="summary-pill">
             <ShieldCheck className="h-4 w-4 text-primary" />
-            {providers.length} sources active
+            {readyProviderCount}/{providers.length} {t("hunting.sourcesActive", "sources active")}
           </div>
-          <div className="summary-pill">{savedSearches.length} saved searches</div>
-          <div className="summary-pill">{notes.length} notes</div>
+          <div className="summary-pill">{savedSearches.length} {t("hunting.savedSearches", "saved searches")}</div>
+          <div className="summary-pill">{notes.length} {t("hunting.notes", "notes")}</div>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">
-          Hunting actions
-        </div>
+        <div className="page-toolbar-copy">{t("hunting.actions", "Hunting actions")}</div>
         <div className="page-toolbar-actions">
           <button
             onClick={() => void runSearch()}
@@ -375,7 +460,7 @@ export default function Hunting() {
             className="btn btn-primary"
           >
             <Search className="h-4 w-4" />
-            {searching ? "Executing" : "Execute Hunting"}
+            {searching ? t("hunting.executing", "Executing") : t("hunting.execute", "Execute Hunting")}
           </button>
           <button
             onClick={() => void saveCurrentSearch()}
@@ -383,7 +468,7 @@ export default function Hunting() {
             className="btn btn-outline"
           >
             <Bookmark className="h-4 w-4" />
-            {savingSearch ? "Saving" : "Save Search"}
+            {savingSearch ? t("hunting.saving", "Saving") : t("hunting.saveSearch", "Save Search")}
           </button>
         </div>
       </div>
@@ -401,12 +486,12 @@ export default function Hunting() {
             <div className="surface-section p-6">
               <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
                 <Crosshair className="w-4 h-4 text-primary" />
-                Search Directive
+                {t("hunting.searchDirective", "Search Directive")}
               </h3>
               <div className="space-y-5">
                 <label className="block space-y-2">
                   <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    Artifact Type
+                    {t("hunting.artifactType", "Artifact Type")}
                   </div>
                   <select
                     value={artifactType}
@@ -422,25 +507,29 @@ export default function Hunting() {
                 </label>
                 <label className="block space-y-2">
                   <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    Query
+                    {t("hunting.query", "Query")}
                   </div>
                   <input
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="analyst_01, person@example.com, johndoe"
+                    placeholder={t("hunting.queryPlaceholder", "analyst_01, person@example.com, johndoe")}
                     className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary"
                   />
                 </label>
                 <div className="space-y-3">
                   <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    Sources
+                    {t("hunting.sources", "Sources")}
                   </div>
                   <div className="space-y-3">
-                    {providers.map((provider) => (
+                    {providers.map((provider, index) => (
                       <label key={provider.key} className="flex items-center justify-between gap-4 rounded-sm bg-surface-container-low px-4 py-3">
                         <div>
-                          <div className="text-sm font-bold text-on-surface">{provider.name}</div>
-                          <div className="text-[11px] text-on-surface-variant">{provider.key}</div>
+                          <div className="text-sm font-bold text-on-surface">{formatSourceLabel(provider, index)}</div>
+                          <div className="mt-1 text-[11px] text-on-surface-variant">
+                            {provider.runtimeStatus?.ready
+                              ? `Runtime ${formatRuntimeMode(provider.runtimeStatus.activeMode || provider.runtimeStatus.recommendedMode)}`
+                              : formatRuntimeBlocker(provider.runtimeStatus?.blocker)}
+                          </div>
                         </div>
                         <input
                           type="checkbox"
@@ -457,11 +546,11 @@ export default function Hunting() {
             <div className="surface-section p-6">
               <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
                 <History className="w-4 h-4 text-primary" />
-                Recent Searches
+                {t("hunting.recentSearches", "Recent Searches")}
               </h3>
               <div className="space-y-4">
                 {recentSearches.length === 0 ? (
-                  <div className="text-sm text-on-surface-variant">Nenhuma busca recente persistida.</div>
+                  <div className="text-sm text-on-surface-variant">{t("hunting.noRecentSearches", "Nenhuma busca recente persistida.")}</div>
                 ) : (
                   recentSearches.map((search) => (
                     <button
@@ -479,7 +568,7 @@ export default function Hunting() {
                       <div className="flex items-center justify-between gap-3">
                         <div className="text-sm font-bold text-on-surface">{search.query}</div>
                         <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
-                          {search.result_count} results
+                          {search.result_count} {t("hunting.results", "results")}
                         </span>
                       </div>
                       <div className="mt-2 text-[11px] text-on-surface-variant">
@@ -496,27 +585,31 @@ export default function Hunting() {
             <div className="surface-section">
               <div className="surface-section-header">
                 <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                  Normalized Results
+                  {t("hunting.normalizedResults", "Normalized Results")}
                 </h3>
                 <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-                  search id {searchId || "pending"}
+                  search id {searchId || t("hunting.pending", "pending")}
                 </span>
               </div>
               <div className="p-6 space-y-6">
                 {items.length === 0 ? (
                   <div className="rounded-sm bg-surface-container-low p-8 text-center text-sm text-on-surface-variant">
-                    Nenhuma busca executada nesta sessão.
+                    {t("hunting.noSearchExecuted", "Nenhuma busca executada nesta sessão.")}
                   </div>
                 ) : (
-                  items.map((item) => (
+                  items.map((item, index) => (
                     <section key={item.provider.key} className="rounded-sm bg-surface-container-low p-5">
                       <div className="flex items-center justify-between gap-3">
                         <div>
-                          <div className="text-sm font-bold text-on-surface">{item.provider.name}</div>
-                          <div className="mt-1 text-[11px] text-on-surface-variant">{item.provider.key}</div>
+                          <div className="text-sm font-bold text-on-surface">{formatSourceLabel(item.provider, index)}</div>
+                          <div className="mt-1 text-[11px] text-on-surface-variant">
+                            {item.provider.runtimeStatus?.ready
+                              ? `Runtime ${formatRuntimeMode(item.provider.runtimeStatus.activeMode || item.provider.runtimeStatus.recommendedMode)}`
+                              : formatRuntimeBlocker(item.provider.runtimeStatus?.blocker)}
+                          </div>
                         </div>
                         <span
-                          className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
+                          className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${
                             item.status === "ok"
                               ? "bg-primary/10 text-primary"
                               : item.status === "unsupported"
@@ -530,7 +623,7 @@ export default function Hunting() {
 
                       {item.error && (
                         <div className="mt-4 rounded-sm bg-error/10 px-4 py-3 text-xs text-error">
-                          {item.error}
+                          {formatRuntimeBlocker(item.error)}
                         </div>
                       )}
 
@@ -551,7 +644,7 @@ export default function Hunting() {
                                     {result.platform || String(result.attributes?.site || "Platform not informed")}
                                   </div>
                                 </div>
-                                <span className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
+                                <span className="inline-flex items-center whitespace-nowrap rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
                                   Confidence {Math.round((result.confidence || 0) * 100)}%
                                 </span>
                               </div>
@@ -583,20 +676,42 @@ export default function Hunting() {
         <div className="page-side-rail-right space-y-6">
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Source Comparison</h3>
+              <h3 className="surface-section-title">Runtime Readiness</h3>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="rounded-sm bg-surface-container-low px-4 py-4 text-sm text-on-surface">
+                Configured mode: <strong>{String(runtimeCatalog?.configuredMode || "auto")}</strong>
+              </div>
+              {runtimeModes.map(([mode, meta]) => (
+                <div key={mode} className="rounded-sm bg-surface-container-low px-4 py-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-bold text-on-surface">{meta.label || formatRuntimeMode(mode)}</div>
+                    <span className={`badge ${meta.wired ? "badge-success" : meta.ready ? "badge-warning" : "badge-outline"}`}>
+                      {meta.wired ? "Wired" : meta.ready ? "Declared" : "Off"}
+                    </span>
+                  </div>
+                  <div className="mt-2 text-xs text-on-surface-variant">{meta.detail || "No runtime details available."}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="surface-section">
+            <div className="surface-section-header">
+              <h3 className="surface-section-title">{t("hunting.sourceComparison", "Source Comparison")}</h3>
             </div>
             <div className="p-6 space-y-4">
               {providerComparison.length === 0 ? (
                 <div className="text-sm text-on-surface-variant">
-                  Execute uma busca para comparar status, volume e confiança por fonte.
+                  {t("hunting.compareSourcesEmpty", "Execute uma busca para comparar status, volume e confiança por fonte.")}
                 </div>
               ) : (
-                providerComparison.map((provider) => (
+                providerComparison.map((provider, index) => (
                   <div key={provider.key} className="rounded-sm bg-surface-container-low px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm font-bold text-on-surface">{provider.name}</div>
+                      <div className="text-sm font-bold text-on-surface">{t("hunting.sourceGeneric", `Installed source ${index + 1}`)}</div>
                       <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
-                        {provider.resultCount} hits
+                        {provider.resultCount} {t("hunting.hits", "hits")}
                       </span>
                     </div>
                     <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-on-surface-variant">
@@ -607,18 +722,18 @@ export default function Hunting() {
                 ))
               )}
               <div className="rounded-sm bg-surface-container-low px-4 py-4 text-sm text-on-surface">
-                Total normalized results: <strong>{totalResults}</strong>
+                {t("hunting.totalNormalizedResults", "Total normalized results")}: <strong>{totalResults}</strong>
               </div>
             </div>
           </div>
 
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Saved Searches</h3>
+              <h3 className="surface-section-title">{t("hunting.savedSearches", "Saved Searches")}</h3>
             </div>
             <div className="p-6 space-y-4">
               {savedSearches.length === 0 ? (
-                  <div className="text-sm text-on-surface-variant">Nenhuma busca salva.</div>
+                  <div className="text-sm text-on-surface-variant">{t("hunting.noSavedSearches", "Nenhuma busca salva.")}</div>
               ) : (
                 savedSearches.map((saved) => (
                   <div key={saved._id} className="rounded-sm bg-surface-container-low px-4 py-4">
@@ -634,7 +749,7 @@ export default function Hunting() {
                         className="text-[10px] font-bold uppercase tracking-[0.16em] text-error"
                         onClick={() => void deleteSavedSearch(saved._id)}
                       >
-                        Remove
+                        {t("hunting.remove", "Remove")}
                       </button>
                     </div>
                     <div className="mt-3 flex items-center justify-between text-[11px] text-on-surface-variant">
@@ -649,25 +764,25 @@ export default function Hunting() {
 
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Notes</h3>
+              <h3 className="surface-section-title">{t("hunting.notes", "Notes")}</h3>
             </div>
             <div className="p-6 space-y-4">
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                Active search
+                {t("hunting.activeSearch", "Active search")}
               </div>
               <div className="rounded-sm bg-surface-container-low px-4 py-3 text-sm text-on-surface">
-                {searchId || "No search selected yet"}
+                {searchId || t("hunting.noSearchSelected", "No search selected yet")}
               </div>
               <label className="block space-y-2">
                 <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
                   <StickyNote className="h-4 w-4" />
-                  Analyst note
+                  {t("hunting.analystNote", "Analyst note")}
                 </div>
                 <textarea
                   value={noteDraft}
                   onChange={(event) => setNoteDraft(event.target.value)}
                   className="min-h-28 w-full rounded-sm border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface outline-none"
-                  placeholder="Capture rationale, escalation context or next analyst step."
+                  placeholder={t("hunting.analystNotePlaceholder", "Capture rationale, escalation context or next analyst step.")}
                 />
               </label>
               <button
@@ -676,11 +791,11 @@ export default function Hunting() {
                 disabled={!searchId || !noteDraft.trim() || savingNote}
                 className="btn btn-outline w-full"
               >
-                {savingNote ? "Saving note" : "Save note"}
+                {savingNote ? t("hunting.savingNote", "Saving note") : t("hunting.saveNote", "Save note")}
               </button>
               <div className="space-y-3">
                 {notes.length === 0 ? (
-                  <div className="text-sm text-on-surface-variant">Nenhuma nota para esta busca.</div>
+                  <div className="text-sm text-on-surface-variant">{t("hunting.noNotes", "Nenhuma nota para esta busca.")}</div>
                 ) : (
                   notes.map((note) => (
                     <div key={note._id} className="rounded-sm bg-surface-container-low px-4 py-4">
@@ -696,10 +811,10 @@ export default function Hunting() {
           <div className="surface-section p-6">
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
               <Fingerprint className="w-4 h-4 text-primary" />
-              Source Inventory
+              {t("hunting.sourceInventory", "Source Inventory")}
             </h3>
             {loadingProviders ? (
-              <div className="text-sm text-on-surface-variant">Loading sources</div>
+              <div className="text-sm text-on-surface-variant">{t("hunting.loadingSources", "Loading sources")}</div>
             ) : (
               <div className="space-y-4">
                 {providers.map((provider) => (
@@ -709,7 +824,7 @@ export default function Hunting() {
                         <div className="text-sm font-bold text-on-surface">{provider.name}</div>
                         <div className="mt-1 text-[11px] text-on-surface-variant">{provider.key}</div>
                       </div>
-                      <span className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
+                      <span className="inline-flex items-center whitespace-nowrap rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
                         {provider.executionProfile?.mode || "standard"}
                       </span>
                     </div>

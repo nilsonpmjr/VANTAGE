@@ -107,11 +107,11 @@
 
   /* Pill Navigation (Segmented Controls) */
   .nav-pills {
-    @apply flex bg-surface-container-lowest border border-outline-variant/30 rounded-sm p-1 gap-1 w-fit;
+    @apply flex flex-wrap bg-surface-container-lowest border border-outline-variant/30 rounded-sm p-1 gap-1 w-fit;
   }
 
   .nav-pill-item {
-    @apply px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all;
+    @apply whitespace-nowrap px-4 py-1.5 text-xs font-bold uppercase tracking-widest rounded-sm transition-all;
   }
 
   .nav-pill-item-active {
@@ -124,7 +124,7 @@
 
   /* Badges / Tags */
   .badge {
-    @apply px-2 py-0.5 text-[10px] font-black uppercase tracking-widest rounded-sm;
+    @apply inline-flex shrink-0 items-center whitespace-nowrap rounded-sm px-2 py-0.5 text-[10px] font-black uppercase leading-none tracking-widest;
   }
 
   .badge-primary {
@@ -153,11 +153,11 @@
   }
 
   .settings-layout {
-    @apply relative mx-auto w-full max-w-7xl overflow-visible;
+    @apply mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 overflow-visible;
   }
 
   .settings-nav {
-    @apply w-full xl:absolute xl:right-[calc(100%+2rem)] xl:top-0 xl:w-56;
+    @apply w-full min-w-0;
   }
 
   .settings-nav-shell {
@@ -173,7 +173,7 @@
   }
 
   .settings-nav-helper {
-    @apply block text-xs text-on-surface-variant;
+    @apply block max-w-[18rem] text-xs leading-relaxed text-on-surface-variant;
   }
 
   .settings-content {
@@ -221,7 +221,7 @@
   }
 
   .row-primary-action {
-    @apply inline-flex items-center gap-2 rounded-sm border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-high disabled:pointer-events-none disabled:opacity-50;
+    @apply inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-sm border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface transition-colors hover:bg-surface-container-high disabled:pointer-events-none disabled:opacity-50;
   }
 
   .row-actions-trigger {
@@ -265,7 +265,7 @@
   }
 
   .surface-section-header {
-    @apply flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-4;
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/10 bg-surface-container-high px-6 py-4;
   }
 
   .surface-section-title {
@@ -292,6 +292,18 @@
     @apply flex min-w-0 flex-col gap-6;
   }
 
+  .profile-shell {
+    @apply grid grid-cols-1 gap-6 items-start;
+  }
+
+  .profile-rail {
+    @apply flex min-w-0 flex-col gap-6;
+  }
+
+  .profile-main {
+    @apply min-w-0 space-y-6;
+  }
+
   .modal-surface {
     @apply rounded-sm border border-outline-variant/20 bg-surface-container-lowest shadow-2xl;
   }
@@ -299,10 +311,14 @@
   @media (min-width: 1024px) {
     .settings-layout {
       align-items: start;
+      grid-template-columns: 240px minmax(0, 1fr);
     }
 
     .settings-nav {
-      width: 14rem;
+      width: 100%;
+      align-self: start;
+      position: sticky;
+      top: 1.5rem;
     }
 
     .page-with-side-rail {
@@ -326,6 +342,16 @@
     .page-side-rail-left {
       justify-self: start;
       grid-column: 1;
+    }
+
+    .profile-shell {
+      grid-template-columns: 240px minmax(0, 1fr);
+    }
+
+    .profile-rail {
+      position: sticky;
+      top: 1.5rem;
+      align-self: start;
     }
   }
 

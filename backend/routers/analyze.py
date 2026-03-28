@@ -67,8 +67,8 @@ async def _get_user_keys(username: str) -> dict | None:
     for svc, enc_key in user_doc["third_party_keys"].items():
         try:
             decrypted[svc] = decrypt_secret(enc_key)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Could not decrypt third-party key for service {svc}: {exc}")
     return decrypted if decrypted else None
 
 

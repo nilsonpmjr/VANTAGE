@@ -4,12 +4,26 @@ import pytest
 
 from crypto import decrypt_secret
 from threat_ingestion import (
+    _validate_feed_url,
     get_public_threat_sources,
     get_runtime_threat_source,
     record_threat_sync_status,
     update_misp_source_config,
     update_threat_source,
 )
+
+
+def test_validate_feed_url_rejects_private_destinations(monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["127.0.0.1"])
+
+    with pytest.raises(ValueError):
+        _validate_feed_url("https://feeds.example.test/rss.xml")
+
+
+def test_validate_feed_url_accepts_public_destinations(monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
+
+    assert _validate_feed_url("https://feeds.example.test/rss.xml") == "https://feeds.example.test/rss.xml"
 
 
 @pytest.mark.asyncio
@@ -26,6 +40,10 @@ async def test_public_threat_sources_return_catalog_defaults(fake_db):
     assert sources[0]["enabled"] is True
     assert sources[-1]["enabled"] is False
     assert sources[0]["sync_status"]["status"] == "never_run"
+    fortinet = next(source for source in sources if source["source_id"] == "fortinet_outbreakalert")
+    assert fortinet["vendor"] == "Fortinet"
+    assert fortinet["collection"] == "fortiguard_rss"
+    assert fortinet["channel"] == "outbreak_alert"
 
 
 @pytest.mark.asyncio

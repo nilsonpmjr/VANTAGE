@@ -5,7 +5,7 @@ RSS/XML adapters for threat ingestion sources.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from email.utils import parsedate_to_datetime
 from typing import Any
 
@@ -27,6 +27,17 @@ _SECTOR_KEYWORDS: dict[str, list[str]] = {
     "retail": ["retail", "e-commerce", "pos", "point of sale", "shopping"],
 }
 
+_TOPIC_KEYWORDS: dict[str, list[str]] = {
+    "ransomware": ["ransomware", "locker", "extortion"],
+    "phishing": ["phishing", "credential harvesting", "spoofed login", "smishing"],
+    "vulnerability": ["cve-", "vulnerability", "patch", "advisory", "zero-day", "0day"],
+    "malware": ["malware", "trojan", "loader", "stealer", "infostealer", "rat"],
+    "botnet": ["botnet", "c2", "command and control", "ddos"],
+    "espionage": ["espionage", "apt", "nation-state", "state-sponsored"],
+    "breach": ["breach", "data leak", "data theft", "exposed database"],
+    "cloud": ["cloud", "kubernetes", "aws", "azure", "gcp", "container"],
+}
+
 
 def infer_sectors(title: str, summary: str, tags: list[str]) -> list[str]:
     """Infer sectors from text using keyword matching. Returns sorted list."""
@@ -36,6 +47,69 @@ def infer_sectors(title: str, summary: str, tags: list[str]) -> list[str]:
         if any(kw in haystack for kw in keywords):
             matched.append(sector)
     return sorted(matched)
+
+
+def infer_topics(title: str, summary: str, tags: list[str], categories: list[str] | None = None) -> list[str]:
+    haystack = f"{title} {summary} {' '.join(tags)} {' '.join(categories or [])}".lower()
+    matched = []
+    for topic, keywords in _TOPIC_KEYWORDS.items():
+        if any(keyword in haystack for keyword in keywords):
+            matched.append(topic)
+    return sorted(matched)
+
+
+def infer_story_kind(title: str, summary: str, tags: list[str], categories: list[str] | None = None) -> str:
+    haystack = f"{title} {summary} {' '.join(tags)} {' '.join(categories or [])}".lower()
+    if any(keyword in haystack for keyword in ("campaign", "active exploitation", "in the wild", "phishing", "botnet")):
+        return "campaign"
+    if any(keyword in haystack for keyword in ("breach", "leak", "compromised", "stolen")):
+        return "incident"
+    if any(keyword in haystack for keyword in ("report", "analysis", "research", "threat signal")):
+        return "research"
+    if any(keyword in haystack for keyword in ("advisory", "cve-", "patch", "update", "vulnerability")):
+        return "advisory"
+    return "brief"
+
+
+def build_editorial_metadata(
+    *,
+    title: str,
+    summary: str,
+    severity: str,
+    tags: list[str],
+    categories: list[str] | None = None,
+) -> dict[str, Any]:
+    topics = infer_topics(title, summary, tags, categories)
+    story_kind = infer_story_kind(title, summary, tags, categories)
+    headline_score = 0
+    normalized_severity = normalize_severity(severity)
+
+    if normalized_severity == "critical":
+        headline_score += 50
+    elif normalized_severity == "high":
+        headline_score += 35
+    elif normalized_severity == "medium":
+        headline_score += 20
+    elif normalized_severity == "low":
+        headline_score += 10
+
+    if "vulnerability" in topics:
+        headline_score += 12
+    if story_kind == "campaign":
+        headline_score += 10
+    if story_kind == "incident":
+        headline_score += 8
+    if any(tag.startswith("CVE-") for tag in tags):
+        headline_score += 8
+    if any(topic in topics for topic in ("ransomware", "phishing", "espionage", "breach")):
+        headline_score += 10
+
+    return {
+        "story_kind": story_kind,
+        "topics": topics,
+        "headline_score": headline_score,
+        "is_newsworthy": headline_score >= 20,
+    }
 
 
 def _text(element: ET.Element | None, tag: str) -> str:
@@ -119,6 +193,13 @@ def adapt_cve_rss_items(
         severity = _severity_from_text(item["title"], item["summary"], *item["categories"])
         tags = ["cve", *cves]
         sector = infer_sectors(item["title"], item["summary"], tags)
+        editorial = build_editorial_metadata(
+            title=item["title"],
+            summary=item["summary"],
+            severity=severity,
+            tags=tags,
+            categories=item["categories"],
+        )
         payload = build_threat_item_payload(
             title=item["title"],
             summary=item["summary"],
@@ -126,7 +207,7 @@ def adapt_cve_rss_items(
             published_at=item["published_at"],
             severity=severity,
             tags=tags,
-            attributes={"cve_ids": cves},
+            attributes={"cve_ids": cves, "editorial": editorial},
             raw=item["raw"],
             source_name=source_name,
             tlp=tlp,
@@ -140,6 +221,7 @@ def adapt_cve_rss_items(
                 external_id=item["external_id"],
                 origin="rss",
                 payload=payload,
+                extra_fields={"editorial": editorial},
             )
         )
     return documents
@@ -160,6 +242,13 @@ def adapt_generic_rss_items(
         severity = normalize_severity(_severity_from_text(item["title"], item["summary"], *category_tags))
         tags = [family, *category_tags, *cves]
         sector = infer_sectors(item["title"], item["summary"], tags)
+        editorial = build_editorial_metadata(
+            title=item["title"],
+            summary=item["summary"],
+            severity=severity,
+            tags=tags,
+            categories=item.get("categories", []),
+        )
         payload = build_threat_item_payload(
             title=item["title"],
             summary=item["summary"],
@@ -167,7 +256,7 @@ def adapt_generic_rss_items(
             published_at=item.get("published_at"),
             severity=severity,
             tags=tags,
-            attributes={"cve_ids": cves, "categories": item.get("categories", [])},
+            attributes={"cve_ids": cves, "categories": item.get("categories", []), "editorial": editorial},
             raw=item.get("raw", {}),
             source_name=source_name or family,
             tlp=tlp,
@@ -181,6 +270,7 @@ def adapt_generic_rss_items(
                 external_id=item["external_id"],
                 origin="rss",
                 payload=payload,
+                extra_fields={"editorial": editorial},
             )
         )
     return documents
@@ -199,6 +289,13 @@ def adapt_fortinet_rss_items(
         severity = normalize_severity(_severity_from_text(item["title"], item["summary"], *category_tags))
         tags = ["fortinet", *category_tags, *cves]
         sector = infer_sectors(item["title"], item["summary"], tags)
+        editorial = build_editorial_metadata(
+            title=item["title"],
+            summary=item["summary"],
+            severity=severity,
+            tags=tags,
+            categories=item["categories"],
+        )
         payload = build_threat_item_payload(
             title=item["title"],
             summary=item["summary"],
@@ -206,7 +303,7 @@ def adapt_fortinet_rss_items(
             published_at=item["published_at"],
             severity=severity,
             tags=tags,
-            attributes={"cve_ids": cves, "categories": item["categories"]},
+            attributes={"cve_ids": cves, "categories": item["categories"], "editorial": editorial},
             raw=item["raw"],
             source_name=source_name,
             tlp=tlp,
@@ -220,6 +317,7 @@ def adapt_fortinet_rss_items(
                 external_id=item["external_id"],
                 origin="rss",
                 payload=payload,
+                extra_fields={"editorial": editorial},
             )
         )
     return documents

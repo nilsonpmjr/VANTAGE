@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Camera,
   History,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 
 type ProfileTab = "identity" | "preferences" | "external_api_keys" | "audit_logs";
@@ -111,7 +113,17 @@ function deviceIcon(device: string) {
 
 export default function Profile() {
   const { user, updateUserContext } = useAuth();
-  const [activeTab, setActiveTab] = useState<ProfileTab>("identity");
+  const { setLanguage, t } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedTab = (searchParams.get("tab") as ProfileTab | null) || "identity";
+  const onboardingSource = searchParams.get("source") === "onboarding";
+  const [activeTab, setActiveTab] = useState<ProfileTab>(
+    requestedTab === "preferences" ||
+      requestedTab === "external_api_keys" ||
+      requestedTab === "audit_logs"
+      ? requestedTab
+      : "identity",
+  );
   const [showAuditFilters, setShowAuditFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [pageError, setPageError] = useState("");
@@ -140,6 +152,18 @@ export default function Profile() {
   const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
   const [auditEventFilter, setAuditEventFilter] = useState("all");
   const [auditResultFilter, setAuditResultFilter] = useState("all");
+  const providerInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+
+  useEffect(() => {
+    if (
+      requestedTab === "identity" ||
+      requestedTab === "preferences" ||
+      requestedTab === "external_api_keys" ||
+      requestedTab === "audit_logs"
+    ) {
+      setActiveTab(requestedTab);
+    }
+  }, [requestedTab]);
 
   useEffect(() => {
     if (!user) return;
@@ -203,6 +227,13 @@ export default function Profile() {
     [thirdPartyStatus],
   );
 
+  const firstPendingServiceId = useMemo(
+    () =>
+      THIRD_PARTY_SERVICES.find((service) => !thirdPartyStatus[service.id]?.configured)?.id ||
+      THIRD_PARTY_SERVICES[0]?.id,
+    [thirdPartyStatus],
+  );
+
   const filteredAuditItems = useMemo(() => {
     return auditItems.filter((item) => {
       const matchesEvent =
@@ -234,6 +265,15 @@ export default function Profile() {
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
       user?.username || "operator",
     )}`;
+
+  useEffect(() => {
+    if (!onboardingSource || activeTab !== "external_api_keys") return;
+    const targetService = firstPendingServiceId;
+    if (!targetService) return;
+    const input = providerInputRefs.current[targetService];
+    if (!input) return;
+    window.setTimeout(() => input.focus(), 120);
+  }, [activeTab, firstPendingServiceId, onboardingSource]);
 
   async function refreshRuntime() {
     setLoading(true);
@@ -316,7 +356,8 @@ export default function Profile() {
       if (user) {
         updateUserContext({ ...user, preferred_lang: preferredLang });
       }
-      setNotice("Regional preferences updated.");
+      setLanguage(preferredLang as "pt" | "en" | "es");
+      setNotice(t("profile.preferences.saved", "Regional preferences updated."));
     } catch {
       setPageError("Não foi possível salvar as preferências pessoais.");
     } finally {
@@ -476,7 +517,7 @@ export default function Profile() {
         throw new Error("third_party_update_failed");
       }
       setThirdPartyDrafts((current) => ({ ...current, [service]: "" }));
-      setNotice(`Credencial ${service} sincronizada com o cofre pessoal.`);
+      setNotice(`Credencial ${service} ${t("profile.onboarding.synced", "synchronized with your personal vault and registered in the Audit Registry.")}`);
       await refreshRuntime();
     } catch {
       setPageError("Não foi possível atualizar a credencial de terceiro.");
@@ -559,27 +600,8 @@ export default function Profile() {
         </div>
       )}
 
-      <nav className="nav-internal mb-8">
-        {[
-          ["identity", "Identity"],
-          ["preferences", "Preferences"],
-          ["external_api_keys", "External API Keys"],
-          ["audit_logs", "Audit Logs"],
-        ].map(([id, label]) => (
-          <button
-            key={id}
-            className={`nav-internal-item ${
-              activeTab === id ? "nav-internal-item-active" : "nav-internal-item-inactive"
-            }`}
-            onClick={() => setActiveTab(id as ProfileTab)}
-          >
-            {label}
-          </button>
-        ))}
-      </nav>
-
-      <div className="grid grid-cols-12 gap-6">
-        <div className="col-span-12 lg:col-span-4 space-y-6">
+      <div className="profile-shell">
+        <aside className="profile-rail">
           <div className="card overflow-hidden">
             <div className="h-24 bg-primary relative">
               <div
@@ -637,36 +659,78 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="card p-2">
-            {activeTab === "identity" ? (
-              <>
-                <ContextPill active icon={Shield} label="Personal Information" />
-                <ContextPill icon={Mail} label="Email Preferences" />
-                <ContextPill icon={ShieldCheck} label="Security & Keys" />
-              </>
-            ) : activeTab === "preferences" ? (
-              <>
-                <ContextPill icon={Globe} label="Regional Protocols" />
-                <ContextPill active icon={Shield} label="Security & Sessions" />
-                <ContextPill icon={Bell} label="Alert Configuration" />
-              </>
-            ) : activeTab === "external_api_keys" ? (
-              <>
-                <ContextPill active icon={Key} label="Platform Credentials" />
-                <ContextPill icon={Globe} label="Integrations" />
-                <ContextPill icon={History} label="Usage Analytics" />
-              </>
-            ) : (
-              <>
-                <ContextPill active icon={History} label="Activity Stream" />
-                <ContextPill icon={ShieldCheck} label="Security Events" />
-                <ContextPill icon={Download} label="Data Exports" />
-              </>
-            )}
-          </div>
-        </div>
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Profile Navigation</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Identity, preferences and operator audit context
+                </p>
+              </div>
+            </div>
+            <div className="p-2">
+              {[
+                { id: "identity", label: t("profile.tabs.identity", "Identity"), icon: Shield },
+                { id: "preferences", label: t("profile.tabs.preferences", "Preferences"), icon: Bell },
+                { id: "external_api_keys", label: t("profile.tabs.externalApiKeys", "External API Keys"), icon: Key },
+                { id: "audit_logs", label: t("profile.tabs.auditLogs", "Audit Logs"), icon: History },
+              ].map(({ id, label, icon }) => (
+                <div key={id}>
+                  <ContextPill
+                    active={activeTab === id}
+                    icon={icon}
+                    label={label}
+                    onClick={() => {
+                      const nextTab = id as ProfileTab;
+                      setActiveTab(nextTab);
+                      setSearchParams(nextTab === "identity" ? {} : { tab: nextTab }, { replace: true });
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
 
-        <div className="col-span-12 lg:col-span-8 space-y-6">
+          <section className="surface-section overflow-hidden">
+            <div className="surface-section-header">
+              <div>
+                <h3 className="surface-section-title">Active Context</h3>
+                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                  Context follows the current profile section
+                </p>
+              </div>
+            </div>
+            <div className="p-4 space-y-2 text-sm text-on-surface-variant">
+              {activeTab === "identity" ? (
+                <>
+                  <ContextNote title="Personal Information" body="Core identity data synchronized from the operator record." />
+                  <ContextNote title="Email Preferences" body="Recovery email and delivery endpoints for operator continuity." />
+                  <ContextNote title="Security & Keys" body="Credential posture remains visible from the preference and key sections." />
+                </>
+              ) : activeTab === "preferences" ? (
+                <>
+                  <ContextNote title="Regional Protocols" body="Language and interface conventions applied to the operator session." />
+                  <ContextNote title="Security & Sessions" body="Password, MFA and session controls share the same surface." />
+                  <ContextNote title="Alert Configuration" body="Notification toggles remain local until full server persistence is expanded." />
+                </>
+              ) : activeTab === "external_api_keys" ? (
+                <>
+                  <ContextNote title="Platform Credentials" body="Keys for VANTAGE automation and external provider integrations." />
+                  <ContextNote title="Integrations" body="Third-party access is configured per operator and masked by default." />
+                  <ContextNote title="Usage Analytics" body="This area should show actionable credential context, not decorative cards." />
+                </>
+              ) : (
+                <>
+                  <ContextNote title="Activity Stream" body="Recent operator events and outcome-based filtering for audit review." />
+                  <ContextNote title="Security Events" body="Authentication and governance signals remain traceable from the same log surface." />
+                  <ContextNote title="Data Exports" body="CSV export should stay close to the audit table it acts upon." />
+                </>
+              )}
+            </div>
+          </section>
+        </aside>
+
+        <div className="profile-main">
           {loading ? (
             <div className="card p-8 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
               Loading profile
@@ -986,6 +1050,47 @@ export default function Profile() {
 
               {activeTab === "external_api_keys" && (
                 <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+                  {onboardingSource && (
+                    <div className="rounded-sm border border-primary/20 bg-primary/10 px-5 py-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <div className="text-[10px] font-black uppercase tracking-[0.18em] text-primary">
+                            {t("profile.onboarding.eyebrow", "Provider onboarding")}
+                          </div>
+                          <h4 className="mt-2 text-sm font-bold text-on-surface">
+                            {t("profile.onboarding.title", "Connect external providers with operator-level traceability")}
+                          </h4>
+                          <p className="mt-2 max-w-3xl text-sm text-on-surface-variant">
+                            {t(
+                              "profile.onboarding.body",
+                              "Credentials stored here stay scoped to your operator account, are masked at rest, and every update is registered in the Audit Registry. Start with the first pending provider, then return here whenever you need to rotate or revoke access.",
+                            )}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            onClick={() => {
+                              const targetService = firstPendingServiceId;
+                              if (!targetService) return;
+                              providerInputRefs.current[targetService]?.focus();
+                            }}
+                          >
+                            {t("profile.onboarding.focusFirst", "Focus first pending provider")}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost"
+                            onClick={() => setSearchParams({ tab: "external_api_keys" }, { replace: true })}
+                          >
+                            {t("profile.onboarding.dismiss", "Dismiss guide")}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-on-surface-variant text-sm max-w-2xl">
@@ -1183,6 +1288,9 @@ export default function Profile() {
                                 {service.note}
                               </p>
                               <input
+                                ref={(node) => {
+                                  providerInputRefs.current[service.id] = node;
+                                }}
                                 value={thirdPartyDrafts[service.id] || ""}
                                 onChange={(event) =>
                                   setThirdPartyDrafts((current) => ({
@@ -1437,13 +1545,17 @@ function ContextPill({
   icon: Icon,
   label,
   active = false,
+  onClick,
 }: {
   icon: typeof Shield;
   label: string;
   active?: boolean;
+  onClick?: () => void;
 }) {
   return (
     <button
+      type="button"
+      onClick={onClick}
       className={`w-full flex items-center gap-3 px-4 py-3 font-semibold text-xs rounded transition-all ${
         active
           ? "bg-primary/10 text-primary font-bold"
@@ -1453,6 +1565,17 @@ function ContextPill({
       <Icon className="w-4 h-4" />
       {label}
     </button>
+  );
+}
+
+function ContextNote({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="rounded-sm bg-surface-container-low p-3">
+      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
+        {title}
+      </div>
+      <div className="mt-1 text-xs leading-relaxed text-on-surface-variant">{body}</div>
+    </div>
   );
 }
 

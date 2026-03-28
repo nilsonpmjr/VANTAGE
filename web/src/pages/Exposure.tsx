@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Globe, Plus, RefreshCw, Search, ShieldAlert, Siren, Layers3 } from "lucide-react";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 
 interface ExposureProvider {
   key: string;
@@ -70,6 +71,7 @@ function severityClasses(severity?: string) {
 }
 
 export default function Exposure() {
+  const { t } = useLanguage();
   const [providers, setProviders] = useState<ExposureProvider[]>([]);
   const [assets, setAssets] = useState<ExposureAsset[]>([]);
   const [groups, setGroups] = useState<ExposureAssetGroup[]>([]);
@@ -353,33 +355,33 @@ export default function Exposure() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Analyst</div>
-          <h1 className="page-heading">External Attack Surface Management</h1>
+          <div className="page-eyebrow">{t("exposure.eyebrow", "Analyst")}</div>
+          <h1 className="page-heading">{t("exposure.title", "External Attack Surface Management")}</h1>
           <p className="page-subheading">
-            Monitore ativos externos com scans em massa, grupos operacionais e fluxo de incidente para findings relevantes.
+            {t("exposure.subtitle", "Monitore ativos externos com scans em massa, grupos operacionais e fluxo de incidente para findings relevantes.")}
           </p>
         </div>
         <div className="summary-strip">
-          <div className="summary-pill">{assets.length} assets</div>
-          <div className="summary-pill">{groups.length} groups</div>
-          <div className="summary-pill">{openIncidents} open incidents</div>
+          <div className="summary-pill">{assets.length} {t("exposure.assets", "assets")}</div>
+          <div className="summary-pill">{groups.length} {t("exposure.groups", "groups")}</div>
+          <div className="summary-pill">{openIncidents} {t("exposure.openIncidents", "open incidents")}</div>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Exposure actions</div>
+        <div className="page-toolbar-copy">{t("exposure.actions", "Exposure actions")}</div>
         <div className="page-toolbar-actions">
           <button onClick={loadExposureRuntime} className="btn btn-outline">
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            {t("exposure.refresh", "Refresh")}
           </button>
           <button onClick={() => void bulkScanSelected()} disabled={!selectedAssetIds.length || busy === "bulk-scan"} className="btn btn-outline">
             <Search className="h-4 w-4" />
-            Bulk Scan
+            {t("exposure.bulkScan", "Bulk Scan")}
           </button>
           <button onClick={() => void promoteSelectedFindings()} disabled={!selectedFindingIds.length || busy === "promote"} className="btn btn-primary">
             <Siren className="h-4 w-4" />
-            Promote Incident
+            {t("exposure.promoteIncident", "Promote Incident")}
           </button>
         </div>
       </div>
@@ -396,11 +398,11 @@ export default function Exposure() {
           <div className="col-span-12 lg:col-span-4 surface-section p-6">
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
               <Globe className="w-4 h-4 text-error" />
-              Monitored Asset
+              {t("exposure.monitoredAsset", "Monitored Asset")}
             </h3>
             <div className="space-y-5">
               <label className="block space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">Asset Type</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">{t("exposure.assetType", "Asset Type")}</div>
                 <select value={assetType} onChange={(event) => setAssetType(event.target.value)} className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary">
                   {(supportedAssetTypes.length ? supportedAssetTypes : ["domain", "subdomain", "brand_keyword"]).map((type) => (
                     <option key={type} value={type}>{type}</option>
@@ -408,11 +410,11 @@ export default function Exposure() {
                 </select>
               </label>
               <label className="block space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">Asset Value</div>
-                <input value={value} onChange={(event) => setValue(event.target.value)} placeholder="example.com or your-brand" className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary" />
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">{t("exposure.assetValue", "Asset Value")}</div>
+                <input value={value} onChange={(event) => setValue(event.target.value)} placeholder={t("exposure.assetPlaceholder", "example.com or your-brand")} className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary" />
               </label>
               <label className="block space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">Schedule</div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">{t("exposure.schedule", "Schedule")}</div>
                 <select value={scheduleMode} onChange={(event) => setScheduleMode(event.target.value)} className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary">
                   <option value="manual">manual</option>
                   <option value="daily">daily</option>
@@ -421,23 +423,23 @@ export default function Exposure() {
               </label>
               <button onClick={() => void createAsset()} disabled={!value.trim() || busy === "create"} className="inline-flex w-full items-center justify-center gap-2 rounded-sm bg-error px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-white hover:bg-error/90 disabled:cursor-not-allowed disabled:opacity-60">
                 <Plus className="h-4 w-4" />
-                {busy === "create" ? "Creating" : "Create Asset"}
+                {busy === "create" ? t("exposure.creating", "Creating") : t("exposure.createAsset", "Create Asset")}
               </button>
             </div>
           </div>
 
           <div className="col-span-12 lg:col-span-8 surface-section">
             <div className="surface-section-header">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">Monitored Assets</h3>
+              <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">{t("exposure.monitoredAssets", "Monitored Assets")}</h3>
               <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-                {selectedAssetIds.length} selected
+                {selectedAssetIds.length} {t("exposure.selected", "selected")}
               </span>
             </div>
             <div className="p-6 space-y-6">
               {loading ? (
-                <div className="rounded-sm bg-surface-container-low p-8 text-center text-sm text-on-surface-variant">Loading exposure data</div>
+                <div className="rounded-sm bg-surface-container-low p-8 text-center text-sm text-on-surface-variant">{t("exposure.loadingData", "Loading exposure data")}</div>
               ) : assets.length === 0 ? (
-                <div className="rounded-sm bg-surface-container-low p-8 text-center text-sm text-on-surface-variant">Nenhum ativo monitorado ainda.</div>
+                <div className="rounded-sm bg-surface-container-low p-8 text-center text-sm text-on-surface-variant">{t("exposure.noAssets", "Nenhum ativo monitorado ainda.")}</div>
               ) : (
                 assets.map((asset) => (
                   <section key={asset._id} className={`rounded-sm p-5 ${selectedAssetId === asset._id ? "bg-surface-container" : "bg-surface-container-low"}`}>
@@ -450,21 +452,21 @@ export default function Exposure() {
                             {asset.asset_type} · {asset.recurrence?.mode || "manual"} · {asset.recurrence?.last_status || "never_run"}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-surface-variant">
-                            <span>{asset.finding_count} finding(s)</span>
-                            <span>{asset.incident_count} incident(s)</span>
-                            <span>Updated {formatTimestamp(asset.updated_at)}</span>
+                            <span>{asset.finding_count} {t("exposure.findingCount", "finding(s)")}</span>
+                            <span>{asset.incident_count} {t("exposure.incidentCount", "incident(s)")}</span>
+                            <span>{t("exposure.updated", "Updated")} {formatTimestamp(asset.updated_at)}</span>
                           </div>
                         </button>
                       </div>
                       <button onClick={() => void scanAsset(asset._id)} disabled={busy === asset._id} className="inline-flex items-center gap-2 rounded-sm bg-error px-4 py-2 text-[11px] font-bold uppercase tracking-[0.16em] text-white hover:bg-error/90 disabled:cursor-not-allowed disabled:opacity-60">
                         <Search className="h-4 w-4" />
-                        {busy === asset._id ? "Scanning" : "Run Scan"}
+                        {busy === asset._id ? t("exposure.scanning", "Scanning") : t("exposure.runScan", "Run Scan")}
                       </button>
                     </div>
 
                     <div className="mt-5 grid grid-cols-1 gap-4">
                       {asset.recent_findings.length === 0 ? (
-                        <div className="rounded-sm bg-surface-container-lowest px-4 py-4 text-xs text-on-surface-variant">Nenhum finding recente registrado para este ativo.</div>
+                        <div className="rounded-sm bg-surface-container-lowest px-4 py-4 text-xs text-on-surface-variant">{t("exposure.noRecentFindings", "Nenhum finding recente registrado para este ativo.")}</div>
                       ) : (
                         asset.recent_findings.map((finding, index) => (
                           <div key={`${finding._id || finding.title}-${index}`} className="rounded-sm bg-surface-container-lowest px-4 py-4">
@@ -482,16 +484,16 @@ export default function Exposure() {
                                     <div className="text-sm font-bold text-on-surface">{finding.title}</div>
                                     <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">{finding.kind}</div>
                                   </div>
-                                  <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(finding.severity)}`}>
+                                  <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(finding.severity)}`}>
                                     {finding.severity}
                                   </span>
                                 </div>
                                 <div className="mt-3 text-xs text-on-surface-variant">{finding.summary}</div>
                                 <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-on-surface-variant">
-                                  <span>{finding.incident_id ? `Incident ${finding.incident_id}` : "Not promoted"}</span>
+                                  <span>{finding.incident_id ? `Incident ${finding.incident_id}` : t("exposure.notPromoted", "Not promoted")}</span>
                                   {finding.external_ref && (
                                     <a href={finding.external_ref} target="_blank" rel="noreferrer" className="inline-flex text-xs font-bold uppercase tracking-[0.16em] text-primary hover:underline">
-                                      Open reference
+                                      {t("exposure.openReference", "Open reference")}
                                     </a>
                                   )}
                                 </div>
@@ -511,22 +513,22 @@ export default function Exposure() {
         <div className="page-side-rail-right space-y-6">
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Asset Groups</h3>
+              <h3 className="surface-section-title">{t("exposure.assetGroups", "Asset Groups")}</h3>
             </div>
             <div className="p-6 space-y-4">
               <label className="block space-y-2">
                 <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
                   <Layers3 className="h-4 w-4" />
-                  Group name
+                  {t("exposure.groupName", "Group name")}
                 </div>
-                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder="Priority perimeter" className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary" />
+                <input value={groupName} onChange={(event) => setGroupName(event.target.value)} placeholder={t("exposure.groupPlaceholder", "Priority perimeter")} className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary" />
               </label>
               <button onClick={() => void createGroup()} disabled={!groupName.trim() || !selectedAssetIds.length || busy === "create-group"} className="btn btn-outline w-full">
-                Create from selection
+                {t("exposure.createFromSelection", "Create from selection")}
               </button>
               <div className="space-y-3">
                 {groups.length === 0 ? (
-                  <div className="text-sm text-on-surface-variant">Nenhum grupo criado ainda.</div>
+                  <div className="text-sm text-on-surface-variant">{t("exposure.noGroups", "Nenhum grupo criado ainda.")}</div>
                 ) : (
                   groups.map((group) => (
                     <div key={group._id} className="rounded-sm bg-surface-container-low px-4 py-4">
@@ -535,8 +537,8 @@ export default function Exposure() {
                           <div className="text-sm font-bold text-on-surface">{group.name}</div>
                           <div className="mt-1 text-[11px] text-on-surface-variant">{group.assets.length} asset(s)</div>
                         </div>
-                        <button onClick={() => void scanGroup(group._id)} disabled={busy === group._id} className="btn btn-outline">
-                          {busy === group._id ? "Running" : "Run group"}
+                          <button onClick={() => void scanGroup(group._id)} disabled={busy === group._id} className="btn btn-outline">
+                          {busy === group._id ? t("exposure.running", "Running") : t("exposure.runGroup", "Run group")}
                         </button>
                       </div>
                     </div>
@@ -548,11 +550,11 @@ export default function Exposure() {
 
           <div className="surface-section">
             <div className="surface-section-header">
-              <h3 className="surface-section-title">Incident Queue</h3>
+              <h3 className="surface-section-title">{t("exposure.incidentQueue", "Incident Queue")}</h3>
             </div>
             <div className="p-6 space-y-4">
               {incidents.length === 0 ? (
-                <div className="text-sm text-on-surface-variant">Nenhum incidente aberto ainda.</div>
+                <div className="text-sm text-on-surface-variant">{t("exposure.noIncidents", "Nenhum incidente aberto ainda.")}</div>
               ) : (
                 incidents.map((incident) => (
                   <div key={incident._id} className="rounded-sm bg-surface-container-low px-4 py-4">
@@ -561,19 +563,19 @@ export default function Exposure() {
                         <div className="text-sm font-bold text-on-surface">{incident.title}</div>
                         <div className="mt-1 text-[11px] text-on-surface-variant">{incident.summary}</div>
                       </div>
-                      <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(incident.severity)}`}>
+                      <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(incident.severity)}`}>
                         {incident.severity}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button onClick={() => void updateIncidentStatus(incident._id, "investigating")} className="btn btn-outline">
-                        Investigate
+                        {t("exposure.investigate", "Investigate")}
                       </button>
                       <button onClick={() => void updateIncidentStatus(incident._id, "resolved")} className="btn btn-outline">
-                        Resolve
+                        {t("exposure.resolve", "Resolve")}
                       </button>
                       <button onClick={() => void updateIncidentStatus(incident._id, "dismissed")} className="btn btn-outline">
-                        Dismiss
+                        {t("exposure.dismiss", "Dismiss")}
                       </button>
                     </div>
                     <div className="mt-3 text-[11px] text-on-surface-variant">
@@ -588,17 +590,17 @@ export default function Exposure() {
           <div className="surface-section p-6">
             <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface mb-4 flex items-center gap-2">
               <ShieldAlert className="w-4 h-4 text-error" />
-              Source Inventory
+              {t("exposure.sourceInventory", "Source Inventory")}
             </h3>
             {loading ? (
-              <div className="text-sm text-on-surface-variant">Loading sources</div>
+              <div className="text-sm text-on-surface-variant">{t("exposure.loadingSources", "Loading sources")}</div>
             ) : (
               <div className="space-y-4">
                 {providers.map((provider) => (
                   <div key={provider.key} className="rounded-sm bg-surface-container-low p-4">
                     <div className="text-sm font-bold text-on-surface">{provider.name}</div>
                     <div className="mt-1 text-[11px] text-on-surface-variant">
-                      {provider.assetTypes.join(", ")} · schedule {provider.recommendedSchedule || "manual"}
+                      {provider.assetTypes.join(", ")} · {t("exposure.schedulePrefix", "schedule")} {provider.recommendedSchedule || "manual"}
                     </div>
                   </div>
                 ))}

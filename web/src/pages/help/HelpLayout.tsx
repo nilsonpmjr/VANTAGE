@@ -1,23 +1,24 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { cn } from "../../lib/utils";
-
-const tabs = [
-  { to: "/help/docs", label: "Documentation" },
-  { to: "/help/shortcuts", label: "Keyboard Shortcuts" },
-  { to: "/help/api", label: "API Reference" },
-  { to: "/help/support", label: "Contact Support" },
-];
+import { useLanguage } from "../../context/LanguageContext";
 
 export default function HelpLayout() {
+  const { t } = useLanguage();
+  const tabs = [
+    { to: "/help/docs", label: t("help.docs", "Documentation") },
+    { to: "/help/shortcuts", label: t("help.shortcuts", "Keyboard Shortcuts") },
+    { to: "/help/api", label: t("help.apiReference", "API Reference") },
+    { to: "/help/support", label: t("help.contactSupport", "Contact Support") },
+  ];
+
   return (
     <div className="page-frame">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Help Center</div>
-          <h1 className="page-heading">Help Center</h1>
+          <div className="page-eyebrow">{t("help.eyebrow", "Help Center")}</div>
+          <h1 className="page-heading">{t("help.title", "Help Center")}</h1>
           <p className="page-subheading">
-            Guides, keyboard shortcuts, API documentation, and support channels
-            for the VANTAGE platform.
+            {t("help.subtitle", "Guides, keyboard shortcuts, API documentation, and support channels for the VANTAGE platform.")}
           </p>
         </div>
       </div>

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { resolveAccessiblePath } from "../lib/access";
 
@@ -124,6 +125,7 @@ function workflowIcon(kind: NotificationKind) {
 }
 
 export default function Notifications() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const { user, updateUserContext } = useAuth();
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
@@ -231,7 +233,7 @@ export default function Notifications() {
       summary: "Critical incident surfaced by the analysis engine.",
       timestamp: item.timestamp,
       workflowPath: `/analyze/${encodeURIComponent(item.target)}`,
-      workflowLabel: "Investigate target",
+      workflowLabel: t("notifications.investigateTarget", "Investigate target"),
     }));
 
     const intelligence = feedItems.map<UnifiedNotification>((item) => ({
@@ -242,14 +244,14 @@ export default function Notifications() {
           : "intelligence",
       source: item.source_type || "feed",
       title: item.title,
-      summary: item.summary || "No summary available.",
+      summary: item.summary || t("feed.noSummary", "No summary available."),
       timestamp: item.published_at || "",
       url: item.url || item.data?.link,
       workflowPath: `/feed?severity=${encodeURIComponent(
         item.severity || "all",
       )}&source_type=${encodeURIComponent(item.source_type || "all")}`,
-      workflowLabel: "Open in feed",
-      externalLabel: item.url || item.data?.link ? "Open source reference" : undefined,
+      workflowLabel: t("notifications.openInFeed", "Open in feed"),
+      externalLabel: item.url || item.data?.link ? t("notifications.openSourceReference", "Open source reference") : undefined,
     }));
 
     const system: UnifiedNotification[] = [
@@ -358,16 +360,15 @@ export default function Notifications() {
       <section className="flex flex-col gap-4">
         <div className="page-header">
           <div className="page-header-copy">
-            <div className="page-eyebrow">Observability</div>
-            <h2 className="page-heading">Notifications Center</h2>
+            <div className="page-eyebrow">{t("notifications.eyebrow", "Observability")}</div>
+            <h2 className="page-heading">{t("notifications.title", "Notifications Center")}</h2>
             <p className="page-subheading">
-              Concentre eventos críticos, inteligência recente e sinais sistêmicos
-              sem misturar contexto operacional com navegação fictícia.
+              {t("notifications.subtitle", "Concentre eventos críticos, inteligência recente e sinais sistêmicos sem misturar contexto operacional com navegação fictícia.")}
             </p>
           </div>
         </div>
         <div className="page-toolbar">
-          <div className="page-toolbar-copy">Global actions</div>
+          <div className="page-toolbar-copy">{t("notifications.globalActions", "Global actions")}</div>
           <div className="page-toolbar-actions">
             <button
               className="btn btn-outline"
@@ -375,7 +376,7 @@ export default function Notifications() {
               disabled={saving || notifications.length === 0}
             >
               <span className="material-symbols-outlined text-[1.125rem]">done_all</span>
-              Mark all as read
+              {t("notifications.markAllRead", "Mark all as read")}
             </button>
             <button
               className="btn btn-primary"
@@ -383,7 +384,7 @@ export default function Notifications() {
               disabled={saving || archivedCount === 0}
             >
               <span className="material-symbols-outlined text-[1.125rem]">unarchive</span>
-              Restore archive
+              {t("notifications.restoreArchive", "Restore archive")}
             </button>
           </div>
         </div>
@@ -394,7 +395,7 @@ export default function Notifications() {
             }`}
             onClick={() => setActiveTab("all")}
           >
-            All Activity ({tabCounts.all})
+            {t("notifications.allActivity", "All Activity")} ({tabCounts.all})
           </button>
           <button
             className={`nav-pill-item px-6 ${
@@ -402,7 +403,7 @@ export default function Notifications() {
             }`}
             onClick={() => setActiveTab("critical")}
           >
-            Critical Alerts ({tabCounts.critical})
+            {t("notifications.criticalAlerts", "Critical Alerts")} ({tabCounts.critical})
           </button>
           <button
             className={`nav-pill-item px-6 ${
@@ -410,7 +411,7 @@ export default function Notifications() {
             }`}
             onClick={() => setActiveTab("system")}
           >
-            System Events ({tabCounts.system})
+            {t("notifications.systemEvents", "System Events")} ({tabCounts.system})
           </button>
           <button
             className={`nav-pill-item px-6 ${
@@ -418,7 +419,7 @@ export default function Notifications() {
             }`}
             onClick={() => setActiveTab("intelligence")}
           >
-            Intelligence Feed ({tabCounts.intelligence})
+            {t("notifications.intelligenceFeed", "Intelligence Feed")} ({tabCounts.intelligence})
           </button>
         </div>
       </section>
@@ -452,11 +453,11 @@ export default function Notifications() {
             <div className="divide-y divide-outline-variant/10 overflow-y-auto">
               {loading ? (
                 <div className="px-6 py-10 text-sm text-on-surface-variant">
-                  Loading intelligence feed
+                  {t("notifications.loading", "Loading intelligence feed")}
                 </div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="px-6 py-12 text-sm text-on-surface-variant">
-                  Nenhum item restante neste filtro.
+                  {t("notifications.empty", "Nenhum item restante neste filtro.")}
                 </div>
               ) : (
                 paginatedNotifications.map((item) => (
@@ -498,6 +499,9 @@ export default function Notifications() {
                         items={buildNotificationActions({
                           item,
                           saving,
+                          externalFallbackLabel: t("notifications.openSourceReference", "Open source reference"),
+                          markReadLabel: t("notifications.markAsRead", "Mark as read"),
+                          archiveLabel: t("notifications.archiveNotification", "Archive notification"),
                           onOpenWorkflow: () => navigate(item.workflowPath),
                           onOpenExternal: () => {
                             if (item.url) {
@@ -512,7 +516,7 @@ export default function Notifications() {
                                   ...new Set([...notificationCenter.archived_ids, item.id]),
                                 ],
                               },
-                              "Notification archived from the active queue.",
+                              t("notifications.archiveNotification", "Archive notification"),
                             ),
                           onMarkRead: () =>
                             persistNotificationCenter(
@@ -520,7 +524,7 @@ export default function Notifications() {
                                 ...notificationCenter,
                                 read_ids: [...new Set([...notificationCenter.read_ids, item.id])],
                               },
-                              "Notification marked as read.",
+                              t("notifications.markAsRead", "Mark as read"),
                             ),
                         })}
                       />
@@ -533,19 +537,19 @@ export default function Notifications() {
             <div className="mt-auto bg-surface-container px-6 py-2 border-t border-outline-variant/30 flex justify-between items-center">
               <div className="flex items-center gap-6">
                 <span className="text-[0.6875rem] font-medium text-on-surface-variant uppercase tracking-widest">
-                  Showing{" "}
+                  {t("notifications.showing", "Showing")}{" "}
                   {filteredNotifications.length === 0
                     ? "0"
                     : `${(currentPage - 1) * pageSize + 1}-${Math.min(
                         currentPage * pageSize,
                         filteredNotifications.length,
                       )}`}{" "}
-                  of {filteredNotifications.length} items
+                  {t("notifications.of", "of")} {filteredNotifications.length} {t("notifications.items", "items")}
                 </span>
                 <div className="flex items-center gap-2">
                   <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
                   <span className="text-[0.6875rem] font-bold text-emerald-700 uppercase tracking-tighter">
-                    Real-time Feed Active
+                    {t("notifications.realTime", "Real-time Feed Active")}
                   </span>
                 </div>
               </div>
@@ -558,7 +562,7 @@ export default function Notifications() {
                   <span className="material-symbols-outlined">chevron_left</span>
                 </button>
                 <span className="text-[0.75rem] font-bold text-on-surface">
-                  Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+                  {t("notifications.page", "Page")} {totalPages === 0 ? 0 : currentPage} {t("notifications.of", "of")} {totalPages}
                 </span>
                 <button
                   className="text-on-surface-variant hover:text-primary transition-colors disabled:opacity-30"
@@ -578,7 +582,7 @@ export default function Notifications() {
               <div className="p-2 bg-error-container/20 rounded-sm">
                 <span className="material-symbols-outlined text-error">gpp_maybe</span>
               </div>
-              <span className="badge badge-error">Urgent Review</span>
+              <span className="badge badge-error">{t("notifications.urgentReview", "Urgent Review")}</span>
             </div>
             <h4 className="text-[0.875rem] font-extrabold text-on-surface uppercase tracking-tight mb-2">
               Trend Alert: Lateral Movement
@@ -605,7 +609,7 @@ export default function Notifications() {
               <div className="p-2 bg-primary-container/20 rounded-sm">
                 <span className="material-symbols-outlined text-primary">hub</span>
               </div>
-              <span className="badge badge-primary">Intelligence</span>
+              <span className="badge badge-primary">{t("notifications.intelligenceLabel", "Intelligence")}</span>
             </div>
             <h4 className="text-[0.875rem] font-extrabold text-on-surface uppercase tracking-tight mb-2">
               Darknet Asset Discovery
@@ -632,14 +636,13 @@ export default function Notifications() {
               <div className="p-2 bg-surface-container-high rounded-sm">
                 <Bell className="h-4 w-4 text-on-surface-variant" />
               </div>
-              <span className="badge badge-neutral">{saving ? "Syncing" : "Persisted"}</span>
+              <span className="badge badge-neutral">{saving ? t("notifications.syncing", "Syncing") : t("notifications.persisted", "Persisted")}</span>
             </div>
             <h4 className="text-[0.875rem] font-extrabold text-on-surface uppercase tracking-tight mb-2">
-              Notification Routing Preferences
+              {t("notifications.routingTitle", "Notification Routing Preferences")}
             </h4>
             <p className="text-[0.75rem] text-on-surface-variant leading-relaxed">
-              Use the persisted preferences below to mute categories that should not surface
-              in the operator queue by default.
+              {t("notifications.routingBody", "Use the persisted preferences below to mute categories that should not surface in the operator queue by default.")}
             </p>
             <div className="mt-4 space-y-3">
               {([
@@ -682,11 +685,11 @@ export default function Notifications() {
             <div className="mt-4 pt-4 border-t border-outline-variant/10 grid grid-cols-2 gap-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant">
               <div>
                 <div className="font-bold text-on-surface">{readCount}</div>
-                Marked as read
+                {t("notifications.read", "Marked as read")}
               </div>
               <div>
                 <div className="font-bold text-on-surface">{archivedCount}</div>
-                Archived items
+                {t("notifications.archived", "Archived items")}
               </div>
             </div>
           </div>
@@ -699,6 +702,9 @@ export default function Notifications() {
 function buildNotificationActions({
   item,
   saving,
+  externalFallbackLabel,
+  markReadLabel,
+  archiveLabel,
   onOpenWorkflow,
   onOpenExternal,
   onArchive,
@@ -706,6 +712,9 @@ function buildNotificationActions({
 }: {
   item: UnifiedNotification;
   saving: boolean;
+  externalFallbackLabel: string;
+  markReadLabel: string;
+  archiveLabel: string;
   onOpenWorkflow: () => void;
   onOpenExternal: () => void;
   onArchive: () => void;
@@ -722,7 +731,7 @@ function buildNotificationActions({
       ? [
           {
             key: "external",
-            label: item.externalLabel || "Open source reference",
+            label: item.externalLabel || externalFallbackLabel,
             icon: <ExternalLink className="h-3.5 w-3.5" />,
             onSelect: onOpenExternal,
           } satisfies RowActionItem,
@@ -730,14 +739,14 @@ function buildNotificationActions({
       : []),
     {
       key: "mark-read",
-      label: "Mark as read",
+      label: markReadLabel,
       icon: <Eye className="h-3.5 w-3.5" />,
       onSelect: onMarkRead,
       disabled: saving,
     },
     {
       key: "archive",
-      label: "Archive notification",
+      label: archiveLabel,
       icon: <Archive className="h-3.5 w-3.5" />,
       onSelect: onArchive,
       disabled: saving,

@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 
 interface StatsPayload {
@@ -73,6 +74,7 @@ function trendColorClass(item: string) {
 }
 
 export default function Dashboard() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [period, setPeriod] = useState("month");
@@ -274,17 +276,16 @@ export default function Dashboard() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Observability</div>
-          <h1 className="page-heading">Operational Overview</h1>
+          <div className="page-eyebrow">{t("dashboard.eyebrow", "Observability")}</div>
+          <h1 className="page-heading">{t("dashboard.title", "Operational Overview")}</h1>
           <p className="page-subheading">
-            Telemetria de risco, incidentes recentes e throughput da plataforma em uma
-            única superfície de observabilidade.
+            {t("dashboard.subtitle", "Telemetria de risco, incidentes recentes e throughput da plataforma em uma única superfície de observabilidade.")}
           </p>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Time window</div>
+        <div className="page-toolbar-copy">{t("dashboard.timeWindow", "Time window")}</div>
         <div className="page-toolbar-actions">
           {["day", "week", "month"].map((item) => (
             <button
@@ -303,13 +304,13 @@ export default function Dashboard() {
           className={`nav-pill-item px-6 ${activeView === "overview" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
           onClick={() => setSearchParams({}, { replace: true })}
         >
-          Overview
+          {t("dashboard.overview", "Overview")}
         </button>
         <button
           className={`nav-pill-item px-6 ${activeView === "history" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
           onClick={() => setSearchParams({ view: "history" }, { replace: true })}
         >
-          Full History
+          {t("dashboard.fullHistory", "Full History")}
         </button>
       </div>
 
@@ -319,13 +320,13 @@ export default function Dashboard() {
 
       {loading ? (
         <div className="card p-8 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-          Loading dashboard telemetry
+          {t("dashboard.loading", "Loading dashboard telemetry")}
         </div>
       ) : activeView === "history" ? (
         <section className="surface-section overflow-hidden">
           <div className="surface-section-header">
             <div>
-              <h2 className="surface-section-title uppercase">Search History</h2>
+              <h2 className="surface-section-title uppercase">{t("dashboard.searchHistory", "Search History")}</h2>
               <p className="mt-1 text-[10px] font-medium text-on-surface-variant">
                 Página {historyPage} de {totalHistoryPages} no período selecionado
               </p>
@@ -333,7 +334,7 @@ export default function Dashboard() {
             <div className="summary-strip">
               <div className="summary-pill">
                 <History className="h-4 w-4 text-primary" />
-                {stats?.totalScans || 0} total searches
+                {stats?.totalScans || 0} {t("dashboard.totalSearches", "total searches")}
               </div>
             </div>
           </div>
@@ -341,25 +342,25 @@ export default function Dashboard() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-container-low text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
-                  <th className="px-6 py-3">Analyst</th>
-                  <th className="px-6 py-3">Date / Time</th>
-                  <th className="px-6 py-3">Artifact</th>
-                  <th className="px-6 py-3">Type</th>
-                  <th className="px-6 py-3">Verdict</th>
-                  <th className="px-6 py-3 text-right">Actions</th>
+                  <th className="px-6 py-3">{t("dashboard.analyst", "Analyst")}</th>
+                  <th className="px-6 py-3">{t("dashboard.dateTime", "Date / Time")}</th>
+                  <th className="px-6 py-3">{t("dashboard.artifact", "Artifact")}</th>
+                  <th className="px-6 py-3">{t("dashboard.type", "Type")}</th>
+                  <th className="px-6 py-3">{t("dashboard.verdict", "Verdict")}</th>
+                  <th className="px-6 py-3 text-right">{t("dashboard.actions", "Actions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-surface-container">
                 {historyLoading ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-10 text-sm text-on-surface-variant">
-                      Loading search history
+                      {t("dashboard.loadingHistory", "Loading search history")}
                     </td>
                   </tr>
                 ) : historyScans.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="px-6 py-10 text-sm text-on-surface-variant">
-                      Nenhuma pesquisa encontrada para esta janela.
+                      {t("dashboard.noHistory", "Nenhuma pesquisa encontrada para esta janela.")}
                     </td>
                   </tr>
                 ) : (
@@ -392,7 +393,7 @@ export default function Dashboard() {
                       <td className="px-6 py-3 text-right">
                         <div className="flex justify-end gap-2">
                           <RowPrimaryAction
-                            label="Inspect"
+                            label={t("dashboard.inspect", "Inspect")}
                             icon={<Eye className="h-3.5 w-3.5" />}
                             onClick={() => openAnalysis(scan.target)}
                           />
@@ -407,7 +408,7 @@ export default function Dashboard() {
           </div>
           <div className="mt-auto bg-surface-container px-6 py-3 border-t border-outline-variant/30 flex justify-between items-center">
             <span className="text-[0.6875rem] font-medium text-on-surface-variant uppercase tracking-widest">
-              Showing {historyScans.length} of {stats?.totalScans || 0} searches
+              {t("dashboard.showingSearches", "Showing")} {historyScans.length} {t("dashboard.of", "of")} {stats?.totalScans || 0} {t("dashboard.searches", "searches")}
             </span>
             <div className="flex items-center gap-4">
               <button
@@ -418,7 +419,7 @@ export default function Dashboard() {
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <span className="text-[0.75rem] font-bold text-on-surface">
-                Page {historyPage} of {totalHistoryPages}
+                {t("dashboard.page", "Page")} {historyPage} {t("dashboard.of", "of")} {totalHistoryPages}
               </span>
               <button
                 className="text-on-surface-variant hover:text-primary transition-colors disabled:opacity-30"
@@ -666,7 +667,8 @@ export default function Dashboard() {
                   ? `Worker Status: ${stats.workerHealth.status}`
                   : "Worker status unavailable"
               }
-              action="Inspect incidents"
+              action={t("dashboard.inspectIncidents", "Inspect incidents")}
+              onAction={() => navigate("/notifications?tab=critical")}
             />
             <InsightCard
               icon={ShieldCheck}
@@ -675,7 +677,8 @@ export default function Dashboard() {
               title="Watchlist Exposure"
               description={`${stats?.topTargets?.length || 0} recurrent targets dominate analyst demand.`}
               meta={`Recent scans loaded: ${stats?.recentScans?.length || 0}`}
-              action="Review targets"
+              action={t("dashboard.reviewTargets", "Review targets")}
+              onAction={() => navigate("/watchlist")}
             />
             <InsightCard
               icon={Crosshair}
@@ -684,7 +687,8 @@ export default function Dashboard() {
               title="Recon Throughput"
               description={`${stats?.reconTotal || 0} recon jobs were registered in the selected period.`}
               meta={`Active module spread: ${activeModules}`}
-              action="Open recon"
+              action={t("dashboard.openRecon", "Open recon")}
+              onAction={() => navigate("/recon")}
             />
           </div>
         </>
@@ -781,6 +785,7 @@ function InsightCard({
   description,
   meta,
   action,
+  onAction,
 }: {
   icon: typeof Radar;
   badge: string;
@@ -789,6 +794,7 @@ function InsightCard({
   description: string;
   meta: string;
   action: string;
+  onAction: () => void;
 }) {
   return (
     <div className="card p-5 card-accent-left card-accent-primary">
@@ -804,7 +810,7 @@ function InsightCard({
       <p className="text-[0.75rem] text-on-surface-variant leading-relaxed">{description}</p>
       <div className="mt-4 pt-4 border-t border-outline-variant/10 flex justify-between items-center">
         <span className="text-[0.625rem] font-mono text-on-surface-variant">{meta}</span>
-        <button className="text-primary text-[0.75rem] font-bold hover:underline">
+        <button type="button" onClick={onAction} className="text-primary text-[0.75rem] font-bold hover:underline">
           {action}
         </button>
       </div>

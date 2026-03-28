@@ -41,6 +41,9 @@ from limiters import limiter
 
 logger = get_logger("MFARouter")
 router = APIRouter(prefix="/mfa", tags=["mfa"])
+AUTH_TOKEN_TYPE = "bearer"  # nosec B105
+EMPTY_SECRET_VALUE = ""  # nosec B105
+MFA_DISABLED = False
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -140,7 +143,7 @@ async def confirm_mfa(
             "mfa_enabled": True,
             "mfa_secret_enc": user_doc["mfa_pending_secret_enc"],
             "mfa_enrolled_at": datetime.now(timezone.utc),
-        }, "$unset": {"mfa_pending_secret_enc": ""}},
+        }, "$unset": {"mfa_pending_secret_enc": EMPTY_SECRET_VALUE}},
     )
 
     ip = request.client.host if request.client else ""
@@ -262,7 +265,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
         **({"password_expires_in_days": days_left} if days_left is not None else {}),
     }
 
-    response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
+    response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, access_token, refresh_token)
     _clear_pre_auth_cookie(response)
 
@@ -291,7 +294,7 @@ async def disable_my_mfa(
 
     await db.users.update_one(
         {"username": current_user["username"]},
-        {"$set": {"mfa_enabled": False}, "$unset": {"mfa_secret_enc": "", "mfa_backup_codes": ""}},
+        {"$set": {"mfa_enabled": MFA_DISABLED}, "$unset": {"mfa_secret_enc": EMPTY_SECRET_VALUE, "mfa_backup_codes": EMPTY_SECRET_VALUE}},
     )
 
     ip = request.client.host if request.client else ""
@@ -319,8 +322,8 @@ async def revoke_user_mfa(
 
     await db.users.update_one(
         {"username": username},
-        {"$set": {"mfa_enabled": False},
-         "$unset": {"mfa_secret_enc": "", "mfa_backup_codes": "", "mfa_pending_secret_enc": ""}},
+        {"$set": {"mfa_enabled": MFA_DISABLED},
+         "$unset": {"mfa_secret_enc": EMPTY_SECRET_VALUE, "mfa_backup_codes": EMPTY_SECRET_VALUE, "mfa_pending_secret_enc": EMPTY_SECRET_VALUE}},
     )
 
     ip = request.client.host if request.client else ""

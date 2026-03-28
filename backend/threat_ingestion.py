@@ -6,10 +6,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import ipaddress
 import json
 from urllib.parse import urlparse
 
 from crypto import decrypt_secret, encrypt_secret
+from network_security import UnsafeTargetError, validate_public_url
 
 
 INTEL_SOURCES_DOC_ID = "singleton"
@@ -30,6 +32,9 @@ SOURCE_CATALOG = {
     "fortinet_outbreakalert": {
         "source_type": "rss",
         "family": "fortinet",
+        "vendor": "Fortinet",
+        "collection": "fortiguard_rss",
+        "channel": "outbreak_alert",
         "display_name": "Fortinet Outbreak Alert",
         "description": "Curated Fortinet outbreak intelligence feed.",
         "enabled_by_default": True,
@@ -42,6 +47,9 @@ SOURCE_CATALOG = {
     "fortinet_threatsignal": {
         "source_type": "rss",
         "family": "fortinet",
+        "vendor": "Fortinet",
+        "collection": "fortiguard_rss",
+        "channel": "threat_signal",
         "display_name": "Fortinet Threat Signal",
         "description": "Curated Fortinet threat signal feed.",
         "enabled_by_default": True,
@@ -90,6 +98,9 @@ def _build_default_source(source_id: str) -> dict:
         "source_id": source_id,
         "source_type": spec["source_type"],
         "family": spec["family"],
+        "vendor": spec.get("vendor", ""),
+        "collection": spec.get("collection", ""),
+        "channel": spec.get("channel", ""),
         "display_name": spec["display_name"],
         "description": spec["description"],
         "enabled": bool(spec["enabled_by_default"]),
@@ -497,21 +508,22 @@ def _validate_feed_url(url: str) -> str:
     if not parsed.netloc:
         raise ValueError("feed_url must have a valid hostname.")
 
-    # Block obvious private/localhost URLs
     hostname = parsed.hostname or ""
-    if hostname in {"localhost", "127.0.0.1", "::1", "0.0.0.0"}:
+    if hostname.lower() == "localhost":
         raise ValueError("feed_url cannot point to localhost.")
-    if hostname.startswith("10.") or hostname.startswith("192.168."):
-        raise ValueError("feed_url cannot point to a private network.")
-    if hostname.startswith("172."):
-        parts = hostname.split(".")
-        if len(parts) >= 2:
-            try:
-                second = int(parts[1])
-                if 16 <= second <= 31:
-                    raise ValueError("feed_url cannot point to a private network.")
-            except ValueError:
-                pass
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None and ip.is_unspecified:
+        raise ValueError("feed_url cannot point to an unspecified address.")
+
+    try:
+        return validate_public_url(normalized)
+    except UnsafeTargetError as exc:
+        raise ValueError(str(exc)) from exc
 
     return normalized
 

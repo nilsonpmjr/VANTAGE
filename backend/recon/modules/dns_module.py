@@ -9,7 +9,10 @@ import dns.asyncresolver
 import dns.exception
 import dns.reversename
 
+from logging_config import get_logger
 from .base import ReconModule
+
+logger = get_logger("DNSModule")
 
 
 class DNSModule(ReconModule):
@@ -34,8 +37,8 @@ class DNSModule(ReconModule):
             rev = dns.reversename.from_address(ip)
             ans = await asyncio.wait_for(resolver.resolve(rev, "PTR"), timeout=5)
             result["PTR"] = [r.to_text() for r in ans]
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"PTR lookup failed for {ip}: {exc}")
         return result
 
     async def _resolve_domain(self, resolver: dns.asyncresolver.Resolver, domain: str) -> dict:

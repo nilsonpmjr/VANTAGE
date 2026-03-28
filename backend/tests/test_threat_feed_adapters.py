@@ -1,4 +1,12 @@
-from threat_feed_adapters import adapt_cve_rss_items, adapt_fortinet_rss_items, adapt_generic_rss_items, infer_sectors, parse_rss_items
+from threat_feed_adapters import (
+    adapt_cve_rss_items,
+    adapt_fortinet_rss_items,
+    adapt_generic_rss_items,
+    build_editorial_metadata,
+    infer_sectors,
+    infer_topics,
+    parse_rss_items,
+)
 from threat_items import build_threat_item_document, build_threat_item_payload, extract_threat_item_payload, normalize_tlp
 
 
@@ -33,6 +41,8 @@ def test_adapt_cve_rss_items_builds_canonical_document():
     assert document["severity"] == "critical"
     assert "CVE-2026-1234" in document["tags"]
     assert document["data"]["attributes"]["cve_ids"] == ["CVE-2026-1234"]
+    assert document["editorial"]["is_newsworthy"] is True
+    assert document["editorial"]["story_kind"] == "advisory"
 
 
 def test_adapt_fortinet_rss_items_normalizes_categories_and_cves():
@@ -61,6 +71,7 @@ def test_adapt_fortinet_rss_items_normalizes_categories_and_cves():
     assert "fortinet" in document["tags"]
     assert "threat_signal" in document["tags"]
     assert "CVE-2026-9876" in document["tags"]
+    assert document["editorial"]["headline_score"] >= 20
 
 
 def test_extract_threat_item_payload_supports_legacy_shape():
@@ -111,6 +122,26 @@ def test_infer_sectors_returns_empty_for_generic_text():
 def test_infer_sectors_matches_from_tags():
     result = infer_sectors("Alert", "New event", ["scada", "ics"])
     assert "energy" in result
+
+
+def test_infer_topics_detects_ransomware_and_vulnerability():
+    result = infer_topics("Critical ransomware campaign", "Zero-day vulnerability exploited", ["cve"])
+    assert "ransomware" in result
+    assert "vulnerability" in result
+
+
+def test_build_editorial_metadata_marks_high_severity_story_as_newsworthy():
+    editorial = build_editorial_metadata(
+        title="Critical ransomware campaign",
+        summary="Active exploitation in the wild",
+        severity="critical",
+        tags=["cve", "CVE-2026-7777"],
+        categories=["Threat Signal"],
+    )
+
+    assert editorial["story_kind"] == "campaign"
+    assert editorial["is_newsworthy"] is True
+    assert editorial["headline_score"] >= 20
 
 
 # ── normalize_tlp tests ──────────────────────────────────────────────────────

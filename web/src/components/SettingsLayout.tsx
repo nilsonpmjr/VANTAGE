@@ -1,7 +1,9 @@
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
 import { cn } from "../lib/utils";
+import { useLanguage } from "../context/LanguageContext";
 
 export default function SettingsLayout() {
+  const { t } = useLanguage();
   const location = useLocation();
 
   if (location.pathname === "/settings") {
@@ -12,10 +14,21 @@ export default function SettingsLayout() {
     <div className="settings-layout px-4 sm:px-6">
       <aside className="settings-nav">
         <div className="settings-nav-shell">
+          <div className="settings-nav-copy">
+            <span className="settings-nav-label">
+              {t("settings.navLabel", "Structural navigation")}
+            </span>
+            <span className="settings-nav-helper">
+              {t(
+                "settings.navHelper",
+                "Use this lane for planned section switching. Item context and row inspection stay in the main canvas and right rail.",
+              )}
+            </span>
+          </div>
           <div className="space-y-6">
             <div>
               <div className="text-xs font-semibold text-outline mb-2 mt-1 uppercase tracking-wider">
-                Platform
+                {t("layout.sections.platform", "Platform")}
               </div>
               <nav className="space-y-1">
                 <NavLink
@@ -29,7 +42,7 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  Operational Patterns
+                  {t("settings.patterns", "Operational Patterns")}
                 </NavLink>
                 <NavLink
                   to="/settings/extensions"
@@ -42,7 +55,7 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  Extensions Catalog
+                  {t("settings.extensions", "Extensions Catalog")}
                 </NavLink>
                 <NavLink
                   to="/settings/threat-ingestion"
@@ -55,7 +68,7 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  Threat Ingestion & SMTP
+                  {t("settings.threatIngestion", "Threat Ingestion & SMTP")}
                 </NavLink>
                 <NavLink
                   to="/settings/system-health"
@@ -68,14 +81,14 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  System Health
+                  {t("settings.systemHealth", "System Health")}
                 </NavLink>
               </nav>
             </div>
 
             <div>
               <div className="text-xs font-semibold text-outline mb-2 mt-4 uppercase tracking-wider">
-                IAM
+                {t("layout.sections.iam", "IAM")}
               </div>
               <nav className="space-y-1">
                 <NavLink
@@ -89,7 +102,7 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  Users & Roles
+                  {t("settings.usersRoles", "Users & Roles")}
                 </NavLink>
                 <NavLink
                   to="/settings/security-policies"
@@ -102,7 +115,7 @@ export default function SettingsLayout() {
                     )
                   }
                 >
-                  Security Policies
+                  {t("settings.securityPolicies", "Security Policies")}
                 </NavLink>
               </nav>
             </div>

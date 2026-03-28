@@ -8,11 +8,40 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 
-VANTAGE began as a terminal-first threat intelligence utility, evolved into a web platform for daily SOC operations, and now carries its own product identity. It is a threat intelligence platform for SOC analysts who need fast, explainable verdicts for IPs, domains, and file hashes across multiple intelligence sources.
+VANTAGE is a threat intelligence platform for SOC teams that need fast, explainable verdicts for IPs, domains, and file hashes, plus an operational workspace to triage feeds, recon, watchlists, hunting, and exposure in one place.
 
 The project is released under AGPLv3 by design. The goal is to keep the platform transparent, auditable, and collaborative as it grows from an internal workflow accelerator into an independent cybersecurity product.
 
-## Features
+## Licensing & Distribution
+
+- **Core license**: `AGPLv3`
+- **Public core**: this repository and the official runtime shipped here
+- **Commercial layer**: support, managed operation, premium extensions, and contract-specific deliverables outside the public core
+- **Trademark/brand governance**: handled separately from the code license
+
+This keeps the product open and auditable while preserving a clean open-core boundary for commercial offerings.
+
+## Product Scope
+
+### What ships in v1
+
+- analyst workspaces for `Feed`, `CTI News`, `Recon`, `Watchlist`, `Hunting`, `Exposure`, `Dashboard`, `Home`, and single/batch analysis
+- administrative control surfaces for `Extensions`, `Threat Ingestion`, `System Health`, `Users & Roles`, and `Security Policies`
+- auth, `RBAC`, `MFA`, sessions, audit log, API keys, and guided onboarding
+- editorial intelligence ingestion with `RSS`, `MISP`, curated `Fortinet RSS`, and initial `CTI Modeling Readiness`
+
+### What stays post-v1
+
+- ML models trained in production
+- enterprise distribution and managed operation layers
+- premium extensions and contract-specific deliverables outside this repository
+
+See the full package and roadmap:
+
+- [`docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md`](docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md)
+- [`docs/VANTAGE/ROADMAP-core-e-pos-v1.md`](docs/VANTAGE/ROADMAP-core-e-pos-v1.md)
+
+## Core Capabilities
 
 - **Parallel Threat Intelligence** — Queries VirusTotal, AbuseIPDB, Shodan, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and BlacklistMaster simultaneously
 - **AI Reports** — Contextual natural-language summaries in PT-BR, EN, and ES
@@ -42,6 +71,12 @@ The project is released under AGPLv3 by design. The goal is to keep the platform
 **Backend modules**: `routers/` (auth, users, analyze, stats, admin, mfa, sessions, api_keys) · `analyzer.py` · `scoring.py` · `worker.py` · `mailer.py` · `audit.py`
 
 **Frontend structure**: `components/auth/` · `components/admin/` · `components/dashboard/` · `components/layout/` · `components/shared/` · `context/`
+
+## Who It Is For
+
+- SOC analysts who need a daily workspace, not just a single lookup tool
+- technical operators who need visibility into ingestion, policies, sessions, and runtime health
+- maintainers who want an open core with a clear path to downstream and commercial layers
 
 ## Quick Start (Docker — recommended)
 
@@ -84,6 +119,25 @@ VANTAGE_FRONTEND_PORT=4177 docker compose \
 ```
 
 The override now changes only the published frontend port. The service definition itself already points to the canonical build.
+
+### Optional: hunting runtime lane
+
+The main stack does not require Kali. Hunting providers can run in three declared lanes:
+
+- `native_local`
+- `isolated_container`
+- `kali_container`
+
+The current Sherlock provider can fall back to `native_local` when the local binary is available. The optional Kali sidecar is declared in [`docker-compose.hunting-kali.yml`](./docker-compose.hunting-kali.yml) for providers that eventually require that heavier lane.
+
+```bash
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.hunting-kali.yml \
+  up -d backend hunting_kali_runtime
+```
+
+This does not change the default product contract. It only makes the optional Kali lane explicit and observable to the backend and UI.
 
 ### 3. Seed initial admin user
 

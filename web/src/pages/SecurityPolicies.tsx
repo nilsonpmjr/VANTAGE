@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Key, Lock, AlertTriangle, History } from "lucide-react";
 import API_URL from "../config";
+import { useLanguage } from "../context/LanguageContext";
 
 type PasswordPolicy = {
   min_length: number;
@@ -37,14 +38,15 @@ type AuditPayload = {
   pages: number;
 };
 
-function formatTimestamp(value?: string) {
+function formatTimestamp(value: string | undefined, locale: string) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(date);
+  return new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 export default function SecurityPolicies() {
+  const { t, locale } = useLanguage();
   const [passwordPolicy, setPasswordPolicy] = useState<PasswordPolicy | null>(null);
   const [lockoutPolicy, setLockoutPolicy] = useState<LockoutPolicy | null>(null);
   const [auditTrail, setAuditTrail] = useState<AuditItem[]>([]);
@@ -79,7 +81,7 @@ export default function SecurityPolicies() {
         (auditData as AuditPayload).items || [],
       );
     } catch {
-      setError("Não foi possível carregar as políticas de segurança.");
+      setError(t("settingsPages.loadPoliciesFailed", "Could not load security policies."));
     } finally {
       setLoading(false);
     }
@@ -131,10 +133,10 @@ export default function SecurityPolicies() {
         throw new Error("policy_save_failed");
       }
 
-      setNotice("Políticas salvas com sucesso.");
+      setNotice(t("settingsPages.policiesSaved", "Policies saved successfully."));
       await loadPolicies();
     } catch {
-      setError("Falha ao persistir as políticas de segurança.");
+      setError(t("settingsPages.savePoliciesFailed", "Could not persist security policies."));
     } finally {
       setSaving(false);
     }
@@ -149,7 +151,7 @@ export default function SecurityPolicies() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-4">
         {error && <div className="rounded-sm bg-error/10 px-4 py-3 text-sm text-error">{error}</div>}
         <div className="rounded-sm bg-surface-container-lowest px-6 py-8 text-sm text-on-surface-variant shadow-sm">
-          {loading ? "Carregando políticas..." : "As políticas não estão disponíveis no momento."}
+          {loading ? t("settingsPages.loadingPolicies", "Carregando políticas...") : t("settingsPages.unavailablePolicies", "As políticas não estão disponíveis no momento.")}
         </div>
       </div>
     );
@@ -159,30 +161,29 @@ export default function SecurityPolicies() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Administration</div>
-          <h1 className="page-heading">Security Policies</h1>
+          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
+          <h1 className="page-heading">{t("settingsPages.securityPoliciesTitle", "Security Policies")}</h1>
           <p className="page-subheading">
-            Defina padrões globais de senha, mascaramento de PII e mecanismos
-            preventivos de lockout sem perder rastreabilidade administrativa.
+            {t("settingsPages.securityPoliciesSubtitle", "Defina padrões globais de senha, mascaramento de PII e mecanismos preventivos de lockout sem perder rastreabilidade administrativa.")}
           </p>
         </div>
       </div>
 
       <div className="page-toolbar">
-        <div className="page-toolbar-copy">Policy actions</div>
+        <div className="page-toolbar-copy">{t("settingsPages.securityPoliciesActions", "Policy actions")}</div>
         <div className="page-toolbar-actions">
           <button
             onClick={exportPolicies}
             className="btn btn-outline"
           >
-            Export JSON
+            {t("settingsPages.exportJson", "Export JSON")}
           </button>
           <button
             onClick={() => void savePolicies()}
             disabled={saving}
             className="btn btn-primary"
           >
-            {saving ? "Saving..." : "Save Policies"}
+            {saving ? t("settingsPages.saving", "Saving...") : t("settingsPages.savePolicies", "Save Policies")}
           </button>
         </div>
       </div>
@@ -200,36 +201,36 @@ export default function SecurityPolicies() {
             <div className="flex items-center gap-3">
               <Key className="w-4 h-4 text-primary" />
               <h2 className="text-xs uppercase font-bold tracking-widest text-on-surface-variant">
-                Password Enforcement Policy
+                {t("settingsPages.passwordEnforcement", "Password Enforcement Policy")}
               </h2>
             </div>
             <span className="text-[10px] font-bold px-2 py-0.5 bg-emerald-500/10 text-emerald-700 rounded-sm">
-              ACTIVE ENFORCEMENT
+              {t("settingsPages.activeEnforcement", "ACTIVE ENFORCEMENT")}
             </span>
           </div>
           <div className="p-8 space-y-8">
             <div className="grid grid-cols-2 gap-x-12 gap-y-8">
               <NumberField
-                label="Minimum Password Length"
-                suffix="Characters"
+                label={t("settingsPages.minPasswordLength", "Minimum Password Length")}
+                suffix={t("settingsPages.characters", "Characters")}
                 value={passwordPolicy.min_length}
                 onChange={(value) => setPasswordPolicy((current) => current ? { ...current, min_length: value } : current)}
               />
               <NumberField
-                label="Password History (Reuse)"
-                suffix="Versions"
+                label={t("settingsPages.passwordHistory", "Password History (Reuse)")}
+                suffix={t("settingsPages.versions", "Versions")}
                 value={passwordPolicy.history_count}
                 onChange={(value) => setPasswordPolicy((current) => current ? { ...current, history_count: value } : current)}
               />
               <NumberField
-                label="Password Expiration"
-                suffix="Days"
+                label={t("settingsPages.passwordExpiration", "Password Expiration")}
+                suffix={t("settingsPages.days", "Days")}
                 value={passwordPolicy.expiry_days}
                 onChange={(value) => setPasswordPolicy((current) => current ? { ...current, expiry_days: value } : current)}
               />
               <NumberField
-                label="Expiry Warning"
-                suffix="Days"
+                label={t("settingsPages.expiryWarning", "Expiry Warning")}
+                suffix={t("settingsPages.days", "Days")}
                 value={passwordPolicy.expiry_warning_days}
                 onChange={(value) => setPasswordPolicy((current) => current ? { ...current, expiry_warning_days: value } : current)}
               />
@@ -237,12 +238,12 @@ export default function SecurityPolicies() {
 
             <div className="pt-6 border-t border-surface-container-high space-y-6">
               <h3 className="text-[10px] uppercase font-bold tracking-[0.2em] text-on-surface-variant mb-4 opacity-50">
-                Complexity Requirements
+                {t("settingsPages.complexityRequirements", "Complexity Requirements")}
               </h3>
               <div className="space-y-4">
                 <ToggleRow
-                  title="Require Uppercase Characters (A-Z)"
-                  description="Standard cryptographic entropy requirement"
+                  title={t("settingsPages.requireUppercase", "Require Uppercase Characters (A-Z)")}
+                  description={t("settingsPages.requireUppercaseBody", "Standard cryptographic entropy requirement")}
                   enabled={passwordPolicy.require_uppercase}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -251,8 +252,8 @@ export default function SecurityPolicies() {
                   }
                 />
                 <ToggleRow
-                  title="Require Numeric Values (0-9)"
-                  description="Mandate at least one numeric digit"
+                  title={t("settingsPages.requireNumbers", "Require Numeric Values (0-9)")}
+                  description={t("settingsPages.requireNumbersBody", "Mandate at least one numeric digit")}
                   enabled={passwordPolicy.require_numbers}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -261,8 +262,8 @@ export default function SecurityPolicies() {
                   }
                 />
                 <ToggleRow
-                  title="Require Special Characters (!@#)"
-                  description="Symbols required for high-security environments"
+                  title={t("settingsPages.requireSymbols", "Require Special Characters (!@#)")}
+                  description={t("settingsPages.requireSymbolsBody", "Symbols required for high-security environments")}
                   enabled={passwordPolicy.require_symbols}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -271,8 +272,8 @@ export default function SecurityPolicies() {
                   }
                 />
                 <ToggleRow
-                  title="Mask PII in Audit Logs"
-                  description="Hide email targets and sensitive fragments in admin exports"
+                  title={t("settingsPages.maskPii", "Mask PII in Audit Logs")}
+                  description={t("settingsPages.maskPiiBody", "Hide email targets and sensitive fragments in admin exports")}
                   enabled={passwordPolicy.mask_pii}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -281,8 +282,8 @@ export default function SecurityPolicies() {
                   }
                 />
                 <ToggleRow
-                  title="Prevent Common Dictionary Words"
-                  description="Block a bundled denylist of predictable passwords"
+                  title={t("settingsPages.preventCommonPasswords", "Prevent Common Dictionary Words")}
+                  description={t("settingsPages.preventCommonPasswordsBody", "Block a bundled denylist of predictable passwords")}
                   enabled={passwordPolicy.prevent_common_passwords}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -296,8 +297,8 @@ export default function SecurityPolicies() {
                   }
                 />
                 <ToggleRow
-                  title="Block Known Breached Passwords"
-                  description="Use the local breached-password denylist before rollout"
+                  title={t("settingsPages.preventBreachedPasswords", "Block Known Breached Passwords")}
+                  description={t("settingsPages.preventBreachedPasswordsBody", "Use the local breached-password denylist before rollout")}
                   enabled={passwordPolicy.prevent_breached_passwords}
                   onToggle={() =>
                     setPasswordPolicy((current) =>
@@ -320,23 +321,23 @@ export default function SecurityPolicies() {
             <div className="bg-surface-container-high px-6 py-4 flex items-center gap-3">
               <Lock className="w-4 h-4 text-error" />
               <h2 className="text-xs uppercase font-bold tracking-widest text-on-surface-variant">
-                Account Lockout Protocol
+                {t("settingsPages.accountLockoutProtocol", "Account Lockout Protocol")}
               </h2>
             </div>
             <div className="p-8 space-y-8">
               <div className="space-y-6">
                 <NumberField
-                  label="Max Login Attempts"
-                  suffix="Retries"
+                  label={t("settingsPages.maxLoginAttempts", "Max Login Attempts")}
+                  suffix={t("settingsPages.retries", "Retries")}
                   value={lockoutPolicy.max_attempts}
-                  helper="Threshold for brute-force mitigation."
+                  helper={t("settingsPages.maxLoginAttemptsHelper", "Threshold for brute-force mitigation.")}
                   onChange={(value) => setLockoutPolicy((current) => current ? { ...current, max_attempts: value } : current)}
                 />
                 <NumberField
-                  label="Lockout Duration"
-                  suffix="Minutes"
+                  label={t("settingsPages.lockoutDuration", "Lockout Duration")}
+                  suffix={t("settingsPages.minutes", "Minutes")}
                   value={lockoutPolicy.lockout_minutes}
-                  helper="Duration before automatic credential retry is permitted."
+                  helper={t("settingsPages.lockoutDurationHelper", "Duration before automatic credential retry is permitted.")}
                   onChange={(value) => setLockoutPolicy((current) => current ? { ...current, lockout_minutes: value } : current)}
                 />
               </div>
@@ -345,11 +346,10 @@ export default function SecurityPolicies() {
                   <AlertTriangle className="w-4 h-4 text-error shrink-0" />
                   <div>
                     <p className="text-[10px] font-bold uppercase text-error tracking-tight">
-                      System Notice
+                      {t("settingsPages.systemNotice", "System Notice")}
                     </p>
                     <p className="text-[11px] text-error mt-1">
-                      Políticas de lockout mais duras podem aumentar tickets de suporte.
-                      Coordene a mudança com a operação antes do rollout.
+                      {t("settingsPages.systemNoticeBody", "Stricter lockout policies can increase support volume. Coordinate the change with operations before rollout.")}
                     </p>
                   </div>
                 </div>
@@ -362,26 +362,26 @@ export default function SecurityPolicies() {
               <div className="flex items-center gap-2 mb-2">
                 <History className="w-4 h-4 text-primary" />
                 <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400">
-                  Audit Provenance
+                  {t("settingsPages.auditProvenance", "Audit Provenance")}
                 </h3>
               </div>
               <div className="space-y-3">
-                <AuditRow label="Last Modified" value={formatTimestamp(lastPolicyEvent?.timestamp)} />
-                <AuditRow label="Authorizing Entity" value={lastPolicyEvent?.user || "ARCHITECT_GLOBAL_ROOT"} />
+                <AuditRow label={t("settingsPages.lastModified", "Last Modified")} value={formatTimestamp(lastPolicyEvent?.timestamp, locale)} />
+                <AuditRow label={t("settingsPages.authorizingEntity", "Authorizing Entity")} value={lastPolicyEvent?.user || "ARCHITECT_GLOBAL_ROOT"} />
                 <div className="flex justify-between items-center">
-                  <span className="text-[11px] text-slate-400">Compliance Status</span>
+                  <span className="text-[11px] text-slate-400">{t("settingsPages.complianceStatus", "Compliance Status")}</span>
                   <div className="flex items-center gap-1">
                     <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
                     <span className="text-xs font-bold text-emerald-400 uppercase tracking-tighter">
-                      NIST Compliant
+                      {t("settingsPages.nistCompliant", "NIST Compliant")}
                     </span>
                   </div>
                 </div>
-                <AuditRow label="Last Action" value={lastPolicyEvent?.action || "policy_runtime_active"} />
+                <AuditRow label={t("settingsPages.lastAction", "Last Action")} value={lastPolicyEvent?.action || "policy_runtime_active"} />
               </div>
               <div className="rounded-sm bg-white/5 p-3 text-xs leading-relaxed text-slate-300">
                 <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                  Dedicated Policy Timeline
+                  {t("settingsPages.policyTimeline", "Dedicated Policy Timeline")}
                 </div>
                 <div className="space-y-2">
                   {auditTrail.slice(0, 4).map((item) => (
@@ -390,9 +390,9 @@ export default function SecurityPolicies() {
                         <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
                           {item.action.replaceAll("_", " ")}
                         </span>
-                        <span className="text-[10px] text-slate-400">{formatTimestamp(item.timestamp)}</span>
+                        <span className="text-[10px] text-slate-400">{formatTimestamp(item.timestamp, locale)}</span>
                       </div>
-                      <div className="mt-1 text-[11px] text-white">{item.user || "system"}</div>
+                      <div className="mt-1 text-[11px] text-white">{item.user || t("settingsPages.systemUser", "system")}</div>
                       {item.detail ? (
                         <div className="mt-1 text-[11px] text-slate-300">{item.detail}</div>
                       ) : null}

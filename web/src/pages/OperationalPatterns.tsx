@@ -104,14 +104,15 @@ export default function OperationalPatterns() {
           </div>
           <div className="page-toolbar">
             <div className="page-toolbar-copy">
-              Action hierarchy outranks literal placement
+              Action hierarchy outranks literal placement. Reference controls on
+              this page stay disabled on purpose.
             </div>
             <div className="page-toolbar-actions">
-            <button className="btn btn-outline flex items-center gap-2">
+            <button type="button" disabled className="btn btn-outline flex items-center gap-2">
               <RefreshCw className="w-4 h-4" />
               Review Existing Pages
             </button>
-            <button className="btn btn-primary flex items-center gap-2">
+            <button type="button" disabled className="btn btn-primary flex items-center gap-2">
               <LayoutPanelTop className="w-4 h-4" />
               Adopt This Pattern
             </button>
@@ -213,11 +214,11 @@ export default function OperationalPatterns() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="btn btn-outline flex items-center gap-2">
+                <button type="button" disabled className="btn btn-outline flex items-center gap-2">
                   <Filter className="w-4 h-4" />
                   Filters
                 </button>
-                <button className="btn btn-primary flex items-center gap-2">
+                <button type="button" disabled className="btn btn-primary flex items-center gap-2">
                   <Search className="w-4 h-4" />
                   Execute
                 </button>
@@ -358,8 +359,8 @@ export default function OperationalPatterns() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="btn btn-outline">Export</button>
-                <button className="btn btn-primary">Primary Action</button>
+                <button type="button" disabled className="btn btn-outline">Export</button>
+                <button type="button" disabled className="btn btn-primary">Primary Action</button>
               </div>
             </div>
             <div className="p-6 space-y-6">
@@ -453,9 +454,9 @@ export default function OperationalPatterns() {
                   Action row pattern
                 </div>
                 <div className="mt-3 flex items-center justify-end gap-2">
-                  <button className="btn btn-ghost">Discard</button>
-                  <button className="btn btn-outline">Test</button>
-                  <button className="btn btn-primary">Save Changes</button>
+                  <button type="button" disabled className="btn btn-ghost">Discard</button>
+                  <button type="button" disabled className="btn btn-outline">Test</button>
+                  <button type="button" disabled className="btn btn-primary">Save Changes</button>
                 </div>
               </div>
             </div>
@@ -481,6 +482,74 @@ export default function OperationalPatterns() {
             ]}
           />
         </div>
+        <div className="card overflow-hidden">
+          <div className="card-header flex items-center justify-between">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
+                Decision matrix
+              </div>
+              <h3 className="mt-2 text-lg font-extrabold tracking-tight text-on-surface">
+                Inspect, Edit And Structural Navigation Must Not Compete
+              </h3>
+            </div>
+            <span className="badge badge-neutral">Management console</span>
+          </div>
+          <div className="overflow-hidden rounded-sm border-t border-outline-variant/10">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-container-high">
+                <tr>
+                  <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                    Interaction
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                    Preferred pattern
+                  </th>
+                  <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                    Why
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-surface-container-low">
+                <tr className="hover:bg-surface-container-low transition-colors">
+                  <td className="px-6 py-4 text-sm font-bold text-on-surface">Inspect row context</td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Keep the selected entity in the right rail.
+                  </td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    The operator keeps the table in view while reading the current entity state.
+                  </td>
+                </tr>
+                <tr className="hover:bg-surface-container-low transition-colors">
+                  <td className="px-6 py-4 text-sm font-bold text-on-surface">Create or edit entity</td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Use a modal or dedicated editor surface, not the side rail.
+                  </td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Editing changes posture and deserves focused attention without compressing the directory table.
+                  </td>
+                </tr>
+                <tr className="hover:bg-surface-container-low transition-colors">
+                  <td className="px-6 py-4 text-sm font-bold text-on-surface">Inline expansion</td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Reserve for dense logs, event streams and short-lived secondary rows.
+                  </td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Inline detail works when the row itself is the unit of review, not when the user is editing or comparing entities.
+                  </td>
+                </tr>
+                <tr className="hover:bg-surface-container-low transition-colors">
+                  <td className="px-6 py-4 text-sm font-bold text-on-surface">Structural left rail</td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Keep it strictly for planned section switching.
+                  </td>
+                  <td className="px-6 py-4 text-sm text-on-surface-variant">
+                    Navigation is a lane of orientation. Context actions belong to the toolbar, row actions and right rail.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section className="space-y-5">
@@ -505,7 +574,7 @@ export default function OperationalPatterns() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button className="btn btn-outline flex items-center gap-2">
+                <button type="button" disabled className="btn btn-outline flex items-center gap-2">
                   <RefreshCw className="w-4 h-4" />
                   Refresh
                 </button>
@@ -861,13 +930,15 @@ function PaginationFooter({
         Showing {showing} of {total}
       </div>
       <div className="flex items-center gap-3 text-[11px] font-bold text-on-surface">
-        <button className="text-on-surface-variant hover:text-primary transition-colors" disabled>
+        <button type="button" className="text-on-surface-variant transition-colors disabled:opacity-50" disabled>
           Prev
         </button>
         <span>
           Page {page} of {pages}
         </span>
-        <button className="text-primary hover:underline transition-colors">Next</button>
+        <button type="button" className="text-on-surface-variant transition-colors disabled:opacity-50" disabled>
+          Next
+        </button>
       </div>
     </div>
   );

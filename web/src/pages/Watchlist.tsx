@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import { useLanguage } from "../context/LanguageContext";
 
 interface WatchlistItem {
   id: string;
@@ -65,6 +66,7 @@ function routeTone(route: WatchlistItem["notification_route"]) {
 }
 
 export default function Watchlist() {
+  const { t } = useLanguage();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [smtpConfigured, setSmtpConfigured] = useState(false);
   const [target, setTarget] = useState("");
@@ -361,23 +363,22 @@ export default function Watchlist() {
     <div className="page-frame space-y-8">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Analyst</div>
-          <h1 className="page-heading">Watchlist Monitoring</h1>
+          <div className="page-eyebrow">{t("watchlist.eyebrow", "Analyst")}</div>
+          <h1 className="page-heading">{t("watchlist.title", "Watchlist Monitoring")}</h1>
           <p className="page-subheading">
-            Monitore IPs, domínios e hashes conhecidos com mudança de veredito,
-            roteamento de alerta e histórico contínuo da plataforma.
+            {t("watchlist.subtitle", "Monitore IPs, domínios e hashes conhecidos com mudança de veredito, roteamento de alerta e histórico contínuo da plataforma.")}
           </p>
         </div>
       </div>
 
       <div className="page-toolbar">
         <div className="page-toolbar-copy">
-          {selectedIds.length > 0 ? `${selectedIds.length} item(s) selected` : "Watchlist actions"}
+          {selectedIds.length > 0 ? `${selectedIds.length} ${t("watchlist.selectedCount", "item(s) selected")}` : t("watchlist.actions", "Watchlist actions")}
         </div>
         <div className="page-toolbar-actions">
           <button onClick={loadWatchlist} className="btn btn-outline">
             <RefreshCw className="h-4 w-4" />
-            Refresh
+            {t("watchlist.refresh", "Refresh")}
           </button>
           <button
             onClick={() => void runBulkAction("enable_notifications")}
@@ -385,7 +386,7 @@ export default function Watchlist() {
             disabled={!selectedIds.length || busyId === "bulk"}
           >
             <Bell className="h-4 w-4" />
-            Enable alerts
+            {t("watchlist.enableAlerts", "Enable alerts")}
           </button>
           <button
             onClick={() => void runBulkAction("disable_notifications")}
@@ -393,14 +394,14 @@ export default function Watchlist() {
             disabled={!selectedIds.length || busyId === "bulk"}
           >
             <BellOff className="h-4 w-4" />
-            Mute selected
+            {t("watchlist.muteSelected", "Mute selected")}
           </button>
           <button
             onClick={() => void runBulkAction("set_route", "both")}
             className="btn btn-outline"
             disabled={!selectedIds.length || busyId === "bulk"}
           >
-            Route both
+            {t("watchlist.routeBoth", "Route both")}
           </button>
           <button
             onClick={() => void runBulkAction("delete")}
@@ -408,7 +409,7 @@ export default function Watchlist() {
             disabled={!selectedIds.length || busyId === "bulk"}
           >
             <Trash2 className="h-4 w-4" />
-            Remove selected
+            {t("watchlist.removeSelected", "Remove selected")}
           </button>
         </div>
       </div>
@@ -422,12 +423,12 @@ export default function Watchlist() {
 
       <div className="page-with-side-rail">
         <div className="page-main-pane grid grid-cols-12 gap-6">
-          <MetricBlock label="Monitored Assets" value={String(items.length)} accent="border-primary" />
-          <MetricBlock label="High Risk Hits" value={String(highRiskHits)} accent="border-error" />
-          <MetricBlock label="Alert-Ready" value={String(notificationReadyCount)} accent="border-primary-dim" />
+          <MetricBlock label={t("watchlist.monitoredAssets", "Monitored Assets")} value={String(items.length)} accent="border-primary" />
+          <MetricBlock label={t("watchlist.highRiskHits", "High Risk Hits")} value={String(highRiskHits)} accent="border-error" />
+          <MetricBlock label={t("watchlist.alertReady", "Alert-Ready")} value={String(notificationReadyCount)} accent="border-primary-dim" />
           <div className="col-span-12 lg:col-span-3 bg-surface-container-low p-6 flex flex-col justify-between border-b-2 border-outline">
             <div>
-              <span className="text-[10px] font-bold text-outline uppercase tracking-[0.15em]">Route Mix</span>
+              <span className="text-[10px] font-bold text-outline uppercase tracking-[0.15em]">{t("watchlist.routeMix", "Route Mix")}</span>
               <div className="mt-3 space-y-2 text-sm text-on-surface">
                 <div>Email: {routeMix.email}</div>
                 <div>In-App: {routeMix.inApp}</div>
@@ -440,12 +441,12 @@ export default function Watchlist() {
             <div className="surface-section-header">
               <div className="flex gap-8 items-center">
                 <button className="text-xs font-bold text-on-primary-container border-b-2 border-primary-dim pb-1 tracking-wider uppercase">
-                  Active Entries ({items.length})
+                  {t("watchlist.activeEntries", "Active Entries")} ({items.length})
                 </button>
               </div>
               <div className="inline-flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
                 <Activity className="h-4 w-4" />
-                Monitoring linked
+                {t("watchlist.monitoringLinked", "Monitoring linked")}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -459,19 +460,19 @@ export default function Watchlist() {
                         onChange={toggleSelectAll}
                       />
                     </th>
-                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">Type</th>
-                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">Indicator Value</th>
-                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">Last Scan</th>
-                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">Route</th>
-                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">Risk Level</th>
-                    <th className="px-6 py-3 text-right text-[10px] font-bold text-outline uppercase tracking-widest">Actions</th>
+                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.type", "Type")}</th>
+                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.indicatorValue", "Indicator Value")}</th>
+                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.lastScan", "Last Scan")}</th>
+                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.route", "Route")}</th>
+                    <th className="px-6 py-3 text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.riskLevel", "Risk Level")}</th>
+                    <th className="px-6 py-3 text-right text-[10px] font-bold text-outline uppercase tracking-widest">{t("watchlist.actionsColumn", "Actions")}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-outline-variant/5">
                   {loading ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-10 text-sm text-on-surface-variant">
-                        Loading watchlist indicators
+                        {t("watchlist.loadingIndicators", "Loading watchlist indicators")}
                       </td>
                     </tr>
                   ) : items.length === 0 ? (
@@ -482,10 +483,10 @@ export default function Watchlist() {
                             <ShieldAlert className="h-6 w-6 text-outline" />
                           </div>
                           <h3 className="text-sm font-bold text-on-surface mb-2 uppercase tracking-widest">
-                            Awaiting Further Intelligence
+                            {t("watchlist.emptyTitle", "Awaiting Further Intelligence")}
                           </h3>
                           <p className="text-xs text-on-surface-variant leading-relaxed">
-                            Nenhum indicador está sendo monitorado ainda. Adicione IPs, domínios ou hashes para iniciar cobertura contínua.
+                            {t("watchlist.emptyBody", "Nenhum indicador está sendo monitorado ainda. Adicione IPs, domínios ou hashes para iniciar cobertura contínua.")}
                           </p>
                         </div>
                       </td>
@@ -518,19 +519,19 @@ export default function Watchlist() {
                           {formatTimestamp(item.last_scan_at)}
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(item.notification_route)}`}>
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(item.notification_route)}`}>
                             {routeLabel(item.notification_route)}
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(item.last_verdict)}`}>
-                            {item.last_verdict || "Awaiting first scan"}
+                          <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(item.last_verdict)}`}>
+                            {item.last_verdict || t("watchlist.awaitingFirstScan", "Awaiting first scan")}
                           </span>
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex justify-end gap-2">
                             <RowPrimaryAction
-                              label="Scan"
+                              label={t("watchlist.scan", "Scan")}
                               icon={<ScanSearch className="h-3.5 w-3.5" />}
                               onClick={() => void scanItem(item.id)}
                               disabled={busyId === item.id}
@@ -658,10 +659,10 @@ export default function Watchlist() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(selectedItem.last_verdict)}`}>
+                    <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(selectedItem.last_verdict)}`}>
                       {selectedItem.last_verdict || "Awaiting first scan"}
                     </span>
-                    <span className={`rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(selectedItem.notification_route)}`}>
+                    <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(selectedItem.notification_route)}`}>
                       {routeLabel(selectedItem.notification_route)}
                     </span>
                   </div>
@@ -676,7 +677,7 @@ export default function Watchlist() {
                       Historical trend
                     </div>
                     {loadingHistory ? (
-                      <div className="text-sm text-on-surface-variant">Loading trend...</div>
+                      <div className="text-sm text-on-surface-variant">{t("watchlist.loadingTrend", "Loading trend...")}</div>
                     ) : selectedTrend.length === 0 ? (
                       <div className="text-sm text-on-surface-variant">Nenhum histórico disponível ainda.</div>
                     ) : (

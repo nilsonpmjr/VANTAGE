@@ -25,7 +25,7 @@ This keeps the product open and auditable while preserving a clean open-core bou
 
 ### What ships in v1
 
-- analyst workspaces for `Feed`, `CTI News`, `Recon`, `Watchlist`, `Hunting`, `Exposure`, `Dashboard`, `Home`, and single/batch analysis
+- analyst workspaces for `Feed`, `Recon`, `Watchlist`, `Hunting`, `Exposure`, `Dashboard`, `Home`, and single/batch analysis
 - administrative control surfaces for `Extensions`, `Threat Ingestion`, `System Health`, `Users & Roles`, and `Security Policies`
 - auth, `RBAC`, `MFA`, sessions, audit log, API keys, and guided onboarding
 - editorial intelligence ingestion with `RSS`, `MISP`, curated `Fortinet RSS`, and initial `CTI Modeling Readiness`

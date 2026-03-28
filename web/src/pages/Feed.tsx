@@ -79,7 +79,6 @@ export default function Feed() {
   const [items, setItems] = useState<FeedItem[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(Number(searchParams.get("page") || 1));
-  const [view, setView] = useState(searchParams.get("view") || "feed");
   const [severity, setSeverity] = useState(searchParams.get("severity") || "all");
   const [sourceType, setSourceType] = useState(searchParams.get("source_type") || "all");
   const [family, setFamily] = useState(searchParams.get("family") || "all");
@@ -99,7 +98,6 @@ export default function Feed() {
         limit: String(PAGE_SIZE),
         offset: String((targetPage - 1) * PAGE_SIZE),
       });
-      if (view !== "feed") params.set("view", view);
       if (severity !== "all") params.set("severity", severity);
       if (sourceType !== "all") params.set("source_type", sourceType);
       if (family !== "all") params.set("family", family);
@@ -118,7 +116,7 @@ export default function Feed() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [page, severity, sourceType, family, view]);
+  }, [page, severity, sourceType, family]);
 
   useEffect(() => {
     void fetchFeed(page);
@@ -126,24 +124,16 @@ export default function Feed() {
 
   useEffect(() => {
     const nextPage = Number(searchParams.get("page") || 1);
-    const nextView = searchParams.get("view") || "feed";
     const nextSeverity = searchParams.get("severity") || "all";
     const nextSourceType = searchParams.get("source_type") || "all";
     const nextFamily = searchParams.get("family") || "all";
     setPage(Number.isFinite(nextPage) && nextPage > 0 ? nextPage : 1);
-    setView(nextView);
     setSeverity(nextSeverity);
     setSourceType(nextSourceType);
     setFamily(nextFamily);
   }, [searchParams]);
 
   useEffect(() => {
-    if (view !== "news") {
-      setModelingSnapshot(null);
-      setModelingLoading(false);
-      return;
-    }
-
     let active = true;
     async function loadModelingSnapshot() {
       setModelingLoading(true);
@@ -165,12 +155,11 @@ export default function Feed() {
     return () => {
       active = false;
     };
-  }, [view]);
+  }, []);
 
-  function syncSearchParams(nextPage: number, nextView: string, nextSeverity: string, nextSourceType: string, nextFamily: string) {
+  function syncSearchParams(nextPage: number, nextSeverity: string, nextSourceType: string, nextFamily: string) {
     const next = new URLSearchParams();
     if (nextPage > 1) next.set("page", String(nextPage));
-    if (nextView !== "feed") next.set("view", nextView);
     if (nextSeverity !== "all") next.set("severity", nextSeverity);
     if (nextSourceType !== "all") next.set("source_type", nextSourceType);
     if (nextFamily !== "all") next.set("family", nextFamily);
@@ -182,7 +171,6 @@ export default function Feed() {
     [items],
   );
 
-  const criticalCount = useMemo(() => items.filter((item) => item.severity === "critical").length, [items]);
   const linkedCount = useMemo(() => items.filter((item) => item.data?.link).length, [items]);
   const newsworthyCount = useMemo(
     () => items.filter((item) => item.editorial?.is_newsworthy || item.data?.attributes?.editorial?.is_newsworthy).length,
@@ -209,6 +197,7 @@ export default function Feed() {
       page,
       severity,
       source_type: sourceType,
+      family,
       total,
       exported_at: new Date().toISOString(),
       items,
@@ -228,12 +217,10 @@ export default function Feed() {
         <div className="page-header-copy">
           <div className="page-eyebrow">{t("feed.eyebrow", "Threat Feed")}</div>
           <h1 className="mt-4 text-3xl font-extrabold tracking-tighter text-on-surface">
-            {view === "news" ? t("feed.newsTitle", "CTI News Desk") : t("feed.title", "Threat Intelligence Feed")}
+            {t("feed.title", "Threat Intelligence Feed")}
           </h1>
           <p className="page-subheading mt-3">
-            {view === "news"
-              ? t("feed.newsSubtitle", "Prioritize editorial CTI headlines, campaigns, advisories, and incidents already ingested by the platform.")
-              : t("feed.subtitle", "Review recent intelligence already ingested by the platform with severity, source, and publication context.")}
+            {t("feed.subtitle", "Review operational intelligence, editorial signals, and publication context from the sources already ingested by the platform.")}
           </p>
         </div>
       </div>
@@ -253,23 +240,6 @@ export default function Feed() {
             {t("feed.exportReport", "Export Report")}
           </button>
         </div>
-      </div>
-
-      <div className="nav-pills mb-6">
-        <button
-          type="button"
-          onClick={() => syncSearchParams(1, "feed", severity, sourceType, family)}
-          className={`nav-pill-item ${view === "feed" ? "is-active" : ""}`}
-        >
-          {t("feed.viewOperational", "Operational Feed")}
-        </button>
-        <button
-          type="button"
-          onClick={() => syncSearchParams(1, "news", severity, "rss", family)}
-          className={`nav-pill-item ${view === "news" ? "is-active" : ""}`}
-        >
-          {t("feed.viewNews", "CTI News")}
-        </button>
       </div>
 
       <div className="grid grid-cols-12 gap-6 mb-8">
@@ -295,7 +265,7 @@ export default function Feed() {
                 <span className="text-[10px] text-on-surface-variant font-bold uppercase">{t("feed.source", "Source")}</span>
                 <span className="text-sm font-semibold">{featured?.source_name || featured?.source_type || "VANTAGE"}</span>
               </div>
-              {view === "news" && (
+              {(featured?.editorial?.story_kind || featured?.data?.attributes?.editorial?.story_kind) && (
                 <div className="flex flex-col">
                   <span className="text-[10px] text-on-surface-variant font-bold uppercase">{t("feed.storyKind", "Story Kind")}</span>
                   <span className="text-sm font-semibold">
@@ -323,89 +293,87 @@ export default function Feed() {
           </div>
           <div className="flex-1 bg-surface-container-lowest p-4 flex flex-col justify-between shadow-sm rounded-sm">
             <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
-              {view === "news" ? t("feed.newsworthyStories", "Newsworthy Stories") : t("feed.highPriorityLinked", "High Priority Linked Items")}
+              {t("feed.editorialSignals", "Editorial Signals")}
             </span>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black tracking-tighter">{view === "news" ? newsworthyCount : criticalCount}</span>
+              <span className="text-3xl font-black tracking-tighter">{newsworthyCount}</span>
               <span className="text-xs text-error font-bold">{linkedCount} {t("feed.externalRefs", "external refs")}</span>
             </div>
           </div>
-          {view === "news" && (
-            <div className="bg-surface-container-lowest p-4 shadow-sm rounded-sm border-l-4 border-primary">
-              <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
-                {t("feed.modelingTitle", "CTI Modeling")}
-              </span>
-              <h3 className="mt-3 text-lg font-black tracking-tight text-on-surface">
-                {t("feed.modelingObjective", "Story Prioritization Baseline")}
-              </h3>
-              <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">
-                {t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
-              </p>
-              {modelingLoading ? (
-                <div className="mt-4 text-xs text-on-surface-variant">
-                  {t("feed.modelingLoading", "Loading modeling readiness...")}
-                </div>
-              ) : modelingSnapshot ? (
-                <>
-                  <div className="mt-4 grid grid-cols-2 gap-3">
-                    <div className="bg-surface-container-low p-3 rounded-sm">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                        {t("feed.modelingReady", "Ready Items")}
-                      </div>
-                      <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.eligible_items}</div>
-                    </div>
-                    <div className="bg-surface-container-low p-3 rounded-sm">
-                      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                        {t("feed.modelingNewsworthy", "Newsworthy")}
-                      </div>
-                      <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.newsworthy_items}</div>
-                    </div>
-                  </div>
-                  <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                    <div className="bg-surface-container-low p-3 rounded-sm">
-                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingHigh", "High")}</div>
-                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.high}</div>
-                    </div>
-                    <div className="bg-surface-container-low p-3 rounded-sm">
-                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingMedium", "Medium")}</div>
-                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.medium}</div>
-                    </div>
-                    <div className="bg-surface-container-low p-3 rounded-sm">
-                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingLow", "Low")}</div>
-                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.low}</div>
-                    </div>
-                  </div>
-                  <div className="mt-4">
+          <div className="bg-surface-container-lowest p-4 shadow-sm rounded-sm border-l-4 border-primary">
+            <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
+              {t("feed.modelingTitle", "CTI Modeling")}
+            </span>
+            <h3 className="mt-3 text-lg font-black tracking-tight text-on-surface">
+              {t("feed.modelingObjective", "Story Prioritization Baseline")}
+            </h3>
+            <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">
+              {t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
+            </p>
+            {modelingLoading ? (
+              <div className="mt-4 text-xs text-on-surface-variant">
+                {t("feed.modelingLoading", "Loading modeling readiness...")}
+              </div>
+            ) : modelingSnapshot ? (
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <div className="bg-surface-container-low p-3 rounded-sm">
                     <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      {t("feed.modelingTopTopics", "Top Topics")}
+                      {t("feed.modelingReady", "Ready Items")}
                     </div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {modelingSnapshot.topic_distribution.slice(0, 4).map((entry) => (
-                        <span
-                          key={entry.topic}
-                          className="px-2 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded"
-                        >
-                          {entry.topic.toUpperCase()} · {entry.count}
-                        </span>
-                      ))}
-                    </div>
+                    <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.eligible_items}</div>
                   </div>
-                  <div className="mt-4 text-xs text-on-surface-variant leading-relaxed">
-                    <span className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">
-                      {t("feed.modelingFeatures", "Feature Pack")}
-                    </span>
-                    <div className="mt-2">
-                      {modelingSnapshot.feature_columns.join(", ")}
+                  <div className="bg-surface-container-low p-3 rounded-sm">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t("feed.modelingNewsworthy", "Newsworthy")}
                     </div>
+                    <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.newsworthy_items}</div>
                   </div>
-                </>
-              ) : (
-                <div className="mt-4 text-xs text-on-surface-variant">
-                  {t("feed.modelingUnavailable", "Modeling readiness is not available for the current feed window.")}
                 </div>
-              )}
-            </div>
-          )}
+                <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-surface-container-low p-3 rounded-sm">
+                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingHigh", "High")}</div>
+                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.high}</div>
+                  </div>
+                  <div className="bg-surface-container-low p-3 rounded-sm">
+                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingMedium", "Medium")}</div>
+                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.medium}</div>
+                  </div>
+                  <div className="bg-surface-container-low p-3 rounded-sm">
+                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingLow", "Low")}</div>
+                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.low}</div>
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    {t("feed.modelingTopTopics", "Top Topics")}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {modelingSnapshot.topic_distribution.slice(0, 4).map((entry) => (
+                      <span
+                        key={entry.topic}
+                        className="px-2 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded"
+                      >
+                        {entry.topic.toUpperCase()} · {entry.count}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-4 text-xs text-on-surface-variant leading-relaxed">
+                  <span className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">
+                    {t("feed.modelingFeatures", "Feature Pack")}
+                  </span>
+                  <div className="mt-2">
+                    {modelingSnapshot.feature_columns.join(", ")}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 text-xs text-on-surface-variant">
+                {t("feed.modelingUnavailable", "Modeling readiness is not available for the current feed window.")}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -415,7 +383,7 @@ export default function Feed() {
           <select
             value={severity}
             onChange={(e) => {
-              syncSearchParams(1, view, e.target.value, sourceType, family);
+              syncSearchParams(1, e.target.value, sourceType, family);
             }}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
@@ -427,11 +395,10 @@ export default function Feed() {
             <option value="info">Info</option>
           </select>
           <select
-            value={view === "news" ? "rss" : sourceType}
+            value={sourceType}
             onChange={(e) => {
-              syncSearchParams(1, view, severity, e.target.value, family);
+              syncSearchParams(1, severity, e.target.value, family);
             }}
-            disabled={view === "news"}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
             <option value="all">{t("feed.allSources", "All Sources")}</option>
@@ -441,7 +408,7 @@ export default function Feed() {
           <select
             value={family}
             onChange={(e) => {
-              syncSearchParams(1, view, severity, sourceType, e.target.value);
+              syncSearchParams(1, severity, sourceType, e.target.value);
             }}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
@@ -479,7 +446,7 @@ export default function Feed() {
                     <div className="flex flex-col">
                       <span className="text-xs font-bold tracking-tight">{item.source_name || item.source_type || "VANTAGE"}</span>
                       <span className="text-[10px] text-outline uppercase font-semibold">
-                        {view === "news"
+                        {item.editorial?.story_kind || item.data?.attributes?.editorial?.story_kind
                           ? `${t("feed.storyKind", "Story Kind")} / ${storyKindLabel(item.editorial?.story_kind || item.data?.attributes?.editorial?.story_kind).toUpperCase()}`
                           : `Source / ${(item.source_type || "intel").toUpperCase()}`}
                       </span>
@@ -507,10 +474,7 @@ export default function Feed() {
                     </div>
                   </div>
                   <div className="flex gap-1 flex-wrap justify-end">
-                    {(view === "news"
-                      ? (item.editorial?.topics || item.data?.attributes?.editorial?.topics || item.tags || []).slice(0, 3)
-                      : (item.tags || []).slice(0, 3)
-                    ).map((tag) => (
+                    {((item.editorial?.topics || item.data?.attributes?.editorial?.topics || item.tags || []).slice(0, 3)).map((tag) => (
                       <span
                         key={tag}
                         className="px-1.5 py-0.5 bg-surface-container-high text-on-surface-variant text-[9px] font-bold rounded"
@@ -540,7 +504,7 @@ export default function Feed() {
         </span>
         <div className="flex gap-1 items-center">
           <button
-            onClick={() => syncSearchParams(Math.max(1, page - 1), view, severity, sourceType, family)}
+            onClick={() => syncSearchParams(Math.max(1, page - 1), severity, sourceType, family)}
             disabled={page === 1}
             className="p-1 text-outline hover:text-on-surface disabled:opacity-30"
           >
@@ -551,7 +515,7 @@ export default function Feed() {
             return (
               <button
                 key={pageNumber}
-                onClick={() => syncSearchParams(pageNumber, view, severity, sourceType, family)}
+                onClick={() => syncSearchParams(pageNumber, severity, sourceType, family)}
                 className={`p-1 font-medium text-xs px-2 ${pageNumber === page ? "text-on-surface font-bold underline underline-offset-4" : "text-on-surface-variant hover:text-on-surface"}`}
               >
                 {pageNumber}
@@ -559,7 +523,7 @@ export default function Feed() {
             );
           })}
           <button
-            onClick={() => syncSearchParams(Math.min(totalPages, page + 1), view, severity, sourceType, family)}
+            onClick={() => syncSearchParams(Math.min(totalPages, page + 1), severity, sourceType, family)}
             disabled={page === totalPages}
             className="p-1 text-outline hover:text-on-surface disabled:opacity-30"
           >

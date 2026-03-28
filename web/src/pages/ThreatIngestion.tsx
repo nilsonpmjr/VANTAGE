@@ -122,9 +122,13 @@ function statusMeta(source: ThreatSource) {
 
 function protocolLabel(source: ThreatSource) {
   if (source.source_id === "misp_events") return "MISP/API";
-  if ((source.config?.feed_url as string | undefined)?.startsWith("https://")) return "HTTPS/RSS";
-  if ((source.config?.feed_url as string | undefined)?.startsWith("http://")) return "HTTP/RSS";
+  if (getFeedUrl(source)?.startsWith("https://")) return "HTTPS/RSS";
+  if (getFeedUrl(source)?.startsWith("http://")) return "HTTP/RSS";
   return source.source_type.replace(/_/g, "/").toUpperCase();
+}
+
+function getFeedUrl(source: ThreatSource) {
+  return typeof source.config?.feed_url === "string" ? source.config.feed_url : "";
 }
 
 export default function ThreatIngestion() {
@@ -281,6 +285,11 @@ export default function ThreatIngestion() {
   );
   const fortinetActiveCount = useMemo(
     () => fortinetSources.filter((item) => item.enabled).length,
+    [fortinetSources],
+  );
+  const selectedSourceUrl = selectedSource ? getFeedUrl(selectedSource) : "";
+  const fortinetEnabledUrls = useMemo(
+    () => fortinetSources.filter((item) => item.enabled).map((item) => getFeedUrl(item)).filter(Boolean),
     [fortinetSources],
   );
 
@@ -923,6 +932,9 @@ export default function ThreatIngestion() {
                     : "—"
                 }
               />
+              {selectedSourceUrl ? (
+                <SourceUrlMeta label="Feed URL" value={selectedSourceUrl} />
+              ) : null}
               {selectedSource.sync_status?.last_error && (
                 <div className="rounded-sm bg-error/10 px-3 py-2 text-xs text-error">
                   {selectedSource.sync_status.last_error}
@@ -1020,6 +1032,9 @@ export default function ThreatIngestion() {
                 label="Sources"
                 value={fortinetSources.map((item) => item.display_name).join(" • ")}
               />
+              {fortinetEnabledUrls.length > 0 ? (
+                <SourceUrlList label="Enabled Feed URLs" values={fortinetEnabledUrls} />
+              ) : null}
             </div>
           )}
 
@@ -1293,6 +1308,43 @@ function SourceMeta({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between items-center text-xs">
       <span className="text-on-surface-variant">{label}</span>
       <span className="font-mono font-bold text-on-surface">{value}</span>
+    </div>
+  );
+}
+
+function SourceUrlMeta({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="space-y-2 text-xs">
+      <span className="block text-on-surface-variant">{label}</span>
+      <a
+        href={value}
+        target="_blank"
+        rel="noreferrer"
+        className="block break-all rounded-sm bg-surface-container-low px-3 py-2 font-mono text-[11px] font-bold text-primary hover:underline"
+      >
+        {value}
+      </a>
+    </div>
+  );
+}
+
+function SourceUrlList({ label, values }: { label: string; values: string[] }) {
+  return (
+    <div className="space-y-2 text-xs">
+      <span className="block text-on-surface-variant">{label}</span>
+      <div className="space-y-2">
+        {values.map((value) => (
+          <a
+            key={value}
+            href={value}
+            target="_blank"
+            rel="noreferrer"
+            className="block break-all rounded-sm bg-surface-container-low px-3 py-2 font-mono text-[11px] font-bold text-primary hover:underline"
+          >
+            {value}
+          </a>
+        ))}
+      </div>
     </div>
   );
 }

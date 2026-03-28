@@ -139,6 +139,7 @@ export default function ThreatIngestion() {
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [showCustomSourceForm, setShowCustomSourceForm] = useState(false);
   const [editingCustomSourceId, setEditingCustomSourceId] = useState<string | null>(null);
+  const [editingBuiltinSourceId, setEditingBuiltinSourceId] = useState<string | null>(null);
   const [selectedSourceMetrics, setSelectedSourceMetrics] = useState<ThreatSourceMetrics | null>(null);
   const [metricsLoading, setMetricsLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -168,6 +169,7 @@ export default function ThreatIngestion() {
     family: "custom",
     poll_interval_minutes: "60",
     default_tlp: "white",
+    severity_floor: "",
   });
 
   async function loadRuntime() {
@@ -414,6 +416,7 @@ export default function ThreatIngestion() {
         family: "custom",
         poll_interval_minutes: "60",
         default_tlp: "white",
+        severity_floor: "",
       });
       setShowCustomSourceForm(false);
       await loadRuntime();
@@ -431,8 +434,10 @@ export default function ThreatIngestion() {
       family: "custom",
       poll_interval_minutes: "60",
       default_tlp: "white",
+      severity_floor: "",
     });
     setEditingCustomSourceId(null);
+    setEditingBuiltinSourceId(null);
   }
 
   function openCreateCustomSourceForm() {
@@ -441,6 +446,7 @@ export default function ThreatIngestion() {
   }
 
   function openEditCustomSourceForm(source: ThreatSource) {
+    setEditingBuiltinSourceId(null);
     setEditingCustomSourceId(source.source_id);
     setCustomSourceDraft({
       title: source.display_name || "",
@@ -448,6 +454,22 @@ export default function ThreatIngestion() {
       family: source.family || "custom",
       poll_interval_minutes: String(source.config?.poll_interval_minutes || 60),
       default_tlp: String(source.config?.default_tlp || "white"),
+      severity_floor: "",
+    });
+    setSelectedSourceId(source.source_id);
+    setShowCustomSourceForm(true);
+  }
+
+  function openEditBuiltinSourceForm(source: ThreatSource) {
+    setEditingCustomSourceId(null);
+    setEditingBuiltinSourceId(source.source_id);
+    setCustomSourceDraft({
+      title: source.display_name || "",
+      feed_url: String(source.config?.feed_url || ""),
+      family: source.family || "custom",
+      poll_interval_minutes: String(source.config?.poll_interval_minutes || 60),
+      default_tlp: "white",
+      severity_floor: String(source.config?.severity_floor || ""),
     });
     setSelectedSourceId(source.source_id);
     setShowCustomSourceForm(true);
@@ -477,6 +499,38 @@ export default function ThreatIngestion() {
       await loadRuntime();
     } catch {
       setError("Falha ao atualizar a fonte manual.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function updateExistingBuiltinSource(sourceId: string) {
+    setBusy(sourceId);
+    setError("");
+    setNotice("");
+    try {
+      const payload: Record<string, unknown> = {
+        display_name: customSourceDraft.title,
+        feed_url: customSourceDraft.feed_url,
+        poll_interval_minutes: Number(customSourceDraft.poll_interval_minutes),
+      };
+      if (sourceId === "cve_recent") {
+        payload.severity_floor = customSourceDraft.severity_floor || "";
+      }
+
+      const response = await fetch(`${API_URL}/api/admin/threat-sources/${sourceId}/config`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("builtin_source_update_failed");
+      setNotice("Threat source updated.");
+      resetCustomSourceDraft();
+      setShowCustomSourceForm(false);
+      await loadRuntime();
+    } catch {
+      setError("Falha ao atualizar a fonte nativa.");
     } finally {
       setBusy("");
     }
@@ -653,7 +707,7 @@ export default function ThreatIngestion() {
                     sources.map((source) => {
                       const meta = statusMeta(source);
                       const sourceIdentifier =
-                        (source.config?.feed_url as string | undefined) ||
+                        getFeedUrl(source) ||
                         source.display_name ||
                         source.source_id;
                       const isSelected = selectedSourceId === source.source_id;
@@ -707,7 +761,10 @@ export default function ThreatIngestion() {
                                   source,
                                   onInspect: () => setSelectedSourceId(source.source_id),
                                   onSync: () => void syncSourceNow(source),
-                                  onEdit: () => openEditCustomSourceForm(source),
+                                  onEdit: () =>
+                                    source.source_id.startsWith("custom_")
+                                      ? openEditCustomSourceForm(source)
+                                      : openEditBuiltinSourceForm(source),
                                   onToggle: () =>
                                     source.source_id.startsWith("custom_")
                                       ? void toggleCustomSourceEnabled(source)
@@ -1010,6 +1067,15 @@ export default function ThreatIngestion() {
                   </button>
                 </div>
               )}
+              {!selectedSource.source_id.startsWith("custom_") && selectedSource.source_type === "rss" && (
+                <button
+                  onClick={() => openEditBuiltinSourceForm(selectedSource)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-bold uppercase tracking-widest rounded-sm"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit Source
+                </button>
+              )}
             </div>
           )}
 
@@ -1109,10 +1175,16 @@ export default function ThreatIngestion() {
                 <Radar className="h-5 w-5 text-primary" />
                 <div>
                   <h2 className="text-sm font-bold tracking-tight text-on-surface">
-                    {editingCustomSourceId ? "Edit Manual Source" : "Provision Manual Source"}
+                    {editingBuiltinSourceId
+                      ? "Edit Threat Source"
+                      : editingCustomSourceId
+                        ? "Edit Manual Source"
+                        : "Provision Manual Source"}
                   </h2>
                   <p className="mt-1 text-[11px] uppercase tracking-widest text-on-surface-variant">
-                    Feed identity, cadence and trust posture
+                    {editingBuiltinSourceId
+                      ? "Feed endpoint, cadence and operational trust posture"
+                      : "Feed identity, cadence and trust posture"}
                   </p>
                 </div>
               </div>
@@ -1136,13 +1208,23 @@ export default function ThreatIngestion() {
                   placeholder="Partner CTI Feed"
                 />
               </FormField>
-              <FormField label="Family">
-                <input
-                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                  value={customSourceDraft.family}
-                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, family: event.target.value }))}
-                />
-              </FormField>
+              {!editingBuiltinSourceId ? (
+                <FormField label="Family">
+                  <input
+                    className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                    value={customSourceDraft.family}
+                    onChange={(event) => setCustomSourceDraft((current) => ({ ...current, family: event.target.value }))}
+                  />
+                </FormField>
+              ) : (
+                <FormField label="Family">
+                  <input
+                    className="w-full bg-surface-container-highest border-b-2 border-outline px-4 py-2.5 text-sm font-medium text-on-surface-variant outline-none"
+                    value={customSourceDraft.family}
+                    readOnly
+                  />
+                </FormField>
+              )}
               <FormField label="Feed URL">
                 <input
                   className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
@@ -1158,21 +1240,43 @@ export default function ThreatIngestion() {
                   onChange={(event) => setCustomSourceDraft((current) => ({ ...current, poll_interval_minutes: event.target.value }))}
                 />
               </FormField>
-              <FormField label="Default TLP">
-                <select
-                  className="w-full appearance-none bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
-                  value={customSourceDraft.default_tlp}
-                  onChange={(event) => setCustomSourceDraft((current) => ({ ...current, default_tlp: event.target.value }))}
-                >
-                  <option value="white">White</option>
-                  <option value="green">Green</option>
-                  <option value="amber">Amber</option>
-                  <option value="red">Red</option>
-                </select>
-              </FormField>
+              {editingBuiltinSourceId === "cve_recent" ? (
+                <FormField label="Severity Floor">
+                  <select
+                    className="w-full appearance-none bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                    value={customSourceDraft.severity_floor}
+                    onChange={(event) => setCustomSourceDraft((current) => ({ ...current, severity_floor: event.target.value }))}
+                  >
+                    <option value="">No floor</option>
+                    <option value="critical">Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                    <option value="info">Info</option>
+                  </select>
+                </FormField>
+              ) : !editingBuiltinSourceId ? (
+                <FormField label="Default TLP">
+                  <select
+                    className="w-full appearance-none bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                    value={customSourceDraft.default_tlp}
+                    onChange={(event) => setCustomSourceDraft((current) => ({ ...current, default_tlp: event.target.value }))}
+                  >
+                    <option value="white">White</option>
+                    <option value="green">Green</option>
+                    <option value="amber">Amber</option>
+                    <option value="red">Red</option>
+                  </select>
+                </FormField>
+              ) : (
+                <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
+                  Core sources keep their vendor/channel identity. This modal is only for endpoint and cadence updates.
+                </div>
+              )}
               <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 text-sm text-on-surface-variant">
-                Manual sources follow the same operational lane as native feeds. Save the source here and keep the
-                selected-row context in the right rail for sync telemetry and quick actions.
+                {editingBuiltinSourceId
+                  ? "Built-in sources follow the same operational lane as the rest of the runtime, but keep their source identity fixed."
+                  : "Manual sources follow the same operational lane as native feeds. Save the source here and keep the selected-row context in the right rail for sync telemetry and quick actions."}
               </div>
             </div>
             <div className="flex justify-end gap-3 px-6 pb-6">
@@ -1190,17 +1294,27 @@ export default function ThreatIngestion() {
                 type="button"
                 onClick={() =>
                   void (
-                    editingCustomSourceId
+                    editingBuiltinSourceId
+                      ? updateExistingBuiltinSource(editingBuiltinSourceId)
+                      : editingCustomSourceId
                       ? updateExistingCustomSource(editingCustomSourceId)
                       : createCustomSource()
                   )
                 }
-                disabled={busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)}
+                disabled={
+                  busy === "custom" ||
+                  Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
+                  Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
+                }
                 className="btn btn-primary"
               >
-                {busy === "custom" || Boolean(editingCustomSourceId && busy === editingCustomSourceId)
+                {busy === "custom" ||
+                Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
+                Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
                   ? "Saving..."
-                  : editingCustomSourceId
+                  : editingBuiltinSourceId
+                    ? "Update Source"
+                    : editingCustomSourceId
                     ? "Update Source"
                     : "Create Source"}
               </button>
@@ -1252,7 +1366,7 @@ function buildThreatSourceActions({
           } satisfies RowActionItem,
         ]
       : []),
-    ...(source.source_id.startsWith("custom_")
+    ...(source.source_type === "rss"
       ? [
           {
             key: "edit",
@@ -1260,6 +1374,10 @@ function buildThreatSourceActions({
             icon: <Pencil className="h-3.5 w-3.5" />,
             onSelect: onEdit,
           } satisfies RowActionItem,
+        ]
+      : []),
+    ...(source.source_id.startsWith("custom_")
+      ? [
           {
             key: "toggle",
             label: source.enabled ? "Pause source" : "Resume source",

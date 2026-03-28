@@ -4,10 +4,6 @@ import {
   Camera,
   History,
   ShieldCheck,
-  Mail,
-  Shield,
-  Globe,
-  Bell,
   Key,
   Monitor,
   Smartphone,
@@ -259,6 +255,42 @@ export default function Profile() {
   }, [apiKeys]);
 
   const currentSession = sessions.find((item) => item.is_current);
+  const profileSectionMeta = useMemo(() => {
+    if (activeTab === "preferences") {
+      return {
+        eyebrow: "Operator Profile",
+        title: "Regional Preferences & Security",
+        subheading:
+          "Adjust language, notifications, password posture, and active session controls without fragmenting the operator workflow.",
+        toolbarLabel: "Preference actions",
+      };
+    }
+    if (activeTab === "external_api_keys") {
+      return {
+        eyebrow: "Operator Profile",
+        title: "Platform & Provider Credentials",
+        subheading:
+          "Manage VANTAGE keys and external provider credentials from a single operator-scoped security surface.",
+        toolbarLabel: "Credential actions",
+      };
+    }
+    if (activeTab === "audit_logs") {
+      return {
+        eyebrow: "Operator Profile",
+        title: "Audit Registry",
+        subheading:
+          "Review your security-relevant activity, export evidence, and keep operational traceability close to the profile itself.",
+        toolbarLabel: "Audit actions",
+      };
+    }
+    return {
+      eyebrow: "Operator Profile",
+      title: "Personal Identity Settings",
+      subheading:
+        "Manage your administrative identity, recovery channels, and operator-facing profile data from a single control surface.",
+      toolbarLabel: "Profile actions",
+    };
+  }, [activeTab]);
 
   const avatarSrc =
     user?.avatar_base64 ||
@@ -566,19 +598,17 @@ export default function Profile() {
   }
 
   return (
-    <div className="page-frame max-w-5xl">
+    <div className="page-frame">
       <div className="page-header">
         <div className="page-header-copy">
-          <div className="page-eyebrow">Operator Profile</div>
-          <h1 className="page-heading">Personal Identity Settings</h1>
-          <p className="page-subheading">
-            Manage your administrative credentials, visual identity, and communication protocols.
-          </p>
+          <div className="page-eyebrow">{profileSectionMeta.eyebrow}</div>
+          <h1 className="page-heading">{profileSectionMeta.title}</h1>
+          <p className="page-subheading">{profileSectionMeta.subheading}</p>
         </div>
       </div>
 
       <div className="page-toolbar mb-8">
-        <div className="page-toolbar-copy">Profile actions</div>
+        <div className="page-toolbar-copy">{profileSectionMeta.toolbarLabel}</div>
         <div className="page-toolbar-actions">
           <button className="btn btn-outline" onClick={refreshRuntime}>
             <RefreshCw className="w-4 h-4" />
@@ -600,8 +630,8 @@ export default function Profile() {
         </div>
       )}
 
-      <div className="profile-shell">
-        <aside className="profile-rail">
+      <div className="page-with-side-rail">
+        <aside className="page-side-rail-right">
           <div className="card overflow-hidden">
             <div className="h-24 bg-primary relative">
               <div
@@ -662,41 +692,9 @@ export default function Profile() {
           <section className="surface-section overflow-hidden">
             <div className="surface-section-header">
               <div>
-                <h3 className="surface-section-title">Profile Navigation</h3>
+                <h3 className="surface-section-title">Section Context</h3>
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
-                  Identity, preferences and operator audit context
-                </p>
-              </div>
-            </div>
-            <div className="p-2">
-              {[
-                { id: "identity", label: t("profile.tabs.identity", "Identity"), icon: Shield },
-                { id: "preferences", label: t("profile.tabs.preferences", "Preferences"), icon: Bell },
-                { id: "external_api_keys", label: t("profile.tabs.externalApiKeys", "External API Keys"), icon: Key },
-                { id: "audit_logs", label: t("profile.tabs.auditLogs", "Audit Logs"), icon: History },
-              ].map(({ id, label, icon }) => (
-                <div key={id}>
-                  <ContextPill
-                    active={activeTab === id}
-                    icon={icon}
-                    label={label}
-                    onClick={() => {
-                      const nextTab = id as ProfileTab;
-                      setActiveTab(nextTab);
-                      setSearchParams(nextTab === "identity" ? {} : { tab: nextTab }, { replace: true });
-                    }}
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="surface-section overflow-hidden">
-            <div className="surface-section-header">
-              <div>
-                <h3 className="surface-section-title">Active Context</h3>
-                <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
-                  Context follows the current profile section
+                  Navigation now lives in the fixed sidebar shell
                 </p>
               </div>
             </div>
@@ -730,7 +728,7 @@ export default function Profile() {
           </section>
         </aside>
 
-        <div className="profile-main">
+        <div className="page-main-pane">
           {loading ? (
             <div className="card p-8 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
               Loading profile
@@ -1538,33 +1536,6 @@ export default function Profile() {
         </div>
       </div>
     </div>
-  );
-}
-
-function ContextPill({
-  icon: Icon,
-  label,
-  active = false,
-  onClick,
-}: {
-  icon: typeof Shield;
-  label: string;
-  active?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3 font-semibold text-xs rounded transition-all ${
-        active
-          ? "bg-primary/10 text-primary font-bold"
-          : "text-on-surface-variant hover:bg-surface-container-low"
-      }`}
-    >
-      <Icon className="w-4 h-4" />
-      {label}
-    </button>
   );
 }
 

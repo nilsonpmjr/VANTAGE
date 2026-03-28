@@ -47,7 +47,8 @@ async def test_public_threat_sources_return_catalog_defaults(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_update_threat_source_persists_override(fake_db):
+async def test_update_threat_source_persists_override(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
     source = await update_threat_source(
         fake_db,
         "cve_recent",

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Outlet, NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
@@ -17,6 +17,8 @@ import {
   Activity,
   LogOut,
   Menu,
+  ChevronLeft,
+  Key,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -31,7 +33,7 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const navItems = [
+const rootNavItems = [
   { path: "/", labelKey: "layout.nav.home", fallback: "Home", icon: Home },
   { path: "/feed", labelKey: "layout.nav.feed", fallback: "Feed", icon: Rss },
   { path: "/recon", labelKey: "layout.nav.recon", fallback: "Recon", icon: Radar },
@@ -57,13 +59,110 @@ export default function Layout() {
   const canAccessSettings = canAccessPath(user, "/settings");
   const apiKeyToastDismissKey = `vantage.api-keys-toast.dismissed.${user?.username || "anon"}`;
   const languageLabel = language === "en" ? "EN" : language === "es" ? "ES" : "PT";
+  const lastRootPathKey = "vantage.sidebar.last-root-path";
+  const isSettingsContext = location.pathname.startsWith("/settings");
+  const isProfileContext = location.pathname === "/profile";
+  const profileTab = useMemo(() => {
+    const currentTab = new URLSearchParams(location.search).get("tab");
+    if (
+      currentTab === "preferences" ||
+      currentTab === "external_api_keys" ||
+      currentTab === "audit_logs"
+    ) {
+      return currentTab;
+    }
+    return "identity";
+  }, [location.search]);
 
-  const visibleNavItems = navItems.filter((item) => {
+  const visibleNavItems = rootNavItems.filter((item) => {
     if ((item.path === "/hunting" || item.path === "/exposure") && user?.role === "tech") {
       return true;
     }
     return true;
   });
+
+  const settingsNavItems = useMemo(
+    () => [
+      {
+        path: "/settings/patterns",
+        label: t("settings.patterns", "Operational Patterns"),
+        icon: Activity,
+      },
+      {
+        path: "/settings/extensions",
+        label: t("settings.extensions", "Extensions Catalog"),
+        icon: Settings,
+      },
+      {
+        path: "/settings/threat-ingestion",
+        label: t("settings.threatIngestion", "Threat Ingestion & SMTP"),
+        icon: Rss,
+      },
+      {
+        path: "/settings/system-health",
+        label: t("settings.systemHealth", "System Health"),
+        icon: Activity,
+      },
+      {
+        path: "/settings/users-roles",
+        label: t("settings.usersRoles", "Users & Roles"),
+        icon: User,
+      },
+      {
+        path: "/settings/security-policies",
+        label: t("settings.securityPolicies", "Security Policies"),
+        icon: ShieldAlert,
+      },
+    ],
+    [t],
+  );
+
+  const profileNavItems = useMemo(
+    () => [
+      {
+        path: "/profile",
+        label: t("profile.tabs.identity", "Identity"),
+        icon: User,
+        active: profileTab === "identity",
+      },
+      {
+        path: "/profile?tab=preferences",
+        label: t("profile.tabs.preferences", "Preferences"),
+        icon: Bell,
+        active: profileTab === "preferences",
+      },
+      {
+        path: "/profile?tab=external_api_keys",
+        label: t("profile.tabs.externalApiKeys", "External API Keys"),
+        icon: Key,
+        active: profileTab === "external_api_keys",
+      },
+      {
+        path: "/profile?tab=audit_logs",
+        label: t("profile.tabs.auditLogs", "Audit Logs"),
+        icon: History,
+        active: profileTab === "audit_logs",
+      },
+    ],
+    [profileTab, t],
+  );
+
+  const contextualNav = isSettingsContext
+    ? {
+        title: t("layout.nav.settings", "Settings"),
+        items: settingsNavItems.map((item) => ({
+          ...item,
+          active: location.pathname === item.path,
+        })),
+      }
+    : isProfileContext
+      ? {
+          title: t("layout.topbar.profile", "Profile"),
+          items: profileNavItems,
+        }
+      : null;
+  const contextualBackPath = sessionStorage.getItem(lastRootPathKey) || "/";
+  const topbarSectionLabel = contextualNav?.title || t("layout.topbar.analyst", "Analyst");
 
   const handleHistoryClick = () => {
     const lastSearch = localStorage.getItem("lastSearch");
@@ -100,6 +199,13 @@ export default function Layout() {
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
   }, []);
+
+  useEffect(() => {
+    if (isSettingsContext || isProfileContext) {
+      return;
+    }
+    sessionStorage.setItem(lastRootPathKey, `${location.pathname}${location.search}`);
+  }, [isProfileContext, isSettingsContext, lastRootPathKey, location.pathname, location.search]);
 
   useEffect(() => {
     if (!user) return;
@@ -157,49 +263,99 @@ export default function Layout() {
         </div>
 
         <nav className="flex-1 px-3 space-y-1 overflow-y-auto overflow-x-hidden">
-          {visibleNavItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                title={isSidebarCollapsed ? t(item.labelKey, item.fallback) : undefined}
+          {contextualNav ? (
+            <>
+              <button
+                type="button"
+                title={isSidebarCollapsed ? t("layout.context.back", "Back to workspace") : undefined}
+                onClick={() => navigate(contextualBackPath)}
                 className={cn(
-                  "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
-                  isActive
-                    ? "bg-primary/10 text-white border-l-4 border-primary"
-                    : "text-outline hover:text-white hover:bg-white/5 border-l-4 border-transparent",
-                  isSidebarCollapsed ? "justify-center px-0" : "px-4"
+                  "flex w-full items-center gap-3 py-3 text-sm font-medium text-outline transition-colors rounded-sm hover:text-white hover:bg-white/5 border-l-4 border-transparent",
+                  isSidebarCollapsed ? "justify-center px-0" : "px-4",
                 )}
               >
-                <item.icon className="w-4 h-4 shrink-0" />
-                {!isSidebarCollapsed && <span className="whitespace-nowrap">{t(item.labelKey, item.fallback)}</span>}
-              </NavLink>
-            );
-          })}
+                <ChevronLeft className="w-4 h-4 shrink-0" />
+                {!isSidebarCollapsed && (
+                  <span className="whitespace-nowrap">
+                    {t("layout.context.back", "Back to workspace")}
+                  </span>
+                )}
+              </button>
 
-          {!isSidebarCollapsed ? (
-            <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-outline uppercase tracking-widest whitespace-nowrap">
-              {t("layout.sections.administration", "Administration")}
-            </div>
-          ) : (
-            <div className="pt-4 pb-2 border-t border-white/5 mt-4"></div>
-          )}
-          {canAccessSettings && (
-            <NavLink
-              to="/settings"
-              title={isSidebarCollapsed ? t("layout.nav.settings", "Settings") : undefined}
-              className={cn(
-                "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
-                location.pathname.startsWith("/settings")
-                  ? "bg-primary/10 text-white border-l-4 border-primary"
-                  : "text-outline hover:text-white hover:bg-white/5 border-l-4 border-transparent",
-                isSidebarCollapsed ? "justify-center px-0" : "px-4"
+              {!isSidebarCollapsed ? (
+                <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-outline uppercase tracking-widest whitespace-nowrap border-t border-white/5 mt-4">
+                  {contextualNav.title}
+                </div>
+              ) : (
+                <div className="pt-4 pb-2 border-t border-white/5 mt-4"></div>
               )}
-            >
-              <Settings className="w-4 h-4 shrink-0" />
-              {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.nav.settings", "Settings")}</span>}
-            </NavLink>
+
+              {contextualNav.items.map((item) => (
+                <button
+                  key={item.path}
+                  type="button"
+                  title={isSidebarCollapsed ? item.label : undefined}
+                  onClick={() => navigate(item.path)}
+                  className={cn(
+                    "flex w-full items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
+                    item.active
+                      ? "bg-primary/10 text-white border-l-4 border-primary"
+                      : "text-outline hover:text-white hover:bg-white/5 border-l-4 border-transparent",
+                    isSidebarCollapsed ? "justify-center px-0" : "px-4",
+                  )}
+                >
+                  <item.icon className="w-4 h-4 shrink-0" />
+                  {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              {visibleNavItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    title={isSidebarCollapsed ? t(item.labelKey, item.fallback) : undefined}
+                    className={cn(
+                      "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
+                      isActive
+                        ? "bg-primary/10 text-white border-l-4 border-primary"
+                        : "text-outline hover:text-white hover:bg-white/5 border-l-4 border-transparent",
+                      isSidebarCollapsed ? "justify-center px-0" : "px-4"
+                    )}
+                  >
+                    <item.icon className="w-4 h-4 shrink-0" />
+                    {!isSidebarCollapsed && <span className="whitespace-nowrap">{t(item.labelKey, item.fallback)}</span>}
+                  </NavLink>
+                );
+              })}
+
+              {!isSidebarCollapsed ? (
+                <div className="pt-4 pb-2 px-4 text-[10px] font-bold text-outline uppercase tracking-widest whitespace-nowrap">
+                  {t("layout.sections.administration", "Administration")}
+                </div>
+              ) : (
+                <div className="pt-4 pb-2 border-t border-white/5 mt-4"></div>
+              )}
+              {canAccessSettings && (
+                <NavLink
+                  to="/settings"
+                  title={isSidebarCollapsed ? t("layout.nav.settings", "Settings") : undefined}
+                  className={cn(
+                    "flex items-center gap-3 py-3 text-sm font-medium transition-colors rounded-sm",
+                    location.pathname.startsWith("/settings")
+                      ? "bg-primary/10 text-white border-l-4 border-primary"
+                      : "text-outline hover:text-white hover:bg-white/5 border-l-4 border-transparent",
+                    isSidebarCollapsed ? "justify-center px-0" : "px-4"
+                  )}
+                >
+                  <Settings className="w-4 h-4 shrink-0" />
+                  {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.nav.settings", "Settings")}</span>}
+                </NavLink>
+              )}
+            </>
           )}
         </nav>
 
@@ -230,7 +386,7 @@ export default function Layout() {
             </button>
             <div className="flex items-center gap-2 text-on-surface-variant uppercase tracking-widest text-[10px] font-bold">
               <Activity className="w-3 h-3" />
-              {t("layout.topbar.analyst", "Analyst")}
+              {topbarSectionLabel}
             </div>
           </div>
           <div className="flex items-center gap-6">

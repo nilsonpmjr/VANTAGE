@@ -277,7 +277,7 @@
   }
 
   .page-main-pane {
-    @apply min-w-0;
+    @apply order-1 min-w-0;
   }
 
   .page-side-rail {
@@ -285,23 +285,11 @@
   }
 
   .page-side-rail-right {
-    @apply flex min-w-0 flex-col gap-6;
+    @apply order-2 flex min-w-0 flex-col gap-6;
   }
 
   .page-side-rail-left {
     @apply flex min-w-0 flex-col gap-6;
-  }
-
-  .profile-shell {
-    @apply grid grid-cols-1 gap-6 items-start;
-  }
-
-  .profile-rail {
-    @apply flex min-w-0 flex-col gap-6;
-  }
-
-  .profile-main {
-    @apply min-w-0 space-y-6;
   }
 
   .modal-surface {
@@ -344,15 +332,6 @@
       grid-column: 1;
     }
 
-    .profile-shell {
-      grid-template-columns: 240px minmax(0, 1fr);
-    }
-
-    .profile-rail {
-      position: sticky;
-      top: 1.5rem;
-      align-self: start;
-    }
   }
 
 }

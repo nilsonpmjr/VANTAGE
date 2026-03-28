@@ -658,6 +658,13 @@ class CustomSourceUpdate(BaseModel):
     default_tlp: Optional[str] = Field(None, max_length=10)
 
 
+class BuiltinThreatSourceUpdate(BaseModel):
+    display_name: Optional[str] = Field(None, max_length=200)
+    feed_url: Optional[str] = None
+    poll_interval_minutes: Optional[int] = Field(None, ge=1, le=1440)
+    severity_floor: Optional[str] = Field(None, max_length=10)
+
+
 @router.get("/operational-config/smtp")
 async def read_smtp_operational_config(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
@@ -849,6 +856,62 @@ async def restart_service(
 async def read_threat_sources(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     return {"sources": await get_public_threat_sources(db)}
+
+
+@router.put("/threat-sources/{source_id}/config")
+async def update_builtin_threat_source(
+    source_id: str,
+    request: Request,
+    body: BuiltinThreatSourceUpdate,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    if source_id == "misp_events":
+        raise HTTPException(status_code=400, detail="MISP uses a dedicated configuration endpoint.")
+    if source_id.startswith(CUSTOM_PREFIX):
+        raise HTTPException(status_code=400, detail="Custom sources use the custom source update endpoint.")
+
+    body_data = body.model_dump(exclude_none=True)
+    patch: dict = {}
+    config_patch: dict = {}
+
+    if "display_name" in body_data:
+        patch["display_name"] = body_data["display_name"]
+    if "feed_url" in body_data:
+        config_patch["feed_url"] = body_data["feed_url"]
+    if "poll_interval_minutes" in body_data:
+        config_patch["poll_interval_minutes"] = body_data["poll_interval_minutes"]
+    if "severity_floor" in body_data:
+        config_patch["severity_floor"] = body_data["severity_floor"]
+    if config_patch:
+        patch["config"] = config_patch
+
+    if not patch:
+        raise HTTPException(status_code=400, detail="No fields provided.")
+
+    try:
+        await update_threat_source(
+            db,
+            source_id,
+            patch,
+            updated_by=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="threat_source_updated",
+        target=source_id,
+        ip=ip,
+        result="success",
+        detail=f"fields={','.join(sorted(body_data.keys()))}",
+    )
+    return await get_public_threat_source(db, source_id)
 
 
 async def _update_source_enabled_state(db, source_id: str, enabled: bool, updated_by: str) -> dict:

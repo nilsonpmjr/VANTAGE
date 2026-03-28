@@ -58,7 +58,8 @@ async def test_threat_source_metrics_returns_recent_history(async_client, auth_h
 
 
 @pytest.mark.asyncio
-async def test_custom_threat_source_update_returns_serializable_payload(async_client, auth_headers):
+async def test_custom_threat_source_update_returns_serializable_payload(async_client, auth_headers, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
     created = await async_client.post(
         "/api/admin/threat-sources/custom",
         headers=auth_headers,
@@ -86,4 +87,29 @@ async def test_custom_threat_source_update_returns_serializable_payload(async_cl
     assert body["display_name"] == "Mutation Smoke Feed Disabled"
     assert "_id" not in body
     assert body["origin"] == "manual"
+    assert "sync_status" in body
+
+
+@pytest.mark.asyncio
+async def test_builtin_threat_source_update_returns_serializable_payload(async_client, auth_headers, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
+    updated = await async_client.put(
+        "/api/admin/threat-sources/cve_recent/config",
+        headers=auth_headers,
+        json={
+            "display_name": "CVE Priority Feed",
+            "feed_url": "https://example.com/cve/rss.xml",
+            "poll_interval_minutes": 45,
+            "severity_floor": "high",
+        },
+    )
+
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["source_id"] == "cve_recent"
+    assert body["display_name"] == "CVE Priority Feed"
+    assert body["config"]["feed_url"] == "https://example.com/cve/rss.xml"
+    assert body["config"]["poll_interval_minutes"] == 45
+    assert body["config"]["severity_floor"] == "high"
+    assert "_id" not in body
     assert "sync_status" in body

@@ -140,6 +140,52 @@ def _normalize_source_patch(patch: dict) -> dict:
     return normalized
 
 
+def _normalize_builtin_source_config_patch(source_id: str, config_patch: dict) -> dict:
+    if source_id not in SOURCE_CATALOG:
+        raise ValueError(f"Unknown threat ingestion source: {source_id}")
+    if source_id == MISP_SOURCE_ID:
+        raise ValueError("MISP source uses a dedicated configuration flow.")
+    if not isinstance(config_patch, dict):
+        raise ValueError("config must be an object.")
+
+    spec = SOURCE_CATALOG[source_id]
+    source_type = spec["source_type"]
+    allowed_fields: set[str] = set()
+    normalized: dict = {}
+
+    if source_type == "rss":
+        allowed_fields = {"feed_url", "poll_interval_minutes"}
+        if source_id == "cve_recent":
+            allowed_fields.add("severity_floor")
+
+        unknown = set(config_patch) - allowed_fields
+        if unknown:
+            raise ValueError(f"Unknown threat ingestion config fields: {', '.join(sorted(unknown))}")
+
+        if "feed_url" in config_patch:
+            feed_url = str(config_patch["feed_url"] or "").strip()
+            normalized["feed_url"] = _validate_feed_url(feed_url) if feed_url else ""
+
+        if "poll_interval_minutes" in config_patch:
+            try:
+                interval = int(config_patch["poll_interval_minutes"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("poll_interval_minutes must be an integer.") from exc
+            if interval < 1 or interval > 1440:
+                raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+            normalized["poll_interval_minutes"] = interval
+
+        if "severity_floor" in config_patch:
+            floor = str(config_patch["severity_floor"] or "").strip().lower()
+            if floor not in {"", "info", "low", "medium", "high", "critical"}:
+                raise ValueError("severity_floor must be one of: critical, high, medium, low, info, or empty.")
+            normalized["severity_floor"] = floor
+
+        return normalized
+
+    raise ValueError("Only RSS threat sources support this configuration flow.")
+
+
 def _normalize_misp_url(value: str) -> str:
     normalized = str(value or "").strip().rstrip("/")
     if not normalized:
@@ -286,7 +332,7 @@ async def update_threat_source(db, source_id: str, patch: dict, updated_by: str 
         current["display_name"] = normalized["display_name"]
     if "config" in normalized:
         current.setdefault("config", {})
-        current["config"].update(normalized["config"])
+        current["config"].update(_normalize_builtin_source_config_patch(source_id, normalized["config"]))
 
     next_doc["sources"][source_id] = current
     next_doc["updated_at"] = _now()

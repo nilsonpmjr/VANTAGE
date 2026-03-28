@@ -228,8 +228,8 @@
     @apply inline-flex h-8 w-8 items-center justify-center rounded-sm border border-outline-variant/20 bg-surface-container-low text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface;
   }
 
-  .row-actions-menu {
-    @apply absolute right-0 top-[calc(100%+0.375rem)] z-20 min-w-52 rounded-sm border border-outline-variant/20 bg-surface-container-lowest p-1 shadow-lg;
+  .row-actions-menu-floating {
+    @apply fixed z-[90] min-w-52 rounded-sm border border-outline-variant/20 bg-surface-container-lowest p-1 shadow-lg;
   }
 
   .row-actions-divider {

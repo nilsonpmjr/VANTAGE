@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Trash2,
   Eye,
+  X,
 } from "lucide-react";
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
@@ -71,6 +72,13 @@ const THIRD_PARTY_SERVICES = [
   { id: "urlscan", label: "URLScan", icon: "travel_explore", note: "Web capture and rendered-page intelligence for suspect URLs." },
   { id: "abuseipdb", label: "AbuseIPDB", icon: "gpp_bad", note: "Reputation and abuse confidence scoring for IP infrastructure." },
 ];
+
+const API_KEY_SCOPE_OPTIONS = [
+  { id: "analyze", label: "Analyze" },
+  { id: "recon", label: "Recon" },
+  { id: "batch", label: "Batch" },
+  { id: "stats", label: "Stats" },
+] as const;
 
 function formatTimestamp(value?: string | null) {
   if (!value) return "—";
@@ -128,6 +136,8 @@ export default function Profile() {
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [creatingApiKey, setCreatingApiKey] = useState(false);
+  const [isCreateApiKeyOpen, setIsCreateApiKeyOpen] = useState(false);
+  const [createApiKeyError, setCreateApiKeyError] = useState("");
   const [revokingKeyId, setRevokingKeyId] = useState("");
   const [sessionAction, setSessionAction] = useState("");
   const [thirdPartySaving, setThirdPartySaving] = useState("");
@@ -142,6 +152,16 @@ export default function Profile() {
 
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [freshKey, setFreshKey] = useState<ApiKeyItem | null>(null);
+  const [newApiKeyName, setNewApiKeyName] = useState(
+    `platform_key_${new Date().toISOString().slice(0, 10)}`,
+  );
+  const [newApiKeyExpiresDays, setNewApiKeyExpiresDays] = useState("30");
+  const [newApiKeyScopes, setNewApiKeyScopes] = useState<string[]>([
+    "analyze",
+    "recon",
+    "batch",
+    "stats",
+  ]);
   const [thirdPartyStatus, setThirdPartyStatus] = useState<ThirdPartyStatusMap>({});
   const [thirdPartyDrafts, setThirdPartyDrafts] = useState<Record<string, string>>({});
   const [sessions, setSessions] = useState<SessionItem[]>([]);
@@ -475,9 +495,24 @@ export default function Profile() {
   }
 
   async function createApiKey() {
+    const normalizedName = newApiKeyName.trim();
+    const expiresDays =
+      newApiKeyExpiresDays === "never" ? null : Number.parseInt(newApiKeyExpiresDays, 10);
+
+    if (!normalizedName) {
+      setCreateApiKeyError("Informe um nome para a nova API key.");
+      return;
+    }
+
+    if (!newApiKeyScopes.length) {
+      setCreateApiKeyError("Selecione pelo menos um escopo para a API key.");
+      return;
+    }
+
     setCreatingApiKey(true);
     setPageError("");
     setNotice("");
+    setCreateApiKeyError("");
     setFreshKey(null);
     try {
       const response = await fetch(`${API_URL}/api/api-keys`, {
@@ -485,9 +520,9 @@ export default function Profile() {
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: `platform_key_${new Date().toISOString().slice(0, 10)}`,
-          expires_days: 30,
-          scopes: ["analyze", "recon", "batch", "stats"],
+          name: normalizedName,
+          expires_days: expiresDays,
+          scopes: newApiKeyScopes,
         }),
       });
       if (!response.ok) {
@@ -496,6 +531,10 @@ export default function Profile() {
       const created = (await response.json()) as ApiKeyItem;
       setFreshKey(created);
       setNotice("Nova chave VANTAGE emitida. O valor bruto é exibido apenas uma vez.");
+      setIsCreateApiKeyOpen(false);
+      setNewApiKeyName(`platform_key_${new Date().toISOString().slice(0, 10)}`);
+      setNewApiKeyExpiresDays("30");
+      setNewApiKeyScopes(["analyze", "recon", "batch", "stats"]);
       await refreshRuntime();
     } catch {
       setPageError("Não foi possível emitir a nova chave VANTAGE.");
@@ -598,7 +637,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="page-frame">
+    <div className="page-frame profile-page-frame">
       <div className="page-header">
         <div className="page-header-copy">
           <div className="page-eyebrow">{profileSectionMeta.eyebrow}</div>
@@ -1099,11 +1138,13 @@ export default function Profile() {
                     </div>
                     <button
                       className="btn btn-primary flex items-center gap-2"
-                      onClick={createApiKey}
-                      disabled={creatingApiKey}
+                      onClick={() => {
+                        setCreateApiKeyError("");
+                        setIsCreateApiKeyOpen(true);
+                      }}
                     >
                       <span className="material-symbols-outlined text-[16px]">add</span>
-                      {creatingApiKey ? "Generating..." : "Generate Platform Key"}
+                      Generate Platform Key
                     </button>
                   </div>
 
@@ -1126,12 +1167,11 @@ export default function Profile() {
 
                   <section className="card p-0 overflow-hidden">
                     <div className="card-header flex items-center gap-3">
-                      <div className="h-4 w-1 bg-primary"></div>
                       <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant">
                         Core Platform Credentials
                       </h4>
                     </div>
-                    <div className="overflow-x-auto border-t-4 border-primary">
+                    <div className="overflow-x-auto">
                       <table className="w-full text-left border-collapse">
                         <thead>
                           <tr className="bg-surface-container-high">
@@ -1240,11 +1280,10 @@ export default function Profile() {
                     </div>
                   </section>
 
-                  <section>
-                    <div className="flex items-center justify-between mb-4">
+                  <section className="surface-section overflow-hidden">
+                    <div className="surface-section-header">
                       <div className="flex items-center gap-3">
-                        <div className="h-4 w-1 bg-primary"></div>
-                        <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant">
+                        <h4 className="surface-section-title uppercase tracking-[0.2em] text-on-surface-variant">
                           Threat Intelligence Integrations
                         </h4>
                       </div>
@@ -1252,64 +1291,94 @@ export default function Profile() {
                         ACTIVE: {configuredServiceCount} / TOTAL: {THIRD_PARTY_SERVICES.length}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {THIRD_PARTY_SERVICES.map((service) => {
-                        const configured = Boolean(thirdPartyStatus[service.id]?.configured);
-                        return (
-                          <div
-                            key={service.id}
-                            className={`bg-surface-container-lowest p-6 flex flex-col justify-between group relative hover:shadow-lg transition-all rounded shadow-sm ${
-                              configured ? "border-l-2 border-emerald-500" : "border-l-2 border-primary"
-                            }`}
-                          >
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="w-10 h-10 bg-surface-container-low rounded-lg flex items-center justify-center">
-                                <span className="material-symbols-outlined text-primary">
-                                  {service.icon}
-                                </span>
-                              </div>
-                              <span
-                                className={`text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter ${
-                                  configured
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : "bg-primary-container text-on-primary-container"
-                                }`}
+                    <div className="overflow-x-auto">
+                      <table className="w-full min-w-[56rem] text-left border-collapse">
+                        <thead className="bg-surface-container-high">
+                          <tr>
+                            <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                              Provider
+                            </th>
+                            <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                              Coverage
+                            </th>
+                            <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                              Status
+                            </th>
+                            <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                              Credential
+                            </th>
+                            <th className="px-6 py-3 text-right text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
+                              Action
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-surface-container-low">
+                          {THIRD_PARTY_SERVICES.map((service) => {
+                            const configured = Boolean(thirdPartyStatus[service.id]?.configured);
+                            return (
+                              <tr
+                                key={service.id}
+                                className="hover:bg-surface-container-low transition-colors"
                               >
-                                {configured ? "Connected" : "Pending Setup"}
-                              </span>
-                            </div>
-                            <div>
-                              <h5 className="text-sm font-black uppercase tracking-tight text-on-surface mb-1">
-                                {service.label}
-                              </h5>
-                              <p className="text-xs text-on-surface-variant leading-relaxed mb-4">
-                                {service.note}
-                              </p>
-                              <input
-                                ref={(node) => {
-                                  providerInputRefs.current[service.id] = node;
-                                }}
-                                value={thirdPartyDrafts[service.id] || ""}
-                                onChange={(event) =>
-                                  setThirdPartyDrafts((current) => ({
-                                    ...current,
-                                    [service.id]: event.target.value,
-                                  }))
-                                }
-                                placeholder={configured ? "Rotate credential" : "Paste API key"}
-                                className="w-full bg-surface-container-low border-b-2 border-outline focus:border-primary px-0 py-2 text-xs font-medium transition-all outline-none focus:ring-0 border-t-0 border-x-0"
-                              />
-                              <button
-                                className="w-full mt-3 py-1.5 text-[10px] font-black uppercase tracking-widest border border-primary text-primary hover:bg-primary hover:text-white transition-all rounded"
-                                onClick={() => saveThirdPartyKey(service.id)}
-                                disabled={thirdPartySaving === service.id}
-                              >
-                                {thirdPartySaving === service.id ? "Syncing..." : "Configure Link"}
-                              </button>
-                            </div>
-                          </div>
-                        );
-                      })}
+                                <td className="px-6 py-4 align-top">
+                                  <div className="flex items-start gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-low">
+                                      <span className="material-symbols-outlined text-primary">
+                                        {service.icon}
+                                      </span>
+                                    </div>
+                                    <div>
+                                      <div className="text-sm font-bold text-on-surface">
+                                        {service.label}
+                                      </div>
+                                      <div className="mt-1 text-[10px] font-semibold uppercase tracking-widest text-on-surface-variant">
+                                        {service.id}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-6 py-4 align-top">
+                                  <p className="max-w-[22rem] text-xs leading-relaxed text-on-surface-variant">
+                                    {service.note}
+                                  </p>
+                                </td>
+                                <td className="px-6 py-4 align-top">
+                                  <span
+                                    className={`badge ${configured ? "badge-success" : "badge-primary"}`}
+                                  >
+                                    {configured ? "Connected" : "Pending Setup"}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4 align-top">
+                                  <input
+                                    ref={(node) => {
+                                      providerInputRefs.current[service.id] = node;
+                                    }}
+                                    value={thirdPartyDrafts[service.id] || ""}
+                                    onChange={(event) =>
+                                      setThirdPartyDrafts((current) => ({
+                                        ...current,
+                                        [service.id]: event.target.value,
+                                      }))
+                                    }
+                                    placeholder={configured ? "Rotate credential" : "Paste API key"}
+                                    className="w-full min-w-[16rem] bg-surface-container-low border-b-2 border-outline px-0 py-2 text-xs font-medium transition-all outline-none focus:border-primary focus:ring-0 border-x-0 border-t-0"
+                                  />
+                                </td>
+                                <td className="px-6 py-4 text-right align-top">
+                                  <button
+                                    className="btn btn-outline whitespace-nowrap"
+                                    onClick={() => saveThirdPartyKey(service.id)}
+                                    disabled={thirdPartySaving === service.id}
+                                  >
+                                    {thirdPartySaving === service.id ? "Syncing..." : "Configure Link"}
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </section>
 
@@ -1354,7 +1423,10 @@ export default function Profile() {
                       </p>
                       <button
                         className="mt-4 bg-white/10 hover:bg-white/20 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded"
-                        onClick={createApiKey}
+                        onClick={() => {
+                          setCreateApiKeyError("");
+                          setIsCreateApiKeyOpen(true);
+                        }}
                       >
                         Rotate Now
                       </button>
@@ -1535,6 +1607,187 @@ export default function Profile() {
           )}
         </div>
       </div>
+
+      {isCreateApiKeyOpen && (
+        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
+          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden">
+            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
+              <div>
+                <div className="page-eyebrow">Platform Credentials</div>
+                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
+                  Create API Key
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
+                  Define alias, expiration policy and access scope before issuing a
+                  new operator-scoped platform key.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost !px-2"
+                onClick={() => {
+                  setIsCreateApiKeyOpen(false);
+                  setCreateApiKeyError("");
+                }}
+                aria-label="Close create API key modal"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6">
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
+                <div className="space-y-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+                      Key Alias
+                    </label>
+                    <input
+                      type="text"
+                      value={newApiKeyName}
+                      onChange={(event) => setNewApiKeyName(event.target.value)}
+                      placeholder="platform_key_finops"
+                      className="w-full rounded-sm bg-surface-container-low px-4 py-3 text-sm font-medium text-on-surface outline-none ring-1 ring-outline-variant/20 transition focus:ring-2 focus:ring-primary/20"
+                    />
+                    <p className="text-xs text-on-surface-variant">
+                      Use a human-readable alias so the operator can identify this
+                      key later in audits, review and rotation.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+                      Expiration Policy
+                    </label>
+                    <select
+                      value={newApiKeyExpiresDays}
+                      onChange={(event) => setNewApiKeyExpiresDays(event.target.value)}
+                      className="w-full rounded-sm bg-surface-container-low px-4 py-3 text-sm font-medium text-on-surface outline-none ring-1 ring-outline-variant/20 transition focus:ring-2 focus:ring-primary/20"
+                    >
+                      <option value="30">30 days</option>
+                      <option value="90">90 days</option>
+                      <option value="180">180 days</option>
+                      <option value="365">365 days</option>
+                      <option value="never">No automatic expiration</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+                        Allowed Scopes
+                      </label>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        Choose only the capabilities this key actually needs.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      {API_KEY_SCOPE_OPTIONS.map((scope) => {
+                        const checked = newApiKeyScopes.includes(scope.id);
+                        return (
+                          <label
+                            key={scope.id}
+                            className="flex items-center gap-3 rounded-sm border border-outline-variant/15 bg-surface-container-low px-4 py-3 text-sm text-on-surface"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                setNewApiKeyScopes((current) =>
+                                  event.target.checked
+                                    ? [...current, scope.id]
+                                    : current.filter((item) => item !== scope.id),
+                                );
+                              }}
+                              className="h-4 w-4"
+                            />
+                            <span className="font-medium">{scope.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {createApiKeyError && (
+                    <div className="rounded-sm bg-error/10 px-4 py-3 text-sm text-error">
+                      {createApiKeyError}
+                    </div>
+                  )}
+                </div>
+
+                <aside className="space-y-4">
+                  <div className="surface-section overflow-hidden">
+                    <div className="surface-section-header">
+                      <h4 className="surface-section-title">Issuance Summary</h4>
+                    </div>
+                    <div className="space-y-4 p-4 text-sm text-on-surface-variant">
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
+                          Alias
+                        </div>
+                        <div className="mt-1 break-words text-sm font-semibold text-on-surface">
+                          {newApiKeyName.trim() || "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
+                          Expiration
+                        </div>
+                        <div className="mt-1 text-sm font-semibold text-on-surface">
+                          {newApiKeyExpiresDays === "never"
+                            ? "No automatic expiration"
+                            : `${newApiKeyExpiresDays} days`}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
+                          Scope Set
+                        </div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {newApiKeyScopes.length ? (
+                            newApiKeyScopes.map((scope) => (
+                              <span key={scope} className="badge badge-primary">
+                                {scope}
+                              </span>
+                            ))
+                          ) : (
+                            <span className="badge badge-error">No scope selected</span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs leading-relaxed">
+                        The raw credential will be shown only once after issuance and
+                        the operation will be written to the Audit Registry.
+                      </p>
+                    </div>
+                  </div>
+                </aside>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 border-t border-outline-variant/10 bg-surface-container-low px-6 py-4">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setIsCreateApiKeyOpen(false);
+                  setCreateApiKeyError("");
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={createApiKey}
+                disabled={creatingApiKey}
+              >
+                {creatingApiKey ? "Generating..." : "Issue API Key"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -273,7 +273,7 @@ export default function SystemHealth() {
   }, [events]);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
+    <div className="page-frame">
       <div className="page-header">
         <div className="page-header-copy">
           <div className="page-eyebrow">{t("settingsPages.systemHealthEyebrow", "Observability")}</div>

@@ -261,7 +261,7 @@ export default function ExtensionsCatalog() {
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="page-frame">
       <div className="page-header">
         <div className="page-header-copy">
           <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>

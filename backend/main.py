@@ -20,6 +20,11 @@ from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_sc
 
 from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, hunting, exposure
 
+from bson import ObjectId
+from fastapi.encoders import ENCODERS_BY_TYPE
+
+ENCODERS_BY_TYPE[ObjectId] = str
+
 logger = get_logger("WebAPI")
 setup_logging(level=settings.log_level)
 

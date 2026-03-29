@@ -15,6 +15,10 @@ def build_scan_payload(
     summary: dict[str, Any],
     analysis_report: str,
     analysis_reports: dict[str, str],
+    analysis_sections: list[dict[str, Any]] | None = None,
+    analysis_section_sets: dict[str, list[dict[str, Any]]] | None = None,
+    geo_summary: dict[str, Any] | None = None,
+    analysis_meta: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "target": target,
@@ -23,6 +27,10 @@ def build_scan_payload(
         "summary": summary,
         "analysis_report": analysis_report,
         "analysis_reports": analysis_reports,
+        "analysis_sections": analysis_sections or [],
+        "analysis_section_sets": analysis_section_sets or {},
+        "geo_summary": geo_summary or {},
+        "analysis_meta": analysis_meta or {},
     }
 
 
@@ -74,6 +82,10 @@ def extract_scan_payload(scan_doc: dict[str, Any] | None) -> dict[str, Any] | No
             summary=scan_doc.get("summary", summary),
             analysis_report=scan_doc.get("analysis_report", ""),
             analysis_reports=scan_doc.get("analysis_reports", {}),
+            analysis_sections=scan_doc.get("analysis_sections", []),
+            analysis_section_sets=scan_doc.get("analysis_section_sets", {}),
+            geo_summary=scan_doc.get("geo_summary", {}),
+            analysis_meta=scan_doc.get("analysis_meta", {}),
         )
 
     return None

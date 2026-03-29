@@ -26,7 +26,8 @@ class ThreatIntelClient:
             'urlscan': False,
             'blacklistmaster': False,
             'abusech': False,
-            'pulsedive': False
+            'pulsedive': False,
+            'ip2location': False,
         }
         self.api_keys = {}
         self._load_keys()
@@ -34,23 +35,28 @@ class ThreatIntelClient:
     def _load_keys(self):
         """Loads API keys from environment variables and updates service status."""
         keys_map = {
-            'virustotal': 'VT_API_KEY',
-            'abuseipdb': 'ABUSEIPDB_API_KEY',
-            'shodan': 'SHODAN_API_KEY',
-            'alienvault': 'OTX_API_KEY',
-            'greynoise': 'GREYNOISE_API_KEY',
-            'urlscan': 'URLSCAN_API_KEY',
-            'blacklistmaster': 'BLACKLISTMASTER_API_KEY',
-            'abusech': 'ABUSECH_API_KEY',
-            'pulsedive': 'PULSEDIVE_API_KEY'
+            'virustotal': ('VT_API_KEY', False),
+            'abuseipdb': ('ABUSEIPDB_API_KEY', False),
+            'shodan': ('SHODAN_API_KEY', False),
+            'alienvault': ('OTX_API_KEY', False),
+            'greynoise': ('GREYNOISE_API_KEY', False),
+            'urlscan': ('URLSCAN_API_KEY', False),
+            'blacklistmaster': ('BLACKLISTMASTER_API_KEY', False),
+            'abusech': ('ABUSECH_API_KEY', False),
+            'pulsedive': ('PULSEDIVE_API_KEY', False),
+            'ip2location': ('IP2LOCATION_API_KEY', True),
         }
 
-        for service, env_var in keys_map.items():
+        for service, (env_var, optional_key) in keys_map.items():
             key = os.environ.get(env_var)
             if key:
                 self.api_keys[service] = key
                 self.services[service] = True
                 logger.debug(f"{service} enabled.")
+            elif optional_key:
+                self.api_keys[service] = ""
+                self.services[service] = True
+                logger.debug(f"{service} enabled without API key (public tier).")
             else:
                 self.services[service] = False
                 logger.debug(f"{service} disabled (missing {env_var}).")
@@ -208,5 +214,18 @@ class ThreatIntelClient:
             "indicator": target,
             "key": self.api_keys['pulsedive']
         }
+
+        return self._safe_request("GET", url, params=params)
+
+    def query_ip2location(self, ip: str) -> Optional[Dict[str, Any]]:
+        """Query IP2Location.io for primary IP geolocation and ASN/ISP context."""
+        if not self.services['ip2location']:
+            return None
+
+        url = "https://api.ip2location.io/"
+        params = {"ip": ip, "format": "json"}
+        api_key = self.api_keys.get('ip2location')
+        if api_key:
+            params["key"] = api_key
 
         return self._safe_request("GET", url, params=params)

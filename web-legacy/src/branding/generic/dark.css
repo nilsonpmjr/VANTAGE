@@ -1,0 +1,38 @@
+/*
+ * Generic — Dark theme placeholder
+ *
+ * Estrutura espelha o branding VANTAGE para downstream futuro.
+ */
+
+:root[data-brand='generic']:not([data-theme]),
+:root[data-brand='generic'][data-theme='dark'] {
+  /* Core surfaces */
+  --v-midnight: #111827;
+  --v-steel: #1f2937;
+  --v-slate-surface: #374151;
+
+  /* Brand accent */
+  --v-cyan: #3b82f6;
+  --v-cyan-rgb: 59, 130, 246;
+  --v-cyan-secondary: #2563eb;
+  --v-cyan-secondary-hover: #1d4ed8;
+
+  /* Text */
+  --v-silver: #f9fafb;
+  --v-text-secondary: #9ca3af;
+  --v-slate-gray: #6b7280;
+
+  /* Borders & glow */
+  --v-border: rgba(59, 130, 246, 0.3);
+  --v-glow: rgba(59, 130, 246, 0.15);
+
+  /* Glass */
+  --v-glass-bg: rgba(31, 41, 55, 0.6);
+  --v-glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Gradient */
+  --v-gradient: radial-gradient(circle at calc(50% + 40px) 0%, #374151 0%, #111827 70%);
+
+  /* Card */
+  --v-bg-card: rgba(31, 41, 55, 0.5);
+}

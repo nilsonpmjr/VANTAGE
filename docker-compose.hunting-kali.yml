@@ -1,0 +1,12 @@
+services:
+  backend:
+    environment:
+      HUNTING_KALI_RUNTIME_ENABLED: "true"
+
+  hunting_kali_runtime:
+    image: kalilinux/kali-rolling
+    container_name: vantage_hunting_kali_runtime
+    restart: unless-stopped
+    command: ["sh", "-lc", "sleep infinity"]
+    networks:
+      - vantage_internal

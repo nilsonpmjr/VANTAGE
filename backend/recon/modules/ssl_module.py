@@ -9,7 +9,10 @@ import ssl
 from datetime import datetime, timezone
 from functools import partial
 
+from logging_config import get_logger
 from .base import ReconModule
+
+logger = get_logger("SSLModule")
 
 
 class SSLModule(ReconModule):
@@ -66,10 +69,6 @@ class SSLModule(ReconModule):
         is_expired = now > not_after
         days_left = (not_after - now).days
 
-        # Subject
-        subject = {attr.oid.dotted_string: attr.value for attr in cert.subject}
-        issuer = {attr.oid.dotted_string: attr.value for attr in cert.issuer}
-
         # Common names from OID
         cn_oid = x509.NameOID.COMMON_NAME
         subject_cn = next((attr.value for attr in cert.subject if attr.oid == cn_oid), None)
@@ -83,9 +82,9 @@ class SSLModule(ReconModule):
             san_ext = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName)
             sans = [name.value for name in san_ext.value]
         except x509.ExtensionNotFound:
-            pass
-        except Exception:
-            pass
+            logger.debug(f"Certificate for {target} has no SAN extension")
+        except Exception as exc:
+            logger.debug(f"Failed to read SAN extension for {target}: {exc}")
 
         # Fingerprint
         try:

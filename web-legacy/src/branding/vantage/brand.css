@@ -1,0 +1,13 @@
+/*
+ * VANTAGE — Brand entrypoint
+ *
+ * Estrutura branding x theme:
+ * - dark.css
+ * - light.css
+ *
+ * Sessao A: dark e a referencia principal.
+ * light existe como estrutura operacional e placeholder seguro.
+ */
+
+@import './dark.css';
+@import './light.css';

@@ -11,7 +11,7 @@ from typing import Any, Callable
 
 from db import db_manager
 from logging_config import get_logger
-from threat_ingestion import get_runtime_threat_sources, record_threat_sync_status
+from threat_ingestion import get_runtime_threat_sources, record_threat_sync_status, CUSTOM_PREFIX
 
 logger = get_logger("ThreatIngestionRuntime")
 
@@ -25,6 +25,37 @@ def register_threat_fetcher(source_id: str, fetcher: Callable[[dict[str, Any]], 
 
 def clear_threat_fetchers() -> None:
     _THREAT_FETCHERS.clear()
+
+
+def register_builtin_fetchers() -> None:
+    """Register fetchers for all builtin sources (CVE, Fortinet, MISP)."""
+    import httpx
+    from threat_feed_adapters import parse_rss_items, adapt_cve_rss_items, adapt_fortinet_rss_items
+    from threat_misp import fetch_and_adapt_misp_items
+
+    async def _fetch_rss(source: dict[str, Any], adapter, **adapter_kwargs) -> list[dict[str, Any]]:
+        feed_url = source.get("config", {}).get("feed_url", "")
+        if not feed_url:
+            return []
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(feed_url)
+            resp.raise_for_status()
+        raw_items = parse_rss_items(resp.text)
+        return adapter(source["source_id"], raw_items, **adapter_kwargs)
+
+    register_threat_fetcher(
+        "cve_recent",
+        lambda src: _fetch_rss(src, adapt_cve_rss_items, source_name="CVE Recent", tlp="white"),
+    )
+    register_threat_fetcher(
+        "fortinet_outbreakalert",
+        lambda src: _fetch_rss(src, adapt_fortinet_rss_items, source_name="FortiGuard Outbreak Alert", tlp="white"),
+    )
+    register_threat_fetcher(
+        "fortinet_threatsignal",
+        lambda src: _fetch_rss(src, adapt_fortinet_rss_items, source_name="FortiGuard Threat Signal", tlp="white"),
+    )
+    register_threat_fetcher("misp_events", fetch_and_adapt_misp_items)
 
 
 def _now() -> datetime:
@@ -64,8 +95,33 @@ async def _resolve_items(fetcher_result) -> list[dict[str, Any]]:
     return fetcher_result
 
 
+def _make_custom_rss_fetcher(source: dict[str, Any]) -> Callable[[dict[str, Any]], Any]:
+    """Build a one-shot fetcher for a manually-added RSS source."""
+    import httpx
+    from threat_feed_adapters import parse_rss_items, adapt_generic_rss_items
+
+    async def _fetch(src: dict[str, Any]) -> list[dict[str, Any]]:
+        feed_url = src.get("config", {}).get("feed_url", "")
+        if not feed_url:
+            return []
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.get(feed_url)
+            resp.raise_for_status()
+        raw_items = parse_rss_items(resp.text)
+        return adapt_generic_rss_items(
+            src["source_id"],
+            src.get("family", "custom"),
+            raw_items,
+            source_name=src.get("display_name") or src.get("name", src.get("family", "Custom")),
+            tlp=src.get("config", {}).get("default_tlp", "white"),
+        )
+
+    return _fetch
+
+
 async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
     source_id = source["source_id"]
+    started_at = _now()
 
     configured, config_error = _is_source_configured(source)
     if not configured:
@@ -75,10 +131,13 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="not_configured",
             items_ingested=0,
             last_error=config_error,
+            duration_ms=0,
         )
         return {"source_id": source_id, "status": "not_configured", "items_ingested": 0}
 
     fetcher = _THREAT_FETCHERS.get(source_id)
+    if fetcher is None and source_id.startswith(CUSTOM_PREFIX) and source.get("source_type") == "rss":
+        fetcher = _make_custom_rss_fetcher(source)
     if fetcher is None:
         await record_threat_sync_status(
             db,
@@ -86,6 +145,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="unsupported",
             items_ingested=0,
             last_error="No fetcher registered for this source.",
+            duration_ms=0,
         )
         return {"source_id": source_id, "status": "unsupported", "items_ingested": 0}
 
@@ -110,6 +170,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="success",
             items_ingested=count,
             last_error=None,
+            duration_ms=int((_now() - started_at).total_seconds() * 1000),
         )
         return {"source_id": source_id, "status": "success", "items_ingested": count}
     except Exception as exc:
@@ -120,6 +181,7 @@ async def sync_threat_source(db, source: dict[str, Any]) -> dict[str, Any]:
             status="error",
             items_ingested=0,
             last_error=str(exc),
+            duration_ms=int((_now() - started_at).total_seconds() * 1000),
         )
         return {"source_id": source_id, "status": "error", "items_ingested": 0, "error": str(exc)}
 
@@ -152,6 +214,7 @@ async def execute_threat_ingestion_worker_cycle(db) -> bool:
 
 
 async def start_threat_ingestion_worker(interval_seconds: int = 300, initial_delay_seconds: int = 15):
+    register_builtin_fetchers()
     logger.info("Threat ingestion worker started")
     await asyncio.sleep(initial_delay_seconds)
     while True:

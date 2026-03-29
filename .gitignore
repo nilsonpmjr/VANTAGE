@@ -10,6 +10,8 @@ node_modules/
 docker_build.log
 docs/
 .vscode/
+docker-compose.operational-architect.yml
+.codex
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md
@@ -17,3 +19,4 @@ GUIA_CORRECOES.md
 README_IMPROVED.md
 
 Threat-Intelligence-Tool.code-workspace
+Obsidian

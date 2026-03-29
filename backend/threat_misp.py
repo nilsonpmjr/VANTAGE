@@ -9,7 +9,8 @@ from typing import Any
 
 import httpx
 
-from threat_items import build_threat_item_document, build_threat_item_payload, normalize_severity
+from threat_feed_adapters import infer_sectors
+from threat_items import build_threat_item_document, build_threat_item_payload, normalize_severity, normalize_tlp
 
 
 def _as_list(value) -> list:
@@ -118,6 +119,16 @@ def adapt_misp_events(source_id: str, base_url: str, payload: Any) -> list[dict[
             if org_name:
                 summary = f"{summary} Source org: {org_name}."
 
+        # Extract TLP from MISP tags (e.g. "tlp:amber", "tlp:white")
+        event_tlp = ""
+        for tn in tag_names:
+            if tn.lower().startswith("tlp:"):
+                event_tlp = normalize_tlp(tn)
+                if event_tlp:
+                    break
+        all_tags = ["misp", *tag_names, *attribute_types]
+        sector = infer_sectors(title, summary, all_tags)
+
         payload_data = build_threat_item_payload(
             title=title,
             summary=summary,
@@ -128,7 +139,7 @@ def adapt_misp_events(source_id: str, base_url: str, payload: Any) -> list[dict[
                 event.get("date"),
             ),
             severity=_severity_from_event(event),
-            tags=["misp", *tag_names, *attribute_types],
+            tags=all_tags,
             attributes={
                 "event_id": event_id,
                 "event_uuid": event_uuid,
@@ -137,6 +148,9 @@ def adapt_misp_events(source_id: str, base_url: str, payload: Any) -> list[dict[
                 "sample_values": attribute_values[:10],
                 "tags": tag_names,
             },
+            source_name="MISP",
+            tlp=event_tlp or "green",
+            sector=sector,
             raw={
                 "event_id": event_id,
                 "event_uuid": event_uuid,

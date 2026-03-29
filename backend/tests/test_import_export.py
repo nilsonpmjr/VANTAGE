@@ -3,12 +3,8 @@
 import io
 import json
 import pytest
-import pytest_asyncio
-from httpx import AsyncClient, ASGITransport
 
-from main import app
-from auth import get_password_hash, create_access_token
-from tests.conftest import FakeDB
+from auth import create_access_token
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────

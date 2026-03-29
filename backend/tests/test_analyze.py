@@ -2,8 +2,11 @@
 Integration tests for /api/analyze endpoint.
 """
 
+import asyncio
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
+
+from routers.analyze import _fire_and_log
 
 
 @pytest.mark.asyncio
@@ -22,13 +25,26 @@ async def test_analyze_invalid_input(async_client, auth_headers):
 @patch("routers.analyze.AsyncThreatIntelClient")
 async def test_analyze_valid_ip(MockClient, async_client, auth_headers):
     """Verify analyze endpoint returns expected structure for a valid IP."""
-    mock_resp = MagicMock()
-    mock_resp.success = True
-    mock_resp.data = {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}}}}
-    mock_resp.error = None
+    vt_resp = MagicMock()
+    vt_resp.success = True
+    vt_resp.data = {"data": {"attributes": {"last_analysis_stats": {"malicious": 0}}}}
+    vt_resp.error = None
+    geo_resp = MagicMock()
+    geo_resp.success = True
+    geo_resp.data = {
+        "ip": "8.8.8.8",
+        "country_code": "US",
+        "country_name": "United States of America",
+        "region_name": "California",
+        "city_name": "Mountain View",
+        "asn": "15169",
+        "as": "Google LLC",
+        "isp": "Google LLC",
+    }
+    geo_resp.error = None
 
     mock_instance = AsyncMock()
-    mock_instance.query_all = AsyncMock(return_value={"virustotal": mock_resp})
+    mock_instance.query_all = AsyncMock(return_value={"virustotal": vt_resp, "ip2location": geo_resp})
     mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
     mock_instance.__aexit__ = AsyncMock(return_value=False)
     MockClient.return_value = mock_instance
@@ -40,6 +56,9 @@ async def test_analyze_valid_ip(MockClient, async_client, auth_headers):
     assert body["type"] == "ip"
     assert "summary" in body
     assert "results" in body
+    assert "geo_summary" in body
+    assert "analysis_sections" in body
+    assert body["geo_summary"]["source"] == "IP2Location"
 
 
 @pytest.mark.asyncio
@@ -108,3 +127,14 @@ async def test_analyze_verdict_high_risk(MockClient, async_client, auth_headers)
     response = await async_client.get("/api/analyze?target=1.2.3.4", headers=auth_headers)
     assert response.status_code == 200
     assert response.json()["summary"]["verdict"] == "HIGH RISK"
+
+
+@pytest.mark.asyncio
+async def test_fire_and_log_accepts_future_objects():
+    loop = asyncio.get_running_loop()
+    future = loop.create_future()
+    future.set_result(None)
+
+    _fire_and_log(future, "future smoke")
+
+    await asyncio.sleep(0)

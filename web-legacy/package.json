@@ -1,0 +1,49 @@
+{
+  "name": "vantage-web",
+  "description": "VANTAGE — Cybersecurity Platform (frontend)",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "VITE_BRAND=vantage vite",
+    "dev:generic": "VITE_BRAND=generic vite",
+    "dev:vantage": "VITE_BRAND=vantage vite",
+    "build": "VITE_BRAND=vantage vite build",
+    "build:generic": "VITE_BRAND=generic vite build",
+    "build:vantage": "VITE_BRAND=vantage vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "file-saver": "^2.0.5",
+    "html2canvas": "^1.4.1",
+    "i18next": "^25.8.13",
+    "jspdf": "^4.2.0",
+    "jspdf-autotable": "^5.0.7",
+    "lucide-react": "^0.575.0",
+    "qrcode.react": "^4.2.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-i18next": "^16.5.4",
+    "react-markdown": "^10.1.0",
+    "recharts": "^3.7.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.1",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "eslint": "^9.39.1",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^16.5.0",
+    "jsdom": "^26.1.0",
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4"
+  }
+}

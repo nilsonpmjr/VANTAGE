@@ -7,116 +7,18 @@
   <link rel="apple-touch-icon" href="/branding/vantage/favicon.png" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="google" content="notranslate" />
-  <meta name="description" content="VANTAGE is a cybersecurity platform for threat intelligence, SOC workflows, and recon analysis." />
+  <meta
+    name="description"
+    content="VANTAGE is a cybersecurity platform for threat intelligence, SOC workflows, and recon analysis."
+  />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+    rel="stylesheet" />
   <title>VANTAGE | Cybersecurity Platform</title>
-  <script>
-    (() => {
-      const rawBrand = '%VITE_BRAND%';
-      const activeBrand = rawBrand && !rawBrand.includes('%') ? rawBrand : 'vantage';
-      const headBranding = {
-        vantage: {
-          title: 'VANTAGE | Cybersecurity Platform',
-          description: 'VANTAGE is a cybersecurity platform for threat intelligence, SOC workflows, and recon analysis.',
-          favicon: '/branding/vantage/favicon.svg',
-          appleTouchIcon: '/branding/vantage/favicon.png',
-        },
-        generic: {
-          title: 'Workspace | Security Operations Platform',
-          description: 'Generic security operations workspace for downstream deployments, threat intelligence workflows, and recon analysis.',
-          favicon: '/branding/generic/favicon.svg',
-          appleTouchIcon: '/branding/generic/app-icon-light.svg',
-        },
-      };
-
-      const selectedBrand = headBranding[activeBrand] || headBranding.vantage;
-      const favicon = document.querySelector("link[rel='icon']");
-      const appleTouchIcon = document.querySelector("link[rel='apple-touch-icon']");
-      const description = document.querySelector("meta[name='description']");
-
-      if (favicon) favicon.setAttribute('href', selectedBrand.favicon);
-      if (appleTouchIcon) appleTouchIcon.setAttribute('href', selectedBrand.appleTouchIcon);
-      if (description) description.setAttribute('content', selectedBrand.description);
-      document.title = selectedBrand.title;
-    })();
-  </script>
-  <style>
-    @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/inter/Inter-Regular.otf') format('opentype');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/inter/Inter-Medium.otf') format('opentype');
-      font-weight: 500;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'Inter';
-      src: url('/fonts/inter/Inter-Bold.otf') format('opentype');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'JetBrains Mono';
-      src: url('/fonts/jetbrains-mono/JetbrainsMonoRegular.ttf') format('truetype');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'JetBrains Mono';
-      src: url('/fonts/jetbrains-mono/JetbrainsMonoMedium.ttf') format('truetype');
-      font-weight: 500;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'JetBrains Mono';
-      src: url('/fonts/jetbrains-mono/JetbrainsMonoBold.ttf') format('truetype');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'Montserrat';
-      src: url('/fonts/montserrat/Montserrat-Regular.ttf') format('truetype');
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'Montserrat';
-      src: url('/fonts/montserrat/Montserrat-Bold.ttf') format('truetype');
-      font-weight: 700;
-      font-style: normal;
-      font-display: swap;
-    }
-
-    @font-face {
-      font-family: 'Montserrat';
-      src: url('/fonts/montserrat/Montserrat-Black.ttf') format('truetype');
-      font-weight: 900;
-      font-style: normal;
-      font-display: swap;
-    }
-  </style>
 </head>
 
 <body>
   <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
+  <script type="module" src="/src/main.tsx"></script>
 </body>
 
 </html>

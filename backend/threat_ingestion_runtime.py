@@ -112,7 +112,7 @@ def _make_custom_rss_fetcher(source: dict[str, Any]) -> Callable[[dict[str, Any]
             src["source_id"],
             src.get("family", "custom"),
             raw_items,
-            source_name=src.get("name", src.get("family", "Custom")),
+            source_name=src.get("display_name") or src.get("name", src.get("family", "Custom")),
             tlp=src.get("config", {}).get("default_tlp", "white"),
         )
 

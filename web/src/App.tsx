@@ -18,7 +18,6 @@ import ThreatIngestion from "./pages/ThreatIngestion";
 import SystemHealth from "./pages/SystemHealth";
 import UsersRoles from "./pages/UsersRoles";
 import SecurityPolicies from "./pages/SecurityPolicies";
-import OperationalPatterns from "./pages/OperationalPatterns";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import AnalysisResult from "./pages/AnalysisResult";
@@ -61,7 +60,7 @@ export default function App() {
                 }
               >
                 <Route index element={<Navigate to="/settings/extensions" replace />} />
-                <Route path="patterns" element={<OperationalPatterns />} />
+                <Route path="patterns" element={<Navigate to="/settings/extensions" replace />} />
                 <Route path="extensions" element={<ExtensionsCatalog />} />
                 <Route path="threat-ingestion" element={<ThreatIngestion />} />
                 <Route path="system-health" element={<SystemHealth />} />

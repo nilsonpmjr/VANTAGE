@@ -4,7 +4,7 @@ handles API failures gracefully, and detects verdict changes.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from datetime import datetime, timezone
 
 

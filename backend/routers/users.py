@@ -10,7 +10,7 @@ from auth import get_password_hash, verify_password, get_current_user, get_curre
 from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
-from crypto import encrypt_secret, decrypt_secret
+from crypto import encrypt_secret
 from identity import (
     any_contact_email_in_use,
     email_in_use,

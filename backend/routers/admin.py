@@ -15,7 +15,7 @@ from db import db_manager
 from auth import get_current_user, require_role, require_permission, AVAILABLE_PERMISSIONS, get_password_hash
 from extensions import get_configured_plugin_roots, get_extensions_catalog
 from identity import email_in_use, normalize_email
-from policies import get_password_policy, DEFAULT_PASSWORD_POLICY, validate_password
+from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
 from limiters import limiter
@@ -173,14 +173,14 @@ async def export_security_policies(
         for scope, values in (("password_policy", password_policy), ("lockout_policy", lockout_policy)):
             for key, value in values.items():
                 writer.writerow([scope, key, value])
-        return StreamingResponse(
-            iter([buffer.getvalue()]),
+        return Response(
+            content=buffer.getvalue(),
             media_type="text/csv",
             headers={"Content-Disposition": "attachment; filename=security_policies.csv"},
         )
 
-    return StreamingResponse(
-        iter([json.dumps(payload, ensure_ascii=False, indent=2)]),
+    return Response(
+        content=json.dumps(payload, ensure_ascii=False, indent=2),
         media_type="application/json",
         headers={"Content-Disposition": "attachment; filename=security_policies.json"},
     )
@@ -224,7 +224,7 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
     all_users = await db.users.find({}).to_list(length=1000)
 
     total_users = len(all_users)
-    active_users = sum(1 for u in all_users if u.get("is_active", True) == True)
+    active_users = sum(1 for u in all_users if u.get("is_active", True))
     suspended_users = total_users - active_users
     locked_accounts = sum(
         1 for u in all_users
@@ -398,7 +398,7 @@ def _merge_extension_catalog_state(catalog: list[dict], state_map: dict[str, dic
         key = str(item.get("key") or "")
         state = state_map.get(key, {})
         if state.get("hidden"):
-          continue
+            continue
 
         next_item = {
             **item,

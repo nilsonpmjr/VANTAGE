@@ -69,10 +69,6 @@ class SSLModule(ReconModule):
         is_expired = now > not_after
         days_left = (not_after - now).days
 
-        # Subject
-        subject = {attr.oid.dotted_string: attr.value for attr in cert.subject}
-        issuer = {attr.oid.dotted_string: attr.value for attr in cert.issuer}
-
         # Common names from OID
         cn_oid = x509.NameOID.COMMON_NAME
         subject_cn = next((attr.value for attr in cert.subject if attr.oid == cn_oid), None)

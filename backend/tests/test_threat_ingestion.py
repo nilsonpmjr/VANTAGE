@@ -5,6 +5,8 @@ import pytest
 from crypto import decrypt_secret
 from threat_ingestion import (
     _validate_feed_url,
+    create_custom_source,
+    get_custom_threat_sources,
     get_public_threat_sources,
     get_runtime_threat_source,
     record_threat_sync_status,
@@ -86,6 +88,28 @@ async def test_record_threat_sync_status_is_reflected_in_public_view(fake_db):
     assert fortinet["sync_status"]["status"] == "success"
     assert fortinet["sync_status"]["items_ingested"] == 12
     assert fortinet["sync_status"]["last_run_at"] == timestamp
+
+
+@pytest.mark.asyncio
+async def test_create_custom_source_allows_duplicate_titles_without_overwrite(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
+
+    first = await create_custom_source(
+        fake_db,
+        title="Partner Feed",
+        feed_url="https://feeds.example.test/partner-a.xml",
+        created_by="admin",
+    )
+    second = await create_custom_source(
+        fake_db,
+        title="Partner Feed",
+        feed_url="https://feeds.example.test/partner-b.xml",
+        created_by="admin",
+    )
+
+    assert first["source_id"] != second["source_id"]
+    docs = await get_custom_threat_sources(fake_db)
+    assert len(docs) == 2
 
 
 @pytest.mark.asyncio

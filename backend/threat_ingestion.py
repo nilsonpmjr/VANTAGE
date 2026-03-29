@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import ipaddress
 import json
+import secrets
 from urllib.parse import urlparse
 
 from crypto import decrypt_secret, encrypt_secret
@@ -575,10 +576,11 @@ def _validate_feed_url(url: str) -> str:
 
 
 def _make_custom_source_id(title: str) -> str:
-    """Generate a deterministic source_id from a title."""
+    """Generate a non-colliding source_id from a title."""
     import hashlib
     slug = title.lower().strip().replace(" ", "_")[:30]
-    short_hash = hashlib.sha256(slug.encode()).hexdigest()[:8]
+    unique_seed = f"{slug}:{secrets.token_hex(4)}"
+    short_hash = hashlib.sha256(unique_seed.encode()).hexdigest()[:8]
     return f"{CUSTOM_PREFIX}{slug}_{short_hash}"
 
 
@@ -610,13 +612,16 @@ async def create_custom_source(
 
     default_tlp = normalize_tlp(default_tlp) or "white"
 
-    source_id = _make_custom_source_id(title)
-
     # Check for duplicate URL
     if db is not None:
         existing = await db.custom_threat_sources.find_one({"config.feed_url": feed_url})
         if existing:
             raise ValueError("A custom source with this feed URL already exists.")
+
+    source_id = _make_custom_source_id(title)
+    if db is not None:
+        while await db.custom_threat_sources.find_one({"source_id": source_id}):
+            source_id = _make_custom_source_id(title)
 
     document = {
         "source_id": source_id,
@@ -637,13 +642,9 @@ async def create_custom_source(
     }
 
     if db is not None:
-        await db.custom_threat_sources.replace_one(
-            {"source_id": source_id},
-            document,
-            upsert=True,
-        )
+        await db.custom_threat_sources.insert_one(document)
 
-    return document
+    return {key: value for key, value in document.items() if key != "_id"}
 
 
 async def get_custom_threat_sources(db) -> list[dict]:

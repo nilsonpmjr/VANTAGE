@@ -47,6 +47,7 @@ MFA_DISABLED = False
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def _hash_backup_code(code: str) -> str:
     return hashlib.sha256(code.encode()).hexdigest()
 

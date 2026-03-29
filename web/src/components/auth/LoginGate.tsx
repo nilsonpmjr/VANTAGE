@@ -1,7 +1,8 @@
-import { useMemo, useState, type FormEvent } from "react";
-import { ShieldAlert, ShieldCheck } from "lucide-react";
+import { useState, type FormEvent } from "react";
+import { ShieldCheck } from "lucide-react";
 import API_URL from "../../config";
 import { useAuth } from "../../context/AuthContext";
+import useBrandTheme from "../../branding/useBrandTheme";
 
 function formatLockedUntil(value?: string | null) {
   if (!value) return "";
@@ -12,15 +13,14 @@ function formatLockedUntil(value?: string | null) {
 
 function LoginPanel() {
   const { login } = useAuth();
+  const { brand, logoPath } = useBrandTheme();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [hideLogo, setHideLogo] = useState(false);
 
-  const helper = useMemo(
-    () => "Use admin / vantage123 or tech / tech123 after seeding the clone database.",
-    [],
-  );
+  const loginLogoPath = brand.logoLightPath || logoPath;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -45,16 +45,22 @@ function LoginPanel() {
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
       <div className="w-full max-w-md bg-surface-container-lowest rounded-sm shadow-sm overflow-hidden">
         <div className="bg-surface-container-high px-6 py-4 border-b border-outline-variant/15">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-primary rounded-sm flex items-center justify-center">
-              <ShieldAlert className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <h1 className="text-sm font-black uppercase tracking-widest text-on-surface">VANTAGE</h1>
-              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-                Operational Architect
-              </p>
-            </div>
+          <div className="flex min-h-12 items-center">
+            {!hideLogo ? (
+              <img
+                src={loginLogoPath}
+                alt={brand.name}
+                className="h-9 w-auto max-w-[240px] object-contain"
+                onError={() => setHideLogo(true)}
+              />
+            ) : (
+              <div>
+                <h1 className="text-sm font-black uppercase tracking-widest text-on-surface">{brand.name}</h1>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                  {brand.tagline}
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -67,13 +73,9 @@ function LoginPanel() {
             </p>
           </div>
 
-          {error ? (
+          {error && (
             <div className="px-4 py-3 rounded-sm bg-error/8 text-error text-sm border border-error/20">
               {error}
-            </div>
-          ) : (
-            <div className="px-4 py-3 rounded-sm bg-surface-container-low text-on-surface-variant text-xs leading-relaxed border border-outline-variant/15">
-              {helper}
             </div>
           )}
 

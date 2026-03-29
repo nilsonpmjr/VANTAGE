@@ -8,7 +8,7 @@ The session_id is safe to expose to the client — it never grants authenticatio
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from auth import get_current_user, require_role, hash_refresh_token
 from db import db_manager

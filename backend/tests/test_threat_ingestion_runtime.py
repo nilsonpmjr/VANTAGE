@@ -1,9 +1,10 @@
 import pytest
 
 from threat_feed_adapters import adapt_cve_rss_items, adapt_fortinet_rss_items, parse_rss_items
-from threat_ingestion import record_threat_sync_status, update_threat_source
+from threat_ingestion import create_custom_source, record_threat_sync_status, update_threat_source
 from threat_ingestion_runtime import (
     _THREAT_INGESTION_CYCLE_LOCK,
+    _make_custom_rss_fetcher,
     clear_threat_fetchers,
     execute_threat_ingestion_worker_cycle,
     register_threat_fetcher,
@@ -12,7 +13,8 @@ from threat_ingestion_runtime import (
 
 
 @pytest.mark.asyncio
-async def test_threat_ingestion_cycle_persists_items_and_status(fake_db):
+async def test_threat_ingestion_cycle_persists_items_and_status(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
     clear_threat_fetchers()
     await update_threat_source(
         fake_db,
@@ -58,7 +60,8 @@ async def test_threat_ingestion_cycle_persists_items_and_status(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_threat_ingestion_cycle_isolates_source_failures(fake_db):
+async def test_threat_ingestion_cycle_isolates_source_failures(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
     clear_threat_fetchers()
     await update_threat_source(
         fake_db,
@@ -112,7 +115,8 @@ async def test_threat_ingestion_cycle_isolates_source_failures(fake_db):
 
 
 @pytest.mark.asyncio
-async def test_threat_ingestion_cycle_skips_sources_not_due(fake_db):
+async def test_threat_ingestion_cycle_skips_sources_not_due(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
     clear_threat_fetchers()
     await update_threat_source(
         fake_db,
@@ -146,3 +150,63 @@ async def test_execute_worker_cycle_skips_when_previous_cycle_is_running(fake_db
         _THREAT_INGESTION_CYCLE_LOCK.release()
 
     assert executed is False
+
+
+@pytest.mark.asyncio
+async def test_custom_rss_fetcher_uses_display_name_for_source_label(fake_db, monkeypatch):
+    monkeypatch.setattr("network_security.resolve_hostname_ips", lambda _hostname: ["93.184.216.34"])
+    source = await create_custom_source(
+        fake_db,
+        title="Partner Feed",
+        feed_url="https://feeds.example.test/custom.xml",
+        created_by="admin",
+    )
+
+    class _MockResponse:
+        text = "<rss><channel /></rss>"
+
+        def raise_for_status(self):
+            return None
+
+    class _MockClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def get(self, _url):
+            return _MockResponse()
+
+    captured: dict[str, str] = {}
+
+    def _fake_parse(_xml):
+        return [{"title": "Indicator"}]
+
+    def _fake_adapt(source_id, family, raw_items, *, source_name, tlp):
+        captured["source_id"] = source_id
+        captured["family"] = family
+        captured["source_name"] = source_name
+        captured["tlp"] = tlp
+        return [
+            {
+                "source_id": source_id,
+                "external_id": "custom-item-1",
+                "source_name": source_name,
+                "title": raw_items[0]["title"],
+                "summary": "summary",
+                "severity": "low",
+                "tlp": tlp,
+                "timestamp": "2026-03-19T12:00:00+00:00",
+            }
+        ]
+
+    monkeypatch.setattr("httpx.AsyncClient", lambda *args, **kwargs: _MockClient())
+    monkeypatch.setattr("threat_feed_adapters.parse_rss_items", _fake_parse)
+    monkeypatch.setattr("threat_feed_adapters.adapt_generic_rss_items", _fake_adapt)
+
+    fetcher = _make_custom_rss_fetcher(source)
+    items = await fetcher(source)
+
+    assert items[0]["source_name"] == "Partner Feed"
+    assert captured["source_name"] == "Partner Feed"

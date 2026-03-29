@@ -70,18 +70,24 @@ class FakeCollection:
                 if isinstance(v, dict):
                     doc_val = doc.get(k)
                     if doc_val is None:
-                        match = False; break
+                        match = False
+                        break
                     if "$gte" in v and doc_val < v["$gte"]:
-                        match = False; break
+                        match = False
+                        break
                     if "$gt" in v and doc_val <= v["$gt"]:
-                        match = False; break
+                        match = False
+                        break
                     if "$lte" in v and doc_val > v["$lte"]:
-                        match = False; break
+                        match = False
+                        break
                     if "$lt" in v and doc_val >= v["$lt"]:
-                        match = False; break
+                        match = False
+                        break
                 else:
                     if doc.get(k) != v:
-                        match = False; break
+                        match = False
+                        break
             if match:
                 results.append(doc)
         return FakeCursor(results)

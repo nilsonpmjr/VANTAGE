@@ -50,6 +50,7 @@ async def test_hunting_search_returns_normalized_results(async_client, fake_db):
     assert audit is not None
     assert audit["result"] == "success"
 
+
 async def test_hunting_search_reports_unsupported_artifact_per_provider(async_client, fake_db):
     token = create_access_token({"sub": "techuser", "role": "tech"})
     resp = await async_client.post(

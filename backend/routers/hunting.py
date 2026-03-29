@@ -151,22 +151,22 @@ async def list_recent_hunting_searches(current_user: dict = Depends(get_current_
 
     grouped: dict[str, dict[str, Any]] = {}
     for doc in docs:
-      search_id = doc.get("search_id")
-      if not search_id:
-          continue
-      bucket = grouped.get(search_id)
-      if bucket is None:
-          bucket = {
-              "search_id": search_id,
-              "artifact_type": doc.get("artifact_type"),
-              "query": doc.get("query"),
-              "timestamp": doc.get("search_timestamp") or doc.get("timestamp"),
-              "providers": set(),
-              "result_count": 0,
-          }
-          grouped[search_id] = bucket
-      bucket["providers"].add(doc.get("provider_key"))
-      bucket["result_count"] += 1
+        search_id = doc.get("search_id")
+        if not search_id:
+            continue
+        bucket = grouped.get(search_id)
+        if bucket is None:
+            bucket = {
+                "search_id": search_id,
+                "artifact_type": doc.get("artifact_type"),
+                "query": doc.get("query"),
+                "timestamp": doc.get("search_timestamp") or doc.get("timestamp"),
+                "providers": set(),
+                "result_count": 0,
+            }
+            grouped[search_id] = bucket
+        bucket["providers"].add(doc.get("provider_key"))
+        bucket["result_count"] += 1
 
     items = sorted(
         [

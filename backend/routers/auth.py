@@ -7,7 +7,6 @@ from urllib.parse import parse_qs
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
 
 from db import db_manager
 from config import settings
@@ -17,13 +16,11 @@ from auth import (
     create_access_token,
     create_refresh_token,
     hash_refresh_token,
-    get_current_user,
     get_current_user_allow_expired,
     _set_auth_cookies,
     _set_pre_auth_cookie,
     _clear_pre_auth_cookie,
     _build_user_dict,
-    default_notification_center,
 )
 from limiters import limiter
 from audit import log_action
@@ -78,6 +75,7 @@ async def _parse_login_credentials(request: Request) -> tuple[str, str]:
         )
 
     return username, password
+
 
 @router.post("/login")
 @limiter.limit("5/minute")

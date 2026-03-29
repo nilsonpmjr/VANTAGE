@@ -11,7 +11,11 @@ from typing import Any
 from operational_config import get_public_operational_config
 
 
-_scheduler_runtime_provider = lambda: {"running": False, "scheduled_jobs": 0}
+def _default_scheduler_runtime_provider() -> dict[str, int | bool]:
+    return {"running": False, "scheduled_jobs": 0}
+
+
+_scheduler_runtime_provider = _default_scheduler_runtime_provider
 
 
 def _now() -> datetime:

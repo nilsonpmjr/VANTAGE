@@ -84,11 +84,6 @@ export default function Layout() {
   const settingsNavItems = useMemo(
     () => [
       {
-        path: "/settings/patterns",
-        label: t("settings.patterns", "Operational Patterns"),
-        icon: Activity,
-      },
-      {
         path: "/settings/extensions",
         label: t("settings.extensions", "Extensions Catalog"),
         icon: Settings,

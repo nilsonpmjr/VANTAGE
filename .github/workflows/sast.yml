@@ -2,7 +2,7 @@ name: SAST
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, dev]
   pull_request:
     branches: [main]
   schedule:
@@ -57,9 +57,6 @@ jobs:
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
 
       - name: Analyze
         uses: github/codeql-action/analyze@v3

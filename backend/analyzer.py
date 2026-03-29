@@ -403,9 +403,9 @@ def _provider_signal_lines(results_data: dict[str, Any], lang: str) -> list[str]
         malicious = stats.get("malicious", 0)
         total = sum(value for value in stats.values() if isinstance(value, int)) or malicious
         if malicious > 0:
-          lines.append(pack["vt_bad"].format(malicious=malicious, total=total))
+            lines.append(pack["vt_bad"].format(malicious=malicious, total=total))
         else:
-          lines.append(pack["vt_good"])
+            lines.append(pack["vt_good"])
 
     abuse_data = results_data.get("abuseipdb", {}).get("data", {})
     if abuse_data:

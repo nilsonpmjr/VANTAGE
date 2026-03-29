@@ -65,6 +65,7 @@ interface ThirdPartyConfigStatus {
 type ThirdPartyStatusMap = Record<string, ThirdPartyConfigStatus>;
 
 const THIRD_PARTY_SERVICES = [
+  { id: "ip2location", label: "IP2Location", icon: "place", note: "Primary IP geolocation baseline with city, region, ASN, and ISP enrichment." },
   { id: "virustotal", label: "VirusTotal", icon: "security", note: "File and URL analysis integration for automated malware sandboxing." },
   { id: "shodan", label: "Shodan.io", icon: "language", note: "Internet-connected device discovery and port scanning metadata." },
   { id: "alienvault", label: "AlienVault OTX", icon: "public", note: "Open threat exchange pulses and indicator aggregation." },

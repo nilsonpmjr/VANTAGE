@@ -12,7 +12,7 @@ export default function HelpLayout() {
   ];
 
   return (
-    <div className="page-frame">
+    <div className="page-frame help-page-frame">
       <div className="page-header">
         <div className="page-header-copy">
           <div className="page-eyebrow">{t("help.eyebrow", "Help Center")}</div>

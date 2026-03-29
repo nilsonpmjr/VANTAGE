@@ -156,6 +156,14 @@
     @apply max-w-[82rem];
   }
 
+  .analyze-page-frame {
+    @apply max-w-[84rem];
+  }
+
+  .help-page-frame {
+    @apply max-w-[80rem];
+  }
+
   .settings-layout {
     @apply mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 overflow-visible;
   }

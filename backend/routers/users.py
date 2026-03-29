@@ -59,7 +59,7 @@ class ThirdPartyKeysUpdate(BaseModel):
 
 ALLOWED_SERVICES = {
     "virustotal", "abuseipdb", "shodan", "alienvault",
-    "greynoise", "urlscan", "blacklistmaster", "abusech", "pulsedive"
+    "greynoise", "urlscan", "blacklistmaster", "abusech", "pulsedive", "ip2location"
 }
 
 VALID_ROLES = {"admin", "manager", "tech"}

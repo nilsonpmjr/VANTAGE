@@ -4,7 +4,12 @@ from datetime import datetime, timezone, timedelta
 
 from db import db_manager
 from clients.api_client_async import AsyncThreatIntelClient
-from analyzer import generate_heuristic_report, format_report_to_markdown
+from analyzer import (
+    analysis_meta,
+    build_geo_summary,
+    format_report_sections_to_text,
+    generate_analysis_sections,
+)
 from scoring import compute_risk_score, compute_verdict
 from scans import build_scan_payload
 from watchlist_runtime import evaluate_watchlist_target, persist_watchlist_scan
@@ -110,10 +115,11 @@ async def process_single_target(
         verdict = compute_verdict(risk_score)
         summary = {"verdict": verdict, "risk_sources": risk_score, "total_sources": total_sources}
 
-        # 3. Generate heuristic reports for all supported languages
-        report_pt = generate_heuristic_report(target, target_type, summary, clean_results, lang="pt")
-        report_en = generate_heuristic_report(target, target_type, summary, clean_results, lang="en")
-        report_es = generate_heuristic_report(target, target_type, summary, clean_results, lang="es")
+        # 3. Generate structured reports for all supported languages
+        geo_summary = build_geo_summary(target, target_type, clean_results)
+        sections_pt = generate_analysis_sections(target, target_type, summary, clean_results, lang="pt", geo_summary=geo_summary)
+        sections_en = generate_analysis_sections(target, target_type, summary, clean_results, lang="en", geo_summary=geo_summary)
+        sections_es = generate_analysis_sections(target, target_type, summary, clean_results, lang="es", geo_summary=geo_summary)
 
         # 4. Update the document in db.scans (same collection used by main.py)
         payload = build_scan_payload(
@@ -121,12 +127,20 @@ async def process_single_target(
             target_type=target_type,
             results=clean_results,
             summary=summary,
-            analysis_report=format_report_to_markdown(report_pt),
+            analysis_report=format_report_sections_to_text(sections_pt),
             analysis_reports={
-                "pt": format_report_to_markdown(report_pt),
-                "en": format_report_to_markdown(report_en),
-                "es": format_report_to_markdown(report_es),
+                "pt": format_report_sections_to_text(sections_pt),
+                "en": format_report_sections_to_text(sections_en),
+                "es": format_report_sections_to_text(sections_es),
             },
+            analysis_sections=sections_pt,
+            analysis_section_sets={
+                "pt": sections_pt,
+                "en": sections_en,
+                "es": sections_es,
+            },
+            geo_summary=geo_summary,
+            analysis_meta=analysis_meta(),
         )
         update_doc = {
             "verdict": verdict,

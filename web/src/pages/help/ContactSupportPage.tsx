@@ -74,8 +74,8 @@ export default function ContactSupportPage() {
 
   return (
     <div className="mt-6 space-y-6">
-      <div className="page-with-side-rail">
-        <div className="page-main-pane">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)] xl:items-start">
+        <div className="order-2 min-w-0 xl:order-2 xl:col-start-2">
           <div className="surface-section">
             <div className="surface-section-header">
               <h3 className="surface-section-title">{t("help.sendMessage", "Send a Message")}</h3>
@@ -172,7 +172,7 @@ export default function ContactSupportPage() {
           </div>
         </div>
 
-        <div className="page-side-rail">
+        <aside className="order-1 flex min-w-0 flex-col gap-6 xl:order-1 xl:col-start-1 xl:sticky xl:top-6">
           <div className="surface-section">
             <div className="surface-section-header">
               <h3 className="surface-section-title">{t("help.systemInformation", "System Information")}</h3>
@@ -199,7 +199,7 @@ export default function ContactSupportPage() {
               {t("help.responseTimeBody", "We typically respond within 24 hours for bug reports and 48 hours for feature requests.")}
             </p>
           </div>
-        </div>
+        </aside>
       </div>
 
       <div className="surface-section">

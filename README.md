@@ -206,10 +206,11 @@ When you use `docker compose`, the backend receives an internal `MONGO_URI` auto
 | `OTX_API_KEY` | AlienVault OTX | Unlimited |
 | `GREYNOISE_API_KEY` | GreyNoise | Community |
 | `URLSCAN_API_KEY` | UrlScan.io | 100 req/day |
+| `IP2LOCATION_API_KEY` | IP2Location.io | 1000 req/day keyless, 50k/mo free with key |
 | `PULSEDIVE_API_KEY` | Pulsedive | Free tier |
 | `ABUSECH_API_KEY` | Abuse.ch | Free |
 
-Missing keys are gracefully skipped — services without keys are excluded from the verdict.
+Missing keys are gracefully skipped, except `IP2LOCATION`, which can run in public keyless mode with a lower daily limit.
 
 ### Optional
 

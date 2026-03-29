@@ -217,13 +217,13 @@ export default function ContactSupportPage() {
             <div>
               <h4 className="text-sm font-bold text-on-surface">{t("help.emailLabel", "Email")}</h4>
               <p className="text-xs text-on-surface-variant">
-                suporte@vantage.security
+                support@vantagesec.org
               </p>
             </div>
           </a>
 
           <a
-            href="https://github.com/iteam-soc/vantage/issues"
+            href="https://github.com/nilsonpmjr/VANTAGE/issues"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-4 p-6 hover:bg-surface-container-low transition-colors"

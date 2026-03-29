@@ -66,7 +66,6 @@ function LoginPanel() {
 
         <div className="px-7 py-8 space-y-6">
           <div className="space-y-2">
-            <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Secure Access</p>
             <h2 className="text-2xl font-black tracking-tight text-on-surface">Centro de Operações de Segurança</h2>
             <p className="text-sm text-on-surface-variant">
               Inicialize uma sessão autenticada para usar o motor real de inteligência e análise do VANTAGE.

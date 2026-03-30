@@ -7,8 +7,6 @@ Used by:
   - ReconPage.jsx frontend (mirrors logic for inline display)
 """
 
-from datetime import datetime, timezone
-
 
 def correlate(results: dict) -> dict:
     """
@@ -188,8 +186,14 @@ def extract_risks(results: dict) -> list[dict]:
         standard = {21, 22, 23, 25, 53, 80, 110, 143, 443, 587, 993, 995, 3306, 5432, 6379, 8080, 8443}
         for p in ports["ports"]:
             if p.get("port") and p["port"] not in standard:
-                risks.append({"severity": "low", "category": "ports",
-                               "message": f"Non-standard port open: {p['port']}/{p.get('protocol','tcp')} ({p.get('service','')})"})
+                risks.append({
+                    "severity": "low",
+                    "category": "ports",
+                    "message": (
+                        f"Non-standard port open: {p['port']}/"
+                        f"{p.get('protocol', 'tcp')} ({p.get('service', '')})"
+                    ),
+                })
 
     # Passive harvested emails
     if passive and passive.get("emails"):

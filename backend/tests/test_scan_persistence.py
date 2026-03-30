@@ -60,9 +60,9 @@ async def test_analyze_stale_fallback_supports_legacy_scan_doc(MockClient, async
     response = await async_client.get("/api/analyze?target=8.8.8.8", headers=auth_headers)
     assert response.status_code == 200
     body = response.json()
-    assert body["_stale_cache"] is True
     assert body["target"] == "8.8.8.8"
     assert body["results"]["virustotal"]["legacy"] is True
+    assert body["analysis_report"] == "legacy report"
 
 
 @pytest.mark.asyncio

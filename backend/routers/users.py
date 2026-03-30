@@ -10,7 +10,7 @@ from auth import get_password_hash, verify_password, get_current_user, get_curre
 from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
-from crypto import encrypt_secret, decrypt_secret
+from crypto import encrypt_secret
 from identity import (
     any_contact_email_in_use,
     email_in_use,
@@ -22,6 +22,8 @@ from session_revocation import revoke_user_refresh_tokens, is_sensitive_role_dow
 logger = get_logger("UsersRouter")
 
 router = APIRouter(prefix="/users", tags=["users"])
+FIELD_EXCLUDED = 0
+PASSWORD_RESET_NOT_REQUIRED = False
 
 
 class UserCreate(BaseModel):
@@ -37,6 +39,7 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     name: Optional[str] = None
     is_active: Optional[bool] = None
+    suspension_reason: Optional[str] = None
     force_password_reset: Optional[bool] = None
     email: Optional[str] = None
     allowed_ips: Optional[list[str]] = None
@@ -47,6 +50,7 @@ class UserPreferencesUpdate(BaseModel):
     preferred_lang: Optional[str] = None
     avatar_base64: Optional[str] = None
     recovery_email: Optional[str] = None
+    notification_center: Optional[dict] = None
 
 
 class ThirdPartyKeysUpdate(BaseModel):
@@ -55,10 +59,38 @@ class ThirdPartyKeysUpdate(BaseModel):
 
 ALLOWED_SERVICES = {
     "virustotal", "abuseipdb", "shodan", "alienvault",
-    "greynoise", "urlscan", "blacklistmaster", "abusech", "pulsedive"
+    "greynoise", "urlscan", "blacklistmaster", "abusech", "pulsedive", "ip2location"
 }
 
 VALID_ROLES = {"admin", "manager", "tech"}
+
+
+def _normalize_notification_center(value: Optional[dict]) -> dict:
+    payload = value if isinstance(value, dict) else {}
+    preferences_raw = payload.get("preferences") if isinstance(payload.get("preferences"), dict) else {}
+
+    def _normalize_ids(raw: object) -> list[str]:
+        items = raw if isinstance(raw, list) else []
+        normalized: list[str] = []
+        for item in items:
+            if not isinstance(item, str):
+                continue
+            cleaned = item.strip()
+            if cleaned and cleaned not in normalized:
+                normalized.append(cleaned)
+            if len(normalized) >= 500:
+                break
+        return normalized
+
+    return {
+        "read_ids": _normalize_ids(payload.get("read_ids")),
+        "archived_ids": _normalize_ids(payload.get("archived_ids")),
+        "preferences": {
+            "critical": preferences_raw.get("critical", True) is not False,
+            "system": preferences_raw.get("system", True) is not False,
+            "intelligence": preferences_raw.get("intelligence", True) is not False,
+        },
+    }
 
 
 @router.get("")
@@ -66,7 +98,7 @@ async def list_users(current_user: dict = Depends(require_role(["admin"]))):
     db = db_manager.db
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
-    users_cursor = db.users.find({}, {"password_hash": 0, "password_history": 0, "_id": 0})
+    users_cursor = db.users.find({}, {"password_hash": FIELD_EXCLUDED, "password_history": FIELD_EXCLUDED, "_id": FIELD_EXCLUDED})
     return await users_cursor.to_list(length=100)
 
 
@@ -107,8 +139,9 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "created_at": datetime.now(timezone.utc),
         "password_history": [password_hash],
         "password_changed_at": datetime.now(timezone.utc),
-        "force_password_reset": False,
+        "force_password_reset": PASSWORD_RESET_NOT_REQUIRED,
         "extra_permissions": [],
+        "notification_center": _normalize_notification_center(None),
     }
     await db.users.insert_one(new_user)
     ip = request.client.host if request.client else ""
@@ -147,6 +180,8 @@ async def update_my_preferences(
             raise HTTPException(status_code=400, detail="Email already in use")
         update_data["recovery_email"] = normalized_recovery_email
         update_data["normalized_recovery_email"] = normalized_recovery_email
+    if prefs.notification_center is not None:
+        update_data["notification_center"] = _normalize_notification_center(prefs.notification_center)
 
     password_changed = False
     if prefs.password is not None:
@@ -226,6 +261,7 @@ async def get_third_party_keys(current_user: dict = Depends(get_current_user)):
 
 @router.patch("/me/third-party-keys")
 async def update_third_party_keys(
+    request: Request,
     body: ThirdPartyKeysUpdate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -240,16 +276,39 @@ async def update_third_party_keys(
 
     user_doc = await db.users.find_one({"username": current_user["username"]})
     existing = user_doc.get("third_party_keys", {}) if user_doc else {}
+    changed_services: list[str] = []
+    configured_services: list[str] = []
+    removed_services: list[str] = []
 
     for svc, value in body.keys.items():
         if value and value.strip():
             existing[svc] = encrypt_secret(value.strip())
+            changed_services.append(svc)
+            configured_services.append(svc)
         elif svc in existing:
             del existing[svc]
+            changed_services.append(svc)
+            removed_services.append(svc)
 
     await db.users.update_one(
         {"username": current_user["username"]},
         {"$set": {"third_party_keys": existing}}
+    )
+    ip = request.client.host if request.client else ""
+    detail_parts = []
+    if configured_services:
+        detail_parts.append(f"configured={','.join(sorted(configured_services))}")
+    if removed_services:
+        detail_parts.append(f"removed={','.join(sorted(removed_services))}")
+    detail_parts.append(f"changed={len(changed_services)}")
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="third_party_keys_updated",
+        target=current_user["username"],
+        ip=ip,
+        result="success",
+        detail="; ".join(detail_parts),
     )
     return {"status": "success", "message": "Third-party keys updated"}
 
@@ -322,6 +381,17 @@ async def update_user(
         update_data["is_active"] = user_update.is_active
         if user_update.is_active is False:
             revoke_sessions = True
+            reason = (user_update.suspension_reason or "").strip()
+            if reason:
+                update_data["suspension_reason"] = reason[:500]
+            else:
+                update_data["suspension_reason"] = None
+            update_data["suspended_at"] = datetime.now(timezone.utc)
+            update_data["suspended_by"] = current_user["username"]
+        else:
+            update_data["suspension_reason"] = None
+            update_data["suspended_at"] = None
+            update_data["suspended_by"] = None
     if user_update.force_password_reset is not None:
         update_data["force_password_reset"] = user_update.force_password_reset
         if user_update.force_password_reset is True:
@@ -370,9 +440,12 @@ async def update_user(
                          detail=f"revoked_sessions={revoked_count}")
     if "is_active" in update_data:
         action_name = "user_reactivated" if update_data["is_active"] else "user_suspended"
+        detail = f"revoked_sessions={revoked_count}"
+        if update_data["is_active"] is False and update_data.get("suspension_reason"):
+            detail += f"; reason={update_data['suspension_reason']}"
         await log_action(db, user=current_user["username"], action=action_name,
                          target=username, ip=ip, result="success",
-                         detail=f"revoked_sessions={revoked_count}")
+                         detail=detail)
     else:
         await log_action(db, user=current_user["username"], action="user_updated",
                          target=username, ip=ip, result="success",

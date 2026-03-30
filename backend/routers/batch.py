@@ -10,7 +10,12 @@ from pydantic import BaseModel
 
 from clients.api_client_async import AsyncThreatIntelClient
 from validators import validate_target, ValidationError
-from analyzer import generate_heuristic_report, format_report_to_markdown
+from analyzer import (
+    analysis_meta,
+    build_geo_summary,
+    format_report_sections_to_text,
+    generate_analysis_sections,
+)
 from scoring import compute_risk_score, compute_verdict
 from db import db_manager, inc_service_quota
 from auth import get_current_user, require_api_scope
@@ -443,17 +448,15 @@ async def _process_batch(
                         "verdict": verdict,
                     }
 
-                    report_pt = generate_heuristic_report(
-                        sanitized, target_type, summary, service_results,
-                        lang="pt",
+                    geo_summary = build_geo_summary(sanitized, target_type, service_results)
+                    sections_pt = generate_analysis_sections(
+                        sanitized, target_type, summary, service_results, lang="pt", geo_summary=geo_summary
                     )
-                    report_en = generate_heuristic_report(
-                        sanitized, target_type, summary, service_results,
-                        lang="en",
+                    sections_en = generate_analysis_sections(
+                        sanitized, target_type, summary, service_results, lang="en", geo_summary=geo_summary
                     )
-                    report_es = generate_heuristic_report(
-                        sanitized, target_type, summary, service_results,
-                        lang="es",
+                    sections_es = generate_analysis_sections(
+                        sanitized, target_type, summary, service_results, lang="es", geo_summary=geo_summary
                     )
 
                     scan_data = build_scan_payload(
@@ -461,15 +464,23 @@ async def _process_batch(
                         target_type=target_type,
                         results=service_results,
                         summary=summary,
-                        analysis_report=format_report_to_markdown(
-                            report_pt if lang == "pt"
-                            else (report_en if lang == "en" else report_es)
+                        analysis_report=format_report_sections_to_text(
+                            sections_pt if lang == "pt"
+                            else (sections_en if lang == "en" else sections_es)
                         ),
                         analysis_reports={
-                            "pt": format_report_to_markdown(report_pt),
-                            "en": format_report_to_markdown(report_en),
-                            "es": format_report_to_markdown(report_es),
+                            "pt": format_report_sections_to_text(sections_pt),
+                            "en": format_report_sections_to_text(sections_en),
+                            "es": format_report_sections_to_text(sections_es),
                         },
+                        analysis_sections=sections_pt if lang == "pt" else (sections_en if lang == "en" else sections_es),
+                        analysis_section_sets={
+                            "pt": sections_pt,
+                            "en": sections_en,
+                            "es": sections_es,
+                        },
+                        geo_summary=geo_summary,
+                        analysis_meta=analysis_meta(),
                     )
 
                     entry["verdict"] = verdict
@@ -567,8 +578,8 @@ async def _process_batch(
                     {"_id": job_id},
                     {"$set": {"status": "failed", "error": str(e)}},
                 )
-            except Exception:
-                pass
+            except Exception as persist_exc:
+                logger.warning(f"Batch {job_id}: could not persist failure state: {persist_exc}")
         await queue.put({"type": "error", "message": str(e)})
 
     finally:

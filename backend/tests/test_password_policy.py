@@ -4,49 +4,82 @@ Tests for Phase 1b — Password Policies.
 
 import pytest
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, MagicMock
 
 
 # ── Unit tests for policies.py ────────────────────────────────────────────────
 
 def test_validate_password_too_short():
     from policies import validate_password
-    policy = {"min_length": 10, "require_uppercase": False,
-               "require_numbers": False, "require_symbols": False}
+    policy = {
+        "min_length": 10,
+        "require_uppercase": False,
+        "require_numbers": False,
+        "require_symbols": False,
+    }
     errors = validate_password("short", policy)
     assert any("password_too_short" in e for e in errors)
 
 
 def test_validate_password_needs_uppercase():
     from policies import validate_password
-    policy = {"min_length": 6, "require_uppercase": True,
-               "require_numbers": False, "require_symbols": False}
+    policy = {
+        "min_length": 6,
+        "require_uppercase": True,
+        "require_numbers": False,
+        "require_symbols": False,
+    }
     errors = validate_password("alllower", policy)
     assert "password_needs_uppercase" in errors
 
 
 def test_validate_password_needs_number():
     from policies import validate_password
-    policy = {"min_length": 6, "require_uppercase": False,
-               "require_numbers": True, "require_symbols": False}
+    policy = {
+        "min_length": 6,
+        "require_uppercase": False,
+        "require_numbers": True,
+        "require_symbols": False,
+    }
     errors = validate_password("NoNumbers!", policy)
     assert "password_needs_number" in errors
 
 
 def test_validate_password_needs_symbol():
     from policies import validate_password
-    policy = {"min_length": 6, "require_uppercase": False,
-               "require_numbers": False, "require_symbols": True}
+    policy = {
+        "min_length": 6,
+        "require_uppercase": False,
+        "require_numbers": False,
+        "require_symbols": True,
+    }
     errors = validate_password("NoSymbol1", policy)
     assert "password_needs_symbol" in errors
 
 
 def test_validate_password_all_pass():
     from policies import validate_password
-    policy = {"min_length": 8, "require_uppercase": True,
-               "require_numbers": True, "require_symbols": True}
+    policy = {
+        "min_length": 8,
+        "require_uppercase": True,
+        "require_numbers": True,
+        "require_symbols": True,
+    }
     errors = validate_password("Secure1!", policy)
     assert errors == []
+
+
+def test_validate_password_blocks_common_password():
+    from policies import validate_password
+    policy = {"min_length": 8, "prevent_common_passwords": True}
+    errors = validate_password("password123", policy)
+    assert "password_common_word_blocked" in errors
+
+
+def test_validate_password_blocks_breached_password():
+    from policies import validate_password
+    policy = {"min_length": 6, "prevent_breached_passwords": True}
+    errors = validate_password("123456", policy)
+    assert "password_breached_blocked" in errors
 
 
 def test_compute_expiry_days_left_disabled():
@@ -142,6 +175,16 @@ async def test_update_password_policy(async_client, auth_headers):
     assert data["min_length"] == 12
     assert data["require_uppercase"] is True
     assert data["expiry_days"] == 90
+
+
+@pytest.mark.asyncio
+async def test_export_security_policies_json(async_client, auth_headers):
+    resp = await async_client.get("/api/admin/security-policies/export?format=json", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/json")
+    data = resp.json()
+    assert "password_policy" in data
+    assert "lockout_policy" in data
 
 
 @pytest.mark.asyncio

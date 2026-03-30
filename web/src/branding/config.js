@@ -1,8 +1,5 @@
 /**
- * Branding configuration (ponto único de verdade)
- *
- * Para downstream, a marca ativa pode ser definida com VITE_BRAND.
- * Os temas seguem centralizados por brand.themes/defaultTheme.
+ * Brand configuration shared by runtime assets and public metadata.
  */
 
 export const brands = {
@@ -28,10 +25,10 @@ export const brands = {
   },
   generic: {
     key: 'generic',
-    name: 'Workspace',
+    name: 'Generic Platform',
     tagline: 'Security Operations Platform',
-    appTitle: 'Workspace | Security Operations Platform',
-    metaDescription: 'Generic security operations workspace for downstream deployments, threat intelligence workflows, and recon analysis.',
+    appTitle: 'Generic Platform | Security Operations Platform',
+    metaDescription: 'Generic security operations platform for downstream deployments, threat intelligence workflows, and recon analysis.',
     logoPath: '/branding/generic/logo.svg',
     logoDarkPath: '/branding/generic/logo.svg',
     logoLightPath: '/branding/generic/logo-light.svg',
@@ -42,9 +39,9 @@ export const brands = {
     appIconLightPath: '/branding/generic/app-icon-light.svg',
     themes: ['dark', 'light'],
     defaultTheme: 'dark',
-    copyrightHolder: 'Workspace',
+    copyrightHolder: 'Generic Platform',
     pdfPrefix: 'Security_Report',
-    mfaIssuer: 'Workspace',
+    mfaIssuer: 'Generic Platform',
   },
 };
 

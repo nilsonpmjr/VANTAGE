@@ -7,7 +7,6 @@ from urllib.parse import parse_qs
 from fastapi import APIRouter, HTTPException, Depends, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-from typing import Optional
 
 from db import db_manager
 from config import settings
@@ -17,23 +16,25 @@ from auth import (
     create_access_token,
     create_refresh_token,
     hash_refresh_token,
-    get_current_user,
     get_current_user_allow_expired,
     _set_auth_cookies,
     _set_pre_auth_cookie,
     _clear_pre_auth_cookie,
+    _build_user_dict,
 )
 from limiters import limiter
 from audit import log_action
 from logging_config import get_logger
 from mailer import send_password_reset_email
 from identity import find_user_by_password_reset_email, normalize_email
-from policies import get_password_policy, validate_password
+from policies import compute_expiry_days_left, get_password_policy, validate_password
 from session_revocation import revoke_user_refresh_tokens
 
 logger = get_logger("AuthRouter")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+AUTH_TOKEN_TYPE = "bearer"  # nosec B105
+PASSWORD_RESET_NOT_REQUIRED = False
 
 
 async def _parse_login_credentials(request: Request) -> tuple[str, str]:
@@ -74,6 +75,7 @@ async def _parse_login_credentials(request: Request) -> tuple[str, str]:
         )
 
     return username, password
+
 
 @router.post("/login")
 @limiter.limit("5/minute")
@@ -221,21 +223,15 @@ async def login(request: Request):
         "revoked": False,
     })
 
-    user_payload = {
-        "username": user["username"],
-        "role": role,
-        "name": user.get("name", ""),
-        "email": user.get("email"),
-        "preferred_lang": user.get("preferred_lang", "pt"),
-        "is_active": user.get("is_active", True),
-        "force_password_reset": user.get("force_password_reset", False),
-        "mfa_enabled": user.get("mfa_enabled", False),
-        "mfa_setup_required": force_mfa_setup,
-        "avatar_base64": user.get("avatar_base64", ""),
-        "recovery_email": user.get("recovery_email"),
-    }
+    policy = await get_password_policy(db)
+    days_left = compute_expiry_days_left(user, policy)
+    user_payload = _build_user_dict(
+        user,
+        days_left,
+        mfa_setup_required=force_mfa_setup,
+    )
 
-    response = JSONResponse(content={"user": user_payload, "token_type": "bearer"})
+    response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, access_token, refresh_token)
     _clear_pre_auth_cookie(response)
     logger.info(f"Login successful: {user['username']}")
@@ -291,7 +287,7 @@ async def refresh_access_token(request: Request):
         "revoked": False,
     })
 
-    response = JSONResponse(content={"token_type": "bearer"})
+    response = JSONResponse(content={"token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, new_access_token, new_refresh_token)
     return response
 
@@ -443,7 +439,7 @@ async def reset_password(request: Request, body: ResetPasswordRequest):
             "password_hash": new_hash,
             "password_history": new_history,
             "password_changed_at": now,
-            "force_password_reset": False,
+            "force_password_reset": PASSWORD_RESET_NOT_REQUIRED,
         }},
     )
     revoked_count = await revoke_user_refresh_tokens(db, username)

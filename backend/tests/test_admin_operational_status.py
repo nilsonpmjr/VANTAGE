@@ -97,3 +97,52 @@ async def test_operational_status_snapshot_tolerates_collector_failure(fake_db, 
     assert snapshot["services"]["mongodb"]["status"] == "error"
     assert snapshot["services"]["mongodb"]["error"] == "ping failed"
     assert snapshot["summary"]["error"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_operational_status_history_returns_snapshot_series(async_client, auth_headers, fake_db):
+    now = datetime.now(timezone.utc)
+    await fake_db.operational_status_history.insert_one(
+        {
+            "recorded_at": now,
+            "summary": {"healthy": 4, "degraded": 1, "error": 0},
+            "services": {"backend": {"status": "healthy", "consumption": {"active_sessions": 12}}},
+        }
+    )
+
+    resp = await async_client.get("/api/admin/operational-status/history?limit=12", headers=auth_headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data["items"]) == 1
+    assert data["items"][0]["services"]["backend"]["consumption"]["active_sessions"] == 12
+
+
+@pytest.mark.asyncio
+async def test_operational_events_filters_runtime_actions(async_client, auth_headers, fake_db):
+    now = datetime.now(timezone.utc)
+    await fake_db.audit_log.insert_one(
+        {
+            "timestamp": now,
+            "user": "admin",
+            "action": "service_restart",
+            "result": "success",
+            "detail": "service=scheduler",
+        }
+    )
+    await fake_db.audit_log.insert_one(
+        {
+            "timestamp": now,
+            "user": "admin",
+            "action": "password_policy_changed",
+            "result": "success",
+        }
+    )
+
+    resp = await async_client.get("/api/admin/operational-events?page=1&page_size=10", headers=auth_headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 1
+    assert data["items"][0]["service"] == "scheduler"
+    assert data["items"][0]["category"] == "runtime"

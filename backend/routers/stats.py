@@ -17,6 +17,7 @@ router = APIRouter(prefix="", tags=["stats"])
 async def get_dashboard_stats(
     period: str = "month",
     limit: int = Query(20, ge=1, le=100, description="Max recent scans to return"),
+    skip: int = Query(0, ge=0, description="Number of recent scans to skip (pagination)"),
     current_user: dict = Depends(require_role(["admin", "manager", "tech"])),
     _scope=Depends(require_api_scope("stats")),
 ):
@@ -126,10 +127,11 @@ async def get_dashboard_stats(
         except Exception:
             top_threat_types = []
 
-        # Recent scans (paginated via limit param)
+        # Recent scans (paginated via skip + limit)
         recent_scans = await (
             db.scans.find(base_query, {"_id": 0, "data": 0})
             .sort("timestamp", -1)
+            .skip(skip)
             .limit(limit)
             .to_list(length=limit)
         )

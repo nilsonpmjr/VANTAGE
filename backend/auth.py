@@ -12,6 +12,7 @@ from passlib.context import CryptContext
 
 from config import settings
 from db import db_manager
+from logging_config import get_logger
 from policies import compute_expiry_days_left, get_password_policy
 
 SECRET_KEY = settings.jwt_secret
@@ -19,10 +20,25 @@ ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
+logger = get_logger("Auth")
 
 # auto_error=False so the dependency doesn't raise 401 immediately;
 # get_current_user will check both cookie and header.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
+
+
+def default_notification_center(value: Optional[dict] = None) -> dict:
+    stored = value or {}
+    preferences = stored.get("preferences") if isinstance(stored.get("preferences"), dict) else {}
+    return {
+        "read_ids": [item for item in stored.get("read_ids", []) if isinstance(item, str)],
+        "archived_ids": [item for item in stored.get("archived_ids", []) if isinstance(item, str)],
+        "preferences": {
+            "critical": preferences.get("critical", True) is not False,
+            "system": preferences.get("system", True) is not False,
+            "intelligence": preferences.get("intelligence", True) is not False,
+        },
+    }
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -139,8 +155,8 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
                 {"key_hash": key_hash},
                 {"$set": {"last_used_at": datetime.now(timezone.utc)}},
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(f"Failed to update api_keys.last_used_at for {key_doc.get('username')}: {exc}")
         username = key_doc["username"]
         _api_key_scopes = key_doc.get("scopes", ["analyze"])
     else:
@@ -191,7 +207,12 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
     return user
 
 
-def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
+def _build_user_dict(
+    user: dict,
+    days_left: Optional[int],
+    *,
+    mfa_setup_required: bool = False,
+) -> dict:
     """Build the standard authenticated-user response dict."""
     result = {
         "username": user["username"],
@@ -202,8 +223,11 @@ def _build_user_dict(user: dict, days_left: Optional[int]) -> dict:
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "extra_permissions": user.get("extra_permissions", []),
+        "mfa_enabled": user.get("mfa_enabled", False),
+        "mfa_setup_required": mfa_setup_required,
         "avatar_base64": user.get("avatar_base64", ""),
         "recovery_email": user.get("recovery_email"),
+        "notification_center": default_notification_center(user.get("notification_center")),
     }
     if "_api_key_scopes" in user:
         result["_api_key_scopes"] = user["_api_key_scopes"]
@@ -284,6 +308,7 @@ AVAILABLE_PERMISSIONS: list[str] = [
     "users:export",
     "apikeys:manage",
     "stats:export",
+    "services:restart",
 ]
 
 

@@ -184,6 +184,12 @@ class AsyncThreatIntelClient:
             'base_url': 'https://pulsedive.com/api',
             'rate_limit': (10, 60),
         },
+        'ip2location': {
+            'env_var': 'IP2LOCATION_API_KEY',
+            'base_url': 'https://api.ip2location.io',
+            'rate_limit': (10, 60),
+            'optional_key': True,
+        },
     }
 
     def __init__(
@@ -654,6 +660,34 @@ class AsyncThreatIntelClient:
 
         return response
 
+    async def query_ip2location(self, ip: str) -> APIResponse:
+        """Consulta IP2Location.io como baseline primário de geolocalização para IPs."""
+        if not self.services.get('ip2location'):
+            return APIResponse(service='ip2location', data=None, success=False, error="Service not available")
+
+        cache_key = self._get_cache_key('ip2location', ip)
+        if cache_key in self.cache:
+            return APIResponse(
+                service='ip2location',
+                data=self.cache[cache_key],
+                success=True,
+                cached=True,
+            )
+
+        url = f"{self.SERVICES_CONFIG['ip2location']['base_url']}/"
+        params = {"ip": ip, "format": "json"}
+        api_key = self.api_keys.get('ip2location', '')
+        headers = {}
+        if api_key:
+            params["key"] = api_key
+
+        response = await self._safe_request('ip2location', 'GET', url, headers=headers, params=params)
+
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
+
+        return response
+
     async def query_all(self, target: str, target_type: str) -> Dict[str, APIResponse]:
         """
         Consulta todas as APIs disponíveis em paralelo.
@@ -678,6 +712,9 @@ class AsyncThreatIntelClient:
 
         # Serviços específicos para IP
         if target_type == 'ip':
+            if self.services.get('ip2location'):
+                tasks.append(('ip2location', self.query_ip2location(target)))
+
             if self.services.get('abuseipdb'):
                 tasks.append(('abuseipdb', self.query_abuseipdb(target)))
 

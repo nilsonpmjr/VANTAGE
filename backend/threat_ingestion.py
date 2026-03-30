@@ -6,9 +6,13 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timezone
+import ipaddress
+import json
+import secrets
 from urllib.parse import urlparse
 
 from crypto import decrypt_secret, encrypt_secret
+from network_security import UnsafeTargetError, validate_public_url
 
 
 INTEL_SOURCES_DOC_ID = "singleton"
@@ -29,6 +33,9 @@ SOURCE_CATALOG = {
     "fortinet_outbreakalert": {
         "source_type": "rss",
         "family": "fortinet",
+        "vendor": "Fortinet",
+        "collection": "fortiguard_rss",
+        "channel": "outbreak_alert",
         "display_name": "Fortinet Outbreak Alert",
         "description": "Curated Fortinet outbreak intelligence feed.",
         "enabled_by_default": True,
@@ -41,6 +48,9 @@ SOURCE_CATALOG = {
     "fortinet_threatsignal": {
         "source_type": "rss",
         "family": "fortinet",
+        "vendor": "Fortinet",
+        "collection": "fortiguard_rss",
+        "channel": "threat_signal",
         "display_name": "Fortinet Threat Signal",
         "description": "Curated Fortinet threat signal feed.",
         "enabled_by_default": True,
@@ -70,6 +80,7 @@ SYNC_STATUS_DEFAULT = {
     "last_run_at": None,
     "last_error": None,
     "items_ingested": 0,
+    "duration_ms": None,
 }
 
 MISP_SOURCE_ID = "misp_events"
@@ -88,6 +99,9 @@ def _build_default_source(source_id: str) -> dict:
         "source_id": source_id,
         "source_type": spec["source_type"],
         "family": spec["family"],
+        "vendor": spec.get("vendor", ""),
+        "collection": spec.get("collection", ""),
+        "channel": spec.get("channel", ""),
         "display_name": spec["display_name"],
         "description": spec["description"],
         "enabled": bool(spec["enabled_by_default"]),
@@ -125,6 +139,52 @@ def _normalize_source_patch(patch: dict) -> dict:
         raise ValueError(f"Unknown threat ingestion fields: {', '.join(sorted(unknown_fields))}")
 
     return normalized
+
+
+def _normalize_builtin_source_config_patch(source_id: str, config_patch: dict) -> dict:
+    if source_id not in SOURCE_CATALOG:
+        raise ValueError(f"Unknown threat ingestion source: {source_id}")
+    if source_id == MISP_SOURCE_ID:
+        raise ValueError("MISP source uses a dedicated configuration flow.")
+    if not isinstance(config_patch, dict):
+        raise ValueError("config must be an object.")
+
+    spec = SOURCE_CATALOG[source_id]
+    source_type = spec["source_type"]
+    allowed_fields: set[str] = set()
+    normalized: dict = {}
+
+    if source_type == "rss":
+        allowed_fields = {"feed_url", "poll_interval_minutes"}
+        if source_id == "cve_recent":
+            allowed_fields.add("severity_floor")
+
+        unknown = set(config_patch) - allowed_fields
+        if unknown:
+            raise ValueError(f"Unknown threat ingestion config fields: {', '.join(sorted(unknown))}")
+
+        if "feed_url" in config_patch:
+            feed_url = str(config_patch["feed_url"] or "").strip()
+            normalized["feed_url"] = _validate_feed_url(feed_url) if feed_url else ""
+
+        if "poll_interval_minutes" in config_patch:
+            try:
+                interval = int(config_patch["poll_interval_minutes"])
+            except (TypeError, ValueError) as exc:
+                raise ValueError("poll_interval_minutes must be an integer.") from exc
+            if interval < 1 or interval > 1440:
+                raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+            normalized["poll_interval_minutes"] = interval
+
+        if "severity_floor" in config_patch:
+            floor = str(config_patch["severity_floor"] or "").strip().lower()
+            if floor not in {"", "info", "low", "medium", "high", "critical"}:
+                raise ValueError("severity_floor must be one of: critical, high, medium, low, info, or empty.")
+            normalized["severity_floor"] = floor
+
+        return normalized
+
+    raise ValueError("Only RSS threat sources support this configuration flow.")
 
 
 def _normalize_misp_url(value: str) -> str:
@@ -205,7 +265,7 @@ async def get_runtime_threat_sources(db) -> list[dict]:
     doc = await get_threat_sources_document(db)
     statuses = {}
     if db is not None:
-        for source in await db.threat_sync_status.find({}).to_list(length=100):
+        for source in await db.threat_sync_status.find({}).to_list(length=200):
             statuses[source["source_id"]] = source
     sources = []
 
@@ -224,8 +284,22 @@ async def get_runtime_threat_sources(db) -> list[dict]:
             "last_run_at": status["last_run_at"],
             "last_error": status["last_error"],
             "items_ingested": status["items_ingested"],
+            "duration_ms": status.get("duration_ms"),
         }
         sources.append(effective)
+
+    # Include custom (manual) sources
+    custom = await get_custom_threat_sources(db)
+    for cs in custom:
+        status = statuses.get(cs["source_id"], SYNC_STATUS_DEFAULT)
+        cs["sync_status"] = {
+            "status": status["status"],
+            "last_run_at": status["last_run_at"],
+            "last_error": status["last_error"],
+            "items_ingested": status["items_ingested"],
+            "duration_ms": status.get("duration_ms"),
+        }
+        sources.append(cs)
 
     return sources
 
@@ -259,7 +333,7 @@ async def update_threat_source(db, source_id: str, patch: dict, updated_by: str 
         current["display_name"] = normalized["display_name"]
     if "config" in normalized:
         current.setdefault("config", {})
-        current["config"].update(normalized["config"])
+        current["config"].update(_normalize_builtin_source_config_patch(source_id, normalized["config"]))
 
     next_doc["sources"][source_id] = current
     next_doc["updated_at"] = _now()
@@ -284,9 +358,8 @@ async def record_threat_sync_status(
     items_ingested: int = 0,
     last_error: str | None = None,
     last_run_at: datetime | None = None,
+    duration_ms: int | None = None,
 ) -> dict:
-    if source_id not in SOURCE_CATALOG:
-        raise ValueError(f"Unknown threat ingestion source: {source_id}")
 
     document = {
         "source_id": source_id,
@@ -295,6 +368,7 @@ async def record_threat_sync_status(
         "last_error": last_error,
         "last_run_at": last_run_at or _now(),
         "updated_at": _now(),
+        "duration_ms": int(duration_ms) if duration_ms is not None else None,
     }
 
     if db is not None:
@@ -303,6 +377,16 @@ async def record_threat_sync_status(
             document,
             upsert=True,
         )
+        history_entry = {
+            "source_id": source_id,
+            "status": status,
+            "items_ingested": int(items_ingested),
+            "last_error": last_error,
+            "last_run_at": document["last_run_at"],
+            "duration_ms": int(duration_ms) if duration_ms is not None else None,
+            "recorded_at": _now(),
+        }
+        await db.threat_sync_history.insert_one(history_entry)
 
     return document
 
@@ -312,7 +396,7 @@ async def get_public_threat_sources(db) -> list[dict]:
     statuses = {}
 
     if db is not None:
-        for source in await db.threat_sync_status.find({}).to_list(length=100):
+        for source in await db.threat_sync_status.find({}).to_list(length=200):
             statuses[source["source_id"]] = source
 
     public_sources = []
@@ -321,14 +405,22 @@ async def get_public_threat_sources(db) -> list[dict]:
         public_sources.append(
             {
                 **source,
+                "origin": "core",
                 "sync_status": {
                     "status": status["status"],
                     "last_run_at": status["last_run_at"],
                     "last_error": status["last_error"],
                     "items_ingested": status["items_ingested"],
+                    "duration_ms": status.get("duration_ms"),
                 },
             }
         )
+
+    # Append custom (manual) sources
+    custom = await get_custom_threat_sources(db)
+    for cs in custom:
+        status = statuses.get(cs["source_id"], SYNC_STATUS_DEFAULT)
+        public_sources.append(_serialize_custom_source(cs, status=status))
 
     return public_sources
 
@@ -386,3 +478,248 @@ async def update_misp_source_config(db, patch: dict, updated_by: str | None = No
         )
 
     return await get_public_threat_source(db, MISP_SOURCE_ID)
+
+
+async def get_threat_source_history(
+    db,
+    source_id: str,
+    *,
+    limit: int = 24,
+) -> list[dict]:
+    if db is None:
+        return []
+    items = (
+        await db.threat_sync_history.find({"source_id": source_id}).sort("recorded_at", -1).limit(limit).to_list(length=limit)
+    )
+    for item in items:
+        item.pop("_id", None)
+    return items
+
+
+async def estimate_threat_source_payload_bytes(
+    db,
+    source_id: str,
+    *,
+    since: datetime,
+) -> int:
+    if db is None:
+        return 0
+    items = (
+        await db.threat_items.find({"source_id": source_id, "timestamp": {"$gte": since}}).to_list(length=5000)
+    )
+    total = 0
+    for item in items:
+        total += len(json.dumps(item, default=str, ensure_ascii=False))
+    return total
+
+
+# ── Custom (manual) RSS sources ──────────────────────────────────────────────
+
+CUSTOM_PREFIX = "custom_"
+
+
+def _serialize_custom_source(source: dict, status: dict | None = None) -> dict:
+    sync_status = status or SYNC_STATUS_DEFAULT
+    return {
+        "source_id": source["source_id"],
+        "source_type": source["source_type"],
+        "family": source["family"],
+        "display_name": source["display_name"],
+        "description": source.get("description", ""),
+        "enabled": source.get("enabled", True),
+        "origin": "manual",
+        "config": source.get("config", {}),
+        "created_by": source.get("created_by"),
+        "created_at": source.get("created_at"),
+        "updated_at": source.get("updated_at"),
+        "updated_by": source.get("updated_by"),
+        "sync_status": {
+            "status": sync_status["status"],
+            "last_run_at": sync_status["last_run_at"],
+            "last_error": sync_status["last_error"],
+            "items_ingested": sync_status["items_ingested"],
+            "duration_ms": sync_status.get("duration_ms"),
+        },
+    }
+
+
+def _validate_feed_url(url: str) -> str:
+    """Validate and normalize a feed URL. Rejects non-HTTP(S) and private IPs."""
+    normalized = str(url or "").strip()
+    if not normalized:
+        raise ValueError("feed_url is required.")
+
+    parsed = urlparse(normalized)
+    if parsed.scheme not in {"http", "https"}:
+        raise ValueError("feed_url must use http or https.")
+    if not parsed.netloc:
+        raise ValueError("feed_url must have a valid hostname.")
+
+    hostname = parsed.hostname or ""
+    if hostname.lower() == "localhost":
+        raise ValueError("feed_url cannot point to localhost.")
+
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None
+
+    if ip is not None and ip.is_unspecified:
+        raise ValueError("feed_url cannot point to an unspecified address.")
+
+    try:
+        return validate_public_url(normalized)
+    except UnsafeTargetError as exc:
+        raise ValueError(str(exc)) from exc
+
+    return normalized
+
+
+def _make_custom_source_id(title: str) -> str:
+    """Generate a non-colliding source_id from a title."""
+    import hashlib
+    slug = title.lower().strip().replace(" ", "_")[:30]
+    unique_seed = f"{slug}:{secrets.token_hex(4)}"
+    short_hash = hashlib.sha256(unique_seed.encode()).hexdigest()[:8]
+    return f"{CUSTOM_PREFIX}{slug}_{short_hash}"
+
+
+async def create_custom_source(
+    db,
+    *,
+    title: str,
+    feed_url: str,
+    family: str = "custom",
+    poll_interval_minutes: int = 60,
+    default_tlp: str = "white",
+    created_by: str | None = None,
+) -> dict:
+    """Create a new manually-added RSS feed source."""
+    from threat_items import normalize_tlp
+
+    title = str(title or "").strip()
+    if not title:
+        raise ValueError("title is required.")
+    if len(title) > 200:
+        raise ValueError("title must be 200 characters or fewer.")
+
+    feed_url = _validate_feed_url(feed_url)
+
+    family = str(family or "custom").strip().lower()[:50] or "custom"
+
+    if not isinstance(poll_interval_minutes, int) or poll_interval_minutes < 1 or poll_interval_minutes > 1440:
+        raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+
+    default_tlp = normalize_tlp(default_tlp) or "white"
+
+    # Check for duplicate URL
+    if db is not None:
+        existing = await db.custom_threat_sources.find_one({"config.feed_url": feed_url})
+        if existing:
+            raise ValueError("A custom source with this feed URL already exists.")
+
+    source_id = _make_custom_source_id(title)
+    if db is not None:
+        while await db.custom_threat_sources.find_one({"source_id": source_id}):
+            source_id = _make_custom_source_id(title)
+
+    document = {
+        "source_id": source_id,
+        "source_type": "rss",
+        "family": family,
+        "display_name": title,
+        "description": f"Manually added RSS feed: {title}",
+        "enabled": True,
+        "origin": "manual",
+        "config": {
+            "feed_url": feed_url,
+            "poll_interval_minutes": poll_interval_minutes,
+            "default_tlp": default_tlp,
+        },
+        "created_by": created_by,
+        "created_at": _now(),
+        "updated_at": _now(),
+    }
+
+    if db is not None:
+        await db.custom_threat_sources.insert_one(document)
+
+    return {key: value for key, value in document.items() if key != "_id"}
+
+
+async def get_custom_threat_sources(db) -> list[dict]:
+    """Return all manually-added sources."""
+    if db is None:
+        return []
+    docs = await db.custom_threat_sources.find({}).to_list(length=200)
+    return [{k: v for k, v in doc.items() if k != "_id"} for doc in docs]
+
+
+async def update_custom_source(
+    db,
+    source_id: str,
+    patch: dict,
+    updated_by: str | None = None,
+) -> dict:
+    """Update a manually-added source. Only title, feed_url, family, enabled, poll_interval allowed."""
+    if not source_id.startswith(CUSTOM_PREFIX):
+        raise ValueError("Only custom sources can be updated via this endpoint.")
+
+    if db is None:
+        raise ValueError("Database not connected.")
+
+    existing = await db.custom_threat_sources.find_one({"source_id": source_id})
+    if not existing:
+        raise ValueError(f"Custom source not found: {source_id}")
+
+    if "display_name" in patch:
+        title = str(patch["display_name"]).strip()
+        if not title:
+            raise ValueError("display_name cannot be empty.")
+        existing["display_name"] = title
+
+    if "feed_url" in patch:
+        existing["config"]["feed_url"] = _validate_feed_url(patch["feed_url"])
+
+    if "family" in patch:
+        existing["family"] = str(patch["family"]).strip().lower()[:50] or "custom"
+
+    if "enabled" in patch:
+        existing["enabled"] = bool(patch["enabled"])
+
+    if "poll_interval_minutes" in patch:
+        try:
+            interval = int(patch["poll_interval_minutes"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError("poll_interval_minutes must be an integer.") from exc
+        if interval < 1 or interval > 1440:
+            raise ValueError("poll_interval_minutes must be between 1 and 1440.")
+        existing["config"]["poll_interval_minutes"] = interval
+
+    if "default_tlp" in patch:
+        from threat_items import normalize_tlp
+        existing["config"]["default_tlp"] = normalize_tlp(patch["default_tlp"]) or "white"
+
+    existing["updated_at"] = _now()
+    existing["updated_by"] = updated_by
+
+    await db.custom_threat_sources.replace_one(
+        {"source_id": source_id},
+        existing,
+        upsert=True,
+    )
+    status = await db.threat_sync_status.find_one({"source_id": source_id}) if db is not None else None
+    return _serialize_custom_source(existing, status=status)
+
+
+async def delete_custom_source(db, source_id: str) -> bool:
+    """Delete a manually-added source and its sync status."""
+    if not source_id.startswith(CUSTOM_PREFIX):
+        raise ValueError("Only custom sources can be deleted.")
+
+    if db is None:
+        return False
+
+    result = await db.custom_threat_sources.delete_one({"source_id": source_id})
+    await db.threat_sync_status.delete_one({"source_id": source_id})
+    return result.deleted_count > 0

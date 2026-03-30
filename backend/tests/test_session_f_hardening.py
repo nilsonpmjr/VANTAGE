@@ -99,6 +99,38 @@ async def test_cli_modules_reject_flag_like_targets_without_spawning_subprocess(
     assert traceroute_result["error"] == "Unsafe target argument."
 
 
+def test_ports_module_parse_xml_still_extracts_open_ports():
+    xml_output = """
+    <nmaprun>
+      <host>
+        <ports>
+          <port protocol="tcp" portid="443">
+            <state state="open" />
+            <service name="https" product="nginx" version="1.26" />
+          </port>
+          <port protocol="tcp" portid="22">
+            <state state="closed" />
+          </port>
+        </ports>
+      </host>
+    </nmaprun>
+    """
+
+    result = PortsModule()._parse_xml(xml_output)
+
+    assert result["open_count"] == 1
+    assert result["ports"] == [
+        {
+            "port": 443,
+            "protocol": "tcp",
+            "state": "open",
+            "service": "https",
+            "product": "nginx",
+            "version": "1.26",
+        }
+    ]
+
+
 @pytest.mark.asyncio
 async def test_web_module_uses_manual_redirects_and_tls_verification(monkeypatch):
     captured: dict = {}

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" role="img" aria-labelledby="genericLogoTitle genericLogoDesc">
+  <title id="genericLogoTitle">Generic Workspace Logo</title>
+  <desc id="genericLogoDesc">Placeholder neutral logo for generic branding mode.</desc>
+  <defs>
+    <linearGradient id="genericWordmarkAccent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#60a5fa" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+  </defs>
+  <rect width="640" height="160" rx="24" fill="none" />
+  <g transform="translate(24 20)">
+    <rect x="0" y="0" width="120" height="120" rx="28" fill="#111827" />
+    <path d="M60 24 88 38v22c0 20.5-11.2 39.1-28 48-16.8-8.9-28-27.5-28-48V38l28-14Z" fill="url(#genericWordmarkAccent)" />
+    <path d="M60 44 75 52v8c0 11-5.8 20.8-15 26.2C50.8 80.8 45 71 45 60v-8l15-8Z" fill="#f9fafb" opacity=".92" />
+  </g>
+  <g fill="#f9fafb">
+    <text x="172" y="76" font-family="Inter, Arial, sans-serif" font-size="46" font-weight="700" letter-spacing=".02em">Workspace</text>
+    <text x="172" y="112" font-family="Inter, Arial, sans-serif" font-size="19" font-weight="500" fill="#9ca3af">Security Operations Platform</text>
+  </g>
+</svg>

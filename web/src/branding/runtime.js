@@ -3,6 +3,10 @@ import brand from './config';
 export const THEME_STORAGE_KEY = `branding.${brand.key}.theme`;
 const themeListeners = new Set();
 
+export function notifyThemeListeners() {
+    themeListeners.forEach((listener) => listener());
+}
+
 function safeGetTheme() {
     try {
         const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -10,14 +14,10 @@ function safeGetTheme() {
             return storedTheme;
         }
     } catch {
-        // Ignore storage access errors and fall back to default theme.
+        // If storage is unavailable, use the default theme.
     }
 
     return brand.defaultTheme;
-}
-
-function notifyThemeListeners() {
-    themeListeners.forEach((listener) => listener());
 }
 
 function syncHeadBranding() {
@@ -85,7 +85,7 @@ export function setTheme(theme, target = document.documentElement) {
     try {
         window.localStorage.setItem(THEME_STORAGE_KEY, theme);
     } catch {
-        // Ignore storage access errors and still apply the theme for this session.
+        // Apply the theme for this session even if persistence fails.
     }
 
     target.dataset.theme = theme;

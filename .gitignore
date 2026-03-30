@@ -12,6 +12,7 @@ docs/
 .vscode/
 docker-compose.operational-architect.yml
 .codex
+.hintrc
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md

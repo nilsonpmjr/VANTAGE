@@ -11,12 +11,12 @@
                     /* Espaçamento natural da fonte restaurado (letter-spacing: normal) */
                     .vantage-text { font-family: 'Montserrat', sans-serif; font-weight: 900; }
                 </style>
-                <mask id="gap-mask-VANTAGE_Integrado_Light">
+                <mask id="gap-mask-VANTAGE_Integrado_Dark">
                     <rect x="-100" y="-100" width="1000" height="400" fill="white" />
                     <path d="M -41 -6 Q 0 -54 41 -6 Q 0 42 -41 -6 Z" fill="black" />
                 </mask>
-                <g id="vantage-symbol-VANTAGE_Integrado_Light">
-                    <path d="M -54 -45 L -18 -45 L 0 -6 L 18 -45 L 54 -45 L 10 50 L -10 50 Z" fill="#0f172a" mask="url(#gap-mask-VANTAGE_Integrado_Light)" />
+                <g id="vantage-symbol-VANTAGE_Integrado_Dark">
+                    <path d="M -54 -45 L -18 -45 L 0 -6 L 18 -45 L 54 -45 L 10 50 L -10 50 Z" fill="#ffffff" mask="url(#gap-mask-VANTAGE_Integrado_Dark)" />
                     <path d="M -33 -6 Q 0 -44 33 -6 Q 0 32 -33 -6 Z" fill="#00E5FF" />
                     <path d="M -26 -6 Q 0 -34 26 -6 Q 0 22 -26 -6 Z" fill="#0f172a" />
                     <circle cx="0" cy="-6" r="11" fill="#00E5FF" />
@@ -24,7 +24,7 @@
                 </g>
             </defs>
 
-                    <use href="#vantage-symbol-VANTAGE_Integrado_Light" x="0" y="0" />
-                    <text x="50" y="50" fill="#0f172a" font-size="135" class="vantage-text">ANTAGE</text>
+                    <use href="#vantage-symbol-VANTAGE_Integrado_Dark" x="0" y="0" />
+                    <text x="50" y="50" fill="#ffffff" font-size="135" class="vantage-text">ANTAGE</text>
                 
 </svg>

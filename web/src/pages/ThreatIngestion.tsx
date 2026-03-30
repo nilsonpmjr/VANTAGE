@@ -11,6 +11,7 @@ import {
   Pencil,
   Power,
   X,
+  Eraser,
 } from "lucide-react";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
@@ -576,6 +577,25 @@ export default function ThreatIngestion() {
     }
   }
 
+  async function purgeOrphanedItems() {
+    setBusy("purge");
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(`${API_URL}/api/admin/threat-sources/orphaned-items`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("purge_failed");
+      const data = (await response.json()) as { deleted: number };
+      setNotice(`${data.deleted} itens órfãos removidos do feed.`);
+    } catch {
+      setError("Não foi possível purgar os itens órfãos.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function syncSourceNow(source: ThreatSource) {
     setBusy(`sync-${source.source_id}`);
     setError("");
@@ -644,6 +664,15 @@ export default function ThreatIngestion() {
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
               {t("admin.refresh", "Refresh")}
             </span>
+          </button>
+          <button
+            onClick={() => void purgeOrphanedItems()}
+            disabled={busy === "purge"}
+            className="btn btn-outline text-error border-error/40 hover:bg-error/10"
+            title="Remove feed items from deleted sources"
+          >
+            <Eraser className={`w-4 h-4 ${busy === "purge" ? "animate-pulse" : ""}`} />
+            {t("settingsPages.purgeOrphaned", "Purge Orphaned")}
           </button>
           <button
             onClick={() =>

@@ -1243,6 +1243,38 @@ async def delete_custom_threat_source(
     return {"message": "Custom source deleted.", "source_id": source_id}
 
 
+@router.delete("/threat-sources/orphaned-items")
+async def purge_orphaned_threat_items(
+    request: Request,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    """Delete threat_items whose source_id no longer exists in any registered source."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    from threat_ingestion import SOURCE_CATALOG, CUSTOM_PREFIX
+
+    builtin_ids = set(SOURCE_CATALOG.keys())
+    custom_cursor = db.custom_threat_sources.find({}, {"source_id": 1, "_id": 0})
+    custom_ids = {doc["source_id"] async for doc in custom_cursor}
+    active_ids = builtin_ids | custom_ids
+
+    result = await db.threat_items.delete_many({"source_id": {"$nin": list(active_ids)}})
+    deleted = result.deleted_count
+
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="orphaned_items_purged",
+        ip=ip,
+        result="success",
+        detail=f"deleted={deleted}",
+    )
+    return {"deleted": deleted, "active_sources": sorted(active_ids)}
+
+
 def _generate_temporary_password(policy: dict) -> str:
     """
     Generate a temporary password that satisfies the active password policy.

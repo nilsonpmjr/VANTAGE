@@ -66,6 +66,13 @@ function severityTone(severity?: string) {
   }
 }
 
+function stripHtml(text?: string, maxChars = 320): string {
+  if (!text) return "";
+  const plain = text.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  if (plain.length <= maxChars) return plain;
+  return plain.slice(0, maxChars).replace(/\s+\S*$/, "") + "…";
+}
+
 function formatPublishedAt(value?: string) {
   if (!value) return "Unknown";
   const date = new Date(value);
@@ -252,7 +259,7 @@ export default function Feed() {
               {featured?.title || t("feed.noFeatured", "No feed items available in the current selection.")}
             </h2>
             <p className="text-on-surface-variant text-sm mb-6 max-w-2xl leading-relaxed">
-              {featured?.summary || t("feed.featuredFallback", "Adjust the filters or refresh the feed to ingest recent intelligence from the configured sources.")}
+              {stripHtml(featured?.summary) || t("feed.featuredFallback", "Adjust the filters or refresh the feed to ingest recent intelligence from the configured sources.")}
             </p>
             <div className="flex items-center gap-6 flex-wrap">
               <div className="flex flex-col">
@@ -460,7 +467,7 @@ export default function Feed() {
                   {item.title}
                 </h3>
                 <p className="text-on-surface-variant text-xs leading-relaxed mb-4 line-clamp-3">
-                  {item.summary || t("feed.noSummary", "No summary available for this feed item.")}
+                  {stripHtml(item.summary) || t("feed.noSummary", "No summary available for this feed item.")}
                 </p>
                 <div className="flex items-center justify-between mt-auto pt-4 border-t border-surface-container-low gap-3">
                   <div className="flex items-center gap-4 flex-wrap">

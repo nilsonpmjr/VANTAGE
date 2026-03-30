@@ -722,4 +722,5 @@ async def delete_custom_source(db, source_id: str) -> bool:
 
     result = await db.custom_threat_sources.delete_one({"source_id": source_id})
     await db.threat_sync_status.delete_one({"source_id": source_id})
+    await db.threat_items.delete_many({"source_id": source_id})
     return result.deleted_count > 0

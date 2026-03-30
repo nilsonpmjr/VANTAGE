@@ -13,6 +13,21 @@ from threat_items import build_threat_item_document, build_threat_item_payload, 
 
 
 _CVE_RE = re.compile(r"\bCVE-\d{4}-\d{4,}\b", re.IGNORECASE)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+_SUMMARY_MAX_CHARS = 400
+
+
+def _strip_html(text: str | None, max_chars: int = _SUMMARY_MAX_CHARS) -> str:
+    """Remove HTML tags, collapse whitespace, and truncate."""
+    if not text:
+        return ""
+    plain = _HTML_TAG_RE.sub(" ", text)
+    plain = _WHITESPACE_RE.sub(" ", plain).strip()
+    if len(plain) > max_chars:
+        plain = plain[:max_chars].rsplit(" ", 1)[0] + "…"
+    return plain
 
 _SECTOR_KEYWORDS: dict[str, list[str]] = {
     "infrastructure": ["cisco", "firewall", "router", "switch", "vpn", "network", "dns", "proxy", "load balancer", "sd-wan"],
@@ -158,7 +173,7 @@ def parse_rss_items(xml_text: str) -> list[dict[str, Any]]:
     items = []
     for item in root.findall(".//item"):
         title = _text(item, "title")
-        summary = _text(item, "description")
+        summary = _strip_html(_text(item, "description"))
         link = _text(item, "link")
         guid = _text(item, "guid") or link or title
         pub_date = _text(item, "pubDate")

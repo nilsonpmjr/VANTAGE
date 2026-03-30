@@ -22,6 +22,7 @@ import {
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+import { useTheme } from "../context/ThemeContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 
 type ProfileTab = "identity" | "preferences" | "external_api_keys" | "audit_logs";
@@ -118,7 +119,8 @@ function deviceIcon(device: string) {
 
 export default function Profile() {
   const { user, updateUserContext } = useAuth();
-  const { setLanguage, t } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
+  const { theme, setTheme } = useTheme();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = (searchParams.get("tab") as ProfileTab | null) || "identity";
   const onboardingSource = searchParams.get("source") === "onboarding";
@@ -867,7 +869,7 @@ export default function Profile() {
                     <div className="card-header">
                       <h3 className="card-title">Regional Interface</h3>
                     </div>
-                    <div className="p-6">
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="max-w-xs space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
                           Interface Language
@@ -883,6 +885,35 @@ export default function Profile() {
                         </select>
                         <p className="text-[10px] text-on-surface-variant mt-1">
                           Affects all operational logs and system labels.
+                        </p>
+                      </div>
+
+                      <div className="max-w-xs space-y-2">
+                        <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+                          Interface Theme
+                        </label>
+                        <div className="nav-pills mt-2 inline-flex w-full">
+                          <button
+                            className={`flex-1 nav-pill-item ${theme === "light" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+                            onClick={() => setTheme("light")}
+                          >
+                            Light
+                          </button>
+                          <button
+                            className={`flex-1 nav-pill-item ${theme === "dark" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+                            onClick={() => setTheme("dark")}
+                          >
+                            Dark
+                          </button>
+                          <button
+                            className={`flex-1 nav-pill-item ${theme === "system" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+                            onClick={() => setTheme("system")}
+                          >
+                            System
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-on-surface-variant mt-2 hidden md:block">
+                          Instantly repaints local panels.
                         </p>
                       </div>
                     </div>

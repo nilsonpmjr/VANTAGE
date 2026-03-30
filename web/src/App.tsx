@@ -29,12 +29,14 @@ import ApiReferencePage from "./pages/help/ApiReferencePage";
 import ContactSupportPage from "./pages/help/ContactSupportPage";
 import { AuthProvider, RequireAuth, RequirePathAccess } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
+import { ThemeProvider } from "./context/ThemeContext";
 
 export default function App() {
   return (
-    <AuthProvider>
-      <LanguageProvider>
-        <BrowserRouter>
+    <ThemeProvider>
+      <AuthProvider>
+        <LanguageProvider>
+          <BrowserRouter>
           <Routes>
             <Route
               path="/"
@@ -84,5 +86,6 @@ export default function App() {
         </BrowserRouter>
       </LanguageProvider>
     </AuthProvider>
+    </ThemeProvider>
   );
 }

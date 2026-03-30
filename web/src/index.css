@@ -32,6 +32,47 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
+@layer base {
+  [data-theme="dark"] {
+    /* Backgrounds - Restored the original #06090e base, retaining contrast for cards/inputs */
+    --color-background: #06090e;
+    --color-surface: #06090e;
+    --color-surface-container-lowest: #0d141e;  /* Cards (noticeably lighter than bg) */
+    --color-surface-container-low: #162032;     /* Inputs, Table rows, Actions */
+    --color-surface-container: #1f2d45;         /* Hover states */
+    --color-surface-container-high: #293a57;    /* Card Headers */
+    --color-surface-container-highest: #384f75;
+
+    /* Text */
+    --color-on-surface: #f8fafc;
+    --color-on-surface-variant: #cbd5e1;
+    
+    /* Borders - Made much brighter to survive /20 and /10 opacity classes */
+    --color-outline: #cbd5e1;
+    --color-outline-variant: #e2e8f0;
+
+    /* Accents - Neon variants for dark mode legibility */
+    --color-primary: #3b82f6;
+    --color-primary-dim: #2563eb;
+    --color-on-primary: #ffffff;
+
+    --color-secondary: #94a3b8;
+    --color-secondary-container: #1e293b;
+    --color-on-secondary-container: #e2e8f0;
+
+    --color-error: #f87171;
+    --color-error-container: #7f1d1d;
+    --color-on-error-container: #fecaca;
+
+    /* Status colors – lighter tones for dark backgrounds */
+    --color-warning: #fbbf24;
+    --color-success: #34d399;
+
+    /* Keep sidebar same */
+    --color-inverse-surface: #0d1117;
+  }
+}
+
 @layer components {
   /* Cards */
   .card {
@@ -306,6 +347,26 @@
 
   .modal-surface {
     @apply rounded-sm border border-outline-variant/20 bg-surface-container-lowest shadow-2xl;
+  }
+
+  /* Dark mode overrides for status badges — base @apply uses light-tuned Tailwind
+     colors (amber-600, emerald-600) that are too dark on deep backgrounds. */
+  [data-theme="dark"] .badge-warning {
+    color: #fbbf24; /* amber-400 */
+    background-color: rgb(251 191 36 / 0.12);
+  }
+
+  [data-theme="dark"] .badge-success {
+    color: #34d399; /* emerald-400 */
+    background-color: rgb(52 211 153 / 0.12);
+  }
+
+  /* Slightly warmer error in dark — error is now #f87171 via CSS variable,
+     but badge-error uses @apply bg-error/10 text-error which resolves at build
+     time to the light-mode value. Override here. */
+  [data-theme="dark"] .badge-error {
+    color: #f87171; /* red-400 */
+    background-color: rgb(248 113 113 / 0.12);
   }
 
   @media (min-width: 1024px) {

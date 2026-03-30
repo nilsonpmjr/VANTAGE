@@ -213,28 +213,6 @@ export default function Dashboard() {
     navigate(`/analyze/${encodeURIComponent(target)}`);
   }
 
-  const donutStyle = useMemo(() => {
-    const verdicts = stats?.verdictDistribution || [];
-    const total = verdicts.reduce((sum, item) => sum + item.value, 0) || 1;
-    let cursor = 0;
-    const colorMap: Record<string, string> = {
-      SAFE: "var(--color-primary)",
-      SUSPICIOUS: "var(--color-secondary)",
-      "HIGH RISK": "var(--color-error)",
-      CRITICAL: "var(--color-error)",
-    };
-    const segments = verdicts.map((item) => {
-      const start = Math.round((cursor / total) * 100);
-      cursor += item.value;
-      const end = Math.round((cursor / total) * 100);
-      return `${colorMap[item.name] || "var(--color-secondary)"} ${start}% ${end}%`;
-    });
-    return {
-      background: `conic-gradient(${segments.join(", ") || "var(--color-primary) 0% 100%"})`,
-      WebkitMask: "radial-gradient(transparent 55%, black 56%)",
-      mask: "radial-gradient(transparent 55%, black 56%)",
-    };
-  }, [stats]);
 
   const metricCards = [
     {
@@ -243,7 +221,7 @@ export default function Dashboard() {
       trend: `${stats?.recentScans?.length || 0} ITEMS IN CURRENT VIEW`,
       icon: Radar,
       color: "card-accent-primary",
-      surfaceClass: "bg-sky-50/90",
+      surfaceClass: "bg-primary/10",
       iconClass: "text-primary",
     },
     {
@@ -255,7 +233,7 @@ export default function Dashboard() {
           : "NO CRITICAL INCIDENTS IN CURRENT WINDOW",
       icon: AlertTriangle,
       color: "card-accent-error",
-      surfaceClass: "bg-rose-50/90",
+      surfaceClass: "bg-error/10",
       iconClass: "text-error",
     },
     {
@@ -456,20 +434,10 @@ export default function Dashboard() {
                 <h3 className="card-title">Case Verdict Distribution</h3>
               </div>
               <div className="flex-1 p-8 flex items-center justify-center gap-8">
-                <div className="relative w-48 h-48 rounded-full border-[16px] border-surface-container flex items-center justify-center">
-                  <div
-                    className="absolute inset-[-16px] rounded-full border-[16px] border-transparent"
-                    style={donutStyle}
-                  ></div>
-                  <div className="text-center z-10">
-                    <span className="block text-2xl font-black">
-                      {new Intl.NumberFormat("pt-BR").format(stats?.totalScans || 0)}
-                    </span>
-                    <span className="text-[10px] text-on-surface-variant font-bold uppercase">
-                      Evaluated
-                    </span>
-                  </div>
-                </div>
+                <DonutChart
+                  data={stats?.verdictDistribution || []}
+                  total={stats?.totalScans || 0}
+                />
                 <div className="space-y-4">
                   {(stats?.verdictDistribution || []).map((item) => (
                     <div key={item.name}>
@@ -772,6 +740,82 @@ function ProgressBar({
       </div>
       <div className="w-full h-2 bg-surface-container">
         <div className="h-full bg-primary" style={{ width: percent }}></div>
+      </div>
+    </div>
+  );
+}
+
+const DONUT_R = 35;
+const DONUT_CX = 50;
+const DONUT_CY = 50;
+const DONUT_CIRC = 2 * Math.PI * DONUT_R;
+const DONUT_STROKE = 14;
+const DONUT_COLOR_MAP: Record<string, string> = {
+  SAFE: "var(--color-primary)",
+  SUSPICIOUS: "var(--color-secondary)",
+  "HIGH RISK": "var(--color-error)",
+  CRITICAL: "var(--color-error)",
+};
+
+function DonutChart({
+  data,
+  total,
+}: {
+  data: Array<{ name: string; value: number }>;
+  total: number;
+}) {
+  const actualTotal = Math.max(total, 1);
+  let cumulativeAngle = -90;
+
+  const segments = data.map((item) => {
+    const fraction = item.value / actualTotal;
+    const arc = fraction * DONUT_CIRC;
+    const rotate = cumulativeAngle;
+    cumulativeAngle += fraction * 360;
+    return { name: item.name, arc, gap: DONUT_CIRC - arc, rotate };
+  });
+
+  return (
+    <div className="relative w-48 h-48 flex items-center justify-center shrink-0">
+      <svg
+        width="192"
+        height="192"
+        viewBox="0 0 100 100"
+        className="absolute inset-0"
+        aria-hidden="true"
+      >
+        {/* Track ring */}
+        <circle
+          cx={DONUT_CX}
+          cy={DONUT_CY}
+          r={DONUT_R}
+          fill="none"
+          stroke="var(--color-surface-container)"
+          strokeWidth={DONUT_STROKE}
+        />
+        {/* Segments */}
+        {segments.map((seg) => (
+          <circle
+            key={seg.name}
+            cx={DONUT_CX}
+            cy={DONUT_CY}
+            r={DONUT_R}
+            fill="none"
+            stroke={DONUT_COLOR_MAP[seg.name] ?? "var(--color-secondary)"}
+            strokeWidth={DONUT_STROKE}
+            strokeDasharray={`${seg.arc} ${seg.gap}`}
+            strokeLinecap="butt"
+            transform={`rotate(${seg.rotate} ${DONUT_CX} ${DONUT_CY})`}
+          />
+        ))}
+      </svg>
+      <div className="relative z-10 text-center">
+        <span className="block text-2xl font-black text-on-surface">
+          {new Intl.NumberFormat("pt-BR").format(total)}
+        </span>
+        <span className="text-[10px] text-on-surface-variant font-bold uppercase">
+          Evaluated
+        </span>
       </div>
     </div>
   );

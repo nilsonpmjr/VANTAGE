@@ -3,6 +3,10 @@ import brand from './config';
 export const THEME_STORAGE_KEY = `branding.${brand.key}.theme`;
 const themeListeners = new Set();
 
+export function notifyThemeListeners() {
+    themeListeners.forEach((listener) => listener());
+}
+
 function safeGetTheme() {
     try {
         const storedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
@@ -14,10 +18,6 @@ function safeGetTheme() {
     }
 
     return brand.defaultTheme;
-}
-
-function notifyThemeListeners() {
-    themeListeners.forEach((listener) => listener());
 }
 
 function syncHeadBranding() {

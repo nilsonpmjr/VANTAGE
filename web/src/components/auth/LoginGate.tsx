@@ -20,7 +20,7 @@ function LoginPanel() {
   const [submitting, setSubmitting] = useState(false);
   const [hideLogo, setHideLogo] = useState(false);
 
-  const loginLogoPath = brand.logoLightPath || logoPath;
+  const loginLogoPath = logoPath;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

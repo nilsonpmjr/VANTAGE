@@ -8,6 +8,7 @@ import {
   parseFileTargets,
   parseTargets,
 } from "../../lib/scanTargets";
+import { useLanguage } from "../../context/LanguageContext";
 
 type GlobalScanLauncherProps = {
   open: boolean;
@@ -19,6 +20,7 @@ export default function GlobalScanLauncher({
   onClose,
 }: GlobalScanLauncherProps) {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -61,14 +63,16 @@ export default function GlobalScanLauncher({
     try {
       const imported = await parseFileTargets(file);
       if (!imported.length) {
-        setWarning("No valid targets were found in the uploaded file.");
+        setWarning(t("scan.warnings.noValidTargets"));
         return;
       }
 
       const limited = imported.slice(0, BATCH_MAX_ITEMS);
       if (imported.length > BATCH_MAX_ITEMS) {
         setWarning(
-          `Imported ${BATCH_MAX_ITEMS} targets. ${imported.length - BATCH_MAX_ITEMS} extra entries were skipped.`,
+          t("scan.warnings.importedWithSkipped")
+            .replace("{max}", String(BATCH_MAX_ITEMS))
+            .replace("{skipped}", String(imported.length - BATCH_MAX_ITEMS)),
         );
       } else {
         setWarning(null);
@@ -76,7 +80,7 @@ export default function GlobalScanLauncher({
 
       setQuery(limited.join(", "));
     } catch {
-      setWarning("The uploaded file could not be parsed.");
+      setWarning(t("scan.warnings.parseError"));
     }
   }
 
@@ -112,22 +116,21 @@ export default function GlobalScanLauncher({
         <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
           <div className="space-y-2">
             <div className="page-eyebrow">
-              {batchMode ? "Batch analysis" : "Quick analysis"}
+              {batchMode ? t("scan.mode.batch") : t("scan.mode.quick")}
             </div>
             <h2 className="text-xl font-extrabold tracking-tight text-on-surface">
-              {batchMode ? "Start Batch Analysis" : "Start Analysis"}
+              {batchMode ? t("scan.actions.startBatch") : t("scan.actions.startQuick")}
             </h2>
             <p className="max-w-xl text-sm text-on-surface-variant">
-              Enter a single IP, domain or hash, or paste multiple targets to run
-              the existing batch analysis flow in the VANTAGE backend.
+              {t("scan.description.single")}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="btn btn-ghost !px-2"
-            aria-label="Close launcher"
-            title="Close launcher"
+            aria-label={t("scan.actions.close")}
+            title={t("scan.actions.close")}
           >
             <X className="h-4 w-4" />
           </button>
@@ -150,7 +153,7 @@ export default function GlobalScanLauncher({
                 setQuery(event.target.value);
                 setWarning(null);
               }}
-              placeholder="IP, domain, hash or comma/newline-separated targets"
+              placeholder={t("scan.input.placeholder")}
               className="h-18 w-full rounded-sm bg-surface-container-low pl-14 pr-36 text-base font-medium text-on-surface outline-none ring-1 ring-outline-variant/20 transition focus:ring-2 focus:ring-primary/20"
             />
             <div className="absolute inset-y-0 right-3 flex items-center gap-2">
@@ -158,12 +161,12 @@ export default function GlobalScanLauncher({
                 type="button"
                 className="btn btn-ghost !px-2"
                 onClick={() => fileInputRef.current?.click()}
-                title="Import .txt or .csv"
+                title={t("scan.actions.importFile")}
               >
                 <Upload className="h-4 w-4" />
               </button>
               <button type="submit" className="btn btn-primary">
-                {batchMode ? "Run Batch" : "Execute"}
+                {batchMode ? t("scan.actions.runBatch") : t("scan.actions.execute")}
               </button>
             </div>
           </div>
@@ -178,10 +181,12 @@ export default function GlobalScanLauncher({
 
           <div className="summary-strip">
             <div className="summary-pill">
-              {batchMode ? `${targetCount} targets detected` : "Single target mode"}
+              {batchMode
+                ? t("scan.status.targetsDetected").replace("{n}", String(targetCount))
+                : t("scan.status.singleMode")}
             </div>
             <div className="summary-pill-muted">
-              Upload `.txt` or `.csv` to prefill the launcher
+              {t("scan.status.uploadHint")}
             </div>
           </div>
 
@@ -193,8 +198,7 @@ export default function GlobalScanLauncher({
 
           {batchMode && (
             <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low px-4 py-4 text-sm text-on-surface-variant">
-              Batch mode uses `/api/analyze/batch` with a pre-check, live
-              progress, and exportable results.
+              {t("scan.description.batch")}
             </div>
           )}
         </form>

@@ -153,6 +153,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       apiGroupUsersBody: "Gestão de usuários, perfis e configuração de chaves de API de terceiros.",
       apiGroupSessionsBody: "Gestão e revogação de sessões ativas.",
       apiGroupApiKeysBody: "Chaves para acesso programático com o prefixo iti_xxx.",
+      shortcutsFooterPost: "para fechar. Atalhos estão desabilitados em campos de texto.",
       apiGroupAnalysisBody: "Análise de IOCs nas fontes de inteligência configuradas.",
       apiGroupBatchBody: "Análise em lote de indicadores com cota diária.",
       apiGroupReconBody: "Motor de reconhecimento com módulos independentes.",
@@ -597,6 +598,62 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         synced: "synchronized with your personal vault and registered in the Audit Registry.",
       },
     },
+    auth: {
+      login: {
+        title: "Centro de Operações de Segurança",
+        subtitle: "Inicialize uma sessão autenticada para usar o motor real de inteligência e análise do VANTAGE.",
+        username: "Usuário",
+        password: "Senha",
+        submit: "Entrar",
+        submitting: "Autenticando",
+      },
+      errors: {
+        invalidCredentials: "Acesso negado. Credenciais inválidas.",
+        accountLocked: "Conta temporariamente bloqueada até {time}.",
+        lockoutFallback: "novo aviso",
+        invalidOtp: "Código MFA inválido. Revise o OTP e tente novamente.",
+      },
+      mfa: {
+        title: "Verificação MFA",
+        subtitle: "Segundo fator necessário",
+        instructions: "A autenticação primária foi aceita. Informe o código TOTP para concluir a sessão.",
+        otp: "OTP",
+        back: "Voltar",
+        confirm: "Confirmar",
+        confirming: "Validando",
+      },
+    },
+    scan: {
+      mode: {
+        batch: "Análise em lote",
+        quick: "Análise rápida",
+      },
+      actions: {
+        startBatch: "Iniciar Análise em Lote",
+        startQuick: "Iniciar Análise",
+        runBatch: "Executar Lote",
+        execute: "Executar",
+        close: "Fechar launcher",
+        importFile: "Importar .txt ou .csv",
+      },
+      input: {
+        placeholder: "IP, domínio, hash ou alvos separados por vírgula/quebra de linha",
+      },
+      status: {
+        targetsDetected: "{n} alvos detectados",
+        singleMode: "Modo alvo único",
+        uploadHint: "Envie um arquivo .txt ou .csv para preencher o launcher",
+      },
+      description: {
+        single: "Informe um único IP, domínio ou hash, ou cole múltiplos alvos para executar o fluxo de análise em lote do VANTAGE.",
+        batch: "O modo lote usa /api/analyze/batch com pré-verificação, progresso em tempo real e resultados exportáveis.",
+      },
+      warnings: {
+        noValidTargets: "Nenhum alvo válido encontrado no arquivo enviado.",
+        parseError: "Não foi possível processar o arquivo enviado.",
+        importedWithSkipped: "Importados {max} alvos. {skipped} entradas adicionais foram ignoradas.",
+      },
+    },
   },
   en: {
     layout: {
@@ -734,6 +791,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       apiGroupUsersBody: "User management, profiles, and third-party API key configuration.",
       apiGroupSessionsBody: "Active session management and revocation.",
       apiGroupApiKeysBody: "Programmatic access keys with the iti_xxx prefix.",
+      shortcutsFooterPost: "to close. Shortcuts are disabled in text fields.",
       apiGroupAnalysisBody: "IOC analysis across configured intelligence sources.",
       apiGroupBatchBody: "Bulk indicator analysis with daily quota.",
       apiGroupReconBody: "Reconnaissance engine with modular scanning.",
@@ -1174,6 +1232,62 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         synced: "synchronized with your personal vault and registered in the Audit Registry.",
       },
     },
+    auth: {
+      login: {
+        title: "Security Operations Center",
+        subtitle: "Initialize an authenticated session to use VANTAGE's real intelligence and analysis engine.",
+        username: "Username",
+        password: "Password",
+        submit: "Sign In",
+        submitting: "Authenticating",
+      },
+      errors: {
+        invalidCredentials: "Access denied. Invalid credentials.",
+        accountLocked: "Account temporarily locked until {time}.",
+        lockoutFallback: "further notice",
+        invalidOtp: "Invalid MFA code. Review the OTP and try again.",
+      },
+      mfa: {
+        title: "MFA Verification",
+        subtitle: "Second factor required",
+        instructions: "Primary authentication accepted. Enter your TOTP code to complete the session.",
+        otp: "OTP",
+        back: "Back",
+        confirm: "Confirm",
+        confirming: "Validating",
+      },
+    },
+    scan: {
+      mode: {
+        batch: "Batch analysis",
+        quick: "Quick analysis",
+      },
+      actions: {
+        startBatch: "Start Batch Analysis",
+        startQuick: "Start Analysis",
+        runBatch: "Run Batch",
+        execute: "Execute",
+        close: "Close launcher",
+        importFile: "Import .txt or .csv",
+      },
+      input: {
+        placeholder: "IP, domain, hash or comma/newline-separated targets",
+      },
+      status: {
+        targetsDetected: "{n} targets detected",
+        singleMode: "Single target mode",
+        uploadHint: "Upload .txt or .csv to prefill the launcher",
+      },
+      description: {
+        single: "Enter a single IP, domain or hash, or paste multiple targets to run the existing batch analysis flow in the VANTAGE backend.",
+        batch: "Batch mode uses /api/analyze/batch with a pre-check, live progress, and exportable results.",
+      },
+      warnings: {
+        noValidTargets: "No valid targets were found in the uploaded file.",
+        parseError: "The uploaded file could not be parsed.",
+        importedWithSkipped: "Imported {max} targets. {skipped} extra entries were skipped.",
+      },
+    },
   },
   es: {
     layout: {
@@ -1323,6 +1437,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       apiGroupUsersBody: "Gestión de usuarios, perfiles y configuración de claves API de terceros.",
       apiGroupSessionsBody: "Gestión y revocación de sesiones activas.",
       apiGroupApiKeysBody: "Claves para acceso programático con prefijo iti_xxx.",
+      shortcutsFooterPost: "para cerrar. Los atajos están deshabilitados en campos de texto.",
       apiGroupAnalysisBody: "Análisis de IOCs en las fuentes de inteligencia configuradas.",
       apiGroupBatchBody: "Análisis por lote de indicadores con cuota diaria.",
       apiGroupReconBody: "Motor de reconocimiento con módulos independientes.",
@@ -1765,6 +1880,62 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         focusFirst: "Enfocar primer proveedor pendiente",
         dismiss: "Descartar guía",
         synced: "sincronizada con tu bóveda personal y registrada en el Audit Registry.",
+      },
+    },
+    auth: {
+      login: {
+        title: "Centro de Operaciones de Seguridad",
+        subtitle: "Inicie una sesión autenticada para usar el motor real de inteligencia y análisis de VANTAGE.",
+        username: "Usuario",
+        password: "Contraseña",
+        submit: "Ingresar",
+        submitting: "Autenticando",
+      },
+      errors: {
+        invalidCredentials: "Acceso denegado. Credenciales inválidas.",
+        accountLocked: "Cuenta bloqueada temporalmente hasta {time}.",
+        lockoutFallback: "nuevo aviso",
+        invalidOtp: "Código MFA inválido. Revise el OTP e intente de nuevo.",
+      },
+      mfa: {
+        title: "Verificación MFA",
+        subtitle: "Segundo factor requerido",
+        instructions: "Autenticación primaria aceptada. Ingrese el código TOTP para completar la sesión.",
+        otp: "OTP",
+        back: "Volver",
+        confirm: "Confirmar",
+        confirming: "Validando",
+      },
+    },
+    scan: {
+      mode: {
+        batch: "Análisis en lote",
+        quick: "Análisis rápido",
+      },
+      actions: {
+        startBatch: "Iniciar Análisis en Lote",
+        startQuick: "Iniciar Análisis",
+        runBatch: "Ejecutar Lote",
+        execute: "Ejecutar",
+        close: "Cerrar launcher",
+        importFile: "Importar .txt o .csv",
+      },
+      input: {
+        placeholder: "IP, dominio, hash o objetivos separados por coma/salto de línea",
+      },
+      status: {
+        targetsDetected: "{n} objetivos detectados",
+        singleMode: "Modo objetivo único",
+        uploadHint: "Sube un archivo .txt o .csv para rellenar el launcher",
+      },
+      description: {
+        single: "Ingrese una IP, dominio o hash único, o pegue múltiples objetivos para ejecutar el flujo de análisis en lote del backend de VANTAGE.",
+        batch: "El modo lote usa /api/analyze/batch con verificación previa, progreso en tiempo real y resultados exportables.",
+      },
+      warnings: {
+        noValidTargets: "No se encontraron objetivos válidos en el archivo cargado.",
+        parseError: "No se pudo procesar el archivo cargado.",
+        importedWithSkipped: "Se importaron {max} objetivos. Se omitieron {skipped} entradas adicionales.",
       },
     },
   },

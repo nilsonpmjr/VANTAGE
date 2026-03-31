@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
+import { useLanguage } from "../../context/LanguageContext";
 
 interface ShortcutEntry {
   keys: string[];
@@ -14,30 +15,6 @@ interface ShortcutGroup {
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
 const mod = isMac ? "\u2318" : "Ctrl";
-
-const groups: ShortcutGroup[] = [
-  {
-    title: "Navigation",
-    shortcuts: [
-      { keys: ["G", "H"], description: "Go to Home" },
-      { keys: ["G", "F"], description: "Go to Feed" },
-      { keys: ["G", "R"], description: "Go to Recon" },
-      { keys: ["G", "W"], description: "Go to Watchlist" },
-      { keys: ["G", "D"], description: "Go to Dashboard" },
-      { keys: ["G", "P"], description: "Go to Profile" },
-      { keys: ["G", "S"], description: "Go to Settings" },
-    ],
-  },
-  {
-    title: "Actions",
-    shortcuts: [
-      { keys: [mod, "L"], description: "Focus search bar" },
-      { keys: [mod, "/"], description: "Toggle this panel" },
-      { keys: ["Esc"], description: "Close overlay" },
-      { keys: ["?"], description: "Show shortcuts" },
-    ],
-  },
-];
 
 function Kbd({ children }: { children: string }) {
   return (
@@ -54,6 +31,31 @@ interface Props {
 
 export default function KeyboardShortcutsModal({ open, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
+  const { t } = useLanguage();
+
+  const groups: ShortcutGroup[] = [
+    {
+      title: t("help.shortcutsGroupNavigation"),
+      shortcuts: [
+        { keys: ["G", "H"], description: t("help.shortcutGoHome") },
+        { keys: ["G", "F"], description: t("help.shortcutGoFeed") },
+        { keys: ["G", "R"], description: t("help.shortcutGoRecon") },
+        { keys: ["G", "W"], description: t("help.shortcutGoWatchlist") },
+        { keys: ["G", "D"], description: t("help.shortcutGoDashboard") },
+        { keys: ["G", "P"], description: t("help.shortcutGoProfile") },
+        { keys: ["G", "S"], description: t("help.shortcutGoSettings") },
+      ],
+    },
+    {
+      title: t("help.shortcutsGroupActions"),
+      shortcuts: [
+        { keys: [mod, "L"], description: t("help.shortcutFocusSearch") },
+        { keys: [mod, "/"], description: t("help.shortcutToggleShortcuts") },
+        { keys: ["Esc"], description: t("help.shortcutCloseModal") },
+        { keys: ["?"], description: t("help.shortcutShowDialog") },
+      ],
+    },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -85,10 +87,13 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20 bg-surface-container-high">
           <h2 className="text-sm font-bold tracking-tight text-on-surface">
-            Keyboard Shortcuts
+            {t("help.shortcuts")}
           </h2>
           <button
+            type="button"
             onClick={onClose}
+            aria-label={t("help.shortcutCloseModal")}
+            title={t("help.shortcutCloseModal")}
             className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded transition-colors"
           >
             <X className="w-4 h-4" />
@@ -117,7 +122,7 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
                             <span className="text-[9px] text-outline font-bold">
                               {shortcut.keys[0].length === 1 &&
                               shortcut.keys[1].length === 1
-                                ? "then"
+                                ? t("help.then")
                                 : "+"}
                             </span>
                           )}
@@ -134,8 +139,7 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
 
         <div className="px-6 py-3 border-t border-outline-variant/20 bg-surface-container-low">
           <p className="text-[10px] text-on-surface-variant">
-            Press <Kbd>Esc</Kbd> to close. Shortcuts are disabled in text
-            fields.
+            {t("help.press")} <Kbd>Esc</Kbd> {t("help.shortcutsFooterPost")}
           </p>
         </div>
       </div>

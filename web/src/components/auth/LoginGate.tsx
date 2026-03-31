@@ -2,25 +2,25 @@ import { useState, type FormEvent } from "react";
 import { ShieldCheck } from "lucide-react";
 import API_URL from "../../config";
 import { useAuth } from "../../context/AuthContext";
+import { useLanguage } from "../../context/LanguageContext";
 import useBrandTheme from "../../branding/useBrandTheme";
 
-function formatLockedUntil(value?: string | null) {
+function formatLockedUntil(value: string | null | undefined, locale: string) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("pt-BR");
+  return date.toLocaleString(locale);
 }
 
 function LoginPanel() {
   const { login } = useAuth();
   const { brand, logoPath } = useBrandTheme();
+  const { t, locale } = useLanguage();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [hideLogo, setHideLogo] = useState(false);
-
-  const loginLogoPath = logoPath;
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -32,9 +32,10 @@ function LoginPanel() {
     } catch (err) {
       const locked = err as Error & { code?: string; locked_until?: string | null };
       if (locked.code === "account_locked") {
-        setError(`Conta temporariamente bloqueada até ${formatLockedUntil(locked.locked_until) || "novo aviso"}.`);
+        const time = formatLockedUntil(locked.locked_until, locale) || t("auth.errors.lockoutFallback");
+        setError(t("auth.errors.accountLocked").replace("{time}", time));
       } else {
-        setError("Acesso negado. Credenciais inválidas.");
+        setError(t("auth.errors.invalidCredentials"));
       }
     } finally {
       setSubmitting(false);
@@ -48,7 +49,7 @@ function LoginPanel() {
           <div className="flex min-h-12 items-center">
             {!hideLogo ? (
               <img
-                src={loginLogoPath}
+                src={logoPath}
                 alt={brand.name}
                 className="h-9 w-auto max-w-[240px] object-contain"
                 onError={() => setHideLogo(true)}
@@ -66,10 +67,8 @@ function LoginPanel() {
 
         <div className="px-7 py-8 space-y-6">
           <div className="space-y-2">
-            <h2 className="text-2xl font-black tracking-tight text-on-surface">Centro de Operações de Segurança</h2>
-            <p className="text-sm text-on-surface-variant">
-              Inicialize uma sessão autenticada para usar o motor real de inteligência e análise do VANTAGE.
-            </p>
+            <h2 className="text-2xl font-black tracking-tight text-on-surface">{t("auth.login.title")}</h2>
+            <p className="text-sm text-on-surface-variant">{t("auth.login.subtitle")}</p>
           </div>
 
           {error && (
@@ -80,7 +79,9 @@ function LoginPanel() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <label className="block space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Usuário</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                {t("auth.login.username")}
+              </span>
               <input
                 type="text"
                 value={username}
@@ -92,7 +93,9 @@ function LoginPanel() {
             </label>
 
             <label className="block space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">Senha</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                {t("auth.login.password")}
+              </span>
               <input
                 type="password"
                 value={password}
@@ -108,7 +111,7 @@ function LoginPanel() {
               disabled={submitting}
               className="w-full h-12 bg-gradient-to-r from-primary to-primary-dim text-on-primary text-sm font-black uppercase tracking-[0.2em] rounded-sm shadow-sm disabled:opacity-60"
             >
-              {submitting ? "Autenticando" : "Entrar"}
+              {submitting ? t("auth.login.submitting") : t("auth.login.submit")}
             </button>
           </form>
         </div>
@@ -119,6 +122,7 @@ function LoginPanel() {
 
 function MfaPanel() {
   const { completeMfaLogin, cancelMfa } = useAuth();
+  const { t } = useLanguage();
   const [otp, setOtp] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -145,7 +149,7 @@ function MfaPanel() {
       const data = await response.json();
       completeMfaLogin(data.user);
     } catch {
-      setError("Código MFA inválido. Revise o OTP e tente novamente.");
+      setError(t("auth.errors.invalidOtp"));
       setOtp("");
     } finally {
       setLoading(false);
@@ -158,17 +162,15 @@ function MfaPanel() {
         <div className="bg-surface-container-high px-6 py-4 border-b border-outline-variant/15 flex items-center gap-3">
           <ShieldCheck className="w-5 h-5 text-primary" />
           <div>
-            <h2 className="text-sm font-black uppercase tracking-widest text-on-surface">MFA Verification</h2>
+            <h2 className="text-sm font-black uppercase tracking-widest text-on-surface">{t("auth.mfa.title")}</h2>
             <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-              Second factor required
+              {t("auth.mfa.subtitle")}
             </p>
           </div>
         </div>
 
         <div className="px-7 py-8 space-y-5">
-          <p className="text-sm text-on-surface-variant">
-            A autenticação primária foi aceita. Informe o código TOTP para concluir a sessão.
-          </p>
+          <p className="text-sm text-on-surface-variant">{t("auth.mfa.instructions")}</p>
 
           {error && (
             <div className="px-4 py-3 rounded-sm bg-error/8 text-error text-sm border border-error/20">
@@ -178,7 +180,9 @@ function MfaPanel() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <label className="block space-y-2">
-              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">OTP</span>
+              <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
+                {t("auth.mfa.otp")}
+              </span>
               <input
                 type="text"
                 inputMode="numeric"
@@ -196,14 +200,14 @@ function MfaPanel() {
                 onClick={cancelMfa}
                 className="flex-1 h-11 bg-surface-container-low text-on-surface text-xs font-black uppercase tracking-[0.18em] rounded-sm"
               >
-                Voltar
+                {t("auth.mfa.back")}
               </button>
               <button
                 type="submit"
                 disabled={loading}
                 className="flex-1 h-11 bg-gradient-to-r from-primary to-primary-dim text-on-primary text-xs font-black uppercase tracking-[0.18em] rounded-sm shadow-sm disabled:opacity-60"
               >
-                {loading ? "Validando" : "Confirmar"}
+                {loading ? t("auth.mfa.confirming") : t("auth.mfa.confirm")}
               </button>
             </div>
           </form>

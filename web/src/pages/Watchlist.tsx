@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
@@ -25,11 +26,11 @@ interface WatchlistHistoryItem {
   scanned_at: string;
 }
 
-function formatTimestamp(value?: string | null) {
+function formatTimestamp(value: string | null | undefined, locale: string) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
@@ -48,14 +49,17 @@ function verdictClasses(verdict?: string | null) {
   return "bg-surface-container-high text-on-surface-variant";
 }
 
-function routeLabel(route: WatchlistItem["notification_route"]) {
+function routeLabel(
+  route: WatchlistItem["notification_route"],
+  t: (key: string, fallback?: string) => string,
+) {
   switch (route) {
     case "both":
-      return "Email + In-App";
+      return t("watchlist.routeValueBoth", "Email + In-App");
     case "in_app":
-      return "In-App";
+      return t("watchlist.routeValueInApp", "In-App");
     default:
-      return "Email";
+      return t("watchlist.routeValueEmail", "Email");
   }
 }
 
@@ -66,7 +70,8 @@ function routeTone(route: WatchlistItem["notification_route"]) {
 }
 
 export default function Watchlist() {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
+  const navigate = useNavigate();
   const [items, setItems] = useState<WatchlistItem[]>([]);
   const [smtpConfigured, setSmtpConfigured] = useState(false);
   const [target, setTarget] = useState("");
@@ -92,6 +97,45 @@ export default function Watchlist() {
     }
     void loadHistory(selectedItemId);
   }, [selectedItemId]);
+
+  useEffect(() => {
+    function handleTableShortcuts(event: KeyboardEvent) {
+      const targetElement = event.target as HTMLElement | null;
+      const tag = targetElement?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || targetElement?.isContentEditable) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (!items.length) return;
+      const currentSelectedItem =
+        items.find((item) => item.id === selectedItemId) || null;
+
+      const currentIndex = Math.max(
+        0,
+        items.findIndex((item) => item.id === selectedItemId),
+      );
+
+      if (event.key.toLowerCase() === "j") {
+        event.preventDefault();
+        const nextIndex = Math.min(items.length - 1, currentIndex + 1);
+        setSelectedItemId(items[nextIndex].id);
+        return;
+      }
+
+      if (event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        const nextIndex = Math.max(0, currentIndex - 1);
+        setSelectedItemId(items[nextIndex].id);
+        return;
+      }
+
+      if (event.key === "Enter" && currentSelectedItem) {
+        event.preventDefault();
+        navigate(`/analyze/${encodeURIComponent(currentSelectedItem.target)}`);
+      }
+    }
+
+    document.addEventListener("keydown", handleTableShortcuts);
+    return () => document.removeEventListener("keydown", handleTableShortcuts);
+  }, [items, navigate, selectedItemId]);
 
   async function loadWatchlist() {
     setLoading(true);
@@ -121,7 +165,7 @@ export default function Watchlist() {
         return nextItems[0]?.id || "";
       });
     } catch {
-      setError("Não foi possível carregar a watchlist do operador.");
+      setError(t("watchlist.loadFailed", "Could not load the operator watchlist."));
     } finally {
       setLoading(false);
     }
@@ -170,16 +214,16 @@ export default function Watchlist() {
       setTarget("");
       setNotifyOnChange(true);
       setNotificationRoute("email");
-      setNotice("Indicador adicionado à watchlist.");
+      setNotice(t("watchlist.noticeAdded", "Indicator added to the watchlist."));
       await loadWatchlist();
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
       setError(
         detail === "Target already in watchlist."
-          ? "Esse alvo já está monitorado."
+          ? t("watchlist.errorAlreadyTracked", "This target is already being monitored.")
           : detail.includes("limit")
             ? detail
-            : "Não foi possível adicionar o alvo à watchlist.",
+            : t("watchlist.errorAddFailed", "Could not add the target to the watchlist."),
       );
     } finally {
       setBusyId("");
@@ -205,7 +249,7 @@ export default function Watchlist() {
       await loadWatchlist();
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
-      setError(detail || "Falha ao atualizar o indicador.");
+      setError(detail || t("watchlist.errorUpdateFailed", "Failed to update the indicator."));
     } finally {
       setBusyId("");
     }
@@ -232,14 +276,14 @@ export default function Watchlist() {
         throw new Error(err.detail || "watchlist_bulk_failed");
       }
       const data = (await response.json()) as { updated: number };
-      setNotice(`${data.updated || 0} indicador(es) atualizados.`);
+      setNotice(`${data.updated || 0} ${t("watchlist.noticeUpdatedCount", "indicator(s) updated.")}`);
       if (action === "delete") {
         setSelectedIds([]);
       }
       await loadWatchlist();
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
-      setError(detail || "Não foi possível executar a ação em massa.");
+      setError(detail || t("watchlist.errorBulkFailed", "Could not execute the bulk action."));
     } finally {
       setBusyId("");
     }
@@ -259,10 +303,10 @@ export default function Watchlist() {
         throw new Error("watchlist_delete_failed");
       }
 
-      setNotice("Indicador removido da watchlist.");
+      setNotice(t("watchlist.noticeRemoved", "Indicator removed from the watchlist."));
       await loadWatchlist();
     } catch {
-      setError("Não foi possível remover o indicador.");
+      setError(t("watchlist.errorRemoveFailed", "Could not remove the indicator."));
     } finally {
       setBusyId("");
     }
@@ -284,14 +328,14 @@ export default function Watchlist() {
       const data = (await response.json()) as { changed: boolean; verdict: string };
       setNotice(
         data.changed
-          ? `Novo veredito detectado: ${data.verdict}.`
-          : `Scan manual concluído: ${data.verdict}.`,
+          ? `${t("watchlist.noticeNewVerdict", "New verdict detected")}: ${data.verdict}.`
+          : `${t("watchlist.noticeScanComplete", "Manual scan completed")}: ${data.verdict}.`,
       );
       await loadWatchlist();
       await loadHistory(itemId);
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
-      setError(detail || "Falha ao executar o scan manual.");
+      setError(detail || t("watchlist.errorScanFailed", "Failed to execute the manual scan."));
     } finally {
       setBusyId("");
     }
@@ -430,9 +474,9 @@ export default function Watchlist() {
             <div>
               <span className="text-[10px] font-bold text-outline uppercase tracking-[0.15em]">{t("watchlist.routeMix", "Route Mix")}</span>
               <div className="mt-3 space-y-2 text-sm text-on-surface">
-                <div>Email: {routeMix.email}</div>
-                <div>In-App: {routeMix.inApp}</div>
-                <div>Both: {routeMix.both}</div>
+                <div>{t("watchlist.routeMixEmail", "Email")}: {routeMix.email}</div>
+                <div>{t("watchlist.routeMixInApp", "In-App")}: {routeMix.inApp}</div>
+                <div>{t("watchlist.routeMixBoth", "Both")}: {routeMix.both}</div>
               </div>
             </div>
           </div>
@@ -506,7 +550,7 @@ export default function Watchlist() {
                             onChange={() => toggleSelection(item.id)}
                           />
                         </td>
-                        <td className="px-6 py-4 text-xs font-semibold text-on-surface">{item.target_type || "artifact"}</td>
+                        <td className="px-6 py-4 text-xs font-semibold text-on-surface">{item.target_type || t("watchlist.artifact", "artifact")}</td>
                         <td
                           className="px-6 py-4 cursor-pointer"
                           onClick={() => setSelectedItemId(item.id)}
@@ -516,11 +560,11 @@ export default function Watchlist() {
                           </code>
                         </td>
                         <td className="px-6 py-4 text-xs text-on-surface-variant">
-                          {formatTimestamp(item.last_scan_at)}
+                          {formatTimestamp(item.last_scan_at, locale)}
                         </td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(item.notification_route)}`}>
-                            {routeLabel(item.notification_route)}
+                            {routeLabel(item.notification_route, t)}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -542,23 +586,24 @@ export default function Watchlist() {
                                 onInspect: () => {
                                   setSelectedItemId(item.id);
                                   setNotice(
-                                    `${item.target} - last verdict: ${item.last_verdict || "Awaiting first scan"} / last scan: ${formatTimestamp(item.last_scan_at)}`,
+                                    `${item.target} - ${t("watchlist.lastVerdictLabel", "last verdict")}: ${item.last_verdict || t("watchlist.awaitingFirstScan", "Awaiting first scan")} / ${t("watchlist.lastScanLabel", "last scan")}: ${formatTimestamp(item.last_scan_at, locale)}`,
                                   );
                                 },
                                 onToggle: () =>
                                   void patchWatchlistItem(
                                     item.id,
                                     { notify_on_change: !item.notify_on_change },
-                                    "Preferência de notificação atualizada.",
+                                    t("watchlist.noticeNotificationUpdated", "Notification preference updated."),
                                   ),
                                 onRoute: (route) =>
                                   void patchWatchlistItem(
                                     item.id,
                                     { notification_route: route },
-                                    "Canal de notificação atualizado.",
+                                    t("watchlist.noticeRouteUpdated", "Notification route updated."),
                                   ),
                                 onRemove: () => void removeItem(item.id),
                                 busyId,
+                                t,
                               })}
                             />
                           </div>
@@ -576,19 +621,19 @@ export default function Watchlist() {
           <div className="surface-section">
             <div className="surface-section-header">
               <div className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                Notification Routing
+                {t("watchlist.notificationRoutingTitle", "Notification Routing")}
               </div>
             </div>
             <div className="p-6 space-y-4">
               <span className="inline-flex rounded-sm bg-surface-container-highest px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-                {smtpConfigured ? "SMTP READY" : "SMTP OFFLINE"}
+                {smtpConfigured ? t("watchlist.smtpReady", "SMTP READY") : t("watchlist.smtpOffline", "SMTP OFFLINE")}
               </span>
               <div className="flex items-start gap-3 text-sm text-on-surface">
                 <Mail className={`mt-0.5 h-4 w-4 ${smtpConfigured ? "text-primary" : "text-error"}`} />
                 <span>
                   {smtpConfigured
-                    ? "Mudanças de veredito podem disparar email. Rotas in-app e híbridas já podem ser configuradas por item."
-                    : "A instância ainda não possui SMTP operacional configurado."}
+                    ? t("watchlist.smtpReadyBody", "Verdict changes can trigger email. In-app and hybrid routes can already be configured per item.")
+                    : t("watchlist.smtpOfflineBody", "This instance does not yet have operational SMTP configured.")}
                 </span>
               </div>
             </div>
@@ -597,18 +642,18 @@ export default function Watchlist() {
           <div className="surface-section">
             <div className="surface-section-header">
               <div className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                Fast-Track Entry
+                {t("watchlist.fastTrackEntryTitle", "Fast-Track Entry")}
               </div>
             </div>
             <div className="p-6 space-y-5">
               <label className="block space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                  Indicator Value
+                  {t("watchlist.indicatorValue", "Indicator Value")}
                 </div>
                 <input
                   value={target}
                   onChange={(event) => setTarget(event.target.value)}
-                  placeholder="IP, domain or hash"
+                  placeholder={t("watchlist.indicatorPlaceholder", "IP, domain or hash")}
                   className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary"
                 />
               </label>
@@ -620,16 +665,16 @@ export default function Watchlist() {
                   }`}
                 >
                   {notifyOnChange ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
-                  Alerts
+                  {t("watchlist.alerts", "Alerts")}
                 </button>
                 <select
                   value={notificationRoute}
                   onChange={(event) => setNotificationRoute(event.target.value as WatchlistItem["notification_route"])}
                   className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-2 text-sm text-on-surface outline-none focus:border-primary"
                 >
-                  <option value="email">email</option>
-                  <option value="in_app">in_app</option>
-                  <option value="both">both</option>
+                  <option value="email">{t("watchlist.routeOptionEmail", "email")}</option>
+                  <option value="in_app">{t("watchlist.routeOptionInApp", "in_app")}</option>
+                  <option value="both">{t("watchlist.routeOptionBoth", "both")}</option>
                 </select>
               </div>
               <button
@@ -638,7 +683,7 @@ export default function Watchlist() {
                 className="inline-flex w-full items-center justify-center gap-2 rounded-sm bg-primary px-4 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-white hover:bg-primary-dim disabled:cursor-not-allowed disabled:opacity-60"
               >
                 <Plus className="h-4 w-4" />
-                {busyId === "create" ? "Adding" : "Initialize Entry"}
+                {busyId === "create" ? t("watchlist.adding", "Adding") : t("watchlist.initializeEntry", "Initialize Entry")}
               </button>
             </div>
           </div>
@@ -646,7 +691,7 @@ export default function Watchlist() {
           <div className="surface-section">
             <div className="surface-section-header">
               <div className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                Selected Indicator
+                {t("watchlist.selectedIndicatorTitle", "Selected Indicator")}
               </div>
             </div>
             <div className="p-6 space-y-5">
@@ -655,31 +700,31 @@ export default function Watchlist() {
                   <div>
                     <div className="text-sm font-bold text-on-surface">{selectedItem.target}</div>
                     <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">
-                      {selectedItem.target_type} · last scan {formatTimestamp(selectedItem.last_scan_at)}
+                      {selectedItem.target_type} · {t("watchlist.lastScanLabel", "last scan")} {formatTimestamp(selectedItem.last_scan_at, locale)}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(selectedItem.last_verdict)}`}>
-                      {selectedItem.last_verdict || "Awaiting first scan"}
+                      {selectedItem.last_verdict || t("watchlist.awaitingFirstScan", "Awaiting first scan")}
                     </span>
                     <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(selectedItem.notification_route)}`}>
-                      {routeLabel(selectedItem.notification_route)}
+                      {routeLabel(selectedItem.notification_route, t)}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm">
-                    <span className="text-on-surface-variant">Notification state</span>
+                    <span className="text-on-surface-variant">{t("watchlist.notificationState", "Notification state")}</span>
                     <span className="font-medium text-on-surface">
-                      {selectedItem.notify_on_change ? "Enabled" : "Muted"}
+                      {selectedItem.notify_on_change ? t("watchlist.enabled", "Enabled") : t("watchlist.muted", "Muted")}
                     </span>
                   </div>
                   <div>
                     <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                      Historical trend
+                      {t("watchlist.historicalTrend", "Historical trend")}
                     </div>
                     {loadingHistory ? (
                       <div className="text-sm text-on-surface-variant">{t("watchlist.loadingTrend", "Loading trend...")}</div>
                     ) : selectedTrend.length === 0 ? (
-                      <div className="text-sm text-on-surface-variant">Nenhum histórico disponível ainda.</div>
+                      <div className="text-sm text-on-surface-variant">{t("watchlist.noHistoryYet", "No history available yet.")}</div>
                     ) : (
                       <>
                         <div className="flex h-28 items-end gap-2">
@@ -694,14 +739,14 @@ export default function Watchlist() {
                                     : "bg-primary/40"
                               }`}
                               style={{ height: `${entry.height}%` }}
-                              title={`${formatTimestamp(entry.scanned_at)} • ${entry.verdict}`}
+                              title={`${formatTimestamp(entry.scanned_at, locale)} • ${entry.verdict}`}
                             />
                           ))}
                         </div>
                         <div className="mt-4 space-y-2">
                           {selectedHistory.slice(0, 4).map((entry) => (
                             <div key={`${entry.scanned_at}-${entry.verdict}`} className="flex items-start justify-between gap-3 text-xs">
-                              <span className="text-on-surface-variant">{formatTimestamp(entry.scanned_at)}</span>
+                              <span className="text-on-surface-variant">{formatTimestamp(entry.scanned_at, locale)}</span>
                               <span className="font-medium text-on-surface text-right">
                                 {entry.changed && entry.previous_verdict
                                   ? `${entry.previous_verdict} -> ${entry.verdict}`
@@ -716,7 +761,7 @@ export default function Watchlist() {
                 </>
               ) : (
                 <div className="text-sm text-on-surface-variant">
-                  Selecione um indicador para inspecionar rota, tendência e histórico.
+                  {t("watchlist.selectIndicatorHint", "Select an indicator to inspect route, trend, and history.")}
                 </div>
               )}
             </div>
@@ -734,6 +779,7 @@ function buildWatchlistActions({
   onRoute,
   onRemove,
   busyId,
+  t,
 }: {
   item: WatchlistItem;
   onInspect: () => void;
@@ -741,42 +787,45 @@ function buildWatchlistActions({
   onRoute: (route: WatchlistItem["notification_route"]) => void;
   onRemove: () => void;
   busyId: string;
+  t: (key: string, fallback?: string) => string;
 }): RowActionItem[] {
   return [
     {
       key: "details",
-      label: "Review indicator context",
+      label: t("watchlist.actionReviewContext", "Review indicator context"),
       icon: <Eye className="h-3.5 w-3.5" />,
       onSelect: onInspect,
     },
     {
       key: "toggle",
-      label: item.notify_on_change ? "Disable notifications" : "Enable notifications",
+      label: item.notify_on_change
+        ? t("watchlist.actionDisableNotifications", "Disable notifications")
+        : t("watchlist.actionEnableNotifications", "Enable notifications"),
       icon: item.notify_on_change ? <BellOff className="h-3.5 w-3.5" /> : <Bell className="h-3.5 w-3.5" />,
       onSelect: onToggle,
       disabled: busyId === item.id,
     },
     {
       key: "route_email",
-      label: "Route to email",
+      label: t("watchlist.actionRouteEmail", "Route to email"),
       onSelect: () => onRoute("email"),
       disabled: busyId === item.id,
     },
     {
       key: "route_in_app",
-      label: "Route to in-app",
+      label: t("watchlist.actionRouteInApp", "Route to in-app"),
       onSelect: () => onRoute("in_app"),
       disabled: busyId === item.id,
     },
     {
       key: "route_both",
-      label: "Route to email + in-app",
+      label: t("watchlist.actionRouteBoth", "Route to email + in-app"),
       onSelect: () => onRoute("both"),
       disabled: busyId === item.id,
     },
     {
       key: "remove",
-      label: "Remove indicator",
+      label: t("watchlist.actionRemoveIndicator", "Remove indicator"),
       icon: <Trash2 className="h-3.5 w-3.5" />,
       onSelect: onRemove,
       tone: "danger",

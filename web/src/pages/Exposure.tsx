@@ -50,11 +50,11 @@ interface ExposureIncident {
   related_assets?: Array<{ monitored_asset_id?: string; asset_type?: string; value?: string }>;
 }
 
-function formatTimestamp(value?: string | null) {
+function formatTimestamp(value: string | null | undefined, locale: string) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
@@ -71,7 +71,7 @@ function severityClasses(severity?: string) {
 }
 
 export default function Exposure() {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const [providers, setProviders] = useState<ExposureProvider[]>([]);
   const [assets, setAssets] = useState<ExposureAsset[]>([]);
   const [groups, setGroups] = useState<ExposureAssetGroup[]>([]);
@@ -123,7 +123,7 @@ export default function Exposure() {
         return nextAssets[0]?._id || "";
       });
     } catch {
-      setError("Não foi possível carregar a área de exposure.");
+      setError(t("exposure.loadFailed", "Could not load the exposure area."));
     } finally {
       setLoading(false);
     }
@@ -173,14 +173,14 @@ export default function Exposure() {
       }
 
       setValue("");
-      setNotice("Ativo monitorado criado.");
+      setNotice(t("exposure.noticeAssetCreated", "Monitored asset created."));
       await loadExposureRuntime();
     } catch (err) {
       const detail = err instanceof Error ? err.message : "";
       setError(
         detail === "exposure_asset_already_exists"
-          ? "Esse ativo já está monitorado."
-          : "Não foi possível criar o ativo de exposure.",
+          ? t("exposure.errorAssetExists", "This asset is already being monitored.")
+          : t("exposure.errorCreateAsset", "Could not create the exposure asset."),
       );
     } finally {
       setBusy("");
@@ -202,10 +202,10 @@ export default function Exposure() {
       }
 
       const data = (await response.json()) as { total_results: number };
-      setNotice(`Scan concluído com ${data.total_results || 0} finding(s).`);
+      setNotice(`${t("exposure.noticeScanComplete", "Scan completed with")} ${data.total_results || 0} ${t("exposure.findingCount", "finding(s)")}.`);
       await loadExposureRuntime();
     } catch {
-      setError("Não foi possível executar o scan deste ativo.");
+      setError(t("exposure.errorScanAsset", "Could not execute the scan for this asset."));
     } finally {
       setBusy("");
     }
@@ -228,10 +228,10 @@ export default function Exposure() {
         throw new Error(err.detail || "exposure_bulk_scan_failed");
       }
       const data = (await response.json()) as { assets_scanned: number; total_results: number };
-      setNotice(`${data.assets_scanned} ativo(s) escaneados com ${data.total_results} finding(s).`);
+      setNotice(`${data.assets_scanned} ${t("exposure.noticeAssetsScanned", "asset(s) scanned with")} ${data.total_results} ${t("exposure.findingCount", "finding(s)")}.`);
       await loadExposureRuntime();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao orquestrar bulk scan.");
+      setError(err instanceof Error ? err.message : t("exposure.errorBulkScan", "Failed to orchestrate bulk scan."));
     } finally {
       setBusy("");
     }
@@ -254,10 +254,10 @@ export default function Exposure() {
         throw new Error(err.detail || "exposure_group_create_failed");
       }
       setGroupName("");
-      setNotice("Grupo operacional criado para orquestração.");
+      setNotice(t("exposure.noticeGroupCreated", "Operational group created for orchestration."));
       await loadExposureRuntime();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao criar o grupo.");
+      setError(err instanceof Error ? err.message : t("exposure.errorCreateGroup", "Failed to create the group."));
     } finally {
       setBusy("");
     }
@@ -277,10 +277,10 @@ export default function Exposure() {
         throw new Error(err.detail || "exposure_group_scan_failed");
       }
       const data = (await response.json()) as { assets_scanned: number; total_results: number };
-      setNotice(`Grupo executado: ${data.assets_scanned} ativo(s), ${data.total_results} finding(s).`);
+      setNotice(`${t("exposure.noticeGroupExecuted", "Group executed")}: ${data.assets_scanned} ${t("exposure.assets", "assets")}, ${data.total_results} ${t("exposure.findingCount", "finding(s)")}.`);
       await loadExposureRuntime();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao executar grupo.");
+      setError(err instanceof Error ? err.message : t("exposure.errorRunGroup", "Failed to run group."));
     } finally {
       setBusy("");
     }
@@ -306,10 +306,10 @@ export default function Exposure() {
         throw new Error(err.detail || "exposure_promote_failed");
       }
       setSelectedFindingIds([]);
-      setNotice("Findings promovidos para incidente.");
+      setNotice(t("exposure.noticeFindingsPromoted", "Findings promoted to incident."));
       await loadExposureRuntime();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao promover findings.");
+      setError(err instanceof Error ? err.message : t("exposure.errorPromoteFindings", "Failed to promote findings."));
     } finally {
       setBusy("");
     }
@@ -330,10 +330,10 @@ export default function Exposure() {
         const err = await response.json().catch(() => ({}));
         throw new Error(err.detail || "exposure_incident_patch_failed");
       }
-      setNotice(`Incidente movido para ${status}.`);
+      setNotice(`${t("exposure.noticeIncidentMoved", "Incident moved to")} ${status}.`);
       await loadExposureRuntime();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao atualizar incidente.");
+      setError(err instanceof Error ? err.message : t("exposure.errorUpdateIncident", "Failed to update incident."));
     } finally {
       setBusy("");
     }
@@ -416,9 +416,9 @@ export default function Exposure() {
               <label className="block space-y-2">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">{t("exposure.schedule", "Schedule")}</div>
                 <select value={scheduleMode} onChange={(event) => setScheduleMode(event.target.value)} className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-0 py-3 text-sm text-on-surface outline-none focus:border-primary">
-                  <option value="manual">manual</option>
-                  <option value="daily">daily</option>
-                  <option value="continuous">continuous</option>
+                  <option value="manual">{t("exposure.scheduleManual", "manual")}</option>
+                  <option value="daily">{t("exposure.scheduleDaily", "daily")}</option>
+                  <option value="continuous">{t("exposure.scheduleContinuous", "continuous")}</option>
                 </select>
               </label>
               <button onClick={() => void createAsset()} disabled={!value.trim() || busy === "create"} className="inline-flex w-full items-center justify-center gap-2 rounded-sm bg-error px-5 py-3 text-[11px] font-bold uppercase tracking-[0.18em] text-white hover:bg-error/90 disabled:cursor-not-allowed disabled:opacity-60">
@@ -449,12 +449,12 @@ export default function Exposure() {
                         <button type="button" onClick={() => { setSelectedAssetId(asset._id); setSelectedFindingIds([]); }} className="text-left">
                           <div className="text-sm font-bold text-on-surface">{asset.value}</div>
                           <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">
-                            {asset.asset_type} · {asset.recurrence?.mode || "manual"} · {asset.recurrence?.last_status || "never_run"}
+                            {asset.asset_type} · {asset.recurrence?.mode || t("exposure.scheduleManual", "manual")} · {asset.recurrence?.last_status || t("exposure.neverRun", "never_run")}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-surface-variant">
                             <span>{asset.finding_count} {t("exposure.findingCount", "finding(s)")}</span>
                             <span>{asset.incident_count} {t("exposure.incidentCount", "incident(s)")}</span>
-                            <span>{t("exposure.updated", "Updated")} {formatTimestamp(asset.updated_at)}</span>
+                            <span>{t("exposure.updated", "Updated")} {formatTimestamp(asset.updated_at, locale)}</span>
                           </div>
                         </button>
                       </div>
@@ -535,7 +535,7 @@ export default function Exposure() {
                       <div className="flex items-center justify-between gap-3">
                         <div>
                           <div className="text-sm font-bold text-on-surface">{group.name}</div>
-                          <div className="mt-1 text-[11px] text-on-surface-variant">{group.assets.length} asset(s)</div>
+                          <div className="mt-1 text-[11px] text-on-surface-variant">{group.assets.length} {t("exposure.assets", "assets")}</div>
                         </div>
                           <button onClick={() => void scanGroup(group._id)} disabled={busy === group._id} className="btn btn-outline">
                           {busy === group._id ? t("exposure.running", "Running") : t("exposure.runGroup", "Run group")}
@@ -579,7 +579,7 @@ export default function Exposure() {
                       </button>
                     </div>
                     <div className="mt-3 text-[11px] text-on-surface-variant">
-                      {incident.status} · updated {formatTimestamp(incident.updated_at)}
+                      {incident.status} · {t("exposure.updated", "Updated")} {formatTimestamp(incident.updated_at, locale)}
                     </div>
                   </div>
                 ))
@@ -600,7 +600,7 @@ export default function Exposure() {
                   <div key={provider.key} className="rounded-sm bg-surface-container-low p-4">
                     <div className="text-sm font-bold text-on-surface">{provider.name}</div>
                     <div className="mt-1 text-[11px] text-on-surface-variant">
-                      {provider.assetTypes.join(", ")} · {t("exposure.schedulePrefix", "schedule")} {provider.recommendedSchedule || "manual"}
+                      {provider.assetTypes.join(", ")} · {t("exposure.schedulePrefix", "schedule")} {provider.recommendedSchedule || t("exposure.scheduleManual", "manual")}
                     </div>
                   </div>
                 ))}

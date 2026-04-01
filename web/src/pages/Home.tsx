@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Terminal,
@@ -28,29 +28,29 @@ type FeedItem = {
   };
 };
 
-function severityMeta(level?: string) {
+function severityMeta(level: string | undefined, t: (key: string, fallback?: string) => string) {
   switch ((level || "").toLowerCase()) {
     case "critical":
       return {
-        label: "CRITICAL",
+        label: t("home.severityCritical", "CRITICAL"),
         levelColor: "bg-error text-on-primary",
         Icon: Shield,
       };
     case "high":
       return {
-        label: "HIGH",
+        label: t("home.severityHigh", "HIGH"),
         levelColor: "bg-error-container text-on-error-container",
         Icon: Bug,
       };
     case "medium":
       return {
-        label: "MEDIUM",
+        label: t("home.severityMedium", "MEDIUM"),
         levelColor: "bg-secondary text-white",
         Icon: ShieldAlert,
       };
     default:
       return {
-        label: "LOW",
+        label: t("home.severityLow", "LOW"),
         levelColor: "bg-surface-container-highest text-on-surface-variant",
         Icon: LineChart,
       };
@@ -73,6 +73,14 @@ export default function Home() {
   const [searchQuery, setSearchQuery] = useState("");
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const navigate = useNavigate();
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const focusSearchInput = () => {
+    window.requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    });
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -90,6 +98,22 @@ export default function Home() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  useEffect(() => {
+    if (sessionStorage.getItem("vantage.pending-focus-search") === "true") {
+      sessionStorage.removeItem("vantage.pending-focus-search");
+      focusSearchInput();
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleFocusSearch() {
+      focusSearchInput();
+    }
+
+    window.addEventListener("vantage:focus-search", handleFocusSearch);
+    return () => window.removeEventListener("vantage:focus-search", handleFocusSearch);
   }, []);
 
   const feedVolume = useMemo(() => feedItems.length, [feedItems]);
@@ -125,6 +149,7 @@ export default function Home() {
               <Terminal className="w-6 h-6 text-primary" />
             </div>
             <input
+              ref={inputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -177,7 +202,7 @@ export default function Home() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {feedItems.length > 0 ? (
             feedItems.map((item) => {
-              const { label, levelColor, Icon } = severityMeta(item.severity);
+              const { label, levelColor, Icon } = severityMeta(item.severity, t);
               return (
                 <div key={item._id}>
                   <FeedCard
@@ -219,17 +244,17 @@ export default function Home() {
             {t("home.informationalOnly", "Passive health readout for the current intelligence sample. This panel is informational only.")}
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <NodeStatus name="AMER-EAST" value="99.98%" color="bg-emerald-500" />
-            <NodeStatus name="EMEA-CENTRAL" value="99.42%" color="bg-emerald-500" />
-            <NodeStatus name="APAC-SOUTH" value="97.81%" color="bg-amber-500" width="80%" />
-            <NodeStatus name="LATAM-WEST" value="100.0%" color="bg-emerald-500" />
+            <NodeStatus name={t("home.nodeAmerEast", "AMER-EAST")} value="99.98%" color="bg-emerald-500" />
+            <NodeStatus name={t("home.nodeEmeaCentral", "EMEA-CENTRAL")} value="99.42%" color="bg-emerald-500" />
+            <NodeStatus name={t("home.nodeApacSouth", "APAC-SOUTH")} value="97.81%" color="bg-amber-500" width="80%" />
+            <NodeStatus name={t("home.nodeLatamWest", "LATAM-WEST")} value="100.0%" color="bg-emerald-500" />
           </div>
         </div>
 
         <div className="surface-section overflow-hidden">
           <div className="surface-section-header">
             <div>
-              <h3 className="surface-section-title">Feed Summary</h3>
+              <h3 className="surface-section-title">{t("home.feedSummary", "Feed Summary")}</h3>
               <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
                 {t("home.currentSampleOnly", "Current sample only")}
               </p>

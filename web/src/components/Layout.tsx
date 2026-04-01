@@ -56,6 +56,10 @@ export default function Layout() {
   const [showApiKeyToast, setShowApiKeyToast] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
+  const shortcutSequenceRef = useRef<{ prefix: string | null; expiresAt: number }>({
+    prefix: null,
+    expiresAt: 0,
+  });
   const canAccessSettings = canAccessPath(user, "/settings");
   const apiKeyToastDismissKey = `vantage.api-keys-toast.dismissed.${user?.username || "anon"}`;
   const languageLabel = language === "en" ? "EN" : language === "es" ? "ES" : "PT";
@@ -186,14 +190,82 @@ export default function Layout() {
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
 
+      const lowerKey = e.key.toLowerCase();
+      const isModifier = e.metaKey || e.ctrlKey;
+
+      if (isModifier && lowerKey === "/") {
+        e.preventDefault();
+        setIsShortcutsOpen((prev: boolean) => !prev);
+        shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+        return;
+      }
+
+      if (isModifier && lowerKey === "l") {
+        e.preventDefault();
+        sessionStorage.setItem("vantage.pending-focus-search", "true");
+        if (location.pathname !== "/") {
+          navigate("/");
+        } else {
+          window.dispatchEvent(new Event("vantage:focus-search"));
+        }
+        shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+        return;
+      }
+
+      if (isModifier && lowerKey === "e") {
+        e.preventDefault();
+        window.dispatchEvent(new Event("vantage:export-current-view"));
+        shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+        return;
+      }
+
       if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
         e.preventDefault();
         setIsShortcutsOpen((prev: boolean) => !prev);
+        shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+        return;
       }
+
+      const now = Date.now();
+      const sequenceMap: Record<string, string> = {
+        h: "/",
+        f: "/feed",
+        r: "/recon",
+        w: "/watchlist",
+        u: "/hunting",
+        e: "/exposure",
+        d: "/dashboard",
+        p: "/profile",
+        n: "/notifications",
+      };
+
+      if (shortcutSequenceRef.current.prefix === "g" && now <= shortcutSequenceRef.current.expiresAt) {
+        if (lowerKey === "s" && canAccessSettings) {
+          e.preventDefault();
+          navigate("/settings/extensions");
+          shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+          return;
+        }
+
+        const nextPath = sequenceMap[lowerKey];
+        if (nextPath) {
+          e.preventDefault();
+          navigate(nextPath);
+          shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
+          return;
+        }
+      }
+
+      if (!e.metaKey && !e.ctrlKey && !e.altKey && lowerKey === "g") {
+        shortcutSequenceRef.current = { prefix: "g", expiresAt: now + 1000 };
+        return;
+      }
+
+      shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
     }
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
-  }, []);
+  }, [canAccessSettings, location.pathname, navigate]);
 
   useEffect(() => {
     if (isSettingsContext || isProfileContext) {

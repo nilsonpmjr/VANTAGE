@@ -77,20 +77,20 @@ function normalizeNotificationCenter(value?: {
   };
 }
 
-function formatTimestamp(value?: string | null) {
+function formatTimestamp(value: string | null | undefined, locale: string) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
 }
 
-function sourceLabel(source: string) {
-  if (source === "critical") return "Critical";
-  if (source === "intelligence") return "Intelligence";
-  if (source === "system") return "System";
+function sourceLabel(source: string, t: (key: string, fallback?: string) => string) {
+  if (source === "critical") return t("notifications.kindCritical", "Critical");
+  if (source === "intelligence") return t("notifications.kindIntelligence", "Intelligence");
+  if (source === "system") return t("notifications.kindSystem", "System");
   return source;
 }
 
@@ -125,7 +125,7 @@ function workflowIcon(kind: NotificationKind) {
 }
 
 export default function Notifications() {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
   const navigate = useNavigate();
   const { user, updateUserContext } = useAuth();
   const [activeTab, setActiveTab] = useState<NotificationTab>("all");
@@ -175,7 +175,7 @@ export default function Notifications() {
     } catch {
       setNotificationCenter(previous);
       setNotice("");
-      setError("Não foi possível persistir o estado do centro de notificações.");
+      setError(t("notifications.persistFailed", "Could not persist the notification center state."));
     } finally {
       setSaving(false);
     }
@@ -206,7 +206,7 @@ export default function Notifications() {
         }
       } catch {
         if (!cancelled) {
-          setError("Não foi possível carregar o centro de notificações.");
+          setError(t("notifications.loadFailed", "Could not load the notifications center."));
         }
       } finally {
         if (!cancelled) {
@@ -229,8 +229,8 @@ export default function Notifications() {
       id: `critical-${item.target}-${index}`,
       kind: "critical",
       source: item.type,
-      title: `${item.target} flagged as ${item.verdict}`,
-      summary: "Critical incident surfaced by the analysis engine.",
+      title: `${item.target} ${t("notifications.criticalFlaggedAs", "flagged as")} ${item.verdict}`,
+      summary: t("notifications.criticalSummary", "Critical incident surfaced by the analysis engine."),
       timestamp: item.timestamp,
       workflowPath: `/analyze/${encodeURIComponent(item.target)}`,
       workflowLabel: t("notifications.investigateTarget", "Investigate target"),
@@ -259,21 +259,25 @@ export default function Notifications() {
         id: "system-feed-health",
         kind: "system",
         source: "control-plane",
-        title: "Threat ingestion runtime active",
-        summary: `${feedItems.length} recent intelligence item(s) are available for review.`,
+        title: t("notifications.systemFeedHealthTitle", "Threat ingestion runtime active"),
+        summary: `${feedItems.length} ${t("notifications.systemFeedHealthSummary", "recent intelligence item(s) are available for review.")}`,
         timestamp: new Date().toISOString(),
         workflowPath: threatIngestionPath,
-        workflowLabel: threatIngestionPath === "/dashboard" ? "Open dashboard" : "Open ingestion controls",
+        workflowLabel: threatIngestionPath === "/dashboard"
+          ? t("notifications.openDashboard", "Open dashboard")
+          : t("notifications.openIngestionControls", "Open ingestion controls"),
       },
       {
         id: "system-critical-volume",
         kind: "system",
         source: "stats",
-        title: "Weekly critical incident snapshot",
-        summary: `${criticalIncidents.length} critical incident(s) surfaced in the current week window.`,
+        title: t("notifications.systemCriticalVolumeTitle", "Weekly critical incident snapshot"),
+        summary: `${criticalIncidents.length} ${t("notifications.systemCriticalVolumeSummary", "critical incident(s) surfaced in the current week window.")}`,
         timestamp: new Date().toISOString(),
         workflowPath: systemHealthPath,
-        workflowLabel: systemHealthPath === "/dashboard" ? "Open dashboard" : "Open system health",
+        workflowLabel: systemHealthPath === "/dashboard"
+          ? t("notifications.openDashboard", "Open dashboard")
+          : t("notifications.openSystemHealth", "Open system health"),
       },
     ];
 
@@ -332,7 +336,7 @@ export default function Notifications() {
         ...new Set([...notificationCenter.read_ids, ...notifications.map((item) => item.id)]),
       ],
     };
-    void persistNotificationCenter(nextState, "All visible notifications marked as read.");
+    void persistNotificationCenter(nextState, t("notifications.noticeMarkedAllRead", "All visible notifications marked as read."));
   }
 
   function restoreArchive() {
@@ -341,7 +345,7 @@ export default function Notifications() {
       ...notificationCenter,
       archived_ids: [],
     };
-    void persistNotificationCenter(nextState, "Archived notifications restored to the active queue.");
+    void persistNotificationCenter(nextState, t("notifications.noticeRestoredArchive", "Archived notifications restored to the active queue."));
   }
 
   function togglePreference(kind: NotificationKind) {
@@ -352,7 +356,7 @@ export default function Notifications() {
         [kind]: !notificationCenter.preferences[kind],
       },
     };
-    void persistNotificationCenter(nextState, "Notification routing preferences updated.");
+    void persistNotificationCenter(nextState, t("notifications.noticeRoutingUpdated", "Notification routing preferences updated."));
   }
 
   return (
@@ -476,10 +480,10 @@ export default function Notifications() {
                       </span>
                     </div>
                     <div className="text-[0.75rem] font-mono text-on-surface-variant tabular-nums">
-                      {formatTimestamp(item.timestamp)}
+                      {formatTimestamp(item.timestamp, locale)}
                     </div>
                     <div>
-                      <span className={badgeClass(item.kind)}>{sourceLabel(item.kind)}</span>
+                      <span className={badgeClass(item.kind)}>{sourceLabel(item.kind, t)}</span>
                     </div>
                     <div className="flex flex-col">
                       <span className="text-[0.875rem] font-bold text-on-surface tracking-tight">
@@ -585,21 +589,20 @@ export default function Notifications() {
               <span className="badge badge-error">{t("notifications.urgentReview", "Urgent Review")}</span>
             </div>
             <h4 className="text-[0.875rem] font-extrabold text-on-surface uppercase tracking-tight mb-2">
-              Trend Alert: Lateral Movement
+              {t("notifications.sideTrendTitle", "Trend Alert: Lateral Movement")}
             </h4>
             <p className="text-[0.75rem] text-on-surface-variant leading-relaxed">
-              {criticalIncidents.length} critical incident(s) are still visible in the
-              current alert stream.
+              {criticalIncidents.length} {t("notifications.sideTrendBody", "critical incident(s) are still visible in the current alert stream.")}
             </p>
             <div className="mt-4 pt-4 border-t border-outline-variant/10 flex justify-between items-center">
               <span className="text-[0.625rem] font-mono text-on-surface-variant">
-                Derived from /api/stats
+                {t("notifications.derivedFromStats", "Derived from /api/stats")}
               </span>
               <button
                 className="text-primary text-[0.75rem] font-bold hover:underline"
                 onClick={() => navigate("/settings/system-health")}
               >
-                Open system health
+                {t("notifications.openSystemHealth", "Open system health")}
               </button>
             </div>
           </div>
@@ -612,21 +615,20 @@ export default function Notifications() {
               <span className="badge badge-primary">{t("notifications.intelligenceLabel", "Intelligence")}</span>
             </div>
             <h4 className="text-[0.875rem] font-extrabold text-on-surface uppercase tracking-tight mb-2">
-              Darknet Asset Discovery
+              {t("notifications.sideIntelTitle", "Darknet Asset Discovery")}
             </h4>
             <p className="text-[0.75rem] text-on-surface-variant leading-relaxed">
-              {feedItems.length} recent intelligence item(s) are available through the feed
-              endpoint.
+              {feedItems.length} {t("notifications.sideIntelBody", "recent intelligence item(s) are available through the feed endpoint.")}
             </p>
             <div className="mt-4 pt-4 border-t border-outline-variant/10 flex justify-between items-center">
               <span className="text-[0.625rem] font-mono text-on-surface-variant">
-                Derived from /api/feed
+                {t("notifications.derivedFromFeed", "Derived from /api/feed")}
               </span>
               <button
                 className="text-primary text-[0.75rem] font-bold hover:underline"
                 onClick={() => navigate("/feed?severity=high&source_type=all")}
               >
-                Open feed
+                {t("notifications.openFeed", "Open feed")}
               </button>
             </div>
           </div>
@@ -646,9 +648,9 @@ export default function Notifications() {
             </p>
             <div className="mt-4 space-y-3">
               {([
-                ["critical", "Critical incident routing"],
-                ["system", "System notices"],
-                ["intelligence", "Intelligence feed items"],
+                ["critical", t("notifications.routingCriticalTitle", "Critical incident routing")],
+                ["system", t("notifications.routingSystemTitle", "System notices")],
+                ["intelligence", t("notifications.routingIntelTitle", "Intelligence feed items")],
               ] as Array<[NotificationKind, string]>).map(([kind, label]) => (
                 <label
                   key={kind}
@@ -658,10 +660,10 @@ export default function Notifications() {
                     <span className="text-[0.75rem] font-semibold text-on-surface">{label}</span>
                     <span className="text-[0.6875rem] text-on-surface-variant">
                       {kind === "critical"
-                        ? "Escalations and high-risk findings"
+                        ? t("notifications.routingCriticalBody", "Escalations and high-risk findings")
                         : kind === "system"
-                          ? "Control-plane updates"
-                          : "Feed-derived signals and intel stories"}
+                          ? t("notifications.routingSystemBody", "Control-plane updates")
+                          : t("notifications.routingIntelBody", "Feed-derived signals and intel stories")}
                     </span>
                   </div>
                   <button

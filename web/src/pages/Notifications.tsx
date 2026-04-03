@@ -441,16 +441,16 @@ export default function Notifications() {
                 </span>
               </div>
               <div className="text-[0.6875rem] font-black uppercase tracking-widest text-on-surface-variant">
-                Timestamp (UTC)
+                {t("notifications.timestamp", "Timestamp (UTC)")}
               </div>
               <div className="text-[0.6875rem] font-black uppercase tracking-widest text-on-surface-variant">
-                Source
+                {t("notifications.source", "Source")}
               </div>
               <div className="text-[0.6875rem] font-black uppercase tracking-widest text-on-surface-variant">
-                Operational Context
+                {t("notifications.operationalContext", "Operational Context")}
               </div>
               <div className="text-right text-[0.6875rem] font-black uppercase tracking-widest text-on-surface-variant">
-                Actions
+                {t("notifications.actions", "Actions")}
               </div>
             </div>
 
@@ -652,7 +652,7 @@ export default function Notifications() {
                 ["system", t("notifications.routingSystemTitle", "System notices")],
                 ["intelligence", t("notifications.routingIntelTitle", "Intelligence feed items")],
               ] as Array<[NotificationKind, string]>).map(([kind, label]) => (
-                <label
+                <div
                   key={kind}
                   className="flex items-center justify-between gap-3 rounded-sm border border-outline-variant/15 bg-surface-container-low px-3 py-2"
                 >
@@ -668,20 +668,26 @@ export default function Notifications() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => togglePreference(kind)}
-                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      void togglePreference(kind);
+                    }}
+                    className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
                       notificationCenter.preferences[kind] ? "bg-primary" : "bg-outline-variant/50"
                     }`}
                     aria-pressed={notificationCenter.preferences[kind]}
+                    role="switch"
+                    aria-checked={notificationCenter.preferences[kind]}
                     disabled={saving}
                   >
                     <span
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
+                      className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
                         notificationCenter.preferences[kind] ? "translate-x-5" : "translate-x-0.5"
                       }`}
                     />
                   </button>
-                </label>
+                </div>
               ))}
             </div>
             <div className="mt-4 pt-4 border-t border-outline-variant/10 grid grid-cols-2 gap-3 text-[0.6875rem] uppercase tracking-widest text-on-surface-variant">

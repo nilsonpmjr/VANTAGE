@@ -1,5 +1,6 @@
 import { Command } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
+import { buildShortcutGroups } from "../../lib/shortcuts";
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -16,41 +17,7 @@ function Kbd({ children }: { children: string }) {
 
 export default function ShortcutsPage() {
   const { t } = useLanguage();
-  const groups = [
-    {
-      title: t("help.shortcutsGroupNavigation", "Navigation"),
-      shortcuts: [
-        { keys: ["G", "H"], description: t("help.shortcutGoHome", "Go to Home") },
-        { keys: ["G", "F"], description: t("help.shortcutGoFeed", "Go to Feed") },
-        { keys: ["G", "R"], description: t("help.shortcutGoRecon", "Go to Recon") },
-        { keys: ["G", "W"], description: t("help.shortcutGoWatchlist", "Go to Watchlist") },
-        { keys: ["G", "U"], description: t("help.shortcutGoHunting", "Go to Hunting") },
-        { keys: ["G", "E"], description: t("help.shortcutGoExposure", "Go to Exposure") },
-        { keys: ["G", "D"], description: t("help.shortcutGoDashboard", "Go to Dashboard") },
-        { keys: ["G", "P"], description: t("help.shortcutGoProfile", "Go to Profile") },
-        { keys: ["G", "S"], description: t("help.shortcutGoSettings", "Go to Settings (admin)") },
-        { keys: ["G", "N"], description: t("help.shortcutGoNotifications", "Go to Notifications") },
-      ],
-    },
-    {
-      title: t("help.shortcutsGroupActions", "Actions"),
-      shortcuts: [
-        { keys: [mod, "L"], description: t("help.shortcutFocusSearch", "Focus search bar") },
-        { keys: [mod, "/"], description: t("help.shortcutToggleShortcuts", "Toggle shortcuts panel") },
-        { keys: ["Esc"], description: t("help.shortcutCloseModal", "Close modal, dropdown, or flyout") },
-        { keys: ["?"], description: t("help.shortcutShowDialog", "Show this shortcuts dialog") },
-      ],
-    },
-    {
-      title: t("help.shortcutsGroupFeedTables", "Feed & Tables"),
-      shortcuts: [
-        { keys: ["J"], description: t("help.shortcutNextItem", "Next item") },
-        { keys: ["K"], description: t("help.shortcutPreviousItem", "Previous item") },
-        { keys: ["Enter"], description: t("help.shortcutOpenSelected", "Open selected item") },
-        { keys: [mod, "E"], description: t("help.shortcutExportView", "Export current view") },
-      ],
-    },
-  ];
+  const groups = buildShortcutGroups(t, mod, true);
 
   return (
     <div className="mt-6 space-y-6">

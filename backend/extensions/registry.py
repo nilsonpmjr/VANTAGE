@@ -18,7 +18,23 @@ VALID_UPDATE_CHANNELS = {"bundled", "manual", "licensed"}
 VALID_OWNERSHIP_BOUNDARIES = {"core_team", "customer_local", "vantage_premium"}
 VALID_PREMIUM_FEATURE_TYPES = {"hunting_provider", "exposure_provider"}
 PLUGIN_ROOT = Path(__file__).resolve().parent / "plugins"
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _detect_project_root() -> Path:
+    current = Path(__file__).resolve()
+    candidates = [
+        current.parents[2],
+        current.parents[1],
+    ]
+    for candidate in candidates:
+        if (candidate / "backend").exists() and (candidate / "web").exists():
+            return candidate
+        if (candidate / "main.py").exists() and (candidate / "extensions").exists():
+            return candidate
+    return current.parents[1]
+
+
+PROJECT_ROOT = _detect_project_root()
 FRONTEND_SOURCE_ROOT = PROJECT_ROOT / "web/src"
 BRANDING_SOURCE_ROOT = PROJECT_ROOT / "web/src/branding"
 BRANDING_PUBLIC_ROOT = PROJECT_ROOT / "web/public/branding"
@@ -79,7 +95,15 @@ def _is_path_under(root: Path, candidate: Path) -> bool:
 def _resolve_configured_path(raw_path: str) -> Path:
     candidate = Path(str(raw_path).strip())
     if not candidate.is_absolute():
-        candidate = PROJECT_ROOT / candidate
+        primary = (PROJECT_ROOT / candidate).resolve()
+        if primary.exists():
+            return primary
+        raw_text = str(raw_path).strip()
+        if raw_text.startswith("backend/"):
+            fallback = (PROJECT_ROOT / raw_text.removeprefix("backend/")).resolve()
+            if fallback.exists():
+                return fallback
+        return primary
     return candidate.resolve()
 
 

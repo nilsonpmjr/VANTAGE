@@ -5,7 +5,7 @@ import json
 import pytest
 from bson import ObjectId
 
-from extensions.registry import load_extensions_registry
+from extensions.registry import _resolve_configured_path, load_extensions_registry
 from main import app
 from recon.engine import get_available_modules
 
@@ -65,6 +65,18 @@ def test_load_extensions_registry_discovers_builtin_manifests():
     assert report_descriptor["exportFunction"] == "generatePdfReport"
     assert report_descriptor["sourceFiles"] == ["web/src/utils/pdfReport.ts"]
     assert report_descriptor["sourceFileCount"] == 1
+
+
+def test_resolve_configured_path_falls_back_when_backend_prefix_does_not_exist(monkeypatch, tmp_path):
+    project_root = tmp_path / "project"
+    premium_root = project_root / "extensions" / "premium_plugins"
+    premium_root.mkdir(parents=True)
+
+    monkeypatch.setattr("extensions.registry.PROJECT_ROOT", project_root)
+
+    resolved = _resolve_configured_path("backend/extensions/premium_plugins")
+
+    assert resolved == premium_root.resolve()
 
 
 def test_load_extensions_registry_marks_invalid_manifest(tmp_path):
@@ -267,6 +279,17 @@ async def test_admin_extensions_catalog_forbids_tech(async_client):
     resp = await async_client.get("/api/admin/extensions", headers=tech_headers)
 
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_extensions_features_endpoint_respects_runtime_state(async_client, auth_headers):
+    disable_resp = await async_client.post("/api/admin/extensions/hunting-sherlock/disable", headers=auth_headers)
+    assert disable_resp.status_code == 200
+
+    features_resp = await async_client.get("/api/admin/extensions/features", headers=auth_headers)
+    assert features_resp.status_code == 200
+    payload = features_resp.json()
+    assert "hunting_provider" not in payload["features"]
 
 
 def test_load_extensions_registry_supports_external_premium_root(tmp_path):

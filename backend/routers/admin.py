@@ -607,9 +607,12 @@ async def read_active_premium_features(
     Lightweight endpoint returning which premium feature types are active.
     Available to any authenticated user (used by sidebar visibility).
     """
+    db = db_manager.db
     catalog = get_extensions_catalog(request.app)
+    state_map = await _read_extension_runtime_states(db)
+    merged_catalog = _merge_extension_catalog_state(catalog, state_map)
     active = set()
-    for ext in catalog:
+    for ext in merged_catalog:
         if (
             ext.get("kind") == "premium_feature"
             and ext.get("status") == "enabled"

@@ -52,10 +52,19 @@ type GeoSummary = {
   ip?: string | null;
 };
 
+type EvidenceIocType = "ip" | "domain" | "hash" | "url" | "target";
+
+type EvidenceDetailField = {
+  key: string;
+  label: string;
+  value: string;
+};
+
 type EvidenceRow = {
   source: string;
   signal: string;
-  detail?: string;
+  detailFields: EvidenceDetailField[];
+  iocType: EvidenceIocType;
   riskLabel: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
   confidence: number;
   pivotValue: string;
@@ -258,6 +267,12 @@ function compactDetail(parts: Array<string | undefined | null>) {
   return parts.filter(Boolean).join(" • ");
 }
 
+function buildDetailFields(
+  fields: Array<EvidenceDetailField | null | undefined>,
+) {
+  return fields.filter(Boolean) as EvidenceDetailField[];
+}
+
 function getOpenPorts(results?: Record<string, any>, language: SupportedLanguage = "pt") {
   const ports = Array.isArray(results?.shodan?.ports) ? results?.shodan?.ports : [];
   return ports.slice(0, 6).map((port: number) => ({
@@ -294,20 +309,37 @@ function buildEvidenceRows(
       rows.push({
         source: SOURCE_LABELS[service],
         signal: formatEvidenceSignal(language, "detections", { malicious, total }),
-        detail: compactDetail([
+        detailFields: buildDetailFields([
           data.data?.attributes?.meaningful_name
-            ? `${detailLabel(language, "file")}: ${data.data.attributes.meaningful_name}`
-            : "",
+            ? {
+                key: "file",
+                label: detailLabel(language, "file"),
+                value: data.data.attributes.meaningful_name,
+              }
+            : null,
           data.data?.attributes?.as_owner
-            ? `${detailLabel(language, "owner")}: ${data.data.attributes.as_owner}${data.data?.attributes?.asn ? ` (AS${data.data.attributes.asn})` : ""}`
-            : "",
+            ? {
+                key: "owner",
+                label: detailLabel(language, "owner"),
+                value: `${data.data.attributes.as_owner}${data.data?.attributes?.asn ? ` (AS${data.data.attributes.asn})` : ""}`,
+              }
+            : null,
           data.data?.attributes?.network
-            ? `${detailLabel(language, "network")}: ${data.data.attributes.network}`
-            : "",
+            ? {
+                key: "network",
+                label: detailLabel(language, "network"),
+                value: data.data.attributes.network,
+              }
+            : null,
           data.data?.attributes?.categories && Object.keys(data.data.attributes.categories).length > 0
-            ? `${detailLabel(language, "categories")}: ${[...new Set(Object.values(data.data.attributes.categories))].join(", ")}`
-            : "",
+            ? {
+                key: "categories",
+                label: detailLabel(language, "categories"),
+                value: [...new Set(Object.values(data.data.attributes.categories))].join(", "),
+              }
+            : null,
         ]),
+        iocType: "hash",
         riskLabel: malicious >= 8 ? "CRITICAL" : malicious >= 3 ? "HIGH" : malicious >= 1 ? "MEDIUM" : "LOW",
         confidence: Math.min(100, malicious * 12 + 20),
         pivotValue: data.data?.attributes?.meaningful_name || data.data?.id || fallbackPivotValue,
@@ -321,11 +353,18 @@ function buildEvidenceRows(
       rows.push({
         source: SOURCE_LABELS[service],
         signal: formatEvidenceSignal(language, "reports", { totalReports, score }),
-        detail: compactDetail([
-          data.data?.isp ? `${detailLabel(language, "isp")}: ${data.data.isp}` : "",
-          data.data?.usageType ? `${detailLabel(language, "usage")}: ${data.data.usageType}` : "",
-          data.data?.domain ? `${detailLabel(language, "domain")}: ${data.data.domain}` : "",
+        detailFields: buildDetailFields([
+          data.data?.isp
+            ? { key: "isp", label: detailLabel(language, "isp"), value: data.data.isp }
+            : null,
+          data.data?.usageType
+            ? { key: "usage", label: detailLabel(language, "usage"), value: data.data.usageType }
+            : null,
+          data.data?.domain
+            ? { key: "domain", label: detailLabel(language, "domain"), value: data.data.domain }
+            : null,
         ]),
+        iocType: "ip",
         riskLabel: score >= 75 ? "CRITICAL" : score >= 25 ? "HIGH" : score > 0 ? "MEDIUM" : "LOW",
         confidence: Math.min(100, score),
         pivotValue: data.data?.ipAddress || data.data?.domain || fallbackPivotValue,
@@ -341,10 +380,11 @@ function buildEvidenceRows(
         signal: ports.length
           ? formatEvidenceSignal(language, "openPorts", { ports: ports.slice(0, 5).join(", ") })
           : formatEvidenceSignal(language, "noExposedPorts"),
-        detail: compactDetail([
-          data.org ? `${detailLabel(language, "org")}: ${data.org}` : "",
-          data.os ? `${detailLabel(language, "os")}: ${data.os}` : "",
+        detailFields: buildDetailFields([
+          data.org ? { key: "org", label: detailLabel(language, "org"), value: data.org } : null,
+          data.os ? { key: "os", label: detailLabel(language, "os"), value: data.os } : null,
         ]),
+        iocType: "ip",
         riskLabel: hasRdp ? "CRITICAL" : ports.length >= 3 ? "MEDIUM" : "LOW",
         confidence: hasRdp ? 100 : Math.min(100, ports.length * 18 + 20),
         pivotValue: data.ip_str || fallbackPivotValue,
@@ -359,12 +399,17 @@ function buildEvidenceRows(
         signal: pulses > 0
           ? formatEvidenceSignal(language, "pulseCount", { count: pulses })
           : formatEvidenceSignal(language, "noActivePulses"),
-        detail: compactDetail([
+        detailFields: buildDetailFields([
           data.country_name || data.city
-            ? `${detailLabel(language, "location")}: ${[data.city, data.country_name].filter(Boolean).join(", ")}`
-            : "",
-          data.asn ? `${detailLabel(language, "asn")}: ${data.asn}` : "",
+            ? {
+                key: "location",
+                label: detailLabel(language, "location"),
+                value: [data.city, data.country_name].filter(Boolean).join(", "),
+              }
+            : null,
+          data.asn ? { key: "asn", label: detailLabel(language, "asn"), value: data.asn } : null,
         ]),
+        iocType: "domain",
         riskLabel: pulses >= 5 ? "CRITICAL" : pulses > 0 ? "HIGH" : "LOW",
         confidence: pulses >= 5 ? 92 : pulses > 0 ? 75 : 20,
         pivotValue: data.indicator || data.address || fallbackPivotValue,
@@ -377,10 +422,13 @@ function buildEvidenceRows(
       rows.push({
         source: SOURCE_LABELS[service],
         signal: formatEvidenceSignal(language, "classification", { classification }),
-        detail: compactDetail([
-          data.actor ? `${detailLabel(language, "actor")}: ${data.actor}` : "",
-          typeof data.noise === "boolean" ? `${detailLabel(language, "noise")}: ${data.noise}` : "",
+        detailFields: buildDetailFields([
+          data.actor ? { key: "actor", label: detailLabel(language, "actor"), value: data.actor } : null,
+          typeof data.noise === "boolean"
+            ? { key: "noise", label: detailLabel(language, "noise"), value: String(data.noise) }
+            : null,
         ]),
+        iocType: "ip",
         riskLabel: classification === "malicious" ? "HIGH" : classification === "unknown" ? "LOW" : "MEDIUM",
         confidence: classification === "malicious" ? 82 : 40,
         pivotValue: data.ip || fallbackPivotValue,
@@ -395,11 +443,18 @@ function buildEvidenceRows(
         signal: total > 0
           ? formatEvidenceSignal(language, "indexedScans", { total })
           : formatEvidenceSignal(language, "noRelevantScans"),
-        detail: compactDetail([
-          data.results?.[0]?.page?.title ? `${detailLabel(language, "page")}: ${data.results[0].page.title}` : "",
-          data.results?.[0]?.page?.server ? `${detailLabel(language, "server")}: ${data.results[0].page.server}` : "",
-          data.results?.[0]?.page?.ip ? `${detailLabel(language, "resolvedIp")}: ${data.results[0].page.ip}` : "",
+        detailFields: buildDetailFields([
+          data.results?.[0]?.page?.title
+            ? { key: "page", label: detailLabel(language, "page"), value: data.results[0].page.title }
+            : null,
+          data.results?.[0]?.page?.server
+            ? { key: "server", label: detailLabel(language, "server"), value: data.results[0].page.server }
+            : null,
+          data.results?.[0]?.page?.ip
+            ? { key: "resolvedIp", label: detailLabel(language, "resolvedIp"), value: data.results[0].page.ip }
+            : null,
         ]),
+        iocType: "domain",
         riskLabel: total > 3 ? "HIGH" : total > 0 ? "MEDIUM" : "LOW",
         confidence: total > 0 ? 68 : 20,
         pivotValue: data.results?.[0]?.page?.domain || data.results?.[0]?.page?.ip || fallbackPivotValue,
@@ -417,6 +472,8 @@ function buildEvidenceRows(
               confidence: entry.confidence_level || 0,
             })
           : formatEvidenceSignal(language, "noMalwareLinkage"),
+        detailFields: [],
+        iocType: "hash",
         riskLabel: entry ? "CRITICAL" : "LOW",
         confidence: entry?.confidence_level || 15,
         pivotValue: entry?.ioc || entry?.md5_hash || entry?.sha256_hash || fallbackPivotValue,
@@ -429,7 +486,16 @@ function buildEvidenceRows(
       rows.push({
         source: SOURCE_LABELS[service],
         signal: formatEvidenceSignal(language, "riskLevel", { risk }),
-        detail: data.feeds ? `${detailLabel(language, "feeds")}: ${Object.keys(data.feeds).length}` : "",
+        detailFields: buildDetailFields([
+          data.feeds
+            ? {
+                key: "feeds",
+                label: detailLabel(language, "feeds"),
+                value: String(Object.keys(data.feeds).length),
+              }
+            : null,
+        ]),
+        iocType: "target",
         riskLabel: risk === "critical" ? "CRITICAL" : risk === "high" ? "HIGH" : risk === "medium" ? "MEDIUM" : "LOW",
         confidence: risk === "critical" ? 95 : risk === "high" ? 86 : risk === "medium" ? 60 : 20,
         pivotValue: data.indicator || fallbackPivotValue,
@@ -442,6 +508,8 @@ function buildEvidenceRows(
       rows.push({
         source: SOURCE_LABELS[service],
         signal: formatEvidenceSignal(language, listed ? "listed" : "notListed"),
+        detailFields: [],
+        iocType: "target",
         riskLabel: listed ? "HIGH" : "LOW",
         confidence: listed ? 88 : 25,
         pivotValue: fallbackPivotValue,
@@ -486,6 +554,12 @@ function getRiskLabel(level: EvidenceRow["riskLabel"], t: (key: string, fallback
   if (level === "HIGH") return t("analysis.riskHigh", "HIGH");
   if (level === "MEDIUM") return t("analysis.riskMedium", "MEDIUM");
   return t("analysis.riskLow", "LOW");
+}
+
+function truncateResultArtifact(value: string, type?: string) {
+  if (type !== "hash") return value;
+  if (value.length <= 20) return value;
+  return `${value.slice(0, 20)}...`;
 }
 
 function formatSectionsToPlainText(sections: AnalysisSection[]) {
@@ -676,6 +750,7 @@ export default function AnalysisResult() {
   const location = formatSummaryLocation(geoSummary);
   const locationFlag = countryFlag(geoSummary?.country_code);
   const artifactLabel = getArtifactLabel(payload?.type, t);
+  const summaryArtifactValue = truncateResultArtifact(displayTarget, payload?.type);
   const analysisSubtitle = `${t("analysis.subtitlePrefix", "Consolidated intelligence profile assembled from")} ${summary?.total_sources || 0} ${t("analysis.subtitleMiddle", "active sources for this")} ${artifactLabel}.`;
   const fileName = payload?.results?.virustotal?.data?.attributes?.meaningful_name || "";
   const provider =
@@ -875,8 +950,10 @@ export default function AnalysisResult() {
                         <td className="px-6 py-2">
                           <div className="space-y-1">
                             <span className="text-[11px] font-medium text-on-surface">{row.signal}</span>
-                            {row.detail ? (
-                              <div className="text-[10px] text-on-surface-variant break-words">{row.detail}</div>
+                            {row.detailFields.length > 0 ? (
+                              <div className="text-[10px] text-on-surface-variant break-words">
+                                {row.detailFields.map((field) => `${field.label}: ${field.value}`).join(" • ")}
+                              </div>
                             ) : null}
                           </div>
                         </td>
@@ -998,7 +1075,12 @@ export default function AnalysisResult() {
               </div>
             </div>
             <div className="space-y-1 mb-8">
-              <h3 className="text-2xl font-bold tracking-tight text-on-surface">{displayTarget}</h3>
+              <h3
+                className="max-w-full overflow-hidden text-2xl font-bold tracking-tight text-on-surface break-all"
+                title={displayTarget}
+              >
+                {summaryArtifactValue}
+              </h3>
               <p className="text-sm text-outline font-medium">{artifactLabel.toUpperCase()}</p>
             </div>
             <div className="w-full grid grid-cols-2 gap-4 text-left border-t border-surface-container-low pt-6">

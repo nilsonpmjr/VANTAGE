@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { useLanguage } from "../context/LanguageContext";
+import { BATCH_MAX_ITEMS, expandIpv4Cidr, parseSearchDirective } from "../lib/scanTargets";
 
 type FeedItem = {
   _id: string;
@@ -72,8 +73,10 @@ export default function Home() {
   const { t } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
+  const [searchWarning, setSearchWarning] = useState("");
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastFeedRefreshRef = useRef(0);
 
   const focusSearchInput = () => {
     window.requestAnimationFrame(() => {
@@ -82,22 +85,22 @@ export default function Home() {
     });
   };
 
-  useEffect(() => {
-    let mounted = true;
+  const refreshFeedSample = () => {
+    const now = Date.now();
+    if (now - lastFeedRefreshRef.current < 5000) return;
+    lastFeedRefreshRef.current = now;
     fetch(`${API_URL}/api/feed?limit=4&offset=0`, { credentials: "include" })
       .then((response) => (response.ok ? response.json() : { items: [] }))
       .then((payload) => {
-        if (!mounted) return;
         setFeedItems(payload.items || []);
       })
       .catch(() => {
-        if (!mounted) return;
         setFeedItems([]);
       });
+  };
 
-    return () => {
-      mounted = false;
-    };
+  useEffect(() => {
+    refreshFeedSample();
   }, []);
 
   useEffect(() => {
@@ -116,6 +119,37 @@ export default function Home() {
     return () => window.removeEventListener("vantage:focus-search", handleFocusSearch);
   }, []);
 
+  useEffect(() => {
+    const handleRefreshFeed = () => {
+      refreshFeedSample();
+    };
+
+    const handleInteraction = () => {
+      if (document.visibilityState === "visible") {
+        handleRefreshFeed();
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        handleRefreshFeed();
+      }
+    };
+
+    window.addEventListener("focus", handleRefreshFeed);
+    window.addEventListener("vantage:feed-runtime-updated", handleRefreshFeed);
+    window.addEventListener("pointerdown", handleInteraction);
+    window.addEventListener("keydown", handleInteraction);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleRefreshFeed);
+      window.removeEventListener("vantage:feed-runtime-updated", handleRefreshFeed);
+      window.removeEventListener("pointerdown", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, []);
+
   const feedVolume = useMemo(() => feedItems.length, [feedItems]);
   const criticalCount = useMemo(
     () => feedItems.filter((item) => item.severity === "critical").length,
@@ -125,11 +159,63 @@ export default function Home() {
     () => feedItems.filter((item) => item.severity === "high").length,
     [feedItems],
   );
+  const mediumCount = useMemo(
+    () => feedItems.filter((item) => item.severity === "medium").length,
+    [feedItems],
+  );
+  const recentSourceLabel = useMemo(() => {
+    if (!feedItems.length) return t("home.noFeedItems", "No recent feed items were returned by the backend.");
+    return (feedItems[0].source_name || feedItems[0].source_type || "VANTAGE").toUpperCase();
+  }, [feedItems, t]);
+  const sourceDistribution = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const item of feedItems) {
+      const label = (item.source_name || item.source_type || "VANTAGE").toUpperCase();
+      counts.set(label, (counts.get(label) || 0) + 1);
+    }
+    const total = feedItems.length || 1;
+    return Array.from(counts.entries())
+      .map(([name, count], index) => ({
+        name,
+        count,
+        percentage: Math.round((count / total) * 10000) / 100,
+        width: `${Math.max(12, Math.round((count / total) * 100))}%`,
+        color:
+          index % 4 === 0
+            ? "bg-emerald-500"
+            : index % 4 === 1
+              ? "bg-primary"
+              : index % 4 === 2
+                ? "bg-amber-500"
+                : "bg-secondary",
+      }))
+      .sort((left, right) => right.count - left.count)
+      .slice(0, 4);
+  }, [feedItems]);
 
   const handleSearch = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (searchQuery.trim()) {
       const sanitized = searchQuery.trim();
+      const directive = parseSearchDirective(sanitized);
+      setSearchWarning("");
+
+      if (directive?.kind === "tag" && directive.value) {
+        navigate(`/feed?family=${encodeURIComponent(directive.value)}`);
+        return;
+      }
+
+      if (directive?.kind === "cidr" && directive.value) {
+        const expandedTargets = expandIpv4Cidr(directive.value).slice(0, BATCH_MAX_ITEMS);
+        if (!expandedTargets.length) {
+          setSearchWarning(t("scan.warnings.noValidTargets", "No valid targets were found in the uploaded file."));
+          return;
+        }
+        sessionStorage.setItem("vantage:last-batch-targets", JSON.stringify(expandedTargets));
+        navigate("/batch", { state: { targets: expandedTargets } });
+        return;
+      }
+
       localStorage.setItem("lastSearch", sanitized);
       navigate(`/analyze/${encodeURIComponent(sanitized)}`);
     }
@@ -177,6 +263,11 @@ export default function Home() {
               {t("home.tipTagTail", "for labels")}
             </div>
           </div>
+          {searchWarning && (
+            <div className="mt-3 rounded-sm bg-amber-500/10 px-4 py-3 text-sm text-amber-700">
+              {searchWarning}
+            </div>
+          )}
         </div>
       </section>
 
@@ -233,7 +324,19 @@ export default function Home() {
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-        <div className="xl:col-span-2 surface-section p-6">
+        <div
+          className="xl:col-span-2 surface-section p-6 cursor-pointer transition-colors hover:bg-surface-container-low"
+          onClick={() => navigate("/feed")}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              navigate("/feed");
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={t("home.feedArchive", "View Feed Archive")}
+        >
           <div className="flex items-center gap-2 mb-2">
             <Activity className="w-4 h-4 text-primary" />
             <h4 className="text-[11px] font-bold uppercase tracking-widest text-on-surface">
@@ -243,15 +346,39 @@ export default function Home() {
           <p className="mb-4 text-xs text-on-surface-variant">
             {t("home.informationalOnly", "Passive health readout for the current intelligence sample. This panel is informational only.")}
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-            <NodeStatus name={t("home.nodeAmerEast", "AMER-EAST")} value="99.98%" color="bg-emerald-500" />
-            <NodeStatus name={t("home.nodeEmeaCentral", "EMEA-CENTRAL")} value="99.42%" color="bg-emerald-500" />
-            <NodeStatus name={t("home.nodeApacSouth", "APAC-SOUTH")} value="97.81%" color="bg-amber-500" width="80%" />
-            <NodeStatus name={t("home.nodeLatamWest", "LATAM-WEST")} value="100.0%" color="bg-emerald-500" />
-          </div>
+          {sourceDistribution.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              {sourceDistribution.map((entry) => (
+                <div key={entry.name}>
+                  <NodeStatus
+                    name={entry.name}
+                    value={`${entry.count} · ${entry.percentage}%`}
+                    color={entry.color}
+                    width={entry.width}
+                  />
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-sm bg-surface-container-low p-6 text-sm text-on-surface-variant">
+              {t("home.noFeedItems", "No recent feed items were returned by the backend.")}
+            </div>
+          )}
         </div>
 
-        <div className="surface-section overflow-hidden">
+        <div
+          className="surface-section overflow-hidden cursor-pointer transition-colors hover:bg-surface-container-low"
+          onClick={() => navigate("/feed")}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              navigate("/feed");
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={t("home.feedArchive", "View Feed Archive")}
+        >
           <div className="surface-section-header">
             <div>
               <h3 className="surface-section-title">{t("home.feedSummary", "Feed Summary")}</h3>
@@ -267,10 +394,14 @@ export default function Home() {
               <div className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
                 {t("home.totalLoaded", "TOTAL ITEMS LOADED")}
               </div>
+              <div className="mt-2 text-[11px] font-semibold uppercase tracking-widest text-primary">
+                {recentSourceLabel}
+              </div>
             </div>
             <div className="space-y-3">
               <SummaryMeter label={t("home.criticalItems", "CRITICAL ITEMS")} value={criticalCount} />
               <SummaryMeter label={t("home.elevatedItems", "ELEVATED ITEMS")} value={highCount} />
+              <SummaryMeter label={t("home.mediumItems", "MEDIUM ITEMS")} value={mediumCount} />
             </div>
           </div>
         </div>

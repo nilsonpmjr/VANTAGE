@@ -23,9 +23,11 @@ import {
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useAuth } from "../context/AuthContext";
+import { useExtensions } from "../context/ExtensionsContext";
 import { useLanguage } from "../context/LanguageContext";
 import API_URL from "../config";
 import { canAccessPath } from "../lib/access";
+import { getShortcutSequenceMap, SHORTCUT_SEQUENCE_TIMEOUT_MS } from "../lib/shortcuts";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
 
@@ -47,6 +49,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const { loading: extensionsLoading, hasFeature } = useExtensions();
   const { language, t } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -79,6 +82,12 @@ export default function Layout() {
   }, [location.search]);
 
   const visibleNavItems = rootNavItems.filter((item) => {
+    if (!extensionsLoading && item.path === "/hunting" && !hasFeature("hunting_provider")) {
+      return false;
+    }
+    if (!extensionsLoading && item.path === "/exposure" && !hasFeature("exposure_provider")) {
+      return false;
+    }
     if ((item.path === "/hunting" || item.path === "/exposure") && user?.role === "tech") {
       return true;
     }
@@ -162,6 +171,12 @@ export default function Layout() {
       : null;
   const contextualBackPath = sessionStorage.getItem(lastRootPathKey) || "/";
   const topbarSectionLabel = contextualNav?.title || t("layout.topbar.analyst", "Analyst");
+  const profileAvatarSrc =
+    user?.avatar_base64 ||
+    `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
+      user?.username || "operator",
+    )}`;
+  const profileAvatarObjectClass = user?.avatar_fit === "contain" ? "object-contain" : "object-cover";
 
   const handleHistoryClick = () => {
     const lastSearch = localStorage.getItem("lastSearch");
@@ -202,10 +217,10 @@ export default function Layout() {
 
       if (isModifier && lowerKey === "l") {
         e.preventDefault();
-        sessionStorage.setItem("vantage.pending-focus-search", "true");
         if (location.pathname !== "/") {
-          navigate("/");
+          setIsScanLauncherOpen(true);
         } else {
+          sessionStorage.setItem("vantage.pending-focus-search", "true");
           window.dispatchEvent(new Event("vantage:focus-search"));
         }
         shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
@@ -227,26 +242,9 @@ export default function Layout() {
       }
 
       const now = Date.now();
-      const sequenceMap: Record<string, string> = {
-        h: "/",
-        f: "/feed",
-        r: "/recon",
-        w: "/watchlist",
-        u: "/hunting",
-        e: "/exposure",
-        d: "/dashboard",
-        p: "/profile",
-        n: "/notifications",
-      };
+      const sequenceMap = getShortcutSequenceMap(canAccessSettings);
 
       if (shortcutSequenceRef.current.prefix === "g" && now <= shortcutSequenceRef.current.expiresAt) {
-        if (lowerKey === "s" && canAccessSettings) {
-          e.preventDefault();
-          navigate("/settings/extensions");
-          shortcutSequenceRef.current = { prefix: null, expiresAt: 0 };
-          return;
-        }
-
         const nextPath = sequenceMap[lowerKey];
         if (nextPath) {
           e.preventDefault();
@@ -257,7 +255,7 @@ export default function Layout() {
       }
 
       if (!e.metaKey && !e.ctrlKey && !e.altKey && lowerKey === "g") {
-        shortcutSequenceRef.current = { prefix: "g", expiresAt: now + 1000 };
+        shortcutSequenceRef.current = { prefix: "g", expiresAt: now + SHORTCUT_SEQUENCE_TIMEOUT_MS };
         return;
       }
 
@@ -379,7 +377,8 @@ export default function Layout() {
           ) : (
             <>
               {visibleNavItems.map((item) => {
-                const isActive = location.pathname === item.path;
+                const isActive =
+                  location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
                 return (
                   <NavLink
                     key={item.path}
@@ -516,9 +515,9 @@ export default function Layout() {
                   className="w-8 h-8 rounded bg-primary/20 flex items-center justify-center overflow-hidden border border-outline-variant/20 hover:ring-2 hover:ring-primary transition-all"
                 >
                   <img
-                    src="https://api.dicebear.com/7.x/avataaars/svg?seed=Alexei"
+                    src={profileAvatarSrc}
                     alt="Profile"
-                    className="w-full h-full object-cover"
+                    className={`w-full h-full ${profileAvatarObjectClass}`}
                   />
                 </button>
 

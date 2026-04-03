@@ -16,13 +16,10 @@ from pydantic import BaseModel, Field, field_validator
 from audit import log_action
 from auth import get_current_user
 from hunting_runtime import (
-    SHERLOCK_SUPPORTED_ARTIFACT_TYPES,
     build_hunting_runtime_catalog,
-    build_sherlock_provider_descriptor,
-    build_sherlock_query,
-    normalize_sherlock_results,
+    build_hunting_provider_catalog,
+    get_hunting_provider_registry,
     resolve_hunting_provider_runtime,
-    run_sherlock_query,
 )
 from db import db_manager
 from limiters import limiter
@@ -31,14 +28,7 @@ router = APIRouter(prefix="/hunting", tags=["hunting"])
 
 
 def _get_hunting_providers(exec_runner=None) -> list[dict[str, Any]]:
-    providers = [build_sherlock_provider_descriptor()]
-    return [
-        {
-            **provider,
-            "runtimeStatus": resolve_hunting_provider_runtime(provider, exec_runner=exec_runner),
-        }
-        for provider in providers
-    ]
+    return build_hunting_provider_catalog(exec_runner=exec_runner)
 
 
 class HuntingSearchRequest(BaseModel):
@@ -182,6 +172,78 @@ async def list_recent_hunting_searches(current_user: dict = Depends(get_current_
     return {"items": items}
 
 
+@router.get("/searches/{search_id}")
+async def get_hunting_search(
+    search_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    if db is None:
+        return {"search_id": search_id, "query": None, "items": [], "total_results": 0}
+
+    docs = await db.hunting_results.find(
+        {"analyst": current_user["username"], "search_id": search_id},
+        {"_id": 0},
+    ).sort("timestamp", -1).limit(500).to_list(length=500)
+
+    if not docs:
+        raise HTTPException(status_code=404, detail="hunting_search_not_found")
+
+    exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
+    provider_map = {
+        provider["key"]: provider
+        for provider in _get_hunting_providers(exec_runner=exec_runner)
+    }
+
+    grouped: dict[str, dict[str, Any]] = {}
+    for doc in docs:
+        provider_key = doc.get("provider_key")
+        if not provider_key:
+          continue
+        bucket = grouped.get(provider_key)
+        if bucket is None:
+            bucket = {
+                "provider": provider_map.get(
+                    provider_key,
+                    {
+                        "key": provider_key,
+                        "name": provider_key,
+                        "runtimeStatus": {
+                            "ready": False,
+                            "state": "unknown",
+                            "recommendedMode": None,
+                            "preferredMode": None,
+                            "activeMode": None,
+                            "availableModes": [],
+                            "wiredModes": [],
+                            "blocker": None,
+                        },
+                    },
+                ),
+                "query": {
+                    "artifact_type": doc.get("artifact_type"),
+                    "query": doc.get("query"),
+                },
+                "status": "ok",
+                "error": None,
+                "results": [],
+            }
+            grouped[provider_key] = bucket
+        bucket["results"].append(doc)
+
+    first = docs[0]
+    return {
+        "search_id": search_id,
+        "query": {
+            "artifact_type": first.get("artifact_type"),
+            "query": first.get("query"),
+        },
+        "items": list(grouped.values()),
+        "total_results": len(docs),
+    }
+
+
 @router.get("/case-notes")
 async def list_hunting_case_notes(
     search_id: str,
@@ -232,6 +294,7 @@ async def run_hunting_search(
 
     exec_runner = getattr(request.app.state, "hunting_exec_runner", None)
     providers = _get_hunting_providers(exec_runner=exec_runner)
+    provider_registry = get_hunting_provider_registry()
     requested_keys = body.provider_keys or [provider["key"] for provider in providers]
     requested = [provider for provider in providers if provider["key"] in requested_keys]
     unknown_keys = sorted(set(requested_keys) - {provider["key"] for provider in providers})
@@ -248,13 +311,38 @@ async def run_hunting_search(
     request_ip = request.client.host if request.client else ""
 
     for provider in requested:
-        query_payload = build_sherlock_query(
-            artifact_type=body.artifact_type,
-            query=body.query,
-            analyst=current_user["username"],
+        adapter = provider_registry.get(provider["key"])
+        if adapter is None:
+            provider_results.append(
+                {
+                    "provider": provider,
+                    "query": {"artifact_type": body.artifact_type, "query": body.query},
+                    "status": "error",
+                    "error": "unknown_hunting_provider",
+                    "results": [],
+                }
+            )
+            continue
+
+        build_query = adapter.get("build_query")
+        run_query = adapter.get("run_query")
+        normalize_results = adapter.get("normalize_results")
+        supported_artifact_types = adapter.get("supported_artifact_types") or set()
+        query_payload = (
+            build_query(
+                artifact_type=body.artifact_type,
+                query=body.query,
+                analyst=current_user["username"],
+            )
+            if callable(build_query)
+            else {
+                "artifact_type": body.artifact_type,
+                "query": body.query,
+                "analyst": current_user["username"],
+            }
         )
 
-        if body.artifact_type not in SHERLOCK_SUPPORTED_ARTIFACT_TYPES:
+        if body.artifact_type not in supported_artifact_types:
             provider_results.append(
                 {
                     "provider": provider,
@@ -279,9 +367,21 @@ async def run_hunting_search(
             )
             continue
 
+        if not callable(run_query) or not callable(normalize_results):
+            provider_results.append(
+                {
+                    "provider": provider,
+                    "query": query_payload,
+                    "status": "error",
+                    "error": "runtime_declared_but_not_wired",
+                    "results": [],
+                }
+            )
+            continue
+
         try:
-            raw_output = await run_sherlock_query(query_payload, exec_runner=exec_runner)
-            results = normalize_sherlock_results(query_payload, raw_output)
+            raw_output = await run_query(query_payload, exec_runner=exec_runner)
+            results = normalize_results(query_payload, raw_output)
             if db is not None:
                 for result in results:
                     result["_id"] = uuid4().hex

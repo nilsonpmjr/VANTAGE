@@ -10,19 +10,25 @@ async def test_list_hunting_providers_returns_initial_catalog(async_client):
 
     assert resp.status_code == 200
     data = resp.json()
-    assert len(data["items"]) == 1
+    assert len(data["items"]) == 4
     assert "runtime" in data
-    provider = data["items"][0]
-    assert provider["key"] == "premium-hunting-sherlock"
-    assert provider["premiumFeatureType"] == "hunting_provider"
-    assert "runtimeStatus" in provider
+    keys = {provider["key"] for provider in data["items"]}
+    assert keys == {
+        "premium-hunting-sherlock",
+        "premium-hunting-maigret",
+        "premium-hunting-holehe",
+        "premium-hunting-socialscan",
+    }
+    for provider in data["items"]:
+        assert provider["premiumFeatureType"] == "hunting_provider"
+        assert "runtimeStatus" in provider
 
 
 async def test_hunting_search_returns_normalized_results(async_client, fake_db):
     token = create_access_token({"sub": "techuser", "role": "tech"})
 
     async def fake_runner(argv):
-        assert argv[:3] == ["sherlock", "--output", "json"]
+        assert argv[:6] == ["sherlock", "--print-found", "--no-color", "--no-txt", "--timeout", "12"]
         return 0, '{"github":{"exists":true,"url":"https://github.com/example"}}'
 
     async_client._transport.app.state.hunting_exec_runner = fake_runner
@@ -37,13 +43,13 @@ async def test_hunting_search_returns_normalized_results(async_client, fake_db):
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_results"] == 1
-    assert len(data["items"]) == 1
-    item = data["items"][0]
-    assert item["status"] == "ok"
-    assert item["provider"]["key"] == "premium-hunting-sherlock"
-    assert item["query"]["artifact_type"] == "username"
-    assert item["results"][0]["provider_key"] == "premium-hunting-sherlock"
-    assert item["results"][0]["data"]["attributes"]["platform"] == "github"
+    assert len(data["items"]) == 4
+    sherlock_item = next(item for item in data["items"] if item["provider"]["key"] == "premium-hunting-sherlock")
+    assert sherlock_item["status"] == "ok"
+    assert sherlock_item["query"]["artifact_type"] == "username"
+    assert sherlock_item["results"][0]["provider_key"] == "premium-hunting-sherlock"
+    assert sherlock_item["results"][0]["data"]["attributes"]["platform"] == "github"
+    assert any(item["status"] == "error" for item in data["items"] if item["provider"]["key"] != "premium-hunting-sherlock")
     assert len(fake_db.hunting_results._data) == 1
     assert fake_db.hunting_results._data[0]["search_id"]
     audit = await fake_db.audit_log.find_one({"action": "premium_hunting_search"})
@@ -62,20 +68,20 @@ async def test_hunting_search_reports_unsupported_artifact_per_provider(async_cl
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_results"] == 0
-    assert data["items"][0]["status"] == "unsupported"
-    assert data["items"][0]["error"] == "unsupported_artifact_type:email"
+    assert any(item["status"] == "unsupported" for item in data["items"])
+    assert any(item["status"] == "error" for item in data["items"])
     audit = await fake_db.audit_log.find_one({"action": "premium_hunting_search"})
     assert audit is not None
-    assert audit["result"] == "success"
+    assert audit["result"] == "failure"
 
 
 async def test_hunting_search_reports_runtime_missing_when_provider_is_not_ready(async_client):
     token = create_access_token({"sub": "techuser", "role": "tech"})
 
-    from routers import hunting as hunting_router
+    import hunting_runtime
 
-    original = hunting_router.resolve_hunting_provider_runtime
-    hunting_router.resolve_hunting_provider_runtime = lambda provider, exec_runner=None: {
+    original = hunting_runtime.resolve_hunting_provider_runtime
+    hunting_runtime.resolve_hunting_provider_runtime = lambda provider, exec_runner=None: {
         "ready": False,
         "state": "blocked",
         "recommendedMode": "isolated_container",
@@ -93,12 +99,34 @@ async def test_hunting_search_reports_runtime_missing_when_provider_is_not_ready
             headers={"Authorization": f"Bearer {token}"},
         )
     finally:
-        hunting_router.resolve_hunting_provider_runtime = original
+        hunting_runtime.resolve_hunting_provider_runtime = original
 
     assert resp.status_code == 200
     data = resp.json()
-    assert data["items"][0]["status"] == "error"
-    assert data["items"][0]["error"] == "provider_runtime_missing"
+    sherlock_item = next(item for item in data["items"] if item["provider"]["key"] == "premium-hunting-sherlock")
+    assert sherlock_item["status"] == "error"
+    assert sherlock_item["error"] == "provider_runtime_missing"
+
+
+async def test_hunting_search_nilsonpmjr_reports_no_executable_coverage(async_client, fake_db, monkeypatch):
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+
+    monkeypatch.setattr("hunting_runtime.shutil.which", lambda _: None)
+
+    resp = await async_client.post(
+        "/api/hunting/search",
+        json={"artifact_type": "username", "query": "nilsonpmjr"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total_results"] == 0
+    assert any(item["status"] == "error" for item in data["items"])
+    assert any(item["status"] == "unsupported" for item in data["items"])
+    audit = await fake_db.audit_log.find_one({"action": "premium_hunting_search"})
+    assert audit is not None
+    assert audit["result"] == "failure"
 
 
 async def test_saved_hunting_search_lifecycle(async_client, fake_db):
@@ -185,3 +213,75 @@ async def test_recent_hunting_searches_group_by_search_id(async_client, fake_db)
     data = resp.json()
     assert len(data["items"]) == 1
     assert data["items"][0]["result_count"] == 2
+
+
+async def test_get_hunting_search_rehydrates_persisted_results(async_client, fake_db):
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+    fake_db.hunting_results._data.extend(
+        [
+            {
+                "_id": "r1",
+                "search_id": "search-42",
+                "search_timestamp": "2026-03-24T00:00:00+00:00",
+                "timestamp": "2026-03-24T00:00:00+00:00",
+                "analyst": "techuser",
+                "artifact_type": "username",
+                "query": "nilsonpmjr",
+                "provider_key": "premium-hunting-sherlock",
+                "title": "github profile match",
+                "summary": "Potential profile match found on github.",
+                "kind": "profile_match",
+                "confidence": 0.7,
+                "data": {
+                    "title": "github profile match",
+                    "summary": "Potential profile match found on github.",
+                    "kind": "profile_match",
+                    "confidence": 0.7,
+                    "attributes": {"platform": "github", "username": "nilsonpmjr"},
+                    "evidence": [{"source": "github", "url": "https://github.com/nilsonpmjr"}],
+                    "raw": {"exists": True, "url": "https://github.com/nilsonpmjr"},
+                },
+                "provider_family": "sherlock",
+                "external_ref": "https://github.com/nilsonpmjr",
+            },
+            {
+                "_id": "r2",
+                "search_id": "search-42",
+                "search_timestamp": "2026-03-24T00:00:00+00:00",
+                "timestamp": "2026-03-24T00:00:00+00:00",
+                "analyst": "techuser",
+                "artifact_type": "username",
+                "query": "nilsonpmjr",
+                "provider_key": "premium-hunting-sherlock",
+                "title": "docker hub profile match",
+                "summary": "Potential profile match found on docker hub.",
+                "kind": "profile_match",
+                "confidence": 0.7,
+                "data": {
+                    "title": "docker hub profile match",
+                    "summary": "Potential profile match found on docker hub.",
+                    "kind": "profile_match",
+                    "confidence": 0.7,
+                    "attributes": {"platform": "docker hub", "username": "nilsonpmjr"},
+                    "evidence": [{"source": "docker hub", "url": "https://hub.docker.com/u/nilsonpmjr/"}],
+                    "raw": {"exists": True, "url": "https://hub.docker.com/u/nilsonpmjr/"},
+                },
+                "provider_family": "sherlock",
+                "external_ref": "https://hub.docker.com/u/nilsonpmjr/",
+            },
+        ]
+    )
+
+    resp = await async_client.get(
+        "/api/hunting/searches/search-42",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["search_id"] == "search-42"
+    assert data["query"]["query"] == "nilsonpmjr"
+    assert data["total_results"] == 2
+    assert len(data["items"]) == 1
+    assert data["items"][0]["provider"]["key"] == "premium-hunting-sherlock"
+    assert len(data["items"][0]["results"]) == 2

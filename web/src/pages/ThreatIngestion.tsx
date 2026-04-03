@@ -132,6 +132,10 @@ function getFeedUrl(source: ThreatSource) {
   return typeof source.config?.feed_url === "string" ? source.config.feed_url : "";
 }
 
+function notifyFeedRuntimeUpdated() {
+  window.dispatchEvent(new Event("vantage:feed-runtime-updated"));
+}
+
 export default function ThreatIngestion() {
   const { t } = useLanguage();
   const [sources, setSources] = useState<ThreatSource[]>([]);
@@ -421,6 +425,7 @@ export default function ThreatIngestion() {
       });
       setShowCustomSourceForm(false);
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao criar a fonte manual.");
     } finally {
@@ -498,6 +503,7 @@ export default function ThreatIngestion() {
       resetCustomSourceDraft();
       setShowCustomSourceForm(false);
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao atualizar a fonte manual.");
     } finally {
@@ -530,6 +536,7 @@ export default function ThreatIngestion() {
       resetCustomSourceDraft();
       setShowCustomSourceForm(false);
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao atualizar a fonte nativa.");
     } finally {
@@ -549,6 +556,7 @@ export default function ThreatIngestion() {
       if (!response.ok) throw new Error("custom_source_delete_failed");
       setNotice("Fonte manual removida.");
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao remover a fonte manual.");
     } finally {
@@ -570,6 +578,7 @@ export default function ThreatIngestion() {
       if (!response.ok) throw new Error("custom_source_toggle_failed");
       setNotice(source.enabled ? "Fonte desativada." : "Fonte ativada.");
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao alternar o estado da fonte manual.");
     } finally {
@@ -589,6 +598,7 @@ export default function ThreatIngestion() {
       if (!response.ok) throw new Error("purge_failed");
       const data = (await response.json()) as { deleted: number };
       setNotice(`${data.deleted} itens órfãos removidos do feed.`);
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Não foi possível purgar os itens órfãos.");
     } finally {
@@ -611,6 +621,7 @@ export default function ThreatIngestion() {
         `Sincronização executada para ${source.display_name}: ${payload.status || "unknown"} (${payload.items_ingested ?? 0} item(ns)).`,
       );
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao executar a sincronização imediata da fonte.");
     } finally {
@@ -634,6 +645,7 @@ export default function ThreatIngestion() {
       if (!response.ok) throw new Error("threat_source_operational_toggle_failed");
       setNotice(enabled ? "Fonte retomada para o próximo ciclo." : "Fonte pausada operacionalmente.");
       await loadRuntime();
+      notifyFeedRuntimeUpdated();
     } catch {
       setError("Falha ao alterar o estado operacional da fonte.");
     } finally {

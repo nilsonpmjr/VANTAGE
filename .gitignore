@@ -13,6 +13,8 @@ docs/
 docker-compose.operational-architect.yml
 .codex
 .hintrc
+.omx/
+
 
 00_INDICE.md
 AUDITORIA_THREAT_TOOL.md

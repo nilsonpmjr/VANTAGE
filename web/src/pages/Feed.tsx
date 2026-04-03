@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, Filter, RefreshCw, Rss, ShieldAlert } from "lucide-react";
 import API_URL from "../config";
@@ -51,18 +51,41 @@ type FeedModelingSnapshot = {
 
 const PAGE_SIZE = 6;
 
-function severityTone(severity?: string) {
+function severityTone(
+  severity: string | undefined,
+  t: (key: string, fallback?: string) => string,
+) {
   switch ((severity || "").toLowerCase()) {
     case "critical":
-      return { label: "CRITICAL", className: "text-error", badge: "bg-error/10 text-error" };
+      return {
+        label: t("feed.severityCritical", "CRITICAL"),
+        className: "text-error",
+        badge: "bg-error/10 text-error",
+      };
     case "high":
-      return { label: "HIGH", className: "text-error", badge: "bg-error-container/20 text-on-error-container" };
+      return {
+        label: t("feed.severityHigh", "HIGH"),
+        className: "text-error",
+        badge: "bg-error-container/20 text-on-error-container",
+      };
     case "medium":
-      return { label: "MEDIUM", className: "text-amber-600", badge: "bg-amber-100 text-amber-700" };
+      return {
+        label: t("feed.severityMedium", "MEDIUM"),
+        className: "text-amber-600",
+        badge: "bg-amber-100 text-amber-700",
+      };
     case "info":
-      return { label: "INFO", className: "text-on-surface", badge: "bg-surface-container-high text-on-surface-variant" };
+      return {
+        label: t("feed.severityInfo", "INFO"),
+        className: "text-on-surface",
+        badge: "bg-surface-container-high text-on-surface-variant",
+      };
     default:
-      return { label: "LOW", className: "text-on-surface", badge: "bg-surface-container-high text-on-surface-variant" };
+      return {
+        label: t("feed.severityLow", "LOW"),
+        className: "text-on-surface",
+        badge: "bg-surface-container-high text-on-surface-variant",
+      };
   }
 }
 
@@ -73,15 +96,15 @@ function stripHtml(text?: string, maxChars = 320): string {
   return plain.slice(0, maxChars).replace(/\s+\S*$/, "") + "…";
 }
 
-function formatPublishedAt(value?: string) {
-  if (!value) return "Unknown";
+function formatPublishedAt(value: string | undefined, locale: string, t: (key: string, fallback?: string) => string) {
+  if (!value) return t("feed.unknown", "Unknown");
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Unknown";
-  return date.toLocaleString("pt-BR");
+  if (Number.isNaN(date.getTime())) return t("feed.unknown", "Unknown");
+  return date.toLocaleString(locale);
 }
 
 export default function Feed() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
   const [items, setItems] = useState<FeedItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -89,17 +112,19 @@ export default function Feed() {
   const [severity, setSeverity] = useState(searchParams.get("severity") || "all");
   const [sourceType, setSourceType] = useState(searchParams.get("source_type") || "all");
   const [family, setFamily] = useState(searchParams.get("family") || "all");
+  const [view, setView] = useState(searchParams.get("view") || "feed");
   const [modelingSnapshot, setModelingSnapshot] = useState<FeedModelingSnapshot | null>(null);
   const [modelingLoading, setModelingLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const lastFeedRefreshRef = useRef(0);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  const fetchFeed = useCallback(async (targetPage = page, isRefresh = false) => {
-    if (isRefresh) setRefreshing(true);
-    else setLoading(true);
-
+  const fetchFeed = useCallback(async (targetPage = page, background = false) => {
+    if (!background) {
+      setLoading(true);
+    }
     try {
       const params = new URLSearchParams({
         limit: String(PAGE_SIZE),
@@ -108,6 +133,7 @@ export default function Feed() {
       if (severity !== "all") params.set("severity", severity);
       if (sourceType !== "all") params.set("source_type", sourceType);
       if (family !== "all") params.set("family", family);
+      if (view !== "feed") params.set("view", view);
 
       const response = await fetch(`${API_URL}/api/feed?${params.toString()}`, {
         credentials: "include",
@@ -120,10 +146,50 @@ export default function Feed() {
       setItems([]);
       setTotal(0);
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
+    }
+  }, [page, severity, sourceType, family, view]);
+
+  const loadModelingSnapshot = useCallback(async (background = false) => {
+    if (!background) {
+      setModelingLoading(true);
+    }
+    try {
+      const response = await fetch(`${API_URL}/api/feed/modeling?window=200`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("feed_modeling_failed");
+      const data = (await response.json()) as FeedModelingSnapshot;
+      setModelingSnapshot(data);
+    } catch {
+      setModelingSnapshot(null);
+    } finally {
+      if (!background) {
+        setModelingLoading(false);
+      }
+    }
+  }, []);
+
+  const refreshFeedRuntime = useCallback(async () => {
+    const now = Date.now();
+    if (now - lastFeedRefreshRef.current < 5000) {
+      return;
+    }
+    lastFeedRefreshRef.current = now;
+    await Promise.all([fetchFeed(page, true), loadModelingSnapshot(true)]);
+  }, [fetchFeed, loadModelingSnapshot, page]);
+
+  const refreshFeedManually = useCallback(async () => {
+    setRefreshing(true);
+    lastFeedRefreshRef.current = Date.now();
+    try {
+      await Promise.all([fetchFeed(page, true), loadModelingSnapshot(true)]);
+    } finally {
       setRefreshing(false);
     }
-  }, [page, severity, sourceType, family]);
+  }, [fetchFeed, loadModelingSnapshot, page]);
 
   useEffect(() => {
     void fetchFeed(page);
@@ -134,42 +200,56 @@ export default function Feed() {
     const nextSeverity = searchParams.get("severity") || "all";
     const nextSourceType = searchParams.get("source_type") || "all";
     const nextFamily = searchParams.get("family") || "all";
+    const nextView = searchParams.get("view") || "feed";
     setPage(Number.isFinite(nextPage) && nextPage > 0 ? nextPage : 1);
     setSeverity(nextSeverity);
     setSourceType(nextSourceType);
     setFamily(nextFamily);
+    setView(nextView);
   }, [searchParams]);
 
   useEffect(() => {
-    let active = true;
-    async function loadModelingSnapshot() {
-      setModelingLoading(true);
-      try {
-        const response = await fetch(`${API_URL}/api/feed/modeling?window=200`, {
-          credentials: "include",
-        });
-        if (!response.ok) throw new Error("feed_modeling_failed");
-        const data = (await response.json()) as FeedModelingSnapshot;
-        if (active) setModelingSnapshot(data);
-      } catch {
-        if (active) setModelingSnapshot(null);
-      } finally {
-        if (active) setModelingLoading(false);
-      }
-    }
-
     void loadModelingSnapshot();
-    return () => {
-      active = false;
-    };
-  }, []);
+  }, [loadModelingSnapshot]);
 
-  function syncSearchParams(nextPage: number, nextSeverity: string, nextSourceType: string, nextFamily: string) {
+  useEffect(() => {
+    const handleRefreshFeed = () => {
+      void refreshFeedRuntime();
+    };
+
+    const handleInteraction = () => {
+      if (document.visibilityState === "visible") {
+        handleRefreshFeed();
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        handleRefreshFeed();
+      }
+    };
+
+    window.addEventListener("focus", handleRefreshFeed);
+    window.addEventListener("vantage:feed-runtime-updated", handleRefreshFeed);
+    window.addEventListener("pointerdown", handleInteraction);
+    window.addEventListener("keydown", handleInteraction);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleRefreshFeed);
+      window.removeEventListener("vantage:feed-runtime-updated", handleRefreshFeed);
+      window.removeEventListener("pointerdown", handleInteraction);
+      window.removeEventListener("keydown", handleInteraction);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refreshFeedRuntime]);
+
+  function syncSearchParams(nextPage: number, nextSeverity: string, nextSourceType: string, nextFamily: string, nextView = view) {
     const next = new URLSearchParams();
     if (nextPage > 1) next.set("page", String(nextPage));
     if (nextSeverity !== "all") next.set("severity", nextSeverity);
     if (nextSourceType !== "all") next.set("source_type", nextSourceType);
     if (nextFamily !== "all") next.set("family", nextFamily);
+    if (nextView !== "feed") next.set("view", nextView);
     setSearchParams(next, { replace: true });
   }
 
@@ -236,7 +316,9 @@ export default function Feed() {
         <div className="page-toolbar-copy">{t("feed.actions", "Feed actions")}</div>
         <div className="page-toolbar-actions">
           <button
-            onClick={() => fetchFeed(page, true)}
+            onClick={() => {
+              void refreshFeedManually();
+            }}
             className="btn btn-outline"
           >
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
@@ -249,8 +331,8 @@ export default function Feed() {
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-6 mb-8">
-        <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest p-6 shadow-sm border-l-4 border-error relative overflow-hidden rounded-sm">
+      <div className="grid grid-cols-12 gap-6 mb-8 lg:items-start">
+        <div className="col-span-12 self-start lg:col-span-8 bg-surface-container-lowest p-6 shadow-sm border-l-4 border-error relative overflow-hidden rounded-sm">
           <div className="relative z-10">
             <span className="text-error font-bold text-[10px] uppercase tracking-[0.2em] mb-4 block">
               {t("feed.urgentDirective", "Urgent Directive")}
@@ -264,8 +346,8 @@ export default function Feed() {
             <div className="flex items-center gap-6 flex-wrap">
               <div className="flex flex-col">
                 <span className="text-[10px] text-on-surface-variant font-bold uppercase">{t("feed.severity", "Severity")}</span>
-                <span className={`text-sm font-semibold ${severityTone(featured?.severity).className}`}>
-                  {severityTone(featured?.severity).label}
+                <span className={`text-sm font-semibold ${severityTone(featured?.severity, t).className}`}>
+                  {severityTone(featured?.severity, t).label}
                 </span>
               </div>
               <div className="flex flex-col">
@@ -295,7 +377,9 @@ export default function Feed() {
             </span>
             <div className="flex items-baseline gap-2">
               <span className="text-3xl font-black tracking-tighter">{items.length}</span>
-              <span className="text-xs text-emerald-500 font-bold">of {total}</span>
+              <span className="text-xs text-emerald-500 font-bold">
+                {t("feed.of", "of")} {total}
+              </span>
             </div>
           </div>
           <div className="flex-1 bg-surface-container-lowest p-4 flex flex-col justify-between shadow-sm rounded-sm">
@@ -374,6 +458,37 @@ export default function Feed() {
                     {modelingSnapshot.feature_columns.join(", ")}
                   </div>
                 </div>
+                <div className="mt-4 space-y-2">
+                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                    {t("feed.modelingActions", "Operational actions")}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="btn btn-outline"
+                      onClick={() => syncSearchParams(1, "all", "all", "all", "news")}
+                    >
+                      {t("feed.modelingOpenNewsworthy", "Open newsworthy slice")}
+                    </button>
+                    <button
+                      className="btn btn-outline"
+                      onClick={() => syncSearchParams(1, severity, "rss", family, "feed")}
+                    >
+                      {t("feed.modelingOpenRss", "Open RSS editorial feed")}
+                    </button>
+                  </div>
+                </div>
+                {modelingSnapshot.next_steps?.length ? (
+                  <div className="mt-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t("feed.modelingNextSteps", "Next steps")}
+                    </div>
+                    <ul className="mt-2 space-y-1 text-xs text-on-surface-variant leading-relaxed">
+                      {modelingSnapshot.next_steps.slice(0, 3).map((step) => (
+                        <li key={step}>• {step}</li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </>
             ) : (
               <div className="mt-4 text-xs text-on-surface-variant">
@@ -390,45 +505,47 @@ export default function Feed() {
           <select
             value={severity}
             onChange={(e) => {
-              syncSearchParams(1, e.target.value, sourceType, family);
+              syncSearchParams(1, e.target.value, sourceType, family, view);
             }}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
             <option value="all">{t("feed.allSeverities", "All Severities")}</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="medium">Medium</option>
-            <option value="low">Low</option>
-            <option value="info">Info</option>
+            <option value="critical">{t("feed.severityCritical", "Critical")}</option>
+            <option value="high">{t("feed.severityHigh", "High")}</option>
+            <option value="medium">{t("feed.severityMedium", "Medium")}</option>
+            <option value="low">{t("feed.severityLow", "Low")}</option>
+            <option value="info">{t("feed.severityInfo", "Info")}</option>
           </select>
           <select
             value={sourceType}
             onChange={(e) => {
-              syncSearchParams(1, severity, e.target.value, family);
+              syncSearchParams(1, severity, e.target.value, family, view);
             }}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
             <option value="all">{t("feed.allSources", "All Sources")}</option>
-            <option value="rss">RSS</option>
-            <option value="misp">MISP</option>
+            <option value="rss">{t("feed.sourceRss", "RSS")}</option>
+            <option value="misp">{t("feed.sourceMisp", "MISP")}</option>
           </select>
           <select
             value={family}
             onChange={(e) => {
-              syncSearchParams(1, severity, sourceType, e.target.value);
+              syncSearchParams(1, severity, sourceType, e.target.value, view);
             }}
             className="px-3 py-2 bg-surface-container-lowest border border-outline-variant/30 rounded-sm text-xs font-semibold text-on-surface"
           >
             <option value="all">{t("feed.allFamilies", "All Families")}</option>
-            <option value="cve">CVE</option>
-            <option value="fortinet">Fortinet RSS</option>
-            <option value="misp">MISP</option>
-            <option value="custom">Custom RSS</option>
+            <option value="cve">{t("feed.familyCve", "CVE")}</option>
+            <option value="fortinet">{t("feed.familyFortinet", "Fortinet RSS")}</option>
+            <option value="misp">{t("feed.familyMisp", "MISP")}</option>
+            <option value="custom">{t("feed.familyCustom", "Custom RSS")}</option>
           </select>
         </div>
         <div className="flex items-center gap-2 text-on-surface-variant">
           <span className="text-[11px] font-bold uppercase tracking-widest">{t("feed.showing", "Showing:")}</span>
-          <span className="text-xs font-medium text-on-surface">{items.length} items</span>
+          <span className="text-xs font-medium text-on-surface">
+            {items.length} {t("feed.items", "items")}
+          </span>
         </div>
       </div>
 
@@ -439,7 +556,7 @@ export default function Feed() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {items.map((item) => {
-            const tone = severityTone(item.severity);
+            const tone = severityTone(item.severity, t);
             return (
               <article
                 key={item._id}
@@ -452,10 +569,10 @@ export default function Feed() {
                     </div>
                     <div className="flex flex-col">
                       <span className="text-xs font-bold tracking-tight">{item.source_name || item.source_type || "VANTAGE"}</span>
-                      <span className="text-[10px] text-outline uppercase font-semibold">
+                        <span className="text-[10px] text-outline uppercase font-semibold">
                         {item.editorial?.story_kind || item.data?.attributes?.editorial?.story_kind
                           ? `${t("feed.storyKind", "Story Kind")} / ${storyKindLabel(item.editorial?.story_kind || item.data?.attributes?.editorial?.story_kind).toUpperCase()}`
-                          : `Source / ${(item.source_type || "intel").toUpperCase()}`}
+                          : `${t("feed.sourcePrefix", "Source")} / ${(item.source_type || "intel").toUpperCase()}`}
                       </span>
                     </div>
                   </div>
@@ -473,10 +590,12 @@ export default function Feed() {
                   <div className="flex items-center gap-4 flex-wrap">
                     <div className="flex flex-col">
                       <span className="text-[9px] uppercase font-bold text-on-surface-variant">{t("feed.posted", "Posted")}</span>
-                      <span className="text-[11px] font-semibold">{formatPublishedAt(item.published_at)}</span>
+                      <span className="text-[11px] font-semibold">{formatPublishedAt(item.published_at, locale, t)}</span>
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-[9px] uppercase font-bold text-on-surface-variant">Severity</span>
+                      <span className="text-[9px] uppercase font-bold text-on-surface-variant">
+                        {t("feed.severity", "Severity")}
+                      </span>
                       <span className={`text-[11px] font-semibold ${tone.className}`}>{tone.label}</span>
                     </div>
                   </div>

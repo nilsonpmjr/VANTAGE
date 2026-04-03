@@ -28,13 +28,73 @@ interface ReconModuleResult {
   from_cache?: boolean;
 }
 
+interface WebModuleData {
+  status_code?: number;
+  final_url?: string;
+  redirect_chain?: string[];
+  title?: string;
+  server?: string;
+  x_powered_by?: string;
+  content_type?: string;
+  technologies?: string[];
+  security_headers?: Record<string, boolean>;
+}
+
+interface CertificateData {
+  subject_cn?: string;
+  issuer_cn?: string;
+  not_after?: string;
+  days_until_expiry?: number;
+  is_expired?: boolean;
+  is_self_signed?: boolean;
+  protocol?: string;
+  sans?: string[];
+}
+
+interface PassiveData {
+  emails?: string[];
+  ips?: string[];
+}
+
+interface PassiveModuleData extends PassiveData {
+  subdomains?: string[];
+}
+
+interface PortsModuleData {
+  ports?: Array<{ port?: number; protocol?: string; service?: string }>;
+}
+
+interface SubdomainsModuleData {
+  subdomains?: string[];
+}
+
+interface InfrastructureData {
+  a_records?: string[];
+  aaaa_records?: string[];
+  mx_records?: string[];
+  ns_records?: string[];
+  txt_records?: string[];
+  registrar?: string;
+  registrant_country?: string;
+  creation_date?: string;
+  expiration_date?: string;
+  name_servers?: string[];
+  org?: string;
+  technologies?: string[];
+  server?: string;
+  final_url?: string;
+  title?: string;
+}
+
 interface ReconJobDetails extends ReconJobListItem {
   target_type?: string;
   results?: Record<string, ReconModuleResult>;
   attack_surface?: {
     exposed_services?: Array<{ port: number; protocol: string; service?: string; product?: string; version?: string }>;
     subdomains?: string[];
-    infrastructure?: Record<string, unknown>;
+    infrastructure?: InfrastructureData;
+    certificates?: CertificateData;
+    passive?: PassiveData;
   };
   risk_indicators?: Array<{ severity: string; category: string; message: string }>;
 }
@@ -52,11 +112,19 @@ interface DashboardStats {
   reconTotal: number;
 }
 
-function formatTimestamp(value?: string | null) {
+const RISK_SEVERITY_ORDER: Record<string, number> = {
+  critical: 0,
+  high: 1,
+  medium: 2,
+  low: 3,
+  info: 4,
+};
+
+function formatTimestamp(value: string | null | undefined, locale: string) {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
@@ -68,8 +136,125 @@ function statusClasses(status?: string) {
   return "text-error";
 }
 
+function getReconModuleData<T>(results: ReconJobDetails["results"], moduleName: string): T | null {
+  const entry = results?.[moduleName];
+  if (!entry || entry.status === "error") return null;
+
+  const data = entry.data as Record<string, unknown> | undefined;
+  if (!data || data.error || data.skipped) return null;
+
+  return data as T;
+}
+
+function sortRiskIndicators(risks: Array<{ severity: string; category: string; message: string }>) {
+  return [...risks].sort((left, right) => {
+    const severityDiff = (RISK_SEVERITY_ORDER[left.severity] ?? 99) - (RISK_SEVERITY_ORDER[right.severity] ?? 99);
+    if (severityDiff !== 0) return severityDiff;
+
+    const categoryDiff = left.category.localeCompare(right.category);
+    if (categoryDiff !== 0) return categoryDiff;
+
+    return left.message.localeCompare(right.message);
+  });
+}
+
+function extractRiskIndicators(results: ReconJobDetails["results"]) {
+  if (!results) return [];
+
+  const risks: Array<{ severity: string; category: string; message: string }> = [];
+  const ssl = getReconModuleData<CertificateData>(results, "ssl");
+  const web = getReconModuleData<WebModuleData>(results, "web");
+  const ports = getReconModuleData<PortsModuleData>(results, "ports");
+  const passive = getReconModuleData<PassiveModuleData>(results, "passive");
+  const subdomains = getReconModuleData<SubdomainsModuleData>(results, "subdomains");
+
+  if (ssl) {
+    if (ssl.is_expired) {
+      risks.push({ severity: "critical", category: "ssl", message: "SSL certificate is expired" });
+    } else if (ssl.days_until_expiry !== undefined && ssl.days_until_expiry < 30) {
+      risks.push({
+        severity: "high",
+        category: "ssl",
+        message: `SSL certificate expires in ${ssl.days_until_expiry} days`,
+      });
+    }
+
+    if (ssl.is_self_signed) {
+      risks.push({ severity: "medium", category: "ssl", message: "SSL certificate is self-signed" });
+    }
+
+    if (ssl.protocol && ["TLSv1", "TLSv1.0", "TLSv1.1", "SSLv3"].includes(ssl.protocol)) {
+      risks.push({
+        severity: "high",
+        category: "ssl",
+        message: `Deprecated TLS protocol in use: ${ssl.protocol}`,
+      });
+    }
+  }
+
+  if (web) {
+    const securityHeaders = web.security_headers || {};
+    const missingHeaders = Object.entries(securityHeaders)
+      .filter(([, present]) => !present)
+      .map(([header]) => header);
+
+    if (missingHeaders.includes("Strict-Transport-Security")) {
+      risks.push({ severity: "medium", category: "web", message: "Missing HSTS header" });
+    }
+
+    if (missingHeaders.includes("Content-Security-Policy")) {
+      risks.push({ severity: "medium", category: "web", message: "Missing Content-Security-Policy header" });
+    }
+
+    if (missingHeaders.includes("X-Frame-Options")) {
+      risks.push({ severity: "low", category: "web", message: "Missing X-Frame-Options header" });
+    }
+
+    if (web.x_powered_by) {
+      risks.push({
+        severity: "low",
+        category: "web",
+        message: `Server technology exposed: ${web.x_powered_by}`,
+      });
+    }
+  }
+
+  if (ports?.ports?.length) {
+    const standardPorts = new Set([21, 22, 23, 25, 53, 80, 110, 143, 443, 587, 993, 995, 3306, 5432, 6379, 8080, 8443]);
+
+    for (const portInfo of ports.ports) {
+      if (portInfo.port && !standardPorts.has(portInfo.port)) {
+        risks.push({
+          severity: "low",
+          category: "ports",
+          message: `Non-standard port open: ${portInfo.port}/${portInfo.protocol || "tcp"} (${portInfo.service || ""})`,
+        });
+      }
+    }
+  }
+
+  if (passive?.emails?.length) {
+    risks.push({
+      severity: "info",
+      category: "passive",
+      message: `${passive.emails.length} email address(es) found — potential phishing targets`,
+    });
+  }
+
+  const subdomainCount = (subdomains?.subdomains?.length || 0) + (passive?.subdomains?.length || 0);
+  if (subdomainCount > 20) {
+    risks.push({
+      severity: "info",
+      category: "subdomains",
+      message: `Large attack surface: ${subdomainCount} subdomains discovered`,
+    });
+  }
+
+  return sortRiskIndicators(risks);
+}
+
 export default function Recon() {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const [modules, setModules] = useState<ReconModule[]>([]);
   const [selectedModules, setSelectedModules] = useState<string[]>([]);
   const [target, setTarget] = useState("");
@@ -262,6 +447,21 @@ export default function Recon() {
     () => recentJobs.filter((job) => job.status === "pending" || job.status === "running").length,
     [recentJobs],
   );
+  const infrastructure = activeJob?.attack_surface?.infrastructure;
+  const certificates = activeJob?.attack_surface?.certificates;
+  const passive = activeJob?.attack_surface?.passive;
+  const subdomains = activeJob?.attack_surface?.subdomains || [];
+  const web = (activeJob?.results?.web?.data || null) as WebModuleData | null;
+  const riskIndicators = useMemo(
+    () => (
+      activeJob?.risk_indicators?.length
+        ? sortRiskIndicators(activeJob.risk_indicators)
+        : extractRiskIndicators(activeJob?.results)
+    ),
+    [activeJob?.risk_indicators, activeJob?.results],
+  );
+  const presentHeaders = Object.entries(web?.security_headers || {}).filter(([, present]) => present);
+  const missingHeaders = Object.entries(web?.security_headers || {}).filter(([, present]) => !present);
 
   return (
     <div className="page-frame space-y-8">
@@ -402,7 +602,7 @@ export default function Recon() {
                   <div key={item.id} className="rounded-sm bg-surface-container-low p-4">
                     <div className="text-sm font-bold text-on-surface">{item.target}</div>
                     <div className="mt-1 text-[11px] text-on-surface-variant">
-                      {formatTimestamp(item.run_at)}
+                      {formatTimestamp(item.run_at, locale)}
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-3">
                       <div className="text-[11px] text-on-surface-variant">
@@ -469,10 +669,10 @@ export default function Recon() {
                       {t("recon.riskIndicators", "Risk Indicators")}
                     </div>
                     <div className="mt-4 space-y-3">
-                      {(activeJob.risk_indicators || []).length === 0 ? (
+                      {riskIndicators.length === 0 ? (
                         <div className="text-xs text-on-surface-variant">{t("recon.noRiskIndicators", "No explicit risk indicators extracted yet.")}</div>
                       ) : (
-                        (activeJob.risk_indicators || []).map((risk, index) => (
+                        riskIndicators.map((risk, index) => (
                           <div key={`${risk.category}-${index}`} className="rounded-sm bg-surface-container-lowest px-4 py-3">
                             <div className="flex items-center justify-between gap-3">
                               <div className="text-sm font-bold text-on-surface">{risk.category}</div>
@@ -491,6 +691,149 @@ export default function Recon() {
                         ))
                       )}
                     </div>
+                  </div>
+                  <div className="rounded-sm bg-surface-container-low p-5">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                      {t("recon.webResults", "Web Results")}
+                    </div>
+                    {!web ? (
+                      <div className="mt-4 text-xs text-on-surface-variant">
+                        {t("recon.noWebResults", "No web results correlated yet.")}
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        <ReconKvRow label={t("recon.httpStatus", "HTTP Status")} value={web.status_code} />
+                        <ReconKvRow label={t("recon.finalUrl", "Final URL")} value={web.final_url} mono />
+                        <ReconKvRow label={t("recon.titleLabel", "Title")} value={web.title} />
+                        <ReconKvRow label={t("recon.serverLabel", "Server")} value={web.server} mono />
+                        <ReconKvRow label={t("recon.poweredBy", "X-Powered-By")} value={web.x_powered_by} mono />
+                        {(web.technologies || []).length > 0 && (
+                          <div>
+                            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                              {t("recon.technologies", "Technologies")}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {(web.technologies || []).map((technology) => (
+                                <span
+                                  key={technology}
+                                  className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-primary"
+                                >
+                                  {technology}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {(presentHeaders.length > 0 || missingHeaders.length > 0) && (
+                          <div>
+                            <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                              {t("recon.securityHeaders", "Security Headers")}
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {presentHeaders.map(([header]) => (
+                                <span
+                                  key={header}
+                                  className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary"
+                                >
+                                  {header}
+                                </span>
+                              ))}
+                              {missingHeaders.map(([header]) => (
+                                <span
+                                  key={header}
+                                  className="rounded-sm bg-error/10 px-2 py-1 text-[10px] font-bold text-error"
+                                >
+                                  {t("recon.missingHeader", "Missing")} {header}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-sm bg-surface-container-low p-5">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                      {t("recon.infrastructure", "Infrastructure")}
+                    </div>
+                    {!infrastructure ? (
+                      <div className="mt-4 text-xs text-on-surface-variant">
+                        {t("recon.noInfrastructure", "No infrastructure details correlated yet.")}
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        <ReconKvRow label="A" value={infrastructure.a_records} mono />
+                        <ReconKvRow label="AAAA" value={infrastructure.aaaa_records} mono />
+                        <ReconKvRow label="NS" value={infrastructure.ns_records} />
+                        <ReconKvRow label="MX" value={infrastructure.mx_records} />
+                        <ReconKvRow label={t("recon.registrar", "Registrar")} value={infrastructure.registrar} />
+                        <ReconKvRow label={t("recon.country", "Country")} value={infrastructure.registrant_country} />
+                        <ReconKvRow label={t("recon.created", "Created")} value={infrastructure.creation_date} />
+                        <ReconKvRow label={t("recon.expiresAt", "Expires")} value={infrastructure.expiration_date} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-sm bg-surface-container-low p-5">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                      {t("recon.certificates", "Certificates")}
+                    </div>
+                    {!certificates ? (
+                      <div className="mt-4 text-xs text-on-surface-variant">
+                        {t("recon.noCertificates", "No certificate details correlated yet.")}
+                      </div>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        <ReconKvRow label={t("recon.subjectCn", "Subject CN")} value={certificates.subject_cn} />
+                        <ReconKvRow label={t("recon.issuerCn", "Issuer CN")} value={certificates.issuer_cn} />
+                        <ReconKvRow label={t("recon.validUntil", "Valid until")} value={certificates.not_after} />
+                        <ReconKvRow label={t("recon.daysRemaining", "Days remaining")} value={certificates.days_until_expiry} />
+                        <ReconKvRow label={t("recon.tlsProtocol", "Protocol")} value={certificates.protocol} />
+                        <ReconKvRow label={t("recon.subjectAltNames", "SANs")} value={certificates.sans} />
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-sm bg-surface-container-low p-5">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                      {t("recon.subdomains", "Subdomains")}
+                    </div>
+                    {subdomains.length === 0 ? (
+                      <div className="mt-4 text-xs text-on-surface-variant">
+                        {t("recon.noSubdomains", "No subdomains correlated yet.")}
+                      </div>
+                    ) : (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {subdomains.slice(0, 24).map((subdomain) => (
+                          <span
+                            key={subdomain}
+                            className="rounded-sm bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-on-surface"
+                          >
+                            {subdomain}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-sm bg-surface-container-low p-5 xl:col-span-2">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+                      {t("recon.passiveIntel", "Passive Intelligence")}
+                    </div>
+                    {!(passive?.emails?.length || passive?.ips?.length) ? (
+                      <div className="mt-4 text-xs text-on-surface-variant">
+                        {t("recon.noPassiveIntel", "No passive intelligence correlated yet.")}
+                      </div>
+                    ) : (
+                      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <ReconListBlock
+                          label={t("recon.emailsFound", "Emails")}
+                          values={passive?.emails || []}
+                        />
+                        <ReconListBlock
+                          label={t("recon.passiveIps", "IPs")}
+                          values={passive?.ips || []}
+                          mono
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -522,11 +865,11 @@ export default function Recon() {
                       {job.status}
                     </td>
                     <td className="px-6 py-3 text-xs text-on-surface">{(job.modules || []).join(", ")}</td>
-                    <td className="px-6 py-3 text-xs text-on-surface">{formatTimestamp(job.created_at)}</td>
+                    <td className="px-6 py-3 text-xs text-on-surface">{formatTimestamp(job.created_at, locale)}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex justify-end gap-2">
                         <RowPrimaryAction
-                          label="View"
+                          label={t("recon.view", "View")}
                           icon={<Eye className="h-3.5 w-3.5" />}
                           onClick={() =>
                             void loadJob(job.job_id, job.status === "pending" || job.status === "running")
@@ -553,11 +896,11 @@ export default function Recon() {
             <div className="surface-section p-6">
               <h4 className="text-[10px] font-bold text-outline uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <ShieldAlert className="h-4 w-4 text-primary" />
-                Selected Job Modules
+                {t("recon.selectedJobModules", "Selected Job Modules")}
               </h4>
               <div className="space-y-3">
                 {!activeJob?.results ? (
-                  <div className="text-xs text-on-surface-variant">No module results loaded yet.</div>
+                  <div className="text-xs text-on-surface-variant">{t("recon.noModuleResults", "No module results loaded yet.")}</div>
                 ) : (
                   (Object.entries(activeJob.results) as Array<[string, ReconModuleResult]>).map(([moduleName, entry]) => (
                     <div key={moduleName} className="rounded-sm bg-surface-container-low px-4 py-3">
@@ -572,8 +915,14 @@ export default function Recon() {
                         </span>
                       </div>
                       <div className="mt-2 text-[11px] text-on-surface-variant">
-                        {entry.from_cache ? "from cache" : `${entry.duration_ms || 0} ms`}
+                        {entry.from_cache ? t("recon.fromCache", "from cache") : `${entry.duration_ms || 0} ms`}
                       </div>
+                      {moduleName === "web" ? (
+                        <ReconWebModuleSummary
+                          entry={entry}
+                          t={t}
+                        />
+                      ) : null}
                     </div>
                   ))
                 )}
@@ -583,11 +932,11 @@ export default function Recon() {
             <div className="surface-section p-6">
               <h4 className="text-[10px] font-bold text-outline uppercase tracking-[0.15em] mb-4 flex items-center gap-2">
                 <Activity className="h-4 w-4 text-primary" />
-                Target History
+                {t("recon.targetHistory", "Target History")}
               </h4>
               <div className="space-y-3">
                 {history.length === 0 ? (
-                  <div className="text-xs text-on-surface-variant">No history loaded for the current target.</div>
+                  <div className="text-xs text-on-surface-variant">{t("recon.noTargetHistory", "No history loaded for the current target.")}</div>
                 ) : (
                   history.map((job) => (
                     <div key={job.job_id} className="rounded-sm bg-surface-container-low px-4 py-3">
@@ -598,7 +947,7 @@ export default function Recon() {
                         </span>
                       </div>
                       <div className="mt-2 text-[11px] text-on-surface-variant">
-                        {formatTimestamp(job.created_at)}
+                        {formatTimestamp(job.created_at, locale)}
                       </div>
                     </div>
                   ))
@@ -608,6 +957,105 @@ export default function Recon() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ReconKvRow({
+  label,
+  value,
+  mono = false,
+}: {
+  label: string;
+  value: string | number | string[] | null | undefined;
+  mono?: boolean;
+}) {
+  if (value === null || value === undefined || value === "") return null;
+  const normalized = Array.isArray(value) ? value.join(", ") : String(value);
+  if (!normalized) return null;
+  return (
+    <div className="flex gap-3 text-xs">
+      <span className="min-w-[92px] shrink-0 text-on-surface-variant">{label}</span>
+      <span className={`break-all text-on-surface ${mono ? "font-mono" : ""}`}>{normalized}</span>
+    </div>
+  );
+}
+
+function ReconListBlock({
+  label,
+  values,
+  mono = false,
+}: {
+  label: string;
+  values: string[];
+  mono?: boolean;
+}) {
+  return (
+    <div>
+      <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {values.slice(0, 20).map((value) => (
+          <span
+            key={value}
+            className={`rounded-sm bg-surface-container-lowest px-2 py-1 text-[11px] font-medium text-on-surface ${mono ? "font-mono" : ""}`}
+          >
+            {value}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ReconWebModuleSummary({
+  entry,
+  t,
+}: {
+  entry: ReconModuleResult;
+  t: (key: string, fallback?: string) => string;
+}) {
+  const data = (entry.data || null) as WebModuleData | null;
+  if (!data) return null;
+  const presentHeaders = Object.entries(data.security_headers || {}).filter(([, present]) => present);
+  const missingHeaders = Object.entries(data.security_headers || {}).filter(([, present]) => !present);
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-surface-container pt-3">
+      <ReconKvRow label={t("recon.httpStatus", "HTTP Status")} value={data.status_code} />
+      <ReconKvRow label={t("recon.finalUrl", "Final URL")} value={data.final_url} mono />
+      <ReconKvRow label={t("recon.titleLabel", "Title")} value={data.title} />
+      <ReconKvRow label={t("recon.serverLabel", "Server")} value={data.server} mono />
+      <ReconKvRow label={t("recon.poweredBy", "X-Powered-By")} value={data.x_powered_by} mono />
+      {(data.technologies || []).length > 0 && (
+        <ReconListBlock label={t("recon.technologies", "Technologies")} values={data.technologies || []} />
+      )}
+      {(presentHeaders.length > 0 || missingHeaders.length > 0) && (
+        <div>
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
+            {t("recon.securityHeaders", "Security Headers")}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {presentHeaders.map(([header]) => (
+              <span
+                key={header}
+                className="rounded-sm bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary"
+              >
+                {header}
+              </span>
+            ))}
+            {missingHeaders.map(([header]) => (
+              <span
+                key={header}
+                className="rounded-sm bg-error/10 px-2 py-1 text-[10px] font-bold text-error"
+              >
+                {t("recon.missingHeader", "Missing")} {header}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

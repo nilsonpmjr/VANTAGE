@@ -1,16 +1,7 @@
 import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
-
-interface ShortcutEntry {
-  keys: string[];
-  description: string;
-}
-
-interface ShortcutGroup {
-  title: string;
-  shortcuts: ShortcutEntry[];
-}
+import { buildShortcutGroups, type ShortcutGroup } from "../../lib/shortcuts";
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -32,30 +23,7 @@ interface Props {
 export default function KeyboardShortcutsModal({ open, onClose }: Props) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
-
-  const groups: ShortcutGroup[] = [
-    {
-      title: t("help.shortcutsGroupNavigation"),
-      shortcuts: [
-        { keys: ["G", "H"], description: t("help.shortcutGoHome") },
-        { keys: ["G", "F"], description: t("help.shortcutGoFeed") },
-        { keys: ["G", "R"], description: t("help.shortcutGoRecon") },
-        { keys: ["G", "W"], description: t("help.shortcutGoWatchlist") },
-        { keys: ["G", "D"], description: t("help.shortcutGoDashboard") },
-        { keys: ["G", "P"], description: t("help.shortcutGoProfile") },
-        { keys: ["G", "S"], description: t("help.shortcutGoSettings") },
-      ],
-    },
-    {
-      title: t("help.shortcutsGroupActions"),
-      shortcuts: [
-        { keys: [mod, "L"], description: t("help.shortcutFocusSearch") },
-        { keys: [mod, "/"], description: t("help.shortcutToggleShortcuts") },
-        { keys: ["Esc"], description: t("help.shortcutCloseModal") },
-        { keys: ["?"], description: t("help.shortcutShowDialog") },
-      ],
-    },
-  ];
+  const groups: ShortcutGroup[] = buildShortcutGroups(t, mod, true);
 
   useEffect(() => {
     if (!open) return;
@@ -83,7 +51,7 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
       <div className="absolute inset-0 bg-black/40" />
       <div
         ref={dialogRef}
-        className="relative w-full max-w-lg bg-surface-container-lowest border border-outline-variant/20 rounded-sm shadow-xl z-10"
+        className="relative w-full max-w-2xl bg-surface-container-lowest border border-outline-variant/20 rounded-sm shadow-xl z-10"
       >
         <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20 bg-surface-container-high">
           <h2 className="text-sm font-bold tracking-tight text-on-surface">

@@ -49,6 +49,8 @@ class UserPreferencesUpdate(BaseModel):
     password: Optional[str] = None
     preferred_lang: Optional[str] = None
     avatar_base64: Optional[str] = None
+    avatar_fit: Optional[str] = None
+    bio: Optional[str] = None
     recovery_email: Optional[str] = None
     notification_center: Optional[dict] = None
 
@@ -172,6 +174,10 @@ async def update_my_preferences(
         update_data["preferred_lang"] = prefs.preferred_lang
     if prefs.avatar_base64 is not None:
         update_data["avatar_base64"] = prefs.avatar_base64
+    if prefs.avatar_fit is not None:
+        update_data["avatar_fit"] = "contain" if prefs.avatar_fit == "contain" else "cover"
+    if prefs.bio is not None:
+        update_data["bio"] = str(prefs.bio).strip()[:500]
     if prefs.recovery_email is not None:
         normalized_recovery_email = normalize_email(prefs.recovery_email)
         if normalized_recovery_email and not is_valid_email_format(normalized_recovery_email):

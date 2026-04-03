@@ -346,6 +346,74 @@ async def test_update_my_preferences_rejects_duplicate_recovery_email(async_clie
 
 
 @pytest.mark.asyncio
+async def test_update_my_preferences_persists_bio_and_avatar(async_client, fake_db):
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    avatar_data = "data:image/png;base64,ZmFrZV9hdmF0YXI="
+    resp = await async_client.put(
+        "/api/users/me",
+        json={
+            "bio": "SOC lead for regional operations",
+            "avatar_base64": avatar_data,
+            "avatar_fit": "contain",
+        },
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 200
+
+    user = await fake_db.users.find_one({"username": "techuser"})
+    assert user["bio"] == "SOC lead for regional operations"
+    assert user["avatar_base64"] == avatar_data
+    assert user["avatar_fit"] == "contain"
+
+
+@pytest.mark.asyncio
+async def test_auth_me_returns_avatar_fit(async_client, fake_db):
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {"avatar_fit": "contain", "avatar_base64": "data:image/png;base64,abc"}},
+    )
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    resp = await async_client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["avatar_fit"] == "contain"
+    assert body["avatar_base64"] == "data:image/png;base64,abc"
+
+
+@pytest.mark.asyncio
+async def test_update_my_preferences_persists_notification_center(async_client, fake_db):
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    resp = await async_client.put(
+        "/api/users/me",
+        json={
+            "notification_center": {
+                "read_ids": ["note-1"],
+                "archived_ids": ["note-2"],
+                "preferences": {
+                    "critical": False,
+                    "system": True,
+                    "intelligence": False,
+                },
+            }
+        },
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 200
+
+    user = await fake_db.users.find_one({"username": "techuser"})
+    assert user["notification_center"]["read_ids"] == ["note-1"]
+    assert user["notification_center"]["archived_ids"] == ["note-2"]
+    assert user["notification_center"]["preferences"] == {
+        "critical": False,
+        "system": True,
+        "intelligence": False,
+    }
+
+
+@pytest.mark.asyncio
 async def test_create_user_rejects_duplicate_email_case_insensitive(client):
     admin_token = create_access_token({"sub": "admin", "role": "admin"})
     resp = await client.post("/api/users", json={

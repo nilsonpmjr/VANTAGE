@@ -226,6 +226,8 @@ def _build_user_dict(
         "mfa_enabled": user.get("mfa_enabled", False),
         "mfa_setup_required": mfa_setup_required,
         "avatar_base64": user.get("avatar_base64", ""),
+        "avatar_fit": user.get("avatar_fit", "cover"),
+        "bio": user.get("bio"),
         "recovery_email": user.get("recovery_email"),
         "notification_center": default_notification_center(user.get("notification_center")),
     }

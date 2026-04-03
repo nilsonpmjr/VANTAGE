@@ -24,6 +24,8 @@ export interface AuthUser {
   mfa_enabled?: boolean;
   mfa_setup_required?: boolean;
   avatar_base64?: string;
+  avatar_fit?: "cover" | "contain";
+  bio?: string | null;
   recovery_email?: string | null;
   password_expires_in_days?: number;
   extra_permissions?: string[];

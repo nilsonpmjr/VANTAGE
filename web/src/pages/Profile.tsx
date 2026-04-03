@@ -146,12 +146,20 @@ export default function Profile() {
   const [thirdPartySaving, setThirdPartySaving] = useState("");
 
   const [recoveryEmail, setRecoveryEmail] = useState(user?.recovery_email || "");
+  const [avatarDraft, setAvatarDraft] = useState(user?.avatar_base64 || "");
+  const [avatarFit, setAvatarFit] = useState<"cover" | "contain">(user?.avatar_fit || "cover");
+  const [pendingAvatarData, setPendingAvatarData] = useState("");
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
+  const [bio, setBio] = useState(user?.bio || "");
   const [preferredLang, setPreferredLang] = useState(user?.preferred_lang || "pt");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [criticalAlerts, setCriticalAlerts] = useState(true);
   const [dailySummary, setDailySummary] = useState(true);
   const [moduleUpdates, setModuleUpdates] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const [identityDirty, setIdentityDirty] = useState(false);
+  const [preferencesDirty, setPreferencesDirty] = useState(false);
 
   const [apiKeys, setApiKeys] = useState<ApiKeyItem[]>([]);
   const [freshKey, setFreshKey] = useState<ApiKeyItem | null>(null);
@@ -171,6 +179,7 @@ export default function Profile() {
   const [auditItems, setAuditItems] = useState<AuditItem[]>([]);
   const [auditEventFilter, setAuditEventFilter] = useState("all");
   const [auditResultFilter, setAuditResultFilter] = useState("all");
+  const [selectedAuditItem, setSelectedAuditItem] = useState<AuditItem | null>(null);
   const providerInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
   useEffect(() => {
@@ -186,9 +195,19 @@ export default function Profile() {
 
   useEffect(() => {
     if (!user) return;
-    setRecoveryEmail(user.recovery_email || "");
-    setPreferredLang(user.preferred_lang || "pt");
-  }, [user]);
+    if (!identityDirty) {
+      setAvatarDraft(user.avatar_base64 || "");
+      setAvatarFit(user.avatar_fit || "cover");
+      setRecoveryEmail(user.recovery_email || "");
+      setBio(user.bio || "");
+    }
+    if (!preferencesDirty) {
+      setPreferredLang(user.preferred_lang || "pt");
+      setCriticalAlerts(user.notification_center?.preferences?.critical !== false);
+      setDailySummary(user.notification_center?.preferences?.intelligence !== false);
+      setModuleUpdates(user.notification_center?.preferences?.system !== false);
+    }
+  }, [identityDirty, preferencesDirty, user]);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,10 +335,26 @@ export default function Profile() {
   }, [activeTab]);
 
   const avatarSrc =
+    avatarDraft ||
     user?.avatar_base64 ||
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
       user?.username || "operator",
     )}`;
+  const avatarObjectClass = avatarFit === "contain" ? "object-contain" : "object-cover";
+  const notificationCenterDraft = {
+    read_ids: user?.notification_center?.read_ids || [],
+    archived_ids: user?.notification_center?.archived_ids || [],
+    preferences: {
+      critical: criticalAlerts,
+      system: moduleUpdates,
+      intelligence: dailySummary,
+    },
+  };
+  const hasPreferenceChanges =
+    preferredLang !== (user?.preferred_lang || "pt") ||
+    criticalAlerts !== (user?.notification_center?.preferences?.critical !== false) ||
+    moduleUpdates !== (user?.notification_center?.preferences?.system !== false) ||
+    dailySummary !== (user?.notification_center?.preferences?.intelligence !== false);
 
   useEffect(() => {
     if (!onboardingSource || activeTab !== "external_api_keys") return;
@@ -370,15 +405,27 @@ export default function Profile() {
         method: "PUT",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ recovery_email: recoveryEmail || null }),
+        body: JSON.stringify({
+          recovery_email: recoveryEmail || null,
+          avatar_base64: avatarDraft || null,
+          avatar_fit: avatarFit,
+          bio,
+        }),
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData?.detail || "identity_update_failed");
       }
       if (user) {
-        updateUserContext({ ...user, recovery_email: recoveryEmail || null });
+        updateUserContext({
+          ...user,
+          recovery_email: recoveryEmail || null,
+          avatar_base64: avatarDraft || null,
+          avatar_fit: avatarFit,
+          bio,
+        });
       }
+      setIdentityDirty(false);
       setNotice("Identity profile synchronized with the backend.");
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
@@ -403,14 +450,20 @@ export default function Profile() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           preferred_lang: preferredLang,
+          notification_center: notificationCenterDraft,
         }),
       });
       if (!response.ok) {
         throw new Error("prefs_update_failed");
       }
       if (user) {
-        updateUserContext({ ...user, preferred_lang: preferredLang });
+        updateUserContext({
+          ...user,
+          preferred_lang: preferredLang,
+          notification_center: notificationCenterDraft,
+        });
       }
+      setPreferencesDirty(false);
       setLanguage(preferredLang as "pt" | "en" | "es");
       setNotice(t("profile.preferences.saved", "Regional preferences updated."));
     } catch {
@@ -418,6 +471,28 @@ export default function Profile() {
     } finally {
       setSavingPreferences(false);
     }
+  }
+
+  function handleAvatarFileChange(file: File | null) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === "string" ? reader.result : "";
+      if (!result) return;
+      setPendingAvatarData(result);
+      setAvatarEditorOpen(true);
+      setNotice("");
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function confirmAvatarSelection() {
+    if (!pendingAvatarData) return;
+    setIdentityDirty(true);
+    setAvatarDraft(pendingAvatarData);
+    setAvatarEditorOpen(false);
+    setPendingAvatarData("");
+    setNotice("Avatar preparado para salvar.");
   }
 
   async function updatePassword() {
@@ -690,12 +765,20 @@ export default function Profile() {
                 <img
                   src={avatarSrc}
                   alt={user?.username || "User"}
-                  className="w-24 h-24 rounded-full border-4 border-white shadow-lg bg-surface-container-lowest"
+                  className={`w-24 h-24 rounded-full border-4 border-white shadow-lg bg-surface-container-lowest ${avatarObjectClass}`}
+                />
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => handleAvatarFileChange(event.target.files?.[0] || null)}
                 />
                 <button
-                  className="absolute bottom-0 right-0 bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center shadow-md opacity-60 cursor-not-allowed"
-                  title="Avatar upload not available yet"
-                  disabled
+                  className="absolute bottom-0 right-0 bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:bg-primary-dim transition-colors"
+                  title="Atualizar avatar"
+                  type="button"
+                  onClick={() => avatarInputRef.current?.click()}
                 >
                   <Camera className="w-4 h-4" />
                 </button>
@@ -801,44 +884,23 @@ export default function Profile() {
                         className="col-span-2"
                         label="Recovery Channel (Email)"
                         value={recoveryEmail}
-                        onChange={setRecoveryEmail}
+                        onChange={(value) => {
+                          setIdentityDirty(true);
+                          setRecoveryEmail(value);
+                        }}
                         placeholder="fallback@vantage.local"
                         type="email"
                       />
-                      <Field
+                      <EditableField
                         className="col-span-2"
                         label="Bio / Operator Notes"
-                        value={`Primary profile synchronized from the identity service for ${
-                          user?.role || "this"
-                        } account.`}
+                        value={bio}
+                        onChange={(value) => {
+                          setIdentityDirty(true);
+                          setBio(value);
+                        }}
+                        placeholder="Notas do operador, função, contexto regional ou observações úteis..."
                         multiline
-                        readOnly
-                      />
-                    </div>
-
-                    <hr className="border-outline-variant/20" />
-
-                    <div className="space-y-4">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                        Global Notification Protocols
-                      </h4>
-                      <ToggleCard
-                        checked={criticalAlerts}
-                        onChange={setCriticalAlerts}
-                        title="Critical System Alerts"
-                        description="Immediate notification for node failures or breaches."
-                      />
-                      <ToggleCard
-                        checked={dailySummary}
-                        onChange={setDailySummary}
-                        title="Daily Threat Summary"
-                        description="Aggregated report of global threat intelligence."
-                      />
-                      <ToggleCard
-                        checked={moduleUpdates}
-                        onChange={setModuleUpdates}
-                        title="Module Update Notifications"
-                        description="Client-side preference only until server persistence is added."
                       />
                     </div>
 
@@ -846,7 +908,11 @@ export default function Profile() {
                       <button
                         className="btn btn-ghost"
                         onClick={() => {
+                          setAvatarDraft(user?.avatar_base64 || "");
+                          setAvatarFit(user?.avatar_fit || "cover");
                           setRecoveryEmail(user?.recovery_email || "");
+                          setBio(user?.bio || "");
+                          setIdentityDirty(false);
                         }}
                       >
                         Discard Changes
@@ -876,7 +942,10 @@ export default function Profile() {
                         </label>
                         <select
                           value={preferredLang}
-                          onChange={(event) => setPreferredLang(event.target.value)}
+                          onChange={(event) => {
+                            setPreferencesDirty(true);
+                            setPreferredLang(event.target.value);
+                          }}
                           className="w-full bg-surface-container-low border-b-2 border-outline focus:border-primary px-0 py-2 text-sm font-medium transition-all appearance-none cursor-pointer outline-none focus:ring-0 border-t-0 border-x-0"
                         >
                           <option value="en">Inglês (United States)</option>
@@ -886,6 +955,15 @@ export default function Profile() {
                         <p className="text-[10px] text-on-surface-variant mt-1">
                           Affects all operational logs and system labels.
                         </p>
+                        <div className="pt-2">
+                          <button
+                            className="btn btn-primary"
+                            onClick={savePreferences}
+                            disabled={savingPreferences || !hasPreferenceChanges}
+                          >
+                            {savingPreferences ? "Saving..." : "Save Preferences"}
+                          </button>
+                        </div>
                       </div>
 
                       <div className="max-w-xs space-y-2">
@@ -989,6 +1067,41 @@ export default function Profile() {
                           </div>
                         </div>
                       </section>
+                    </div>
+                  </div>
+
+                  <div className="card overflow-hidden">
+                    <div className="card-header">
+                      <h3 className="card-title">Notification Routing Preferences</h3>
+                    </div>
+                    <div className="p-6 space-y-4">
+                      <ToggleCard
+                        checked={criticalAlerts}
+                        onChange={(value) => {
+                          setPreferencesDirty(true);
+                          setCriticalAlerts(value);
+                        }}
+                        title="Critical Incident Routing"
+                        description="Escalations and high-risk findings shown in the operator queue."
+                      />
+                      <ToggleCard
+                        checked={moduleUpdates}
+                        onChange={(value) => {
+                          setPreferencesDirty(true);
+                          setModuleUpdates(value);
+                        }}
+                        title="System Notices"
+                        description="Control-plane and service-state updates relevant to the operator."
+                      />
+                      <ToggleCard
+                        checked={dailySummary}
+                        onChange={(value) => {
+                          setPreferencesDirty(true);
+                          setDailySummary(value);
+                        }}
+                        title="Intelligence Feed Items"
+                        description="Feed-derived signals and editorial intelligence surfaced in notifications."
+                      />
                     </div>
                   </div>
 
@@ -1099,19 +1212,16 @@ export default function Profile() {
                     <button
                       className="btn btn-ghost"
                       onClick={() => {
-                        setPreferredLang(user?.preferred_lang || "pt");
-                        setNewPassword("");
-                        setConfirmPassword("");
-                      }}
+                          setPreferredLang(user?.preferred_lang || "pt");
+                          setNewPassword("");
+                          setConfirmPassword("");
+                          setCriticalAlerts(user?.notification_center?.preferences?.critical !== false);
+                          setDailySummary(user?.notification_center?.preferences?.intelligence !== false);
+                          setModuleUpdates(user?.notification_center?.preferences?.system !== false);
+                          setPreferencesDirty(false);
+                        }}
                     >
                       Discard
-                    </button>
-                    <button
-                      className="btn btn-primary"
-                      onClick={savePreferences}
-                      disabled={savingPreferences}
-                    >
-                      {savingPreferences ? "Saving..." : "Commit Changes"}
                     </button>
                   </div>
                 </div>
@@ -1612,6 +1722,8 @@ export default function Profile() {
                                 <button
                                   className="inline-flex items-center gap-1 text-primary text-[11px] font-bold hover:underline"
                                   title={item.detail || "No extra detail"}
+                                  type="button"
+                                  onClick={() => setSelectedAuditItem(item)}
                                 >
                                   Detail
                                   <ExternalLink className="w-3 h-3" />
@@ -1820,6 +1932,128 @@ export default function Profile() {
           </div>
         </div>
       )}
+
+      {selectedAuditItem && (
+        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
+          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden">
+            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
+              <div>
+                <div className="page-eyebrow">Audit Detail</div>
+                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
+                  {selectedAuditItem.action}
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
+                  Event detail captured from the operator audit registry.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost !px-2"
+                onClick={() => setSelectedAuditItem(null)}
+                aria-label="Close audit detail"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6">
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <Field label="Timestamp" value={formatTimestamp(selectedAuditItem.timestamp)} readOnly />
+                <Field label="User" value={selectedAuditItem.user || "—"} readOnly />
+                <Field label="Result" value={selectedAuditItem.result || "unknown"} readOnly />
+                <Field label="IP Address" value={selectedAuditItem.ip || "—"} readOnly />
+                <Field className="md:col-span-2" label="Target" value={selectedAuditItem.target || "—"} readOnly />
+                <Field
+                  className="md:col-span-2"
+                  label="Detail"
+                  value={selectedAuditItem.detail || "No extra detail available for this event."}
+                  multiline
+                  readOnly
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {avatarEditorOpen && (
+        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
+          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden">
+            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
+              <div>
+                <div className="page-eyebrow">Avatar Editor</div>
+                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
+                  Ajustar foto de perfil
+                </h3>
+                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
+                  Revise como a foto será exibida no avatar antes de salvar.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn btn-ghost !px-2"
+                onClick={() => {
+                  setAvatarEditorOpen(false);
+                  setPendingAvatarData("");
+                }}
+                aria-label="Close avatar editor"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6 space-y-6">
+              <div className="flex justify-center">
+                <div className="flex h-56 w-56 items-center justify-center rounded-full border-4 border-white bg-surface-container-low shadow-lg">
+                  <img
+                    src={pendingAvatarData}
+                    alt="Avatar preview"
+                    className={`h-full w-full rounded-full ${avatarFit === "contain" ? "object-contain" : "object-cover"}`}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+                  Ajuste da imagem
+                </label>
+                <div className="nav-pills mt-2 inline-flex w-full">
+                  <button
+                    className={`flex-1 nav-pill-item ${avatarFit === "cover" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+                    onClick={() => setAvatarFit("cover")}
+                  >
+                    Preencher
+                  </button>
+                  <button
+                    className={`flex-1 nav-pill-item ${avatarFit === "contain" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+                    onClick={() => setAvatarFit("contain")}
+                  >
+                    Ajustar
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  className="btn btn-ghost"
+                  onClick={() => {
+                    setAvatarEditorOpen(false);
+                    setPendingAvatarData("");
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  className="btn btn-primary"
+                  onClick={confirmAvatarSelection}
+                >
+                  Usar foto
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1882,6 +2116,7 @@ function EditableField({
   placeholder,
   type = "text",
   className = "",
+  multiline = false,
 }: {
   label: string;
   value: string;
@@ -1889,7 +2124,25 @@ function EditableField({
   placeholder?: string;
   type?: string;
   className?: string;
+  multiline?: boolean;
 }) {
+  if (multiline) {
+    return (
+      <div className={`space-y-1 ${className}`}>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+          {label}
+        </label>
+        <textarea
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          rows={4}
+          className="w-full resize-none bg-surface-container-low border-b-2 border-outline focus:border-primary border-t-0 border-x-0 px-0 py-2 text-sm font-medium transition-all focus:ring-0 outline-none"
+        />
+      </div>
+    );
+  }
+
   return (
     <div className={`space-y-1 ${className}`}>
       <label className="text-[10px] font-bold uppercase tracking-wider text-outline">

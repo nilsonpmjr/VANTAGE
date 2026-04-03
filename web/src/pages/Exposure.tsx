@@ -70,6 +70,29 @@ function severityClasses(severity?: string) {
   return "bg-primary/10 text-primary";
 }
 
+function severityLabel(severity: string | undefined, t: (key: string, fallback?: string) => string) {
+  if (severity === "critical") return t("exposure.severityCritical", "critical");
+  if (severity === "high") return t("exposure.severityHigh", "high");
+  if (severity === "medium") return t("exposure.severityMedium", "medium");
+  if (severity === "low") return t("exposure.severityLow", "low");
+  return severity || t("exposure.unknownSeverity", "unknown");
+}
+
+function scheduleLabel(schedule: string | undefined, t: (key: string, fallback?: string) => string) {
+  if (schedule === "manual") return t("exposure.scheduleManual", "manual");
+  if (schedule === "daily") return t("exposure.scheduleDaily", "daily");
+  if (schedule === "continuous") return t("exposure.scheduleContinuous", "continuous");
+  return schedule || t("exposure.scheduleManual", "manual");
+}
+
+function incidentStatusLabel(status: string | undefined, t: (key: string, fallback?: string) => string) {
+  if (status === "investigating") return t("exposure.statusInvestigating", "investigating");
+  if (status === "resolved") return t("exposure.statusResolved", "resolved");
+  if (status === "dismissed") return t("exposure.statusDismissed", "dismissed");
+  if (status === "open") return t("exposure.statusOpen", "open");
+  return status || t("exposure.statusUnknown", "unknown");
+}
+
 export default function Exposure() {
   const { locale, t } = useLanguage();
   const [providers, setProviders] = useState<ExposureProvider[]>([]);
@@ -449,7 +472,7 @@ export default function Exposure() {
                         <button type="button" onClick={() => { setSelectedAssetId(asset._id); setSelectedFindingIds([]); }} className="text-left">
                           <div className="text-sm font-bold text-on-surface">{asset.value}</div>
                           <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">
-                            {asset.asset_type} · {asset.recurrence?.mode || t("exposure.scheduleManual", "manual")} · {asset.recurrence?.last_status || t("exposure.neverRun", "never_run")}
+                            {asset.asset_type} · {scheduleLabel(asset.recurrence?.mode, t)} · {asset.recurrence?.last_status || t("exposure.neverRun", "never_run")}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-3 text-xs text-on-surface-variant">
                             <span>{asset.finding_count} {t("exposure.findingCount", "finding(s)")}</span>
@@ -485,12 +508,12 @@ export default function Exposure() {
                                     <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">{finding.kind}</div>
                                   </div>
                                   <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(finding.severity)}`}>
-                                    {finding.severity}
+                                    {severityLabel(finding.severity, t)}
                                   </span>
                                 </div>
                                 <div className="mt-3 text-xs text-on-surface-variant">{finding.summary}</div>
                                 <div className="mt-3 flex items-center justify-between gap-3 text-[11px] text-on-surface-variant">
-                                  <span>{finding.incident_id ? `Incident ${finding.incident_id}` : t("exposure.notPromoted", "Not promoted")}</span>
+                                  <span>{finding.incident_id ? `${t("exposure.incidentPrefix", "Incident")} ${finding.incident_id}` : t("exposure.notPromoted", "Not promoted")}</span>
                                   {finding.external_ref && (
                                     <a href={finding.external_ref} target="_blank" rel="noreferrer" className="inline-flex text-xs font-bold uppercase tracking-[0.16em] text-primary hover:underline">
                                       {t("exposure.openReference", "Open reference")}
@@ -564,7 +587,7 @@ export default function Exposure() {
                         <div className="mt-1 text-[11px] text-on-surface-variant">{incident.summary}</div>
                       </div>
                       <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${severityClasses(incident.severity)}`}>
-                        {incident.severity}
+                        {severityLabel(incident.severity, t)}
                       </span>
                     </div>
                     <div className="mt-3 flex flex-wrap gap-2">
@@ -579,7 +602,7 @@ export default function Exposure() {
                       </button>
                     </div>
                     <div className="mt-3 text-[11px] text-on-surface-variant">
-                      {incident.status} · {t("exposure.updated", "Updated")} {formatTimestamp(incident.updated_at, locale)}
+                      {incidentStatusLabel(incident.status, t)} · {t("exposure.updated", "Updated")} {formatTimestamp(incident.updated_at, locale)}
                     </div>
                   </div>
                 ))
@@ -600,7 +623,7 @@ export default function Exposure() {
                   <div key={provider.key} className="rounded-sm bg-surface-container-low p-4">
                     <div className="text-sm font-bold text-on-surface">{provider.name}</div>
                     <div className="mt-1 text-[11px] text-on-surface-variant">
-                      {provider.assetTypes.join(", ")} · {t("exposure.schedulePrefix", "schedule")} {provider.recommendedSchedule || t("exposure.scheduleManual", "manual")}
+                      {provider.assetTypes.join(", ")} · {t("exposure.schedulePrefix", "schedule")} {scheduleLabel(provider.recommendedSchedule, t)}
                     </div>
                   </div>
                 ))}

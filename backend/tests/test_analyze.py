@@ -102,6 +102,34 @@ async def test_analyze_valid_hash(MockClient, async_client, auth_headers):
 
 @pytest.mark.asyncio
 @patch("routers.analyze.AsyncThreatIntelClient")
+async def test_analyze_respects_language_param(MockClient, async_client, auth_headers):
+    vt_resp = MagicMock()
+    vt_resp.success = True
+    vt_resp.data = {"data": {"attributes": {"last_analysis_stats": {"malicious": 1, "undetected": 50}}}}
+    vt_resp.error = None
+
+    mock_instance = AsyncMock()
+    mock_instance.query_all = AsyncMock(return_value={"virustotal": vt_resp})
+    mock_instance.__aenter__ = AsyncMock(return_value=mock_instance)
+    mock_instance.__aexit__ = AsyncMock(return_value=False)
+    MockClient.return_value = mock_instance
+
+    response = await async_client.get(
+        "/api/analyze?target=8.8.8.8&lang=en",
+        headers=auth_headers,
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert "analysis_reports" in body
+    assert "analysis_section_sets" in body
+    assert "en" in body["analysis_reports"]
+    assert "pt" in body["analysis_reports"]
+    assert body["analysis_report"] == body["analysis_reports"]["en"]
+    assert body["analysis_sections"] == body["analysis_section_sets"]["en"]
+
+
+@pytest.mark.asyncio
+@patch("routers.analyze.AsyncThreatIntelClient")
 async def test_analyze_verdict_high_risk(MockClient, async_client, auth_headers):
     """When 2+ services flag the target, verdict must be HIGH RISK."""
     vt_resp = MagicMock(

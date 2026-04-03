@@ -4,7 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Layers, Search, Upload, X } from "lucide-react";
 import {
   BATCH_MAX_ITEMS,
+  expandIpv4Cidr,
   isBatchInput,
+  parseSearchDirective,
   parseFileTargets,
   parseTargets,
 } from "../../lib/scanTargets";
@@ -88,6 +90,28 @@ export default function GlobalScanLauncher({
     event.preventDefault();
     const cleaned = query.trim();
     if (!cleaned) return;
+    const directive = parseSearchDirective(cleaned);
+
+    if (directive?.kind === "tag" && directive.value) {
+      navigate(`/feed?family=${encodeURIComponent(directive.value)}`);
+      onClose();
+      return;
+    }
+
+    if (directive?.kind === "cidr" && directive.value) {
+      const expandedTargets = expandIpv4Cidr(directive.value).slice(0, BATCH_MAX_ITEMS);
+      if (!expandedTargets.length) {
+        setWarning(t("scan.warnings.noValidTargets"));
+        return;
+      }
+      sessionStorage.setItem(
+        "vantage:last-batch-targets",
+        JSON.stringify(expandedTargets),
+      );
+      navigate("/batch", { state: { targets: expandedTargets } });
+      onClose();
+      return;
+    }
 
     if (batchMode && targetCount > 1) {
       const limitedTargets = targets.slice(0, BATCH_MAX_ITEMS);

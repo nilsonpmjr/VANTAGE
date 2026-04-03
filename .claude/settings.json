@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p /mnt/SSD3/lm-studio/models)",
+      "Read(//home/nilsonpmjr/.gemini/antigravity/scratch/Threat-Intelligence-Tool/**)",
+      "Bash(touch /mnt/SSD3/lm-studio/models/test_write)",
+      "Bash(rm /mnt/SSD3/lm-studio/models/test_write)",
+      "Bash(distrobox-host-exec which:*)",
+      "Bash(distrobox-host-exec npx:*)",
+      "Bash(distrobox-host-exec node:*)",
+      "Bash(distrobox-host-exec npm:*)",
+      "Bash(distrobox-host-exec ls:*)",
+      "Bash(distrobox-host-exec lms:*)",
+      "Bash(distrobox-host-exec cat:*)",
+      "Bash(wait)",
+      "Bash(env)"
+    ],
+    "additionalDirectories": [
+      "/home/nilsonpmjr/.lmstudio"
+    ]
+  }
+}

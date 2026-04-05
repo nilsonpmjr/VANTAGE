@@ -78,7 +78,7 @@ async def test_hunting_search_reports_unsupported_artifact_per_provider(async_cl
 async def test_hunting_search_reports_runtime_missing_when_provider_is_not_ready(async_client):
     token = create_access_token({"sub": "techuser", "role": "tech"})
 
-    import hunting_runtime
+    import hunting.runtime as hunting_runtime
 
     original = hunting_runtime.resolve_hunting_provider_runtime
     hunting_runtime.resolve_hunting_provider_runtime = lambda provider, exec_runner=None: {

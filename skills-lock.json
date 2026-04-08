@@ -36,6 +36,11 @@
       "sourceType": "github",
       "computedHash": "8ee93ac0e6cf1eaf606a5a1755b34fe10af42732066b64be9fbbb08d9b81418b"
     },
+    "generate-frontend-forms": {
+      "source": "getsentry/sentry",
+      "sourceType": "github",
+      "computedHash": "4327532932412c45bc176e5c565035d1e02cf79849a0026e761606f3abae9e40"
+    },
     "github-copilot-starter": {
       "source": "github/awesome-copilot",
       "sourceType": "github",

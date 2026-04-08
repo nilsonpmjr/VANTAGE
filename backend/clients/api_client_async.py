@@ -179,6 +179,11 @@ class AsyncThreatIntelClient:
             'base_url': 'https://threatfox-api.abuse.ch/api/v1',
             'rate_limit': (10, 60),
         },
+        'urlhaus': {
+            'env_var': 'URLHAUS_API_KEY',
+            'base_url': 'https://urlhaus-api.abuse.ch/v1',
+            'rate_limit': (10, 60),
+        },
         'pulsedive': {
             'env_var': 'PULSEDIVE_API_KEY',
             'base_url': 'https://pulsedive.com/api',
@@ -641,6 +646,39 @@ class AsyncThreatIntelClient:
 
         return response
 
+    async def query_urlhaus(self, target: str, target_type: str) -> APIResponse:
+        """Consulta URLhaus API (abuse.ch) para URLs/domínios/IPs/hashes maliciosos."""
+        if not self.services.get('urlhaus'):
+            return APIResponse(service='urlhaus', data=None, success=False, error="Service not available")
+
+        cache_key = self._get_cache_key('urlhaus', target)
+        if cache_key in self.cache:
+            return APIResponse(service='urlhaus', data=self.cache[cache_key], success=True, cached=True)
+
+        headers = {"Auth-Key": self.api_keys.get('urlhaus', '')}
+
+        if target_type == 'hash':
+            url = f"{self.SERVICES_CONFIG['urlhaus']['base_url']}/payload/"
+            form_data = {"sha256_hash": target} if len(target) == 64 else {"md5_hash": target}
+        elif target_type == 'domain':
+            url = f"{self.SERVICES_CONFIG['urlhaus']['base_url']}/host/"
+            form_data = {"host": target}
+        else:
+            # IP lookup uses the same /host/ endpoint
+            url = f"{self.SERVICES_CONFIG['urlhaus']['base_url']}/host/"
+            form_data = {"host": target}
+
+        response = await self._safe_request(
+            'urlhaus', 'POST', url,
+            headers=headers,
+            data=form_data,
+        )
+
+        if response.success and response.data:
+            self.cache[cache_key] = response.data
+
+        return response
+
     async def query_pulsedive(self, target: str) -> APIResponse:
         """Consulta Pulsedive API."""
         if not self.services.get('pulsedive'):
@@ -728,9 +766,11 @@ class AsyncThreatIntelClient:
         if target_type == 'domain' and self.services.get('urlscan'):
             tasks.append(('urlscan', self.query_urlscan(target)))
 
-        # Abuse.ch e Pulsedive — suportam todos os tipos
+        # Abuse.ch (ThreatFox), URLhaus e Pulsedive — suportam todos os tipos
         if self.services.get('abusech'):
             tasks.append(('abusech', self.query_abusech(target)))
+        if self.services.get('urlhaus'):
+            tasks.append(('urlhaus', self.query_urlhaus(target, target_type)))
         if self.services.get('pulsedive'):
             tasks.append(('pulsedive', self.query_pulsedive(target)))
 

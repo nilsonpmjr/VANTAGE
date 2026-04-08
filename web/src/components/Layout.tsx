@@ -7,6 +7,7 @@ import {
   Eye,
   Crosshair,
   ShieldAlert,
+  ClipboardList,
   LayoutDashboard,
   Settings,
   User,
@@ -42,6 +43,7 @@ const rootNavItems = [
   { path: "/watchlist", labelKey: "layout.nav.watchlist", fallback: "Watchlist", icon: Eye },
   { path: "/hunting", labelKey: "layout.nav.hunting", fallback: "Hunting", icon: Crosshair },
   { path: "/exposure", labelKey: "layout.nav.exposure", fallback: "Exposure", icon: ShieldAlert },
+  { path: "/shift-handoff", labelKey: "layout.nav.shiftHandoff", fallback: "Shift Handoff", icon: ClipboardList },
   { path: "/dashboard", labelKey: "layout.nav.dashboard", fallback: "Dashboard", icon: LayoutDashboard },
 ];
 

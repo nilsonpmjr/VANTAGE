@@ -26,6 +26,7 @@ class ThreatIntelClient:
             'urlscan': False,
             'blacklistmaster': False,
             'abusech': False,
+            'urlhaus': False,
             'pulsedive': False,
             'ip2location': False,
         }
@@ -43,6 +44,7 @@ class ThreatIntelClient:
             'urlscan': ('URLSCAN_API_KEY', False),
             'blacklistmaster': ('BLACKLISTMASTER_API_KEY', False),
             'abusech': ('ABUSECH_API_KEY', False),
+            'urlhaus': ('URLHAUS_API_KEY', False),
             'pulsedive': ('PULSEDIVE_API_KEY', False),
             'ip2location': ('IP2LOCATION_API_KEY', True),
         }
@@ -203,6 +205,22 @@ class ThreatIntelClient:
         payload = {"query": "search_ioc", "search_term": target}
 
         return self._safe_request("POST", url, headers=headers, json=payload)
+
+    def query_urlhaus(self, target: str, target_type: str) -> Optional[Dict[str, Any]]:
+        """Query URLhaus (abuse.ch) for malicious URLs/domains/IPs/hashes."""
+        if not self.services['urlhaus']:
+            return None
+
+        headers = {"Auth-Key": self.api_keys['urlhaus']}
+
+        if target_type == 'hash':
+            url = "https://urlhaus-api.abuse.ch/v1/payload/"
+            payload = {"sha256_hash": target} if len(target) == 64 else {"md5_hash": target}
+        else:
+            url = "https://urlhaus-api.abuse.ch/v1/host/"
+            payload = {"host": target}
+
+        return self._safe_request("POST", url, headers=headers, data=payload)
 
     def query_pulsedive(self, target: str) -> Optional[Dict[str, Any]]:
         """Query Pulsedive API for comprehensive intelligence."""

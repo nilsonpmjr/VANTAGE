@@ -78,6 +78,7 @@ const SOURCE_LABELS: Record<string, string> = {
   greynoise: "GreyNoise",
   urlscan: "UrlScan.io",
   abusech: "Abuse.ch",
+  urlhaus: "URLhaus",
   pulsedive: "Pulsedive",
   blacklistmaster: "BlacklistMaster",
 };
@@ -129,7 +130,9 @@ function formatEvidenceSignal(
     | "noMalwareLinkage"
     | "riskLevel"
     | "listed"
-    | "notListed",
+    | "notListed"
+    | "urlhausActive"
+    | "urlhausClean",
   params: Record<string, string | number> = {},
 ) {
   if (key === "detections") {
@@ -194,6 +197,16 @@ function formatEvidenceSignal(
     if (language === "pt") return "Presente em fontes de blacklist";
     if (language === "es") return "Presente en fuentes de blacklist";
     return "Present on blacklist sources";
+  }
+  if (key === "urlhausActive") {
+    if (language === "pt") return `${params.urlCount} URLs (${params.urlsOnline} online)`;
+    if (language === "es") return `${params.urlCount} URLs (${params.urlsOnline} en línea)`;
+    return `${params.urlCount} URLs (${params.urlsOnline} online)`;
+  }
+  if (key === "urlhausClean") {
+    if (language === "pt") return "Sem URLs maliciosas conhecidas";
+    if (language === "es") return "Sin URLs maliciosas conocidas";
+    return "No known malicious URLs";
   }
   if (language === "pt") return "Não presente em fontes de blacklist";
   if (language === "es") return "No presente en fuentes de blacklist";
@@ -477,6 +490,27 @@ function buildEvidenceRows(
         riskLabel: entry ? "CRITICAL" : "LOW",
         confidence: entry?.confidence_level || 15,
         pivotValue: entry?.ioc || entry?.md5_hash || entry?.sha256_hash || fallbackPivotValue,
+      });
+      continue;
+    }
+
+    if (service === "urlhaus") {
+      const urlsOnline = Number(data.urls_online || 0);
+      const urlCount = Number(data.url_count || 0);
+      const hasUrls = urlsOnline > 0 || urlCount > 0;
+      rows.push({
+        source: SOURCE_LABELS[service],
+        signal: hasUrls
+          ? formatEvidenceSignal(language, "urlhausActive", {
+              urlCount,
+              urlsOnline,
+            })
+          : formatEvidenceSignal(language, "urlhausClean"),
+        detailFields: [],
+        iocType: "url",
+        riskLabel: urlsOnline > 0 ? "HIGH" : urlCount > 0 ? "MEDIUM" : "LOW",
+        confidence: urlsOnline > 0 ? 85 : urlCount > 0 ? 55 : 15,
+        pivotValue: fallbackPivotValue,
       });
       continue;
     }

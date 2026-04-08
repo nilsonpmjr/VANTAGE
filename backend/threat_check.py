@@ -58,6 +58,9 @@ def main():
         if client.services['abusech']:
             report.add_result('abusech', client.query_abusech(target))
 
+        if client.services['urlhaus']:
+            report.add_result('urlhaus', client.query_urlhaus(target, target_type))
+
         if client.services['pulsedive']:
             report.add_result('pulsedive', client.query_pulsedive(target))
 

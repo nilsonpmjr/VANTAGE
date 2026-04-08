@@ -69,6 +69,9 @@ TRANS = {
         'risk_level': "Nível de Risco",
         'feeds': "Feeds",
         'clean_threats': "Status: Limpo (Não encontrado em ameaças ativas)",
+        'urlhaus_urls_online': "URLs Online",
+        'urlhaus_urls_total': "URLs Totais",
+        'urlhaus_clean': "Status: Limpo (Sem URLs maliciosas conhecidas)",
     },
     'en': {
         'title': "THREAT INTELLIGENCE REPORT",
@@ -136,6 +139,9 @@ TRANS = {
         'risk_level': "Risk Level",
         'feeds': "Feeds",
         'clean_threats': "Status: Clean (Not found in active threats)",
+        'urlhaus_urls_online': "URLs Online",
+        'urlhaus_urls_total': "Total URLs",
+        'urlhaus_clean': "Status: Clean (No known malicious URLs)",
     },
     'es': {
         'title': "INFORME DE INTELIGENCIA DE AMENAZAS",
@@ -203,6 +209,9 @@ TRANS = {
         'risk_level': "Nivel de Riesgo",
         'feeds': "Feeds",
         'clean_threats': "Estado: Limpio (No encontrado en amenazas activas)",
+        'urlhaus_urls_online': "URLs En Línea",
+        'urlhaus_urls_total': "URLs Totales",
+        'urlhaus_clean': "Estado: Limpio (Sin URLs maliciosas conocidas)",
     },
 }
 

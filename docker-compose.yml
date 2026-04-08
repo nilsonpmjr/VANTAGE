@@ -61,6 +61,21 @@ services:
       mongodb:
         condition: service_healthy
 
+  # Sidecar that connects the backend to the docker0 bridge for internet
+  # egress. Custom Docker bridge networks on Arch Linux kernel 6.19+ with
+  # iptables-legacy do not forward outbound traffic correctly. The default
+  # docker0 bridge has working NAT/masquerade rules, so we attach the
+  # backend to it after startup.
+  backend-egress:
+    image: docker:cli
+    container_name: vantage_backend_egress
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: ["sh", "-c", "docker network connect bridge vantage_backend 2>/dev/null; echo egress-attached"]
+    depends_on:
+      - backend
+
   frontend:
     build:
       context: ./web

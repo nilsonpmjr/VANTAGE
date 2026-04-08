@@ -10,7 +10,7 @@ from hunting_contracts import build_hunting_provider_descriptor, recommend_hunti
 from recon.engine import get_module_inventory
 
 MANIFEST_FILENAME = "vantage-plugin.json"
-VALID_KINDS = {"brand_pack", "recon_module", "report_exporter", "premium_feature"}
+VALID_KINDS = {"brand_pack", "recon_module", "report_exporter", "premium_feature", "community_feature"}
 VALID_STATUSES = {"detected", "invalid", "disabled", "enabled", "incompatible"}
 VALID_DISTRIBUTION_TIERS = {"core", "local", "premium"}
 VALID_REPOSITORY_VISIBILITIES = {"public", "private"}
@@ -260,7 +260,7 @@ def _validate_manifest(
                         dependency_weight=str(payload.get("dependencyWeight") or "light"),
                     ),
                 )
-            except ValueError as exc:
+            except (ValueError, RuntimeError) as exc:
                 errors.append(str(exc))
         elif premium_feature_type == "exposure_provider":
             try:
@@ -276,7 +276,7 @@ def _validate_manifest(
                     required_secrets=list(payload.get("requiredSecrets") or payload.get("permissions") or []),
                     recommended_schedule=str(payload.get("recommendedSchedule") or "daily"),
                 )
-            except ValueError as exc:
+            except (ValueError, RuntimeError) as exc:
                 errors.append(str(exc))
 
     public_asset_root = payload.get("publicAssetRoot")
@@ -444,54 +444,62 @@ def _enrich_descriptor(descriptor: dict[str, Any]) -> dict[str, Any]:
         descriptor["productSurface"] = descriptor.get("productSurface") or descriptor.get("capabilities", [])
         descriptor["requiresLicenseSecret"] = bool(descriptor.get("permissions"))
         if descriptor["status"] != "invalid" and descriptor.get("premiumFeatureType") == "hunting_provider":
-            hunting_provider = build_hunting_provider_descriptor(
-                key=str(descriptor.get("key") or ""),
-                name=str(descriptor.get("name") or ""),
-                version=str(descriptor.get("version") or ""),
-                artifact_types=list(descriptor.get("huntingArtifactTypes") or descriptor.get("capabilities") or []),
-                provider_scope=list(descriptor.get("providerScope") or []),
-                entrypoint=str(descriptor.get("entrypoint") or ""),
-                runtime=str(descriptor.get("runtime") or "plugin_premium"),
-                isolation_mode=str(descriptor.get("isolationMode") or "local_process"),
-                capabilities=list(descriptor.get("capabilities") or []),
-                required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
-                requires_kali=bool(descriptor.get("requiresKali", False)),
-                execution_profile=recommend_hunting_execution_profile(
-                    requires_custom_binaries=bool(descriptor.get("requiresCustomBinaries", False)),
-                    requires_browser_automation=bool(descriptor.get("requiresBrowserAutomation", False)),
-                    requires_privileged_network=bool(descriptor.get("requiresPrivilegedNetwork", False)),
-                    requires_linux_toolchain=bool(descriptor.get("requiresLinuxToolchain", False)),
-                    handles_untrusted_targets=bool(descriptor.get("handlesUntrustedTargets", False)),
-                    dependency_weight=str(descriptor.get("dependencyWeight") or "light"),
-                ),
-            )
-            descriptor["huntingProvider"] = hunting_provider
-            descriptor["productSurface"] = hunting_provider["providerScope"]
-            descriptor["huntingArtifactTypes"] = hunting_provider["artifactTypes"]
-            descriptor["providerScope"] = hunting_provider["providerScope"]
-            descriptor["requiredSecrets"] = hunting_provider["requiredSecrets"]
-            descriptor["isolationMode"] = hunting_provider["executionProfile"]["mode"]
-            descriptor["requiresKali"] = hunting_provider["requiresKali"]
-            descriptor["executionProfile"] = hunting_provider["executionProfile"]
+            try:
+                hunting_provider = build_hunting_provider_descriptor(
+                    key=str(descriptor.get("key") or ""),
+                    name=str(descriptor.get("name") or ""),
+                    version=str(descriptor.get("version") or ""),
+                    artifact_types=list(descriptor.get("huntingArtifactTypes") or descriptor.get("capabilities") or []),
+                    provider_scope=list(descriptor.get("providerScope") or []),
+                    entrypoint=str(descriptor.get("entrypoint") or ""),
+                    runtime=str(descriptor.get("runtime") or "plugin_premium"),
+                    isolation_mode=str(descriptor.get("isolationMode") or "local_process"),
+                    capabilities=list(descriptor.get("capabilities") or []),
+                    required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
+                    requires_kali=bool(descriptor.get("requiresKali", False)),
+                    execution_profile=recommend_hunting_execution_profile(
+                        requires_custom_binaries=bool(descriptor.get("requiresCustomBinaries", False)),
+                        requires_browser_automation=bool(descriptor.get("requiresBrowserAutomation", False)),
+                        requires_privileged_network=bool(descriptor.get("requiresPrivilegedNetwork", False)),
+                        requires_linux_toolchain=bool(descriptor.get("requiresLinuxToolchain", False)),
+                        handles_untrusted_targets=bool(descriptor.get("handlesUntrustedTargets", False)),
+                        dependency_weight=str(descriptor.get("dependencyWeight") or "light"),
+                    ),
+                )
+                descriptor["huntingProvider"] = hunting_provider
+                descriptor["productSurface"] = hunting_provider["providerScope"]
+                descriptor["huntingArtifactTypes"] = hunting_provider["artifactTypes"]
+                descriptor["providerScope"] = hunting_provider["providerScope"]
+                descriptor["requiredSecrets"] = hunting_provider["requiredSecrets"]
+                descriptor["isolationMode"] = hunting_provider["executionProfile"]["mode"]
+                descriptor["requiresKali"] = hunting_provider["requiresKali"]
+                descriptor["executionProfile"] = hunting_provider["executionProfile"]
+            except RuntimeError:
+                descriptor["status"] = "disabled"
+                descriptor["errors"] = [*descriptor.get("errors", []), "hunting_extension_not_installed"]
         if descriptor["status"] != "invalid" and descriptor.get("premiumFeatureType") == "exposure_provider":
-            exposure_provider = build_exposure_provider_descriptor(
-                key=str(descriptor.get("key") or ""),
-                name=str(descriptor.get("name") or ""),
-                version=str(descriptor.get("version") or ""),
-                asset_types=list(descriptor.get("exposureAssetTypes") or descriptor.get("capabilities") or []),
-                provider_scope=list(descriptor.get("providerScope") or []),
-                entrypoint=str(descriptor.get("entrypoint") or ""),
-                runtime=str(descriptor.get("runtime") or "plugin_premium"),
-                capabilities=list(descriptor.get("capabilities") or []),
-                required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
-                recommended_schedule=str(descriptor.get("recommendedSchedule") or "daily"),
-            )
-            descriptor["exposureProvider"] = exposure_provider
-            descriptor["productSurface"] = exposure_provider["providerScope"]
-            descriptor["exposureAssetTypes"] = exposure_provider["assetTypes"]
-            descriptor["providerScope"] = exposure_provider["providerScope"]
-            descriptor["requiredSecrets"] = exposure_provider["requiredSecrets"]
-            descriptor["recommendedSchedule"] = exposure_provider["recommendedSchedule"]
+            try:
+                exposure_provider = build_exposure_provider_descriptor(
+                    key=str(descriptor.get("key") or ""),
+                    name=str(descriptor.get("name") or ""),
+                    version=str(descriptor.get("version") or ""),
+                    asset_types=list(descriptor.get("exposureAssetTypes") or descriptor.get("capabilities") or []),
+                    provider_scope=list(descriptor.get("providerScope") or []),
+                    entrypoint=str(descriptor.get("entrypoint") or ""),
+                    runtime=str(descriptor.get("runtime") or "plugin_premium"),
+                    capabilities=list(descriptor.get("capabilities") or []),
+                    required_secrets=list(descriptor.get("requiredSecrets") or descriptor.get("permissions") or []),
+                    recommended_schedule=str(descriptor.get("recommendedSchedule") or "daily"),
+                )
+                descriptor["exposureProvider"] = exposure_provider
+                descriptor["productSurface"] = exposure_provider["providerScope"]
+                descriptor["exposureAssetTypes"] = exposure_provider["assetTypes"]
+                descriptor["providerScope"] = exposure_provider["providerScope"]
+                descriptor["requiredSecrets"] = exposure_provider["requiredSecrets"]
+                descriptor["recommendedSchedule"] = exposure_provider["recommendedSchedule"]
+            except RuntimeError:
+                descriptor["status"] = "disabled"
+                descriptor["errors"] = [*descriptor.get("errors", []), "exposure_extension_not_installed"]
     return descriptor
 
 

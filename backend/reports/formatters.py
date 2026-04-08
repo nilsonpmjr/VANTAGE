@@ -252,6 +252,20 @@ def format_service_content(service: str, data: dict, t: dict, get_country_name, 
             logger.error(f"Error parsing Abuse.ch data: {e}")
             lines.append("[yellow]Error parsing data[/]")
 
+    elif service == 'urlhaus':
+        try:
+            urls_online = int(data.get('urls_online', 0) or 0)
+            url_count = int(data.get('url_count', 0) or 0)
+            if urls_online > 0 or url_count > 0:
+                color = "red" if urls_online > 0 else "yellow"
+                lines.append(f"• [{color}]{t['urlhaus_urls_online']}: {urls_online}[/]")
+                lines.append(f"• {t['urlhaus_urls_total']}: {url_count}")
+            else:
+                lines.append(f"• [green]{t['urlhaus_clean']}[/]")
+        except Exception as e:
+            logger.error(f"Error parsing URLhaus data: {e}")
+            lines.append("[yellow]Error parsing data[/]")
+
     elif service == 'pulsedive':
         try:
             risk = data.get('risk', 'none')
@@ -284,6 +298,13 @@ def border_color_for_service(service: str, data: dict) -> str:
             and len(data['data']) > 0
         ):
             return "red"
+    elif service == 'urlhaus':
+        urls_online = int(data.get('urls_online', 0) or 0)
+        url_count = int(data.get('url_count', 0) or 0)
+        if urls_online > 0:
+            return "red"
+        if url_count > 0:
+            return "yellow"
     elif service == 'pulsedive':
         if data.get('risk') in ['high', 'critical']:
             return "red"

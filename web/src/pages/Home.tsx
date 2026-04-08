@@ -297,6 +297,7 @@ export default function Home() {
               return (
                 <div key={item._id}>
                   <FeedCard
+                    severity={item.severity || "low"}
                     level={label}
                     levelColor={levelColor}
                     icon={Icon}
@@ -411,6 +412,7 @@ export default function Home() {
 }
 
 type FeedCardProps = {
+  severity: string;
   level: string;
   levelColor: string;
   icon: LucideIcon;
@@ -423,6 +425,7 @@ type FeedCardProps = {
 };
 
 function FeedCard({
+  severity,
   level,
   levelColor,
   icon: Icon,
@@ -433,14 +436,24 @@ function FeedCard({
   tags,
   onClick,
 }: FeedCardProps) {
+  const sev = severity.toLowerCase();
   const accentClass =
-    level === "CRITICAL"
+    sev === "critical"
       ? "card-accent-error"
-      : level === "HIGH"
+      : sev === "high"
         ? "card-accent-warning"
-        : level === "MEDIUM"
+        : sev === "medium"
           ? "card-accent-primary"
           : "card-accent-secondary";
+
+  const badgeClass =
+    sev === "critical"
+      ? "badge-error"
+      : sev === "high"
+        ? "badge-warning"
+        : sev === "medium"
+          ? "badge-primary"
+          : "badge-neutral";
 
   return (
     <div
@@ -450,17 +463,7 @@ function FeedCard({
       onClick={onClick}
     >
       <div className="absolute top-0 right-0 p-3">
-        <span
-          className={`badge ${
-            level === "CRITICAL"
-              ? "badge-error"
-              : level === "HIGH"
-                ? "badge-warning"
-                : level === "MEDIUM"
-                  ? "badge-primary"
-                  : "badge-neutral"
-          }`}
-        >
+        <span className={`badge ${badgeClass}`}>
           {level}
         </span>
       </div>

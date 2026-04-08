@@ -18,7 +18,17 @@ from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, hunting, exposure
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff
+
+try:
+    from routers import hunting
+except (ModuleNotFoundError, ImportError):
+    hunting = None
+
+try:
+    from routers import exposure
+except (ModuleNotFoundError, ImportError):
+    exposure = None
 
 from bson import ObjectId
 from fastapi.encoders import ENCODERS_BY_TYPE
@@ -231,6 +241,20 @@ async def lifespan(app: FastAPI):
                 expireAfterSeconds=2 * 24 * 3600,
                 name="service_quota_ttl",
             )
+            # Shift handoff indexes
+            await db.shift_handoffs.create_index(
+                [("expires_at", 1)],
+                expireAfterSeconds=0,
+                name="shift_handoffs_ttl",
+            )
+            await db.shift_handoffs.create_index(
+                [("shift_date", -1)],
+                name="shift_handoffs_date",
+            )
+            await db.shift_handoffs.create_index(
+                [("created_by", 1), ("shift_date", -1)],
+                name="shift_handoffs_author_date",
+            )
             logger.info("MongoDB indexes created/verified.")
 
             # Clean up legacy refresh_tokens without session_id (created before session tracking)
@@ -350,7 +374,10 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router, recon.router, watchlist.router, feed.router, hunting.router, exposure.router,
+    batch.router, recon.router, watchlist.router, feed.router,
+    shift_handoff.router,
+    *([hunting.router] if hunting else []),
+    *([exposure.router] if exposure else []),
 ]
 for _prefix in ("/api", "/api/v1"):
     for _router in _routers:

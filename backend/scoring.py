@@ -54,6 +54,13 @@ def compute_risk_score(service_results: Dict[str, Any]) -> Tuple[int, int]:
                 and len(data["data"]) > 0
             ):
                 risk_score += 1
+        elif svc == "urlhaus":
+            # URLhaus: query_status "ok" with urls_online > 0 means active malicious URLs
+            if data.get("query_status") in ("ok", "no_results"):
+                urls_online = int(data.get("urls_online", 0) or 0)
+                url_count = int(data.get("url_count", 0) or 0)
+                if urls_online > 0 or url_count > 0:
+                    risk_score += 1
         elif svc == "pulsedive":
             if data.get("risk") in ["high", "critical"]:
                 risk_score += 1

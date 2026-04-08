@@ -1,0 +1,18 @@
+{
+  "key": "shift-handoff",
+  "name": "SOC Shift Handoff",
+  "version": "1.0.0",
+  "license": "AGPLv3",
+  "author": "VANTAGE Core",
+  "kind": "community_feature",
+  "compatibleCore": "1.x",
+  "builtin": true,
+  "distributionTier": "core",
+  "repositoryVisibility": "public",
+  "updateChannel": "bundled",
+  "ownershipBoundary": "core_team",
+  "description": "SOC shift handoff panel for 12x36 rotation teams. Manual entry with configurable visibility window.",
+  "entrypoint": "backend.routers.shift_handoff",
+  "runtime": "builtin_compat",
+  "capabilities": ["shift_handoff_crud"]
+}

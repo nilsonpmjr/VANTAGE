@@ -58,6 +58,8 @@ _PACKS = {
         "greynoise_mal": "GreyNoise classifica a atividade como maliciosa e compatível com scanning ativo.",
         "greynoise_benign": "GreyNoise enquadra o comportamento como ruído benigno de internet.",
         "abusech": "Abuse.ch lista o indicador em sua base ativa com confiança de {confidence}% para a ameaça {threat_type}.",
+        "urlhaus": "URLhaus registra {url_count} URLs associadas ao alvo, com {urls_online} atualmente online.",
+        "urlhaus_clean": "URLhaus não encontrou URLs maliciosas associadas a este indicador.",
         "pulsedive": "Pulsedive descreve o risco como {risk} com apoio de {feeds} feeds de inteligência.",
         "confidence": (
             "A análise foi construída sobre {total} fontes ativas, com {risk} retornos de risco e {clean} retornos não críticos."
@@ -112,6 +114,8 @@ _PACKS = {
         "greynoise_mal": "GreyNoise classifies the activity as malicious and consistent with active scanning.",
         "greynoise_benign": "GreyNoise classifies the behavior as benign internet background noise.",
         "abusech": "Abuse.ch lists the indicator in its active database with {confidence}% confidence for threat {threat_type}.",
+        "urlhaus": "URLhaus records {url_count} URLs associated with the target, with {urls_online} currently online.",
+        "urlhaus_clean": "URLhaus found no malicious URLs associated with this indicator.",
         "pulsedive": "Pulsedive describes the risk as {risk} with backing from {feeds} intelligence feeds.",
         "confidence": (
             "This assessment was built from {total} active sources, with {risk} risky returns and {clean} non-critical returns."
@@ -166,6 +170,8 @@ _PACKS = {
         "greynoise_mal": "GreyNoise clasifica la actividad como maliciosa y consistente con scanning activo.",
         "greynoise_benign": "GreyNoise clasifica el comportamiento como ruido benigno de internet.",
         "abusech": "Abuse.ch lista el indicador en su base activa con {confidence}% de confianza para la amenaza {threat_type}.",
+        "urlhaus": "URLhaus registra {url_count} URLs asociadas al objetivo, con {urls_online} actualmente en línea.",
+        "urlhaus_clean": "URLhaus no encontró URLs maliciosas asociadas a este indicador.",
         "pulsedive": "Pulsedive describe el riesgo como {risk} con respaldo de {feeds} feeds de inteligencia.",
         "confidence": (
             "Esta evaluación se construyó con {total} fuentes activas, con {risk} retornos de riesgo y {clean} retornos no críticos."
@@ -466,6 +472,17 @@ def _provider_signal_lines(results_data: dict[str, Any], lang: str) -> list[str]
                     threat_type=first.get("threat_type", "unknown"),
                 )
             )
+
+    urlhaus_data = results_data.get("urlhaus", {})
+    if urlhaus_data and not urlhaus_data.get("_meta_error"):
+        urls_online = int(urlhaus_data.get("urls_online", 0) or 0)
+        url_count = int(urlhaus_data.get("url_count", 0) or 0)
+        if urls_online > 0 or url_count > 0:
+            lines.append(
+                pack["urlhaus"].format(url_count=url_count, urls_online=urls_online)
+            )
+        else:
+            lines.append(pack["urlhaus_clean"])
 
     pulsedive_data = results_data.get("pulsedive", {})
     if pulsedive_data and not pulsedive_data.get("_meta_error"):

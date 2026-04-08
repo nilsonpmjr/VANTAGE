@@ -269,6 +269,35 @@
     @apply flex flex-wrap items-center gap-2;
   }
 
+  .shift-handoff-timeline-toolbar {
+    @apply grid gap-3;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .shift-handoff-timeline-title {
+    @apply flex items-center gap-3 text-lg font-bold text-on-surface;
+  }
+
+  .shift-handoff-visibility-filter {
+    @apply flex w-fit items-center gap-1 rounded-sm border border-outline-variant/20 bg-surface-container-low p-1;
+  }
+
+  .shift-handoff-visibility-filter-button {
+    @apply rounded-sm px-3 py-1 text-xs font-bold transition-colors;
+  }
+
+  .shift-handoff-visibility-filter-button-active {
+    @apply bg-primary text-on-primary shadow-sm;
+  }
+
+  .shift-handoff-visibility-filter-button-inactive {
+    @apply text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface;
+  }
+
+  .shift-handoff-timeline-badge {
+    @apply justify-self-start;
+  }
+
   .row-actions-menu-root {
     @apply relative inline-flex items-center;
   }
@@ -403,6 +432,19 @@
     .page-side-rail-left {
       justify-self: start;
       grid-column: 1;
+    }
+
+    .shift-handoff-timeline-toolbar {
+      @apply items-center;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+    }
+
+    .shift-handoff-visibility-filter {
+      @apply justify-self-center;
+    }
+
+    .shift-handoff-timeline-badge {
+      @apply justify-self-end;
     }
 
   }

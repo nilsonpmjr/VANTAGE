@@ -1,7 +1,9 @@
 import type React from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Activity,
   AlertTriangle,
+  Bold,
   Calendar,
   CheckCircle2,
   ChevronDown,
@@ -9,33 +11,35 @@ import {
   Clock,
   Edit3,
   FileText,
+  History,
   Image as ImageIcon,
+  Italic,
   Loader2,
-  Moon,
+  MessageSquare,
+  Paperclip,
   Plus,
-  RefreshCw,
-  ScrollText,
+  RotateCcw,
+  Search,
+  Server,
+  Settings,
   Shield,
-  Sun,
+  Strikethrough,
   Trash2,
-  Upload,
+  Underline,
   UserCheck,
-  UserCircle,
   Users,
-  Wrench,
   X,
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { format, formatDistanceToNow, isAfter } from "date-fns";
+import { ptBR, enUS, es as esLocale } from "date-fns/locale";
+import { useLocation, useNavigate } from "react-router-dom";
+import { cn } from "../lib/utils";
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface EditHistoryEntry {
-  edited_by: string;
-  edited_at: string;
-  previous_body: string;
-}
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface IncidentEntry {
   title: string;
@@ -49,7 +53,7 @@ interface ToolStatusEntry {
   status: string;
 }
 
-interface Attachment {
+interface AttachmentEntry {
   id: string;
   filename: string;
   content_type: string;
@@ -59,7 +63,13 @@ interface Attachment {
   uploaded_at: string;
 }
 
-interface HandoffItem {
+interface EditHistoryEntry {
+  edited_by: string;
+  edited_at: string;
+  previous_body: string;
+}
+
+interface HandoffDoc {
   id: string;
   shift_date: string;
   team_members: string[];
@@ -75,323 +85,236 @@ interface HandoffItem {
   shift_focus: string;
   acknowledged_by: string;
   acknowledged_at: string | null;
-  attachments: Attachment[];
+  attachments: AttachmentEntry[];
   edit_history: EditHistoryEntry[];
 }
 
-// ── Constants ────────────────────────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────────────────────
 
-const VISIBILITY_OPTIONS = [4, 7, 14, 30] as const;
-const BODY_MAX_LENGTH = 5000;
-const INCIDENT_STATUSES = ["active", "monitoring", "escalated", "resolved"] as const;
-const INCIDENT_SEVERITIES = ["critical", "high", "medium", "low", "info"] as const;
+const BUILTIN_DEFAULT_TOOLS = ["SOAR", "SIEM", "Grafana (Dashboard)", "VPN", "EDR", "Firewall"];
 const TOOL_STATUSES = ["operational", "degraded", "down", "maintenance"] as const;
-const DEFAULT_TOOLS = ["SIEM", "EDR", "Firewall", "IDS/IPS", "SOAR", "Ticketing"];
+const INCIDENT_SEVERITIES = ["critical", "high", "medium", "low"] as const;
+const INCIDENT_STATUSES = ["active", "monitoring", "escalated", "resolved"] as const;
+const VISIBILITY_OPTIONS = [4, 7, 14, 30] as const;
+const FILTER_OPTIONS = [0, 4, 7, 14, 30] as const; // 0 = all active
 
-// ── Shift helpers ────────────────────────────────────────────────────────────
+const SETTINGS_KEY = "vantage_handoff_settings";
 
-function getCurrentShift(): { date: string; period: "day" | "night"; label: string } {
+interface HandoffSettings {
+  tools: string[];
+  defaultVisibility: number;
+}
+
+function loadSettings(): HandoffSettings {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { /* ignore */ }
+  return { tools: BUILTIN_DEFAULT_TOOLS, defaultVisibility: 4 };
+}
+
+function saveSettings(s: HandoffSettings) {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(s));
+}
+
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function getDateFnsLocale(locale: string) {
+  if (locale.startsWith("es")) return esLocale;
+  if (locale.startsWith("en")) return enUS;
+  return ptBR;
+}
+
+function getCurrentShift() {
   const now = new Date();
-  const hour = now.getHours();
+  const h = now.getHours();
+  const isDay = h >= 7 && h < 19;
+  const shiftDate = new Date(now);
+  if (!isDay && h < 7) shiftDate.setDate(shiftDate.getDate() - 1);
+  return {
+    period: isDay ? "day" : "night",
+    date: shiftDate.toISOString().split("T")[0],
+    label: isDay ? "07:00 – 19:00" : "19:00 – 07:00",
+  };
+}
 
-  // Night shift (19:00–07:00) belongs to the date it started on
-  // Day shift (07:00–19:00) belongs to the current date
-  let shiftDate: Date;
-  let period: "day" | "night";
-
-  if (hour >= 7 && hour < 19) {
-    period = "day";
-    shiftDate = now;
-  } else {
-    period = "night";
-    // If between 00:00–06:59, the night shift started yesterday
-    shiftDate = hour < 7 ? new Date(now.getTime() - 24 * 60 * 60 * 1000) : now;
+function toolStatusLabel(status: string, t: (k: string, f?: string) => string): string {
+  switch (status) {
+    case "operational": return t("shift_handoff.toolOk", "Operational");
+    case "degraded": return t("shift_handoff.toolDeg", "Degraded");
+    case "down": return t("shift_handoff.toolDown", "Down");
+    case "maintenance": return t("shift_handoff.toolMaint", "Maintenance");
+    default: return status;
   }
-
-  const dateStr = `${shiftDate.getFullYear()}-${String(shiftDate.getMonth() + 1).padStart(2, "0")}-${String(shiftDate.getDate()).padStart(2, "0")}`;
-  const label = period === "day" ? "07:00 – 19:00" : "19:00 – 07:00";
-  return { date: dateStr, period, label };
 }
 
-function todayString() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function toolStatusColor(status: string) {
+  switch (status) {
+    case "operational": return "text-emerald-400";
+    case "degraded": return "text-amber-400";
+    case "down": return "text-red-400";
+    case "maintenance": return "text-secondary";
+    default: return "text-on-surface-variant";
+  }
 }
 
-// ── Display helpers ──────────────────────────────────────────────────────────
-
-function formatDate(value: string | null | undefined, locale: string) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" }).format(date);
+function toolDotColor(status: string) {
+  switch (status) {
+    case "operational": return "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)] animate-pulse";
+    case "degraded": return "bg-amber-400";
+    case "down": return "bg-red-400";
+    case "maintenance": return "bg-secondary";
+    default: return "bg-on-surface-variant";
+  }
 }
 
-function formatDateOnly(value: string, locale: string) {
-  const date = new Date(value + "T00:00:00");
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(locale, { weekday: "long", year: "numeric", month: "long", day: "numeric" }).format(date);
-}
-
-function daysBadge(shiftDate: string, t: (key: string, fallback?: string) => string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(shiftDate + "T00:00:00");
-  const diffMs = today.getTime() - target.getTime();
-  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0)
-    return { label: t("shift_handoff.today", "Today"), tone: "bg-primary/15 text-primary border border-primary/20" };
-  if (diffDays === 1)
-    return { label: t("shift_handoff.yesterday", "Yesterday"), tone: "bg-warning/10 text-warning border border-warning/15" };
-  if (diffDays > 1)
-    return { label: `${diffDays}d ${t("shift_handoff.ago", "ago")}`, tone: "bg-surface-container-highest text-on-surface-variant border border-outline-variant/15" };
-  if (diffDays === -1)
-    return { label: t("shift_handoff.tomorrow", "Tomorrow"), tone: "bg-primary/10 text-primary border border-primary/15" };
-  return { label: `${Math.abs(diffDays)}d ${t("shift_handoff.ahead", "ahead")}`, tone: "bg-surface-container-highest text-on-surface-variant border border-outline-variant/15" };
-}
-
-function expiresIn(expiresAt: string, t: (key: string, fallback?: string) => string) {
-  const now = new Date();
-  const exp = new Date(expiresAt);
-  const diffH = Math.max(0, Math.round((exp.getTime() - now.getTime()) / (1000 * 60 * 60)));
-  if (diffH < 24) return `${diffH}h`;
-  return `${Math.round(diffH / 24)} ${t("shift_handoff.days", "days")}`;
-}
-
-function severityTone(severity: string) {
+function severityDot(severity: string) {
   switch (severity) {
-    case "critical": return "bg-error/10 text-error";
-    case "high": return "bg-error/10 text-error";
-    case "medium": return "bg-warning/10 text-warning";
-    case "low": return "bg-primary/10 text-primary";
-    default: return "bg-surface-container-highest text-on-surface-variant";
+    case "critical": return "bg-error shadow-[0_0_8px_rgba(248,113,113,0.5)]";
+    case "high": return "bg-orange-500";
+    case "medium": return "bg-amber-400";
+    default: return "bg-primary";
   }
 }
 
-function incidentStatusTone(status: string) {
+function incidentBadge(status: string) {
   switch (status) {
-    case "active": return "bg-error/10 text-error";
-    case "escalated": return "bg-warning/10 text-warning";
-    case "monitoring": return "bg-primary/10 text-primary";
-    case "resolved": return "bg-emerald-500/10 text-emerald-600";
-    default: return "bg-surface-container-highest text-on-surface-variant";
+    case "active": return "badge-error";
+    case "escalated": return "badge-error";
+    case "monitoring": return "badge-warning";
+    case "resolved": return "badge-success";
+    default: return "badge-neutral";
   }
 }
 
-function toolStatusTone(status: string) {
+function incidentStatusLabel(status: string, t: (k: string, f?: string) => string) {
   switch (status) {
-    case "operational": return "bg-emerald-500/10 text-emerald-600 border-emerald-500/15";
-    case "degraded": return "bg-warning/10 text-warning border-warning/15";
-    case "down": return "bg-error/10 text-error border-error/15";
-    case "maintenance": return "bg-surface-container-highest text-on-surface-variant border-outline-variant/15";
-    default: return "bg-surface-container-highest text-on-surface-variant border-outline-variant/15";
+    case "active": return t("shift_handoff.statusActive", "Active");
+    case "monitoring": return t("shift_handoff.statusMonitoring", "Monitoring");
+    case "escalated": return t("shift_handoff.statusEscalated", "Escalated");
+    case "resolved": return t("shift_handoff.statusResolved", "Resolved");
+    default: return status;
   }
 }
 
-// ── Field validation ─────────────────────────────────────────────────────────
-
-interface FieldErrors { date?: string; members?: string; body?: string }
-
-function validateFields(date: string, members: string, body: string, isEditing: boolean, t: (key: string, fallback?: string) => string): FieldErrors {
-  const errors: FieldErrors = {};
-  if (!isEditing && !date) errors.date = t("shift_handoff.errDateRequired", "Shift date is required.");
-  const parsed = members.split(",").map((m) => m.trim()).filter(Boolean);
-  if (parsed.length === 0) errors.members = t("shift_handoff.errMembersRequired", "At least one team member is required.");
-  if (!body.trim()) errors.body = t("shift_handoff.errBodyRequired", "Handoff notes cannot be empty.");
-  else if (body.length > BODY_MAX_LENGTH) errors.body = t("shift_handoff.errBodyTooLong", "Handoff notes exceed the 5000-character limit.");
-  return errors;
+function severityLabel(sev: string, t: (k: string, f?: string) => string) {
+  switch (sev) {
+    case "critical": return t("shift_handoff.sevCritical", "Critical");
+    case "high": return t("shift_handoff.sevHigh", "High");
+    case "medium": return t("shift_handoff.sevMedium", "Medium");
+    case "low": return t("shift_handoff.sevLow", "Low");
+    default: return sev;
+  }
 }
 
-// ── Component ────────────────────────────────────────────────────────────────
+// ── Main Component ────────────────────────────────────────────────────────────
 
 export default function ShiftHandoff() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
-  const { locale, t } = useLanguage();
-  const currentShift = useMemo(() => getCurrentShift(), []);
+  const { t, locale } = useLanguage();
+  const dateFnsLocale = getDateFnsLocale(locale);
 
-  const [items, setItems] = useState<HandoffItem[]>([]);
+  const [handoffs, setHandoffs] = useState<HandoffDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-
-  // Form
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [formDate, setFormDate] = useState(currentShift.date);
-  const [formMembers, setFormMembers] = useState("");
-  const [formBody, setFormBody] = useState("");
-  const [formVisibility, setFormVisibility] = useState(4);
-  const [formFocus, setFormFocus] = useState("");
-  const [formObservations, setFormObservations] = useState("");
-  const [formIncidents, setFormIncidents] = useState<IncidentEntry[]>([]);
-  const [formTools, setFormTools] = useState<ToolStatusEntry[]>(DEFAULT_TOOLS.map((n) => ({ name: n, status: "operational" })));
-  const [submitting, setSubmitting] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const [touched, setTouched] = useState<Set<string>>(new Set());
-  const formRef = useRef<HTMLDivElement>(null);
-
-  // Attachments (pending upload for new handoffs, or uploaded ones for existing)
-  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-
-  // Inline image insert
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
-
-  // Detail expansion
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingHandoff, setEditingHandoff] = useState<HandoffDoc | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-
-  // Lightbox
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [daysFilter, setDaysFilter] = useState<number>(0); // 0 = all active
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<HandoffSettings>(loadSettings);
 
-  const canEdit = useCallback(
-    (item: HandoffItem) => {
-      if (!user) return false;
-      return item.created_by === user.username || user.role === "admin" || user.role === "manager";
-    },
-    [user],
-  );
-  const canDelete = user?.role === "admin";
+  const currentShift = useMemo(() => getCurrentShift(), []);
+  const canDelete = user?.role === "admin" || user?.role === "manager";
 
-  // ── API ──────────────────────────────────────────────────────────────────
+  // ── Fetch ────────────────────────────────────────────────────────────────────
 
-  const loadHandoffs = useCallback(async () => {
+  const fetchHandoffs = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const res = await fetch(`${API_URL}/api/shift-handoffs`, { credentials: "include" });
-      if (!res.ok) throw new Error("load_failed");
-      const data = (await res.json()) as HandoffItem[];
-      setItems(data);
+      const params = new URLSearchParams();
+      if (daysFilter > 0) params.set("days", String(daysFilter));
+      const qs = params.toString();
+      const res = await fetch(`${API_URL}/api/shift-handoffs${qs ? `?${qs}` : ""}`, { credentials: "include" });
+      if (!res.ok) throw new Error();
+      const data: HandoffDoc[] = await res.json();
+      setHandoffs(data);
+      if (!expandedId && data.length > 0) setExpandedId(data[0].id);
     } catch {
       setError(t("shift_handoff.loadFailed", "Could not load shift handoffs."));
     } finally {
       setLoading(false);
     }
-  }, [t]);
+  }, [t, expandedId, daysFilter]);
 
-  useEffect(() => { void loadHandoffs(); }, [loadHandoffs]);
+  useEffect(() => { void fetchHandoffs(); }, [daysFilter]);
 
-  // ── Form logic ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    if ((location.state as { openSettings?: boolean } | null)?.openSettings) {
+      setShowSettings(true);
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [location.pathname, location.state, navigate]);
 
-  function resetForm() {
-    setShowForm(false);
-    setEditingId(null);
-    setFormDate(currentShift.date);
-    setFormMembers("");
-    setFormBody("");
-    setFormVisibility(4);
-    setFormFocus("");
-    setFormObservations("");
-    setFormIncidents([]);
-    setFormTools(DEFAULT_TOOLS.map((n) => ({ name: n, status: "operational" })));
-    setFieldErrors({});
-    setTouched(new Set());
-    setPendingFiles([]);
-  }
+  // Clear notices
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
 
-  function openCreate() {
-    resetForm();
-    setShowForm(true);
-    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
+  // ── Actions ──────────────────────────────────────────────────────────────────
 
-  function openEditForm(item: HandoffItem) {
-    setEditingId(item.id);
-    setFormDate(item.shift_date);
-    setFormMembers(item.team_members.join(", "));
-    setFormBody(item.body);
-    setFormVisibility(item.visibility_days);
-    setFormFocus(item.shift_focus || "");
-    setFormObservations(item.observations || "");
-    setFormIncidents(item.incidents || []);
-    setFormTools(item.tools_status?.length ? item.tools_status : DEFAULT_TOOLS.map((n) => ({ name: n, status: "operational" })));
-    setFieldErrors({});
-    setTouched(new Set());
-    setPendingFiles([]);
-    setShowForm(true);
-    requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-  }
-
-  function handleFieldBlur(field: string) {
-    setTouched((prev) => new Set(prev).add(field));
-    setFieldErrors(validateFields(formDate, formMembers, formBody, !!editingId, t));
-  }
-
-  const memberChips = useMemo(() => formMembers.split(",").map((m) => m.trim()).filter(Boolean), [formMembers]);
-  const bodyPercent = Math.min(100, Math.round((formBody.length / BODY_MAX_LENGTH) * 100));
-  const bodyWarning = bodyPercent > 90;
-
-  // ── Incident rows ────────────────────────────────────────────────────────
-
-  function addIncident() {
-    setFormIncidents((prev) => [...prev, { title: "", status: "active", severity: "medium", action_needed: "" }]);
-  }
-
-  function updateIncident(idx: number, field: keyof IncidentEntry, value: string) {
-    setFormIncidents((prev) => prev.map((inc, i) => (i === idx ? { ...inc, [field]: value } : inc)));
-  }
-
-  function removeIncident(idx: number) {
-    setFormIncidents((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  // ── Tool status ──────────────────────────────────────────────────────────
-
-  function updateToolStatus(idx: number, status: string) {
-    setFormTools((prev) => prev.map((ts, i) => (i === idx ? { ...ts, status } : ts)));
-  }
-
-  // ── File handling ────────────────────────────────────────────────────────
-
-  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const files: File[] = e.target.files ? Array.from(e.target.files) : [];
-    const valid = files.filter((f) => f.type.startsWith("image/") && f.size <= 2 * 1024 * 1024);
-    setPendingFiles((prev) => [...prev, ...valid].slice(0, 5));
-    e.target.value = "";
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault();
-    const files: File[] = Array.from(e.dataTransfer.files);
-    const valid = files.filter((f) => f.type.startsWith("image/") && f.size <= 2 * 1024 * 1024);
-    setPendingFiles((prev) => [...prev, ...valid].slice(0, 5));
-  }
-
-  function insertImageIntoBody(dataUri: string) {
-    const textarea = bodyRef.current;
-    if (!textarea) return;
-    const tag = `\n[image: ${dataUri.slice(0, 40)}...]\n`;
-    const pos = textarea.selectionStart || formBody.length;
-    setFormBody((prev) => prev.slice(0, pos) + tag + prev.slice(pos));
-  }
-
-  async function uploadFilesToHandoff(handoffId: string) {
-    for (const file of pendingFiles) {
-      const fd = new FormData();
-      fd.append("file", file);
-      await fetch(`${API_URL}/api/shift-handoffs/${handoffId}/attachments`, {
+  async function acknowledgeHandoff(id: string) {
+    try {
+      const res = await fetch(`${API_URL}/api/shift-handoffs/${id}/acknowledge`, {
         method: "POST",
         credentials: "include",
-        body: fd,
       });
+      if (!res.ok) throw new Error();
+      setNotice(t("shift_handoff.acknowledged", "Handoff acknowledged."));
+      void fetchHandoffs();
+    } catch {
+      setError(t("shift_handoff.ackFailed", "Could not acknowledge handoff."));
+    }
+  }
+
+  async function handleDelete(id: string) {
+    try {
+      const res = await fetch(`${API_URL}/api/shift-handoffs/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error();
+      setNotice(t("shift_handoff.deleted", "Handoff deleted."));
+      setConfirmDeleteId(null);
+      void fetchHandoffs();
+    } catch {
+      setError(t("shift_handoff.deleteFailed", "Could not delete handoff."));
     }
   }
 
   async function uploadSingleFile(handoffId: string, file: File) {
     setUploadingAttachment(true);
     try {
-      const fd = new FormData();
-      fd.append("file", file);
+      const formData = new FormData();
+      formData.append("file", file);
       const res = await fetch(`${API_URL}/api/shift-handoffs/${handoffId}/attachments`, {
         method: "POST",
         credentials: "include",
-        body: fd,
+        body: formData,
       });
-      if (!res.ok) throw new Error("upload_failed");
-      await loadHandoffs();
+      if (!res.ok) throw new Error();
       setNotice(t("shift_handoff.imageUploaded", "Image uploaded."));
+      void fetchHandoffs();
     } catch {
       setError(t("shift_handoff.uploadFailed", "Could not upload image."));
     } finally {
@@ -401,776 +324,1766 @@ export default function ShiftHandoff() {
 
   async function deleteAttachment(handoffId: string, attachmentId: string) {
     try {
-      await fetch(`${API_URL}/api/shift-handoffs/${handoffId}/attachments/${attachmentId}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
-      await loadHandoffs();
+      const res = await fetch(
+        `${API_URL}/api/shift-handoffs/${handoffId}/attachments/${attachmentId}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!res.ok) throw new Error();
+      void fetchHandoffs();
     } catch {
       setError(t("shift_handoff.deleteFailed", "Could not delete attachment."));
     }
   }
 
-  // ── Submit ───────────────────────────────────────────────────────────────
+  function canEdit(item: HandoffDoc) {
+    return user?.role === "admin" || user?.role === "manager" || user?.username === item.created_by;
+  }
+
+  function openEdit(handoff: HandoffDoc) {
+    setEditingHandoff(handoff);
+    setIsFormOpen(true);
+  }
+
+  function openCreate() {
+    setEditingHandoff(null);
+    setIsFormOpen(true);
+  }
+
+  // ── Computed ─────────────────────────────────────────────────────────────────
+
+  const stats = useMemo(() => {
+    const activeIncidents = handoffs.reduce(
+      (sum, h) => sum + (h.incidents?.filter((i) => i.status === "active" || i.status === "escalated").length ?? 0),
+      0,
+    );
+    const authors = new Set(handoffs.map((h) => h.created_by));
+    return { total: handoffs.length, activeIncidents, uniqueAuthors: authors.size };
+  }, [handoffs]);
+
+  // Latest tools status from most recent handoff, falling back to user settings
+  const latestToolsStatus = useMemo(() => {
+    if (handoffs.length === 0) return settings.tools.map((name) => ({ name, status: "operational" }));
+    return handoffs[0].tools_status?.length
+      ? handoffs[0].tools_status
+      : settings.tools.map((name) => ({ name, status: "operational" }));
+  }, [handoffs, settings.tools]);
+
+  // Collect only unresolved incidents from previous shifts still within visibility
+  function getUnresolvedFromPrevious(handoff: HandoffDoc) {
+    const results: { shiftDate: string; team: string[]; incident: IncidentEntry }[] = [];
+    for (const h of handoffs) {
+      if (h.id === handoff.id) continue;
+      if (h.shift_date >= handoff.shift_date) continue;
+      if (!isAfter(new Date(h.expires_at), new Date(handoff.created_at))) continue;
+      for (const inc of h.incidents ?? []) {
+        if (inc.status !== "resolved") {
+          results.push({ shiftDate: h.shift_date, team: h.team_members, incident: inc });
+        }
+      }
+    }
+    return results;
+  }
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  return (
+    <div className="page-frame">
+      {/* Page Header */}
+      <div className="page-header">
+        <div className="page-header-copy">
+          <p className="page-eyebrow">
+            <Shield className="h-4 w-4" />
+            {t("shift_handoff.eyebrow", "Operations")}
+          </p>
+          <h1 className="page-heading">{t("shift_handoff.title", "SOC Shift Handoff")}</h1>
+          <p className="page-subheading">
+            {t("shift_handoff.subtitle", "Register and review shift handoffs for your SOC rotation teams.")}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={openCreate} className="btn btn-primary">
+            <Plus className="w-4 h-4" />
+            {t("shift_handoff.newHandoff", "New Handoff")}
+          </button>
+          <button type="button" onClick={() => navigate("/shift-handoff/history")} className="btn btn-outline">
+            <History className="w-4 h-4" />
+            {t("shift_handoff.history", "History")}
+          </button>
+          <button type="button" onClick={() => setShowSettings(true)} className="btn btn-outline">
+            <Settings className="w-4 h-4" />
+            {t("shift_handoff.settings", "Settings")}
+          </button>
+        </div>
+      </div>
+
+      {/* Notices */}
+      {notice && (
+        <div className="rounded-sm bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 text-xs font-bold text-emerald-400 flex items-center gap-2">
+          <CheckCircle2 className="h-3.5 w-3.5" /> {notice}
+        </div>
+      )}
+      {error && (
+        <div className="rounded-sm bg-error/10 border border-error/20 px-4 py-2.5 text-xs font-bold text-error flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5" /> {error}
+          <button type="button" aria-label="Dismiss" onClick={() => setError("")} className="ml-auto"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
+      {/* Main Grid: Timeline + Sidebar */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        {/* Left: Timeline */}
+        <div className="lg:col-span-8 space-y-6">
+          <div className="shift-handoff-timeline-toolbar">
+            <h2 className="shift-handoff-timeline-title">
+              <Activity className="w-5 h-5 text-primary" />
+              {t("shift_handoff.timelineTitle", "Handoff Timeline")}
+            </h2>
+
+            <div className="shift-handoff-visibility-filter" role="group" aria-label={t("shift_handoff.visibilityFilter", "Visibility filter")}>
+              {FILTER_OPTIONS.map((d) => {
+                const label = d === 0
+                  ? t("shift_handoff.filterAll", "All")
+                  : t(`shift_handoff.filter${d}d` as `shift_handoff.filter4d`, `${d}d`);
+                const isActive = daysFilter === d;
+
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setDaysFilter(d)}
+                    className={cn(
+                      "shift-handoff-visibility-filter-button",
+                      isActive
+                        ? "shift-handoff-visibility-filter-button-active"
+                        : "shift-handoff-visibility-filter-button-inactive",
+                    )}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <span className="badge badge-neutral shift-handoff-timeline-badge">
+              <Clock className="w-3 h-3 mr-1" />
+              {stats.total} {t("shift_handoff.statActive", "active")}
+            </span>
+          </div>
+
+          {/* Loading */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+              <span className="text-sm">{t("shift_handoff.loading", "Loading handoffs...")}</span>
+            </div>
+          )}
+
+          {/* Empty */}
+          {!loading && handoffs.length === 0 && (
+            <div className="card p-12 flex flex-col items-center justify-center gap-4">
+              <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <Shield className="h-7 w-7 text-primary/50" />
+              </div>
+              <p className="text-sm font-bold text-on-surface">{t("shift_handoff.emptyTitle", "No active handoffs")}</p>
+              <p className="text-xs text-on-surface-variant text-center max-w-sm">{t("shift_handoff.emptyBody", "Create one to get started.")}</p>
+              <button type="button" onClick={openCreate} className="btn btn-primary mt-2">
+                <Plus className="h-4 w-4" /> {t("shift_handoff.createCurrentShift", "Create handoff for this shift")}
+              </button>
+            </div>
+          )}
+
+          {/* Handoff Cards */}
+          <div className="space-y-4">
+            <AnimatePresence>
+              {handoffs.map((handoff) => {
+                const isExpanded = expandedId === handoff.id;
+                const unresolvedPrev = getUnresolvedFromPrevious(handoff);
+                const shiftPeriod = (() => {
+                  const created = new Date(handoff.created_at);
+                  const h = created.getHours();
+                  return h >= 7 && h < 19 ? "day" : "night";
+                })();
+
+                return (
+                  <motion.div
+                    key={handoff.id}
+                    layout
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className={cn(
+                      "card transition-colors duration-300",
+                      isExpanded ? "border-primary/30 shadow-md" : "hover:border-outline-variant/40",
+                    )}
+                  >
+                    {/* Card Header (clickable) */}
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : handoff.id)}
+                      className="w-full p-5 flex items-center gap-5 cursor-pointer select-none text-left"
+                    >
+                      <div
+                        className={cn(
+                          "w-12 h-12 rounded-sm flex items-center justify-center shrink-0 border",
+                          shiftPeriod === "day"
+                            ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                            : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+                        )}
+                      >
+                        {shiftPeriod === "day" ? <SunIcon className="w-6 h-6" /> : <MoonIcon className="w-6 h-6" />}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                          <h3 className="text-lg font-bold text-on-surface truncate">
+                            {format(new Date(handoff.shift_date + "T12:00:00"), "dd 'de' MMMM, yyyy", { locale: dateFnsLocale })}
+                          </h3>
+                          <span className="badge badge-neutral">
+                            {shiftPeriod === "day" ? t("shift_handoff.periodDay", "Day") : t("shift_handoff.periodNight", "Night")}
+                          </span>
+                          {handoff.acknowledged_by && (
+                            <span className="badge badge-success flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> {t("shift_handoff.ackBy", "ack")}
+                            </span>
+                          )}
+                          {handoff.incidents?.some((i) => i.status === "active" || i.status === "escalated") && (
+                            <span className="badge badge-error flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3" />
+                              {handoff.incidents.filter((i) => i.status === "active" || i.status === "escalated").length}{" "}
+                              {t("shift_handoff.openIncidents", "open incidents")}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-on-surface-variant">
+                          <span className="flex items-center gap-1.5 font-medium truncate">
+                            <Users className="w-4 h-4 shrink-0" />
+                            {handoff.team_members.slice(0, 3).join(", ")}
+                            {handoff.team_members.length > 3 && <span className="text-[10px]">+{handoff.team_members.length - 3}</span>}
+                          </span>
+                          <span className="flex items-center gap-1.5 font-medium whitespace-nowrap">
+                            <Clock className="w-4 h-4 shrink-0" />
+                            {t("shift_handoff.expiresAt", "Expires")}{" "}
+                            {formatDistanceToNow(new Date(handoff.expires_at), { locale: dateFnsLocale, addSuffix: true })}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="shrink-0 text-on-surface-variant">
+                        {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+                      </div>
+                    </button>
+
+                    {/* Expanded Content */}
+                    <AnimatePresence>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          className="overflow-hidden border-t border-outline-variant/10"
+                        >
+                          <div className="p-6 space-y-8 bg-surface-container-low/50">
+                            {/* Shift Focus */}
+                            {handoff.shift_focus && (
+                              <div className="rounded-sm bg-primary/5 border border-primary/15 px-4 py-3 flex items-start gap-3">
+                                <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                                <div>
+                                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary mb-1">
+                                    {t("shift_handoff.shiftFocusLabel", "Shift Focus")}
+                                  </div>
+                                  <p className="text-sm text-on-surface">{handoff.shift_focus}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Summary / Body */}
+                            <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                <MessageSquare className="w-3.5 h-3.5" />
+                                {t("shift_handoff.sectionNotes", "Handoff Notes")}
+                              </h4>
+                              <div className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap bg-surface-container-high/20 rounded-sm p-4 border border-outline-variant/10">
+                                {handoff.body}
+                              </div>
+                            </div>
+
+                            {/* Additional Info / Observations */}
+                            {handoff.observations && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <FileText className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.fieldObservations", "Additional Observations")}
+                                </h4>
+                                <p className="text-sm text-on-surface-variant leading-relaxed">{handoff.observations}</p>
+                              </div>
+                            )}
+
+                            {/* Incidents */}
+                            {handoff.incidents && handoff.incidents.length > 0 && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <AlertTriangle className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.sectionIncidents", "Active Incidents")}
+                                </h4>
+                                <div className="grid gap-3">
+                                  {handoff.incidents.map((inc, idx) => (
+                                    <div key={idx} className="flex items-center justify-between bg-surface-container border border-outline-variant/20 p-3 rounded-sm">
+                                      <div className="flex items-center gap-3">
+                                        <span className={cn("w-2 h-2 rounded-full shrink-0", severityDot(inc.severity))} />
+                                        <span className="font-bold text-on-surface text-sm">{inc.title}</span>
+                                        {inc.action_needed && (
+                                          <span className="text-xs text-on-surface-variant">— {inc.action_needed}</span>
+                                        )}
+                                      </div>
+                                      <span className={cn("badge", incidentBadge(inc.status))}>
+                                        {incidentStatusLabel(inc.status, t)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Tools Status */}
+                            {handoff.tools_status && handoff.tools_status.length > 0 && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <Server className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.sectionTools", "Monitoring Tools Status")}
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {handoff.tools_status.map((tool, idx) => (
+                                    <div key={idx} className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3 py-1.5 rounded-sm">
+                                      <span className="text-xs font-bold text-on-surface">{tool.name}:</span>
+                                      <span className={cn("text-[10px] font-black uppercase tracking-widest", toolStatusColor(tool.status))}>
+                                        {toolStatusLabel(tool.status, t)}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Attachments */}
+                            {handoff.attachments && handoff.attachments.length > 0 && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <Paperclip className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.sectionAttachments", "Image Attachments")} ({handoff.attachments.length})
+                                </h4>
+                                <div className="flex flex-wrap gap-3">
+                                  {handoff.attachments.map((att) => (
+                                    <div key={att.id} className="relative group">
+                                      <button
+                                        type="button"
+                                        onClick={() => setLightboxSrc(att.data_uri)}
+                                        className="block w-28 h-28 rounded-sm overflow-hidden border border-outline-variant/20 hover:ring-2 hover:ring-primary/30 transition-all"
+                                      >
+                                        <img src={att.data_uri} alt={att.filename} className="w-full h-full object-cover" />
+                                      </button>
+                                      {canEdit(handoff) && (
+                                        <button
+                                          type="button"
+                                          aria-label={t("shift_handoff.removeAttachment", "Remove attachment")}
+                                          onClick={() => void deleteAttachment(handoff.id, att.id)}
+                                          className="absolute top-1 right-1 w-5 h-5 bg-error/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                                        >
+                                          <X className="h-3 w-3" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                                {canEdit(handoff) && handoff.attachments.length < 5 && (
+                                  <label className="btn btn-outline text-xs cursor-pointer inline-flex mt-3">
+                                    {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                                    {t("shift_handoff.addImage", "Add image")}
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      disabled={uploadingAttachment}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) void uploadSingleFile(handoff.id, f);
+                                        e.target.value = "";
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Inline attach when no attachments yet */}
+                            {(!handoff.attachments || handoff.attachments.length === 0) && canEdit(handoff) && (
+                              <label className="btn btn-outline text-xs cursor-pointer inline-flex">
+                                {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Paperclip className="h-3.5 w-3.5" />}
+                                {t("shift_handoff.attachImage", "Attach image")}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingAttachment}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) void uploadSingleFile(handoff.id, f);
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </label>
+                            )}
+
+                            {/* Unresolved Incidents from Previous Shifts */}
+                            {unresolvedPrev.length > 0 && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <History className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.unresolvedFromPrev", "Unresolved Incidents from Previous Shifts")}
+                                </h4>
+                                <div className="flex flex-wrap gap-2">
+                                  {unresolvedPrev.map((item, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3 py-1.5 rounded-sm"
+                                    >
+                                      <span className={cn("w-2 h-2 rounded-full shrink-0", severityDot(item.incident.severity))} />
+                                      <span className="text-xs font-bold text-on-surface">{item.incident.title}</span>
+                                      <span className={cn("badge text-[9px]", incidentBadge(item.incident.status))}>
+                                        {incidentStatusLabel(item.incident.status, t)}
+                                      </span>
+                                      <span className="text-[10px] text-on-surface-variant">
+                                        {t("shift_handoff.fromShift", "from shift on")} {format(new Date(item.shiftDate + "T12:00:00"), "dd/MM", { locale: dateFnsLocale })}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Footer */}
+                            <div className="flex flex-wrap items-center justify-between pt-6 border-t border-outline-variant/10 text-xs text-on-surface-variant gap-4">
+                              <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-sm bg-surface-container-high flex items-center justify-center text-on-surface font-bold border border-outline-variant/20">
+                                  {handoff.created_by.charAt(0).toUpperCase()}
+                                </div>
+                                <span>
+                                  {t("shift_handoff.by", "by")} <strong className="text-on-surface font-bold">{handoff.created_by}</strong>
+                                </span>
+                                <span className="text-on-surface-variant/60">·</span>
+                                <span className="font-medium">
+                                  {t("shift_handoff.visibilityLabel", "Visibility")} {handoff.visibility_days}{t("shift_handoff.daysShort", "d")}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                {!handoff.acknowledged_by && user && handoff.created_by !== user.username && (
+                                  <button type="button" onClick={() => void acknowledgeHandoff(handoff.id)} className="btn btn-primary py-1.5 px-3 text-[10px]">
+                                    <UserCheck className="w-3.5 h-3.5" /> {t("shift_handoff.acknowledge", "Acknowledge")}
+                                  </button>
+                                )}
+                                {canEdit(handoff) && (
+                                  <button type="button" onClick={() => openEdit(handoff)} className="btn btn-outline py-1.5 px-3 text-[10px]">
+                                    <Edit3 className="w-3.5 h-3.5" /> {t("shift_handoff.edit", "Edit")}
+                                  </button>
+                                )}
+                                {canDelete && (
+                                  confirmDeleteId === handoff.id ? (
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] text-error font-medium">{t("shift_handoff.confirmDelete", "Delete?")}</span>
+                                      <button type="button" onClick={() => void handleDelete(handoff.id)} className="btn btn-error py-1.5 px-3 text-[10px]">
+                                        {t("shift_handoff.confirmYes", "Yes")}
+                                      </button>
+                                      <button type="button" onClick={() => setConfirmDeleteId(null)} className="btn btn-outline py-1.5 px-3 text-[10px]">
+                                        {t("shift_handoff.cancel", "Cancel")}
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <button type="button" onClick={() => setConfirmDeleteId(handoff.id)} className="btn btn-outline py-1.5 px-3 text-[10px] text-error hover:bg-error/10 border-error/20">
+                                      <Trash2 className="w-3.5 h-3.5" /> {t("shift_handoff.delete", "Delete")}
+                                    </button>
+                                  )
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="lg:col-span-4 space-y-6">
+          {/* Current Shift Card */}
+          <div className="card card-accent-left card-accent-primary relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-4 opacity-5">
+              <Shield className="w-24 h-24" />
+            </div>
+            <div className="card-body">
+              <h3 className="card-title mb-2">{t("shift_handoff.currentShift", "Current Shift")}</h3>
+              <div className="text-3xl font-bold text-on-surface mb-1">
+                {format(new Date(), "dd/MM/yyyy", { locale: dateFnsLocale })}
+              </div>
+              <p className="text-primary text-sm font-bold">{currentShift.label}</p>
+            </div>
+          </div>
+
+          {/* Tools Status Card */}
+          <div className="card">
+            <div className="card-header">
+              <h3 className="card-title flex items-center gap-2">
+                <Server className="w-4 h-4" />
+                {t("shift_handoff.sectionTools", "Monitoring Tools Status")}
+              </h3>
+            </div>
+            <div className="card-body space-y-4">
+              {latestToolsStatus.map((tool) => (
+                <div key={tool.name} className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-on-surface-variant">{tool.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("w-2 h-2 rounded-full", toolDotColor(tool.status))} />
+                    <span className={cn("text-xs font-bold uppercase tracking-widest", toolStatusColor(tool.status))}>
+                      {toolStatusLabel(tool.status, t)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="card">
+            <div className="card-body space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant uppercase tracking-widest font-bold">{t("shift_handoff.statActive", "Active")}</span>
+                <span className="text-lg font-bold text-on-surface">{stats.total}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant uppercase tracking-widest font-bold">{t("shift_handoff.openIncidents", "Open Incidents")}</span>
+                <span className={cn("text-lg font-bold", stats.activeIncidents > 0 ? "text-error" : "text-on-surface")}>{stats.activeIncidents}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-on-surface-variant uppercase tracking-widest font-bold">{t("shift_handoff.statAuthors", "Analysts")}</span>
+                <span className="text-lg font-bold text-on-surface">{stats.uniqueAuthors}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* New/Edit Modal */}
+      <AnimatePresence>
+        {isFormOpen && (
+          <HandoffModal
+            editHandoff={editingHandoff}
+            currentShift={currentShift}
+            settings={settings}
+            t={t}
+            onClose={() => {
+              setIsFormOpen(false);
+              setEditingHandoff(null);
+            }}
+            onSuccess={() => {
+              setIsFormOpen(false);
+              setEditingHandoff(null);
+              void fetchHandoffs();
+            }}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <SettingsModal
+            t={t}
+            settings={settings}
+            onSave={(nextSettings) => {
+              setSettings(nextSettings);
+              saveSettings(nextSettings);
+              setNotice(t("shift_handoff.settingsSaved", "Settings saved."));
+              setShowSettings(false);
+            }}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Lightbox */}
+      {lightboxSrc && (
+        <div className="fixed inset-0 z-[100] bg-inverse-surface/90 flex items-center justify-center p-8" onClick={() => setLightboxSrc(null)}>
+          <button type="button" aria-label="Close" onClick={() => setLightboxSrc(null)} className="absolute top-6 right-6 text-white hover:text-white/70">
+            <X className="h-8 w-8" />
+          </button>
+          <img src={lightboxSrc} alt="Attachment" className="max-w-full max-h-full rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Modal Form ────────────────────────────────────────────────────────────────
+
+function HandoffModal({
+  editHandoff,
+  currentShift,
+  settings,
+  t,
+  onClose,
+  onSuccess,
+}: {
+  editHandoff: HandoffDoc | null;
+  currentShift: { period: string; date: string; label: string };
+  settings: HandoffSettings;
+  t: (key: string, fallback?: string) => string;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const isEditing = !!editHandoff;
+
+  const [team, setTeam] = useState(editHandoff ? editHandoff.team_members.join(", ") : "");
+  const [visibility, setVisibility] = useState(editHandoff ? editHandoff.visibility_days : settings.defaultVisibility);
+  const [shiftFocus, setShiftFocus] = useState(editHandoff?.shift_focus || "");
+  const [observations, setObservations] = useState(editHandoff?.observations || "");
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const editorRef = useRef<HTMLDivElement>(null);
+
+  const [incidents, setIncidents] = useState<IncidentEntry[]>(editHandoff?.incidents || []);
+  const [toolsStatus, setToolsStatus] = useState<ToolStatusEntry[]>(
+    editHandoff?.tools_status?.length
+      ? editHandoff.tools_status
+      : settings.tools.map((name) => ({ name, status: "operational" })),
+  );
+
+  // Pending files (for new handoff — uploaded after creation)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editorRef.current && editHandoff) {
+      editorRef.current.innerText = editHandoff.body;
+    }
+  }, [editHandoff]);
+
+  function handleFormat(command: string, value?: string) {
+    document.execCommand(command, false, value);
+    editorRef.current?.focus();
+  }
+
+  function addIncident() {
+    setIncidents([...incidents, { title: "", severity: "medium", status: "active", action_needed: "" }]);
+  }
+
+  function updateIncident(idx: number, field: keyof IncidentEntry, value: string) {
+    setIncidents(incidents.map((inc, i) => (i === idx ? { ...inc, [field]: value } : inc)));
+  }
+
+  function removeIncident(idx: number) {
+    setIncidents(incidents.filter((_, i) => i !== idx));
+  }
+
+  function updateToolStatus(name: string, status: string) {
+    setToolsStatus(toolsStatus.map((ts) => (ts.name === name ? { ...ts, status } : ts)));
+  }
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files: File[] = e.target.files ? Array.from(e.target.files) : [];
+    const valid = files.filter((f) => f.type.startsWith("image/") && f.size <= 2 * 1024 * 1024);
+    setPendingFiles((prev) => [...prev, ...valid].slice(0, 5));
+    e.target.value = "";
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    const errors = validateFields(formDate, formMembers, formBody, !!editingId, t);
-    setFieldErrors(errors);
-    setTouched(new Set(["date", "members", "body"]));
-    if (Object.keys(errors).length > 0) return;
+    const body = editorRef.current?.innerText?.trim() || "";
+
+    if (!body) {
+      setFormError(t("shift_handoff.errBodyRequired", "Handoff notes cannot be empty."));
+      return;
+    }
+
+    const teamMembers = team
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+
+    if (teamMembers.length === 0) {
+      setFormError(t("shift_handoff.errMembersRequired", "At least one team member is required."));
+      return;
+    }
 
     setSubmitting(true);
-    setError("");
-    const members = formMembers.split(",").map((m) => m.trim()).filter(Boolean);
-    const payload = {
-      team_members: members,
-      body: formBody,
-      visibility_days: formVisibility,
-      incidents: formIncidents.filter((i) => i.title.trim()),
-      tools_status: formTools,
-      observations: formObservations,
-      shift_focus: formFocus,
-      ...(!editingId && { shift_date: formDate }),
-    };
+    setFormError("");
 
     try {
-      let handoffId = editingId;
-      if (editingId) {
-        const res = await fetch(`${API_URL}/api/shift-handoffs/${editingId}`, {
-          method: "PUT", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify(payload),
+      if (isEditing) {
+        const res = await fetch(`${API_URL}/api/shift-handoffs/${editHandoff!.id}`, {
+          method: "PUT",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            team_members: teamMembers,
+            body,
+            visibility_days: visibility,
+            incidents: incidents.filter((i) => i.title.trim()),
+            tools_status: toolsStatus,
+            observations,
+            shift_focus: shiftFocus,
+          }),
         });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "update_failed");
-        setNotice(t("shift_handoff.updated", "Handoff updated successfully."));
+        if (!res.ok) throw new Error();
       } else {
         const res = await fetch(`${API_URL}/api/shift-handoffs`, {
-          method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include",
-          body: JSON.stringify(payload),
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            shift_date: currentShift.date,
+            team_members: teamMembers,
+            body,
+            visibility_days: visibility,
+            incidents: incidents.filter((i) => i.title.trim()),
+            tools_status: toolsStatus,
+            observations,
+            shift_focus: shiftFocus,
+          }),
         });
-        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || "create_failed");
-        const created = (await res.json()) as HandoffItem;
-        handoffId = created.id;
-        setNotice(t("shift_handoff.created", "Handoff created successfully."));
+        if (!res.ok) throw new Error();
+
+        // Upload pending files
+        if (pendingFiles.length > 0) {
+          const data = await res.json();
+          for (const file of pendingFiles) {
+            const formData = new FormData();
+            formData.append("file", file);
+            await fetch(`${API_URL}/api/shift-handoffs/${data.id}/attachments`, {
+              method: "POST",
+              credentials: "include",
+              body: formData,
+            });
+          }
+        }
       }
-      if (handoffId && pendingFiles.length > 0) {
-        await uploadFilesToHandoff(handoffId);
-      }
-      resetForm();
-      await loadHandoffs();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "unknown_error");
+      onSuccess();
+    } catch {
+      setFormError(t("shift_handoff.saveFailed", "Could not save handoff."));
     } finally {
       setSubmitting(false);
     }
   }
 
-  // ── Acknowledge ──────────────────────────────────────────────────────────
-
-  async function acknowledgeHandoff(id: string) {
-    try {
-      const res = await fetch(`${API_URL}/api/shift-handoffs/${id}/acknowledge`, { method: "POST", credentials: "include" });
-      if (!res.ok) throw new Error("ack_failed");
-      setNotice(t("shift_handoff.acknowledged", "Handoff acknowledged."));
-      await loadHandoffs();
-    } catch {
-      setError(t("shift_handoff.ackFailed", "Could not acknowledge handoff."));
-    }
-  }
-
-  // ── Delete ───────────────────────────────────────────────────────────────
-
-  async function handleDelete(id: string) {
-    setConfirmDeleteId(null);
-    try {
-      const res = await fetch(`${API_URL}/api/shift-handoffs/${id}`, { method: "DELETE", credentials: "include" });
-      if (!res.ok) throw new Error("delete_failed");
-      setNotice(t("shift_handoff.deleted", "Handoff deleted."));
-      if (expandedId === id) setExpandedId(null);
-      await loadHandoffs();
-    } catch {
-      setError(t("shift_handoff.deleteFailed", "Could not delete handoff."));
-    }
-  }
-
-  // ── Derived data ─────────────────────────────────────────────────────────
-
-  const { currentHandoff, pastHandoffs } = useMemo(() => {
-    const todayStr = currentShift.date;
-    const current = items.find((i) => i.shift_date === todayStr) || null;
-    const past = items.filter((i) => i.shift_date !== todayStr);
-    return { currentHandoff: current, pastHandoffs: past };
-  }, [items, currentShift.date]);
-
-  const stats = useMemo(() => {
-    const todayCount = currentHandoff ? 1 : 0;
-    const uniqueAuthors = new Set(items.map((i) => i.created_by)).size;
-    const activeIncidents = items.reduce((sum, i) => sum + (i.incidents?.filter((inc) => inc.status === "active" || inc.status === "escalated").length || 0), 0);
-    return { total: items.length, todayCount, uniqueAuthors, activeIncidents };
-  }, [items, currentHandoff]);
-
-  // ── Render ───────────────────────────────────────────────────────────────
-
   return (
-    <div className="page-frame space-y-8">
-      {/* Header */}
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">
-            <ScrollText className="h-3.5 w-3.5" />
-            {t("shift_handoff.eyebrow", "Operations")}
-          </div>
-          <h1 className="page-heading">{t("shift_handoff.title", "SOC Shift Handoff")}</h1>
-          <p className="page-subheading">
-            {t("shift_handoff.subtitle", "Register and review shift handoffs for your SOC rotation teams. Entries expire automatically based on the configured visibility window.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            {currentShift.period === "day" ? <Sun className="h-4 w-4 text-amber-500" /> : <Moon className="h-4 w-4 text-indigo-400" />}
-            {currentShift.label}
-          </div>
-          <div className="summary-pill">
-            <FileText className="h-4 w-4 text-primary" />
-            {stats.total} {t("shift_handoff.statActive", "active")}
-          </div>
-          {stats.activeIncidents > 0 && (
-            <div className="summary-pill">
-              <AlertTriangle className="h-4 w-4 text-error" />
-              {stats.activeIncidents} {t("shift_handoff.openIncidents", "open incidents")}
-            </div>
-          )}
-          <div className="summary-pill-muted">
-            {stats.uniqueAuthors} {t("shift_handoff.statAuthors", "analysts")}
-          </div>
-        </div>
-      </div>
-
-      {/* Toolbar */}
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("shift_handoff.actions", "Shift handoff actions")}</div>
-        <div className="page-toolbar-actions">
-          <button type="button" onClick={() => void loadHandoffs()} className="btn btn-outline">
-            <RefreshCw className="h-4 w-4" />
-            {t("shift_handoff.refresh", "Refresh")}
-          </button>
-          <button type="button" onClick={openCreate} className="btn btn-primary">
-            <Plus className="h-4 w-4" />
-            {t("shift_handoff.newHandoff", "New Handoff")}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-4xl bg-surface border border-outline-variant/20 rounded-sm shadow-2xl flex flex-col max-h-[90vh]"
+      >
+        {/* Header */}
+        <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between shrink-0 bg-surface-container-lowest">
+          <h2 className="text-lg font-bold text-on-surface">
+            {isEditing ? t("shift_handoff.editTitle", "Edit Handoff") : t("shift_handoff.createTitle", "New Shift Handoff")}
+          </h2>
+          <button type="button" aria-label="Close" onClick={onClose} className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-sm transition-colors">
+            <X className="w-5 h-5" />
           </button>
         </div>
-      </div>
 
-      {/* Notice / Error */}
-      {(notice || error) && (
-        <div className="space-y-3">
-          {notice && (
-            <div className="rounded-sm border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-on-surface flex items-center gap-3">
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
-              <span className="flex-1">{notice}</span>
-              <button type="button" aria-label="Dismiss" onClick={() => setNotice("")} className="text-on-surface-variant hover:text-on-surface shrink-0"><X className="h-4 w-4" /></button>
-            </div>
-          )}
-          {error && (
-            <div className="rounded-sm border border-error/20 bg-error/10 px-4 py-3 text-sm text-error flex items-center gap-3">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              <span className="flex-1">{error}</span>
-              <button type="button" aria-label="Dismiss" onClick={() => setError("")} className="text-error/60 hover:text-error shrink-0"><X className="h-4 w-4" /></button>
-            </div>
-          )}
-        </div>
-      )}
+        {/* Scrollable Body */}
+        <div className="p-6 overflow-y-auto bg-surface">
+          <form id="handoff-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-8">
+            {formError && (
+              <div className="rounded-sm bg-error/10 border border-error/20 px-4 py-2.5 text-xs font-bold text-error flex items-center gap-2">
+                <AlertTriangle className="h-3.5 w-3.5" /> {formError}
+              </div>
+            )}
 
-      {/* ── Create / Edit Form ──────────────────────────────────────────── */}
-      {showForm && (
-        <div ref={formRef} className="surface-section">
-          <div className="surface-section-header">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-sm bg-primary/10 flex items-center justify-center">
-                {editingId ? <Edit3 className="h-4 w-4 text-primary" /> : <Plus className="h-4 w-4 text-primary" />}
-              </div>
-              <div>
-                <h2 className="surface-section-title">
-                  {editingId ? t("shift_handoff.editTitle", "Edit Handoff") : t("shift_handoff.createTitle", "New Shift Handoff")}
-                </h2>
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest mt-0.5">
-                  {editingId ? t("shift_handoff.editDesc", "Update handoff details") : t("shift_handoff.createDesc", "Fill in the shift details below")}
-                </p>
-              </div>
-            </div>
-            <button type="button" aria-label="Close form" onClick={resetForm} className="btn btn-ghost"><X className="h-4 w-4" /></button>
-          </div>
-
-          <form onSubmit={(e) => void handleSubmit(e)} className="p-6 space-y-6">
-            {/* ── Section: Shift ID ─────────────────────────────────────── */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant pb-2 border-b border-outline-variant/10">
-                <Calendar className="h-3.5 w-3.5" />
-                {t("shift_handoff.sectionIdentification", "Shift Identification")}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-                {/* Date */}
-                <label className="block space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    {t("shift_handoff.fieldDate", "Shift Date")} <span className="text-error">*</span>
-                  </div>
-                  {editingId ? (
-                    <div className="flex items-center gap-2 rounded-sm bg-surface-container-high px-4 py-3 text-sm text-on-surface">
-                      <Calendar className="h-4 w-4 text-on-surface-variant" />
-                      {formatDateOnly(formDate, locale)}
-                    </div>
-                  ) : (
-                    <input type="date" value={formDate} onChange={(e) => setFormDate(e.target.value)} onBlur={() => handleFieldBlur("date")}
-                      className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:border-primary rounded-sm transition-colors" />
-                  )}
-                  {touched.has("date") && fieldErrors.date && <p className="text-[11px] text-error flex items-center gap-1 mt-1"><AlertTriangle className="h-3 w-3" /> {fieldErrors.date}</p>}
+            {/* Basic Info */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
+                  {t("shift_handoff.fieldDate", "Shift Date")}
                 </label>
+                <div className="bg-surface-container-low border border-outline-variant/20 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface flex items-center gap-3">
+                  <Calendar className="w-4 h-4 text-on-surface-variant" />
+                  {isEditing ? editHandoff!.shift_date : currentShift.date}
+                </div>
+              </div>
 
-                {/* Shift Focus */}
-                <label className="block space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    {t("shift_handoff.fieldFocus", "Shift Focus / Priority")}
-                  </div>
-                  <input type="text" value={formFocus} onChange={(e) => setFormFocus(e.target.value)} maxLength={500}
-                    placeholder={t("shift_handoff.fieldFocusPlaceholder", "e.g. Phishing campaign follow-up")}
-                    className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:border-primary rounded-sm transition-colors" />
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
+                  {t("shift_handoff.fieldVisibility", "Visibility Window")}
                 </label>
-
-                {/* Visibility */}
-                <label className="block space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    <Clock className="inline h-3 w-3 mr-1" />
-                    {t("shift_handoff.fieldVisibility", "Visibility Window")}
-                  </div>
-                  <div className="flex gap-2">
-                    {VISIBILITY_OPTIONS.map((d) => (
-                      <button key={d} type="button" onClick={() => setFormVisibility(d)}
-                        className={`px-3 py-2.5 text-xs font-bold rounded-sm border transition-all ${formVisibility === d ? "bg-primary/10 text-primary border-primary/30" : "bg-surface-container-high text-on-surface-variant border-outline-variant/20 hover:border-outline-variant/40"}`}>
-                        {d}d
-                      </button>
-                    ))}
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* ── Section: Team ──────────────────────────────────────────── */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant pb-2 border-b border-outline-variant/10">
-                <Users className="h-3.5 w-3.5" />
-                {t("shift_handoff.sectionTeam", "Shift Team")}
-              </div>
-              <label className="block space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                  {t("shift_handoff.fieldMembers", "Team Members")} <span className="text-error">*</span>
-                </div>
-                <input type="text" value={formMembers} onChange={(e) => setFormMembers(e.target.value)} onBlur={() => handleFieldBlur("members")}
-                  placeholder={t("shift_handoff.fieldMembersPlaceholder", "e.g. Nilson, Samuel, Rony")}
-                  className="w-full border-0 border-b-2 border-outline bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:border-primary rounded-sm transition-colors" />
-                {touched.has("members") && fieldErrors.members && <p className="text-[11px] text-error flex items-center gap-1 mt-1"><AlertTriangle className="h-3 w-3" /> {fieldErrors.members}</p>}
-                {memberChips.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {memberChips.map((name, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold bg-primary/8 text-primary border border-primary/15 rounded-sm">
-                        <UserCircle className="h-3 w-3" /> {name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </label>
-            </div>
-
-            {/* ── Section: Active Incidents (inspired by JotForm matrix) ── */}
-            <div className="space-y-5">
-              <div className="flex items-center justify-between pb-2 border-b border-outline-variant/10">
-                <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
-                  <Shield className="h-3.5 w-3.5" />
-                  {t("shift_handoff.sectionIncidents", "Active Incidents")}
-                </div>
-                <button type="button" onClick={addIncident} className="btn btn-outline text-xs">
-                  <Plus className="h-3.5 w-3.5" /> {t("shift_handoff.addIncident", "Add")}
-                </button>
-              </div>
-
-              {formIncidents.length === 0 ? (
-                <div className="rounded-sm bg-surface-container-low px-4 py-4 text-xs text-on-surface-variant text-center">
-                  {t("shift_handoff.noIncidents", "No active incidents to report. Click \"Add\" if there are ongoing incidents.")}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {formIncidents.map((inc, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-3 items-start rounded-sm border border-outline-variant/15 bg-surface-container-high/30 p-3">
-                      <div className="col-span-12 md:col-span-4">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline mb-1">{t("shift_handoff.incTitle", "Incident")}</div>
-                        <input type="text" value={inc.title} onChange={(e) => updateIncident(idx, "title", e.target.value)}
-                          placeholder={t("shift_handoff.incTitlePlaceholder", "Brief description")}
-                          className="w-full border-0 border-b border-outline bg-transparent px-0 py-1.5 text-sm text-on-surface outline-none focus:border-primary" />
-                      </div>
-                      <div className="col-span-4 md:col-span-2">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline mb-1">{t("shift_handoff.incSeverity", "Severity")}</div>
-                        <select value={inc.severity} onChange={(e) => updateIncident(idx, "severity", e.target.value)}
-                          aria-label={t("shift_handoff.incSeverity", "Severity")}
-                          className="w-full border-0 border-b border-outline bg-transparent px-0 py-1.5 text-xs text-on-surface outline-none focus:border-primary uppercase font-bold">
-                          {INCIDENT_SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-4 md:col-span-2">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline mb-1">{t("shift_handoff.incStatus", "Status")}</div>
-                        <select value={inc.status} onChange={(e) => updateIncident(idx, "status", e.target.value)}
-                          aria-label={t("shift_handoff.incStatus", "Status")}
-                          className="w-full border-0 border-b border-outline bg-transparent px-0 py-1.5 text-xs text-on-surface outline-none focus:border-primary uppercase font-bold">
-                          {INCIDENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-                      <div className="col-span-12 md:col-span-3">
-                        <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline mb-1">{t("shift_handoff.incAction", "Action Needed")}</div>
-                        <input type="text" value={inc.action_needed} onChange={(e) => updateIncident(idx, "action_needed", e.target.value)}
-                          placeholder={t("shift_handoff.incActionPlaceholder", "Next steps...")}
-                          className="w-full border-0 border-b border-outline bg-transparent px-0 py-1.5 text-sm text-on-surface outline-none focus:border-primary" />
-                      </div>
-                      <div className="col-span-12 md:col-span-1 flex md:justify-end md:items-end md:pb-1">
-                        <button type="button" aria-label={t("shift_handoff.removeIncident", "Remove incident")} onClick={() => removeIncident(idx)} className="text-error/50 hover:text-error p-1"><Trash2 className="h-3.5 w-3.5" /></button>
-                      </div>
-                    </div>
+                <select
+                  value={visibility}
+                  onChange={(e) => setVisibility(Number(e.target.value))}
+                  aria-label={t("shift_handoff.fieldVisibility", "Visibility Window")}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
+                >
+                  {VISIBILITY_OPTIONS.map((d) => (
+                    <option key={d} value={d}>{d} {t("shift_handoff.days", "days")}</option>
                   ))}
-                </div>
-              )}
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
+                  {t("shift_handoff.fieldMembers", "Team Members")} *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={team}
+                  onChange={(e) => setTeam(e.target.value)}
+                  placeholder={t("shift_handoff.fieldMembersPlaceholder", "e.g. Nilson, Samuel, Rony")}
+                  className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                />
+              </div>
             </div>
 
-            {/* ── Section: Tools Status (inspired by JotForm equipment matrix) */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant pb-2 border-b border-outline-variant/10">
-                <Wrench className="h-3.5 w-3.5" />
+            {/* Shift Focus */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                <Shield className="w-3.5 h-3.5" />
+                {t("shift_handoff.fieldFocus", "Shift Focus / Priority")}
+              </label>
+              <input
+                type="text"
+                value={shiftFocus}
+                onChange={(e) => setShiftFocus(e.target.value)}
+                maxLength={500}
+                placeholder={t("shift_handoff.fieldFocusPlaceholder", "e.g. Phishing campaign follow-up")}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+
+            {/* Tools Status */}
+            <div className="space-y-3">
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                <Server className="w-3.5 h-3.5" />
                 {t("shift_handoff.sectionTools", "Monitoring Tools Status")}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {formTools.map((tool, idx) => (
-                  <div key={idx} className="space-y-2">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{tool.name}</div>
-                    <div className="flex flex-wrap gap-1">
+              </label>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                {toolsStatus.map((tool) => (
+                  <div key={tool.name} className="bg-surface-container-lowest border border-outline-variant/20 p-3 rounded-sm space-y-2">
+                    <div className="text-xs font-bold text-on-surface">{tool.name}</div>
+                    <select
+                      value={tool.status}
+                      onChange={(e) => updateToolStatus(tool.name, e.target.value)}
+                      aria-label={`${tool.name} status`}
+                      className="w-full bg-surface-container-low border border-outline-variant/20 rounded-sm px-2 py-1.5 text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                    >
                       {TOOL_STATUSES.map((s) => (
-                        <button key={s} type="button" onClick={() => updateToolStatus(idx, s)}
-                          className={`px-2 py-1 text-[9px] font-black uppercase rounded-sm border transition-all ${tool.status === s ? toolStatusTone(s) : "bg-transparent text-on-surface-variant/40 border-outline-variant/10 hover:border-outline-variant/30"}`}>
-                          {s === "operational" ? "OK" : s === "degraded" ? "DEG" : s === "down" ? "DOWN" : "MAINT"}
-                        </button>
+                        <option key={s} value={s}>{toolStatusLabel(s, t)}</option>
                       ))}
-                    </div>
+                    </select>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* ── Section: Notes ─────────────────────────────────────────── */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant pb-2 border-b border-outline-variant/10">
-                <FileText className="h-3.5 w-3.5" />
-                {t("shift_handoff.sectionNotes", "Handoff Notes")}
-              </div>
-
-              <label className="block space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                    {t("shift_handoff.fieldBody", "Shift Summary")} <span className="text-error">*</span>
-                  </div>
-                  <div className={`text-[10px] font-mono tabular-nums ${bodyWarning ? "text-warning font-bold" : "text-on-surface-variant"}`}>
-                    {formBody.length.toLocaleString()}/{BODY_MAX_LENGTH.toLocaleString()}
-                  </div>
-                </div>
-                <textarea ref={bodyRef} value={formBody} onChange={(e) => setFormBody(e.target.value)} onBlur={() => handleFieldBlur("body")}
-                  placeholder={t("shift_handoff.fieldBodyPlaceholder", "Summarize incidents, ongoing investigations, and anything the next shift needs to know...")}
-                  rows={8} maxLength={BODY_MAX_LENGTH}
-                  className="w-full border border-outline-variant/20 bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:border-primary rounded-sm transition-colors resize-y leading-relaxed" />
-                <div className="h-0.5 rounded-full bg-surface-container-highest overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-300 ${bodyWarning ? "bg-warning" : "bg-primary/40"}`}
-                    style={{ width: `${bodyPercent}%` }} />
-                </div>
-                {touched.has("body") && fieldErrors.body && <p className="text-[11px] text-error flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> {fieldErrors.body}</p>}
-              </label>
-
-              {/* Observations */}
-              <label className="block space-y-2">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                  {t("shift_handoff.fieldObservations", "Additional Observations")}
-                </div>
-                <textarea value={formObservations} onChange={(e) => setFormObservations(e.target.value)}
-                  placeholder={t("shift_handoff.fieldObservationsPlaceholder", "Pending escalations, external contacts, compliance notes...")}
-                  rows={3} maxLength={2000}
-                  className="w-full border border-outline-variant/20 bg-surface-container-high px-4 py-3 text-sm text-on-surface outline-none focus:border-primary rounded-sm transition-colors resize-y leading-relaxed" />
-              </label>
-            </div>
-
-            {/* ── Section: Attachments ───────────────────────────────────── */}
-            <div className="space-y-5">
-              <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant pb-2 border-b border-outline-variant/10">
-                <ImageIcon className="h-3.5 w-3.5" />
-                {t("shift_handoff.sectionAttachments", "Image Attachments")}
-              </div>
-
-              {/* Drop zone */}
-              <div
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={handleDrop}
-                className="rounded-sm border-2 border-dashed border-outline-variant/30 bg-surface-container-high/30 p-6 text-center hover:border-primary/40 transition-colors"
-              >
-                <Upload className="h-6 w-6 text-on-surface-variant/40 mx-auto mb-2" />
-                <p className="text-xs text-on-surface-variant mb-2">
-                  {t("shift_handoff.dropImages", "Drag and drop images here, or")}
-                </p>
-                <label className="btn btn-outline text-xs cursor-pointer inline-flex">
-                  <ImageIcon className="h-3.5 w-3.5" />
-                  {t("shift_handoff.browseFiles", "Browse files")}
-                  <input type="file" accept="image/*" multiple onChange={handleFileSelect} className="hidden" />
-                </label>
-                <p className="text-[10px] text-on-surface-variant/60 mt-2">
-                  PNG, JPG, GIF, WebP · {t("shift_handoff.maxSize", "Max 2MB per file")} · {t("shift_handoff.maxFiles", "Up to 5 images")}
-                </p>
-              </div>
-
-              {/* Pending files preview */}
-              {pendingFiles.length > 0 && (
-                <div className="flex flex-wrap gap-3">
-                  {pendingFiles.map((file, idx) => (
-                    <div key={idx} className="relative group w-24 h-24 rounded-sm overflow-hidden border border-outline-variant/20 bg-surface-container-high">
-                      <img src={URL.createObjectURL(file)} alt={file.name} className="w-full h-full object-cover" />
-                      <button type="button" aria-label={t("shift_handoff.removePendingFile", "Remove file")} onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
-                        className="absolute top-1 right-1 w-5 h-5 bg-inverse-surface/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                        <X className="h-3 w-3" />
-                      </button>
-                      <div className="absolute bottom-0 inset-x-0 bg-inverse-surface/60 px-1 py-0.5 text-[9px] text-white truncate">{file.name}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Submit row */}
-            <div className="flex items-center justify-between pt-4 border-t border-outline-variant/10">
-              <p className="text-[10px] text-on-surface-variant"><span className="text-error">*</span> {t("shift_handoff.requiredFields", "Required fields")}</p>
-              <div className="flex gap-3">
-                <button type="button" onClick={resetForm} className="btn btn-outline">{t("shift_handoff.cancel", "Cancel")}</button>
-                <button type="submit" disabled={submitting} className="btn btn-primary">
-                  {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />{t("shift_handoff.saving", "Saving...")}</> : editingId ? t("shift_handoff.save", "Save Changes") : t("shift_handoff.create", "Create Handoff")}
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* ── Current Shift (always open at top) ──────────────────────────── */}
-      {!loading && currentHandoff && (
-        <div className="surface-section ring-2 ring-primary/20">
-          <div className="surface-section-header bg-primary/5">
-            <div className="flex items-center gap-3">
-              {currentShift.period === "day" ? <Sun className="h-5 w-5 text-amber-500" /> : <Moon className="h-5 w-5 text-indigo-400" />}
-              <div>
-                <h3 className="text-sm font-bold tracking-tight text-on-surface">
-                  {t("shift_handoff.currentShift", "Current Shift")} — {formatDateOnly(currentHandoff.shift_date, locale)}
-                </h3>
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-widest">
-                  {currentShift.label} · {t("shift_handoff.by", "by")} {currentHandoff.created_by}
-                  {currentHandoff.acknowledged_by && (
-                    <> · <CheckCircle2 className="inline h-3 w-3 text-emerald-500" /> {t("shift_handoff.ackBy", "ack")} {currentHandoff.acknowledged_by}</>
-                  )}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              {!currentHandoff.acknowledged_by && user && currentHandoff.created_by !== user.username && (
-                <button type="button" onClick={() => void acknowledgeHandoff(currentHandoff.id)} className="btn btn-primary text-xs">
-                  <UserCheck className="h-3.5 w-3.5" /> {t("shift_handoff.acknowledge", "Acknowledge")}
-                </button>
-              )}
-              {canEdit(currentHandoff) && (
-                <button type="button" onClick={() => openEditForm(currentHandoff)} className="btn btn-outline text-xs">
-                  <Edit3 className="h-3.5 w-3.5" /> {t("shift_handoff.edit", "Edit")}
-                </button>
-              )}
-            </div>
-          </div>
-
-          <div className="p-6 space-y-6">
-            {/* Shift focus */}
-            {currentHandoff.shift_focus && (
-              <div className="rounded-sm bg-primary/5 border border-primary/15 px-4 py-3 flex items-start gap-3">
-                <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-                <div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary mb-1">{t("shift_handoff.shiftFocusLabel", "Shift Focus")}</div>
-                  <p className="text-sm text-on-surface">{currentHandoff.shift_focus}</p>
-                </div>
-              </div>
-            )}
-
             {/* Incidents */}
-            {currentHandoff.incidents && currentHandoff.incidents.length > 0 && (
-              <div className="space-y-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
-                  <AlertTriangle className="h-3.5 w-3.5" /> {t("shift_handoff.sectionIncidents", "Active Incidents")}
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-outline-variant/15 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                        <th className="text-left py-2 pr-3">{t("shift_handoff.incTitle", "Incident")}</th>
-                        <th className="text-left py-2 pr-3">{t("shift_handoff.incSeverity", "Severity")}</th>
-                        <th className="text-left py-2 pr-3">{t("shift_handoff.incStatus", "Status")}</th>
-                        <th className="text-left py-2">{t("shift_handoff.incAction", "Action Needed")}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {currentHandoff.incidents.map((inc, idx) => (
-                        <tr key={idx} className="border-b border-outline-variant/10">
-                          <td className="py-2 pr-3 font-medium text-on-surface">{inc.title}</td>
-                          <td className="py-2 pr-3"><span className={`badge ${severityTone(inc.severity)}`}>{inc.severity}</span></td>
-                          <td className="py-2 pr-3"><span className={`badge ${incidentStatusTone(inc.status)}`}>{inc.status}</span></td>
-                          <td className="py-2 text-on-surface-variant">{inc.action_needed || "—"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {t("shift_handoff.sectionIncidents", "Active Incidents")}
+                </label>
+                <button type="button" onClick={addIncident} className="btn btn-outline py-1.5 px-3 text-[10px]">
+                  <Plus className="w-3 h-3" /> {t("shift_handoff.addIncident", "Add")}
+                </button>
               </div>
-            )}
 
-            {/* Tools status */}
-            {currentHandoff.tools_status && currentHandoff.tools_status.length > 0 && (
-              <div className="space-y-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
-                  <Wrench className="h-3.5 w-3.5" /> {t("shift_handoff.sectionTools", "Monitoring Tools Status")}
+              {incidents.length === 0 ? (
+                <div className="text-xs text-on-surface-variant italic bg-surface-container-low p-3 rounded-sm border border-outline-variant/10 text-center">
+                  {t("shift_handoff.noIncidents", "No active incidents to report.")}
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {currentHandoff.tools_status.map((ts, idx) => (
-                    <div key={idx} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-sm border text-[11px] font-bold ${toolStatusTone(ts.status)}`}>
-                      {ts.name}
-                      <span className="uppercase text-[9px]">{ts.status}</span>
+              ) : (
+                <div className="space-y-3">
+                  {incidents.map((inc, idx) => (
+                    <div key={idx} className="flex flex-col md:flex-row gap-3 bg-surface-container-lowest border border-outline-variant/20 p-3 rounded-sm items-start md:items-center">
+                      <input
+                        type="text"
+                        value={inc.title}
+                        onChange={(e) => updateIncident(idx, "title", e.target.value)}
+                        placeholder={t("shift_handoff.incTitlePlaceholder", "Brief description")}
+                        className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-sm px-3 py-1.5 text-sm font-medium text-on-surface focus:outline-none focus:border-primary w-full"
+                      />
+                      <div className="flex items-center gap-3 w-full md:w-auto">
+                        <select
+                          value={inc.severity}
+                          onChange={(e) => updateIncident(idx, "severity", e.target.value)}
+                          aria-label={t("shift_handoff.incSeverity", "Severity")}
+                          className="bg-surface-container-low border border-outline-variant/20 rounded-sm px-2 py-1.5 text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                        >
+                          {INCIDENT_SEVERITIES.map((s) => (
+                            <option key={s} value={s}>{severityLabel(s, t)}</option>
+                          ))}
+                        </select>
+                        <select
+                          value={inc.status}
+                          onChange={(e) => updateIncident(idx, "status", e.target.value)}
+                          aria-label={t("shift_handoff.incStatus", "Status")}
+                          className="bg-surface-container-low border border-outline-variant/20 rounded-sm px-2 py-1.5 text-xs font-medium text-on-surface focus:outline-none focus:border-primary"
+                        >
+                          {INCIDENT_STATUSES.map((s) => (
+                            <option key={s} value={s}>{incidentStatusLabel(s, t)}</option>
+                          ))}
+                        </select>
+                        <input
+                          type="text"
+                          value={inc.action_needed}
+                          onChange={(e) => updateIncident(idx, "action_needed", e.target.value)}
+                          placeholder={t("shift_handoff.incActionPlaceholder", "Next steps...")}
+                          className="flex-1 bg-surface-container-low border border-outline-variant/20 rounded-sm px-3 py-1.5 text-sm font-medium text-on-surface focus:outline-none focus:border-primary min-w-0 hidden md:block"
+                        />
+                        <button
+                          type="button"
+                          aria-label={t("shift_handoff.removeIncident", "Remove incident")}
+                          onClick={() => removeIncident(idx)}
+                          className="p-1.5 text-error hover:bg-error/10 rounded-sm transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Body */}
-            <div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-2 flex items-center gap-2">
-                <FileText className="h-3.5 w-3.5" /> {t("shift_handoff.sectionNotes", "Handoff Notes")}
-              </div>
-              <div className="text-sm text-on-surface whitespace-pre-wrap leading-relaxed bg-surface-container-high/20 rounded-sm p-4 border border-outline-variant/10">
-                {currentHandoff.body}
+            {/* Rich Text Editor for Summary */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                <MessageSquare className="w-3.5 h-3.5" />
+                {t("shift_handoff.fieldBody", "Shift Summary")} *
+              </label>
+              <div className="border border-outline-variant/30 rounded-sm overflow-hidden bg-surface-container-lowest focus-within:border-primary focus-within:ring-1 focus-within:ring-primary transition-colors">
+                <div className="flex items-center gap-1 p-2 border-b border-outline-variant/20 bg-surface-container-low">
+                  <button type="button" onClick={() => handleFormat("bold")} className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-sm" title={t("shift_handoff.fmtBold", "Bold")}>
+                    <Bold className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => handleFormat("italic")} className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-sm" title={t("shift_handoff.fmtItalic", "Italic")}>
+                    <Italic className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => handleFormat("underline")} className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-sm" title={t("shift_handoff.fmtUnderline", "Underline")}>
+                    <Underline className="w-4 h-4" />
+                  </button>
+                  <button type="button" onClick={() => handleFormat("strikeThrough")} className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-sm" title={t("shift_handoff.fmtStrike", "Strikethrough")}>
+                    <Strikethrough className="w-4 h-4" />
+                  </button>
+                  <div className="w-px h-4 bg-outline-variant/30 mx-1" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const url = prompt(t("shift_handoff.insertImageUrl", "Enter image URL:"));
+                      if (url) handleFormat("insertImage", url);
+                    }}
+                    className="p-1.5 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high rounded-sm"
+                    title={t("shift_handoff.insertImage", "Insert image URL")}
+                  >
+                    <ImageIcon className="w-4 h-4" />
+                  </button>
+                </div>
+                <div
+                  ref={editorRef}
+                  contentEditable
+                  role="textbox"
+                  aria-label={t("shift_handoff.fieldBody", "Shift Summary")}
+                  className="min-h-[150px] resize-y overflow-y-auto p-4 text-sm text-on-surface outline-none max-w-none"
+                  data-placeholder={t("shift_handoff.fieldBodyPlaceholder", "Summarize incidents, ongoing investigations...")}
+                />
               </div>
             </div>
 
-            {/* Observations */}
-            {currentHandoff.observations && (
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-2">
-                  {t("shift_handoff.fieldObservations", "Additional Observations")}
-                </div>
-                <p className="text-sm text-on-surface-variant whitespace-pre-wrap leading-relaxed">{currentHandoff.observations}</p>
-              </div>
-            )}
+            {/* Additional Info */}
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                <FileText className="w-3.5 h-3.5" />
+                {t("shift_handoff.fieldObservations", "Additional Observations")}
+              </label>
+              <textarea
+                value={observations}
+                onChange={(e) => setObservations(e.target.value)}
+                placeholder={t("shift_handoff.fieldObservationsPlaceholder", "Pending escalations, external contacts, compliance notes...")}
+                rows={3}
+                maxLength={2000}
+                className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-3 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary resize-none"
+              />
+            </div>
 
-            {/* Attachments */}
-            {currentHandoff.attachments && currentHandoff.attachments.length > 0 && (
+            {/* File Uploads */}
+            {!isEditing && (
               <div className="space-y-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
-                  <ImageIcon className="h-3.5 w-3.5" /> {t("shift_handoff.sectionAttachments", "Image Attachments")} ({currentHandoff.attachments.length})
+                <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                  <Paperclip className="w-3.5 h-3.5" />
+                  {t("shift_handoff.sectionAttachments", "Image Attachments")} ({t("shift_handoff.maxSize", "Max 2MB per file")})
+                </label>
+                <div className="flex items-center gap-3">
+                  <input type="file" multiple accept="image/*" ref={fileInputRef} onChange={handleFileSelect} className="hidden" />
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="btn btn-outline py-2">
+                    <Paperclip className="w-4 h-4" /> {t("shift_handoff.browseFiles", "Browse files")}
+                  </button>
+                  <span className="text-xs text-on-surface-variant">PNG, JPG, GIF, WebP · {t("shift_handoff.maxFiles", "Up to 5 images")}</span>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  {currentHandoff.attachments.map((att) => (
-                    <div key={att.id} className="relative group">
-                      <button type="button" onClick={() => setLightboxSrc(att.data_uri)} className="block w-32 h-32 rounded-sm overflow-hidden border border-outline-variant/20 hover:ring-2 hover:ring-primary/30 transition-all">
-                        <img src={att.data_uri} alt={att.filename} className="w-full h-full object-cover" />
-                      </button>
-                      {canEdit(currentHandoff) && (
-                        <button type="button" aria-label={t("shift_handoff.removeAttachment", "Remove attachment")} onClick={() => void deleteAttachment(currentHandoff.id, att.id)}
-                          className="absolute top-1 right-1 w-5 h-5 bg-error/80 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <X className="h-3 w-3" />
+                {pendingFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {pendingFiles.map((file, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3 py-1.5 rounded-sm">
+                        <ImageIcon className="w-3.5 h-3.5 text-primary" />
+                        <span className="text-xs font-medium text-on-surface truncate max-w-[120px]">{file.name}</span>
+                        <span className="text-[10px] text-on-surface-variant">({(file.size / 1024 / 1024).toFixed(1)}MB)</span>
+                        <button
+                          type="button"
+                          aria-label={t("shift_handoff.removePendingFile", "Remove file")}
+                          onClick={() => setPendingFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="ml-1 text-on-surface-variant hover:text-error"
+                        >
+                          <X className="w-3.5 h-3.5" />
                         </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {/* Inline upload for existing handoff */}
-                {canEdit(currentHandoff) && currentHandoff.attachments.length < 5 && (
-                  <label className="btn btn-outline text-xs cursor-pointer inline-flex">
-                    {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                    {t("shift_handoff.addImage", "Add image")}
-                    <input type="file" accept="image/*" className="hidden" disabled={uploadingAttachment}
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadSingleFile(currentHandoff.id, f); e.target.value = ""; }} />
-                  </label>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
+          </form>
+        </div>
 
-            {/* If no attachments but user can edit, show add button */}
-            {(!currentHandoff.attachments || currentHandoff.attachments.length === 0) && canEdit(currentHandoff) && (
-              <label className="btn btn-outline text-xs cursor-pointer inline-flex">
-                {uploadingAttachment ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ImageIcon className="h-3.5 w-3.5" />}
-                {t("shift_handoff.attachImage", "Attach image")}
-                <input type="file" accept="image/*" className="hidden" disabled={uploadingAttachment}
-                  onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadSingleFile(currentHandoff.id, f); e.target.value = ""; }} />
-              </label>
+        {/* Footer */}
+        <div className="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex items-center justify-end gap-3 shrink-0">
+          <button type="button" onClick={onClose} className="btn btn-ghost">
+            {t("shift_handoff.cancel", "Cancel")}
+          </button>
+          <button type="submit" form="handoff-form" disabled={submitting} className="btn btn-primary">
+            {submitting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" />{t("shift_handoff.saving", "Saving...")}</>
+            ) : isEditing ? (
+              t("shift_handoff.save", "Save Changes")
+            ) : (
+              t("shift_handoff.create", "Create Handoff")
             )}
-
-            {/* Team + meta */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-outline-variant/10">
-              <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">{t("shift_handoff.team", "Team")}:</span>
-              {currentHandoff.team_members.map((name, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold bg-surface-container-highest text-on-surface-variant rounded-sm">
-                  <UserCircle className="h-3 w-3" /> {name}
-                </span>
-              ))}
-            </div>
-          </div>
+          </button>
         </div>
-      )}
+      </motion.div>
+    </div>
+  );
+}
 
-      {/* Empty state for current shift */}
-      {!loading && !currentHandoff && !showForm && (
-        <div className="surface-section ring-1 ring-outline-variant/20">
-          <div className="p-8 flex flex-col items-center justify-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-warning/10 flex items-center justify-center">
-              {currentShift.period === "day" ? <Sun className="h-7 w-7 text-amber-500/50" /> : <Moon className="h-7 w-7 text-indigo-400/50" />}
-            </div>
-            <div className="text-center space-y-1">
-              <p className="text-sm font-bold text-on-surface">{t("shift_handoff.noCurrentHandoff", "No handoff for the current shift")}</p>
-              <p className="text-xs text-on-surface-variant">{currentShift.label} · {formatDateOnly(currentShift.date, locale)}</p>
-            </div>
-            <button type="button" onClick={openCreate} className="btn btn-primary mt-1">
-              <Plus className="h-4 w-4" /> {t("shift_handoff.createCurrentShift", "Create handoff for this shift")}
+// ── History Page ──────────────────────────────────────────────────────────────
+
+const HISTORY_PERIOD_OPTIONS = [0, 30, 90, 180, 365] as const;
+
+export function ShiftHandoffHistoryPage() {
+  const navigate = useNavigate();
+  const { t, locale } = useLanguage();
+  const dateFnsLocale = getDateFnsLocale(locale);
+  const [allHistory, setAllHistory] = useState<HandoffDoc[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<number>(0);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const res = await fetch(`${API_URL}/api/shift-handoffs?include_expired=true&limit=500`, {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error();
+        setAllHistory(await res.json());
+      } catch {
+        setError(t("shift_handoff.historyLoadFailed", "Could not load history."));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [t]);
+
+  // Filter by period + text search
+  const filtered = useMemo(() => {
+    const now = new Date();
+    let results = allHistory;
+
+    // Period filter
+    if (periodFilter > 0) {
+      const cutoff = new Date(now.getTime() - periodFilter * 24 * 60 * 60 * 1000);
+      results = results.filter((h) => new Date(h.created_at) >= cutoff);
+    }
+
+    // Text search
+    const q = searchQuery.trim().toLowerCase();
+    if (q) {
+      results = results.filter((h) => {
+        const haystack = [
+          h.body,
+          h.observations,
+          h.shift_focus,
+          h.created_by,
+          ...h.team_members,
+          ...(h.incidents?.map((i) => `${i.title} ${i.action_needed}`) ?? []),
+          ...(h.tools_status?.map((ts) => ts.name) ?? []),
+        ]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(q);
+      });
+    }
+
+    return results;
+  }, [allHistory, periodFilter, searchQuery]);
+
+  // Group by month (YYYY-MM)
+  const grouped = useMemo(() => {
+    const groups: { key: string; label: string; items: HandoffDoc[] }[] = [];
+    const map = new Map<string, HandoffDoc[]>();
+
+    for (const h of filtered) {
+      const d = new Date(h.shift_date + "T12:00:00");
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(h);
+    }
+
+    for (const [key, items] of map) {
+      const [year, month] = key.split("-");
+      const label = format(new Date(Number(year), Number(month) - 1, 1), "MMMM yyyy", { locale: dateFnsLocale });
+      groups.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1), items });
+    }
+
+    return groups;
+  }, [filtered, dateFnsLocale]);
+
+  function getUnresolvedFromPrevious(handoff: HandoffDoc) {
+    const results: { shiftDate: string; team: string[]; incident: IncidentEntry }[] = [];
+    for (const h of allHistory) {
+      if (h.id === handoff.id) continue;
+      if (h.shift_date >= handoff.shift_date) continue;
+      if (!isAfter(new Date(h.expires_at), new Date(handoff.created_at))) continue;
+      for (const inc of h.incidents ?? []) {
+        if (inc.status !== "resolved") {
+          results.push({ shiftDate: h.shift_date, team: h.team_members, incident: inc });
+        }
+      }
+    }
+    return results;
+  }
+
+  function periodLabel(days: number): string {
+    if (days === 0) return t("shift_handoff.historyFilterAll", "All periods");
+    if (days === 30) return t("shift_handoff.historyFilter30", "Last 30 days");
+    if (days === 90) return t("shift_handoff.historyFilter90", "Last 90 days");
+    if (days === 180) return t("shift_handoff.historyFilter180", "Last 6 months");
+    return t("shift_handoff.historyFilter365", "Last year");
+  }
+
+  return (
+    <div className="page-frame space-y-6">
+      {/* Header */}
+      <div className="page-header">
+        <div className="page-header-copy">
+          <p className="page-eyebrow">
+            <History className="h-4 w-4" />
+            {t("shift_handoff.history", "History")}
+          </p>
+          <h1 className="page-heading">{t("shift_handoff.historyTitle", "Handoff History")}</h1>
+          <p className="page-subheading">
+            {t("shift_handoff.historySubtitle", "Review complete and expired handoffs with their full operational context.")}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate("/shift-handoff")} className="btn btn-outline">
+            {t("shift_handoff.backToTimeline", "Back to Timeline")}
+          </button>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-on-surface-variant pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder={t("shift_handoff.historySearch", "Search by team, content, incidents...")}
+            className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm pl-10 pr-4 py-2.5 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              aria-label="Clear"
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
-          </div>
+          )}
         </div>
-      )}
 
-      {/* ── Past Handoffs ───────────────────────────────────────────────── */}
-      {!loading && pastHandoffs.length > 0 && (
-        <div className="surface-section">
-          <div className="surface-section-header">
-            <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface flex items-center gap-2">
-              <ScrollText className="h-4 w-4 text-primary" />
-              {t("shift_handoff.pastHandoffs", "Previous Handoffs")}
-            </h3>
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-on-surface-variant">
-              {pastHandoffs.length} {t("shift_handoff.entries", "entries")}
-            </span>
-          </div>
-          <div className="p-6 space-y-0">
-            {pastHandoffs.map((item, idx) => {
-              const badge = daysBadge(item.shift_date, t);
-              const isExpanded = expandedId === item.id;
-              const isLast = idx === pastHandoffs.length - 1;
-
-              return (
-                <div key={item.id} className="relative flex gap-5">
-                  <div className="flex flex-col items-center shrink-0 w-10">
-                    <div className="w-3 h-3 rounded-full border-2 shrink-0 z-10 mt-5 bg-surface-container-highest border-outline-variant/30" />
-                    {!isLast && <div className="w-px flex-1 bg-outline-variant/15 min-h-[2rem]" />}
-                  </div>
-
-                  <div className={`flex-1 rounded-sm border border-outline-variant/15 bg-surface-container-lowest shadow-sm overflow-hidden mb-4 transition-shadow ${isExpanded ? "shadow-md ring-1 ring-primary/10" : "hover:shadow-md"}`}>
-                    <button type="button" onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                      className="w-full flex items-center justify-between px-5 py-4 hover:bg-surface-container-high/20 transition-colors text-left gap-4">
-                      <div className="flex items-center gap-4 min-w-0">
-                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-sm whitespace-nowrap uppercase tracking-wider ${badge.tone}`}>{badge.label}</span>
-                        <div className="min-w-0">
-                          <div className="text-sm font-bold text-on-surface">{formatDateOnly(item.shift_date, locale)}</div>
-                          <div className="text-xs text-on-surface-variant mt-0.5 flex items-center gap-1.5"><Users className="h-3 w-3 shrink-0" /> {item.team_members.slice(0, 3).join(", ")}{item.team_members.length > 3 && <span className="text-[10px]">+{item.team_members.length - 3}</span>}</div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 shrink-0">
-                        {item.acknowledged_by && <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />}
-                        {item.incidents?.some((i) => i.status === "active" || i.status === "escalated") && <AlertTriangle className="h-3.5 w-3.5 text-error" />}
-                        <span className="hidden sm:inline text-[10px] text-on-surface-variant font-mono">{expiresIn(item.expires_at, t)}</span>
-                        {isExpanded ? <ChevronUp className="h-4 w-4 text-on-surface-variant" /> : <ChevronDown className="h-4 w-4 text-on-surface-variant" />}
-                      </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="border-t border-outline-variant/10 p-5 space-y-5">
-                        {item.shift_focus && (
-                          <div className="rounded-sm bg-primary/5 border border-primary/15 px-3 py-2 text-xs">
-                            <span className="font-bold text-primary uppercase tracking-wider text-[10px]">{t("shift_handoff.shiftFocusLabel", "Focus")}:</span> {item.shift_focus}
-                          </div>
-                        )}
-                        {item.incidents && item.incidents.length > 0 && (
-                          <div className="space-y-2">
-                            {item.incidents.map((inc, iIdx) => (
-                              <div key={iIdx} className="flex items-center gap-3 text-xs">
-                                <span className={`badge ${severityTone(inc.severity)}`}>{inc.severity}</span>
-                                <span className={`badge ${incidentStatusTone(inc.status)}`}>{inc.status}</span>
-                                <span className="text-on-surface font-medium">{inc.title}</span>
-                                {inc.action_needed && <span className="text-on-surface-variant">— {inc.action_needed}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                        {item.tools_status && item.tools_status.some((ts) => ts.status !== "operational") && (
-                          <div className="flex flex-wrap gap-1.5">
-                            {item.tools_status.filter((ts) => ts.status !== "operational").map((ts, tIdx) => (
-                              <span key={tIdx} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-sm border text-[10px] font-bold ${toolStatusTone(ts.status)}`}>
-                                {ts.name}: {ts.status}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        <div className="text-sm text-on-surface whitespace-pre-wrap leading-relaxed">{item.body}</div>
-                        {item.observations && <p className="text-xs text-on-surface-variant whitespace-pre-wrap italic">{item.observations}</p>}
-                        {item.attachments && item.attachments.length > 0 && (
-                          <div className="flex flex-wrap gap-2">
-                            {item.attachments.map((att) => (
-                              <button key={att.id} type="button" onClick={() => setLightboxSrc(att.data_uri)} className="w-20 h-20 rounded-sm overflow-hidden border border-outline-variant/20 hover:ring-2 hover:ring-primary/30 transition-all">
-                                <img src={att.data_uri} alt={att.filename} className="w-full h-full object-cover" />
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                        <div className="flex flex-wrap gap-x-6 gap-y-2 text-[10px] text-on-surface-variant uppercase tracking-wider pt-3 border-t border-outline-variant/10">
-                          <span><UserCircle className="inline h-3 w-3" /> {item.created_by}</span>
-                          <span><Calendar className="inline h-3 w-3" /> {formatDate(item.created_at, locale)}</span>
-                          {item.acknowledged_by && <span><CheckCircle2 className="inline h-3 w-3 text-emerald-500" /> {item.acknowledged_by} · {formatDate(item.acknowledged_at, locale)}</span>}
-                        </div>
-                        {(canEdit(item) || canDelete) && (
-                          <div className="flex items-center gap-2 pt-2">
-                            {canEdit(item) && <button type="button" onClick={() => openEditForm(item)} className="btn btn-outline text-xs"><Edit3 className="h-3.5 w-3.5" /> {t("shift_handoff.edit", "Edit")}</button>}
-                            {canDelete && (
-                              confirmDeleteId === item.id ? (
-                                <div className="flex items-center gap-2 ml-auto">
-                                  <span className="text-[11px] text-error font-medium">{t("shift_handoff.confirmDelete", "Delete?")}</span>
-                                  <button type="button" onClick={() => void handleDelete(item.id)} className="btn btn-error text-xs">{t("shift_handoff.confirmYes", "Yes")}</button>
-                                  <button type="button" onClick={() => setConfirmDeleteId(null)} className="btn btn-outline text-xs">{t("shift_handoff.cancel", "Cancel")}</button>
-                                </div>
-                              ) : (
-                                <button type="button" onClick={() => setConfirmDeleteId(item.id)} className="btn btn-outline text-xs text-error border-error/20 hover:bg-error/10 ml-auto"><Trash2 className="h-3.5 w-3.5" /> {t("shift_handoff.delete", "Delete")}</button>
-                              )
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex items-center gap-1 bg-surface-container-low rounded-sm p-1 border border-outline-variant/20 shrink-0">
+          {HISTORY_PERIOD_OPTIONS.map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setPeriodFilter(d)}
+              className={cn(
+                "px-3 py-1.5 rounded-sm text-xs font-bold transition-colors whitespace-nowrap",
+                periodFilter === d
+                  ? "bg-primary text-on-primary shadow-sm"
+                  : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high",
+              )}
+            >
+              {periodLabel(d)}
+            </button>
+          ))}
         </div>
-      )}
 
-      {/* Loading */}
+        <span className="badge badge-neutral shrink-0">
+          {filtered.length} {t("shift_handoff.historyCount", "handoffs")}
+        </span>
+      </div>
+
+      {/* Content */}
       {loading && (
-        <div className="flex flex-col items-center justify-center py-16 text-on-surface-variant gap-3">
+        <div className="flex items-center justify-center py-16">
           <Loader2 className="h-6 w-6 animate-spin text-primary" />
-          <span className="text-sm">{t("shift_handoff.loading", "Loading handoffs...")}</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="rounded-sm bg-error/10 border border-error/20 px-4 py-2.5 text-xs font-bold text-error flex items-center gap-2">
+          <AlertTriangle className="h-3.5 w-3.5" /> {error}
+        </div>
+      )}
+
+      {!loading && !error && filtered.length === 0 && (
+        <div className="card p-10 text-center text-sm text-on-surface-variant">
+          {allHistory.length === 0
+            ? t("shift_handoff.historyEmpty", "No handoffs found in history.")
+            : t("shift_handoff.historyNoResults", "No handoffs match the applied filters.")}
+        </div>
+      )}
+
+      {!loading && !error && grouped.length > 0 && (
+        <div className="space-y-8">
+          {grouped.map((group: { key: string; label: string; items: HandoffDoc[] }) => (
+            <div key={group.key}>
+              {/* Month Header */}
+              <div className="flex items-center gap-3 mb-4">
+                <Calendar className="w-4 h-4 text-primary" />
+                <h2 className="text-sm font-black uppercase tracking-[0.15em] text-on-surface-variant">
+                  {group.label}
+                </h2>
+                <span className="text-[10px] font-bold text-on-surface-variant/60">
+                  ({group.items.length})
+                </span>
+                <div className="flex-1 h-px bg-outline-variant/20" />
+              </div>
+
+              {/* Cards */}
+              <div className="space-y-3">
+                {group.items.map((handoff: HandoffDoc) => (
+                  <div key={handoff.id}>
+                    <HistoryHandoffCard
+                      handoff={handoff}
+                      unresolvedPrev={getUnresolvedFromPrevious(handoff)}
+                      dateFnsLocale={dateFnsLocale}
+                      t={t}
+                      isExpanded={expandedId === handoff.id}
+                      onToggle={() => setExpandedId(expandedId === handoff.id ? null : handoff.id)}
+                      onOpenAttachment={setLightboxSrc}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       )}
 
       {/* Lightbox */}
       {lightboxSrc && (
         <div className="fixed inset-0 z-[100] bg-inverse-surface/90 flex items-center justify-center p-8" onClick={() => setLightboxSrc(null)}>
-          <button type="button" aria-label="Close" onClick={() => setLightboxSrc(null)} className="absolute top-6 right-6 text-white hover:text-white/70"><X className="h-8 w-8" /></button>
+          <button type="button" aria-label="Close" onClick={() => setLightboxSrc(null)} className="absolute top-6 right-6 text-white hover:text-white/70">
+            <X className="h-8 w-8" />
+          </button>
           <img src={lightboxSrc} alt="Attachment" className="max-w-full max-h-full rounded-sm shadow-2xl" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
     </div>
+  );
+}
+
+// ── Settings Modal ────────────────────────────────────────────────────────────
+
+function SettingsModal({
+  t,
+  settings,
+  onSave,
+  onClose,
+}: {
+  t: (key: string, fallback?: string) => string;
+  settings: HandoffSettings;
+  onSave: (nextSettings: HandoffSettings) => void;
+  onClose: () => void;
+}) {
+  const [tools, setTools] = useState<string[]>([...settings.tools]);
+  const [defaultVis, setDefaultVis] = useState(settings.defaultVisibility);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 4000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  function addTool() {
+    setTools((current) => [...current, ""]);
+  }
+
+  function updateTool(idx: number, value: string) {
+    setTools((current) => current.map((tool, index) => (index === idx ? value : tool)));
+  }
+
+  function removeTool(idx: number) {
+    setTools((current) => current.filter((_, index) => index !== idx));
+  }
+
+  function handleReset() {
+    setTools([...BUILTIN_DEFAULT_TOOLS]);
+    setDefaultVis(4);
+    setError("");
+  }
+
+  function handleSave() {
+    const normalizedTools = tools.map((tool) => tool.trim());
+    if (normalizedTools.length === 0) {
+      setError(t("shift_handoff.settingsToolsRequired", "At least one monitored tool is required."));
+      return;
+    }
+    if (normalizedTools.some((tool) => !tool)) {
+      setError(t("shift_handoff.settingsToolEmpty", "Tool names cannot be empty."));
+      return;
+    }
+
+    const uniqueTools = new Set(normalizedTools.map((tool) => tool.toLowerCase()));
+    if (uniqueTools.size !== normalizedTools.length) {
+      setError(t("shift_handoff.settingsToolDuplicate", "Tool names must be unique."));
+      return;
+    }
+
+    setError("");
+    setNotice(t("shift_handoff.settingsSaved", "Settings saved."));
+    setTools(normalizedTools);
+    onSave({ tools: normalizedTools, defaultVisibility: defaultVis });
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={onClose}
+        className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
+      />
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        className="relative w-full max-w-3xl bg-surface border border-outline-variant/20 rounded-sm shadow-2xl flex flex-col max-h-[85vh]"
+      >
+        <div className="p-6 border-b border-outline-variant/10 flex items-center justify-between shrink-0 bg-surface-container-lowest">
+          <div>
+            <h2 className="text-lg font-bold text-on-surface flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              {t("shift_handoff.settingsTitle", "Handoff Settings")}
+            </h2>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              {t("shift_handoff.settingsSubtitle", "Manage monitored tools and the default visibility used when creating new handoffs.")}
+            </p>
+          </div>
+          <button type="button" aria-label="Close" onClick={onClose} className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low rounded-sm transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="p-6 overflow-y-auto flex-1 space-y-6">
+          {notice && (
+            <div className="rounded-sm bg-emerald-500/10 border border-emerald-500/20 px-4 py-2.5 text-xs font-bold text-emerald-400 flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {notice}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-sm bg-error/10 border border-error/20 px-4 py-2.5 text-xs font-bold text-error flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5" /> {error}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+                <Server className="w-3.5 h-3.5" />
+                {t("shift_handoff.settingsTools", "Monitored Tools")}
+              </label>
+              <button type="button" onClick={addTool} className="btn btn-outline py-1.5 px-3 text-[10px]">
+                <Plus className="w-3.5 h-3.5" />
+                {t("shift_handoff.settingsAddTool", "Add Tool")}
+              </button>
+            </div>
+
+            <p className="text-sm text-on-surface-variant">
+              {t("shift_handoff.settingsToolsHelp", "You can rename, add, or remove the tools that appear in the handoff workflow.")}
+            </p>
+
+            <div className="space-y-2">
+              {tools.map((tool, idx) => (
+                <div key={idx} className="flex items-center gap-2 rounded-sm border border-outline-variant/20 bg-surface-container-low p-3">
+                  <input
+                    type="text"
+                    value={tool}
+                    onChange={(e) => updateTool(idx, e.target.value)}
+                    placeholder={t("shift_handoff.settingsToolName", "Tool name")}
+                    className="flex-1 bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-3 py-2 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t("shift_handoff.settingsRemoveTool", "Remove tool")}
+                    onClick={() => removeTool(idx)}
+                    className="p-2 text-on-surface-variant hover:text-error rounded-sm transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5" />
+              {t("shift_handoff.settingsDefaultVisibility", "Default Visibility")}
+            </label>
+            <select
+              value={defaultVis}
+              onChange={(e) => setDefaultVis(Number(e.target.value))}
+              aria-label={t("shift_handoff.settingsDefaultVisibility", "Default Visibility")}
+              className="w-full max-w-xs bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary appearance-none"
+            >
+              {VISIBILITY_OPTIONS.map((d) => (
+                <option key={d} value={d}>{d} {t("shift_handoff.days", "days")}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="p-6 border-t border-outline-variant/10 bg-surface-container-lowest flex flex-wrap items-center justify-between gap-3 shrink-0">
+          <button type="button" onClick={handleReset} className="btn btn-ghost text-xs">
+            <RotateCcw className="w-3.5 h-3.5" />
+            {t("shift_handoff.settingsReset", "Reset to Default")}
+          </button>
+          <div className="flex items-center gap-3">
+            <button type="button" onClick={onClose} className="btn btn-ghost">
+              {t("shift_handoff.cancel", "Cancel")}
+            </button>
+            <button type="button" onClick={handleSave} className="btn btn-primary">
+              {t("shift_handoff.settingsSave", "Save Settings")}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
+function HistoryHandoffCard({
+  handoff,
+  unresolvedPrev,
+  dateFnsLocale,
+  t,
+  isExpanded,
+  onToggle,
+  onOpenAttachment,
+}: {
+  handoff: HandoffDoc;
+  unresolvedPrev: { shiftDate: string; team: string[]; incident: IncidentEntry }[];
+  dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
+  t: (key: string, fallback?: string) => string;
+  isExpanded: boolean;
+  onToggle: () => void;
+  onOpenAttachment: (src: string) => void;
+}) {
+  const shiftPeriod = (() => {
+    const created = new Date(handoff.created_at);
+    const hour = created.getHours();
+    return hour >= 7 && hour < 19 ? "day" : "night";
+  })();
+
+  const expired = new Date(handoff.expires_at) < new Date();
+  const openIncidents = handoff.incidents?.filter((incident) => incident.status === "active" || incident.status === "escalated").length ?? 0;
+
+  return (
+    <div className={cn("card overflow-hidden transition-colors", expired && "opacity-70", isExpanded && "border-primary/30 shadow-md")}>
+      {/* Clickable Header */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full p-5 flex items-center gap-5 cursor-pointer select-none text-left"
+      >
+        <div
+          className={cn(
+            "w-10 h-10 rounded-sm flex items-center justify-center shrink-0 border",
+            shiftPeriod === "day"
+              ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+              : "bg-indigo-500/10 text-indigo-400 border-indigo-500/20",
+          )}
+        >
+          {shiftPeriod === "day" ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+            <h3 className="text-sm font-bold text-on-surface truncate">
+              {format(new Date(handoff.shift_date + "T12:00:00"), "dd 'de' MMMM, yyyy", { locale: dateFnsLocale })}
+            </h3>
+            <span className="badge badge-neutral text-[9px]">
+              {shiftPeriod === "day" ? t("shift_handoff.periodDay", "Day") : t("shift_handoff.periodNight", "Night")}
+            </span>
+            {expired && (
+              <span className="badge badge-neutral text-[9px] opacity-70">
+                {t("shift_handoff.historyExpired", "expired")}
+              </span>
+            )}
+            {handoff.acknowledged_by && (
+              <span className="badge badge-success text-[9px] flex items-center gap-1">
+                <CheckCircle2 className="w-2.5 h-2.5" /> {t("shift_handoff.ackBy", "ack")}
+              </span>
+            )}
+            {openIncidents > 0 && (
+              <span className="badge badge-error text-[9px] flex items-center gap-1">
+                <AlertTriangle className="w-2.5 h-2.5" />
+                {openIncidents} {t("shift_handoff.openIncidents", "open incidents")}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-4 text-xs text-on-surface-variant flex-wrap">
+            <span className="flex items-center gap-1.5 font-medium truncate">
+              <Users className="w-3.5 h-3.5 shrink-0" />
+              {handoff.team_members.slice(0, 4).join(", ")}
+              {handoff.team_members.length > 4 && <span className="text-[10px]">+{handoff.team_members.length - 4}</span>}
+            </span>
+            <span className="flex items-center gap-1.5 font-medium whitespace-nowrap">
+              {t("shift_handoff.by", "by")} {handoff.created_by}
+            </span>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-on-surface-variant">
+          {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+        </div>
+      </button>
+
+      {/* Expanded Content */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden border-t border-outline-variant/10"
+          >
+            <div className="p-6 space-y-8 bg-surface-container-low/30">
+              {handoff.shift_focus && (
+                <div className="rounded-sm bg-primary/5 border border-primary/15 px-4 py-3 flex items-start gap-3">
+                  <Shield className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-primary mb-1">
+                      {t("shift_handoff.shiftFocusLabel", "Shift Focus")}
+                    </div>
+                    <p className="text-sm text-on-surface">{handoff.shift_focus}</p>
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  {t("shift_handoff.sectionNotes", "Handoff Notes")}
+                </h4>
+                <div className="text-sm text-on-surface leading-relaxed whitespace-pre-wrap bg-surface-container-high/20 rounded-sm p-4 border border-outline-variant/10">
+                  {handoff.body}
+                </div>
+              </div>
+
+              {handoff.observations && (
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                    <FileText className="w-3.5 h-3.5" />
+                    {t("shift_handoff.fieldObservations", "Additional Observations")}
+                  </h4>
+                  <p className="text-sm text-on-surface-variant leading-relaxed">{handoff.observations}</p>
+                </div>
+              )}
+
+              {handoff.incidents && handoff.incidents.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                    <AlertTriangle className="w-3.5 h-3.5" />
+                    {t("shift_handoff.sectionIncidents", "Active Incidents")}
+                  </h4>
+                  <div className="grid gap-3">
+                    {handoff.incidents.map((incident, idx) => (
+                      <div key={idx} className="flex items-center justify-between bg-surface-container border border-outline-variant/20 p-3 rounded-sm">
+                        <div className="flex items-center gap-3">
+                          <span className={cn("w-2 h-2 rounded-full shrink-0", severityDot(incident.severity))} />
+                          <span className="font-bold text-on-surface text-sm">{incident.title}</span>
+                          {incident.action_needed && (
+                            <span className="text-xs text-on-surface-variant">— {incident.action_needed}</span>
+                          )}
+                        </div>
+                        <span className={cn("badge", incidentBadge(incident.status))}>
+                          {incidentStatusLabel(incident.status, t)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {handoff.tools_status && handoff.tools_status.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                    <Server className="w-3.5 h-3.5" />
+                    {t("shift_handoff.sectionTools", "Monitoring Tools Status")}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {handoff.tools_status.map((tool, idx) => (
+                      <div key={idx} className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3 py-1.5 rounded-sm">
+                        <span className="text-xs font-bold text-on-surface">{tool.name}:</span>
+                        <span className={cn("text-[10px] font-black uppercase tracking-widest", toolStatusColor(tool.status))}>
+                          {toolStatusLabel(tool.status, t)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {handoff.attachments && handoff.attachments.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    {t("shift_handoff.sectionAttachments", "Image Attachments")} ({handoff.attachments.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-3">
+                    {handoff.attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        type="button"
+                        onClick={() => onOpenAttachment(attachment.data_uri)}
+                        className="block w-28 h-28 rounded-sm overflow-hidden border border-outline-variant/20 hover:ring-2 hover:ring-primary/30 transition-all"
+                      >
+                        <img src={attachment.data_uri} alt={attachment.filename} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {unresolvedPrev.length > 0 && (
+                <div>
+                  <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                    <History className="w-3.5 h-3.5" />
+                    {t("shift_handoff.unresolvedFromPrev", "Unresolved Incidents from Previous Shifts")}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {unresolvedPrev.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 bg-surface-container border border-outline-variant/20 px-3 py-1.5 rounded-sm"
+                      >
+                        <span className={cn("w-2 h-2 rounded-full shrink-0", severityDot(item.incident.severity))} />
+                        <span className="text-xs font-bold text-on-surface">{item.incident.title}</span>
+                        <span className={cn("badge text-[9px]", incidentBadge(item.incident.status))}>
+                          {incidentStatusLabel(item.incident.status, t)}
+                        </span>
+                        <span className="text-[10px] text-on-surface-variant">
+                          {t("shift_handoff.fromShift", "from shift on")} {format(new Date(item.shiftDate + "T12:00:00"), "dd/MM", { locale: dateFnsLocale })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-wrap items-center justify-between pt-6 border-t border-outline-variant/10 text-xs text-on-surface-variant gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-sm bg-surface-container-high flex items-center justify-center text-on-surface font-bold border border-outline-variant/20">
+                    {handoff.created_by.charAt(0).toUpperCase()}
+                  </div>
+                  <span>
+                    {t("shift_handoff.by", "by")} <strong className="text-on-surface font-bold">{handoff.created_by}</strong>
+                  </span>
+                  <span className="text-on-surface-variant/60">·</span>
+                  <span className="font-medium">
+                    {t("shift_handoff.visibilityLabel", "Visibility")} {handoff.visibility_days}{t("shift_handoff.daysShort", "d")}
+                  </span>
+                  <span className="text-on-surface-variant/60">·</span>
+                  <span className="font-medium">
+                    {format(new Date(handoff.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
+                  </span>
+                </div>
+                {handoff.acknowledged_by && (
+                  <span className="badge badge-success flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    {handoff.acknowledged_by}
+                  </span>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ── Simple icons for day/night ────────────────────────────────────────────────
+
+function SunIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" /><path d="m19.07 4.93-1.41 1.41" />
+    </svg>
+  );
+}
+
+function MoonIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </svg>
   );
 }

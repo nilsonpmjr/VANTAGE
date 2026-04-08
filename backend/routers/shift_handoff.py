@@ -270,16 +270,21 @@ async def create_handoff(
 async def list_handoffs(
     current_user: dict = Depends(get_current_user),
     days: int | None = Query(None, description="Filter by visibility window (days from now)"),
+    include_expired: bool = Query(False, description="Include expired handoffs (for history)"),
+    limit: int = Query(100, ge=1, le=500, description="Max results"),
+    offset: int = Query(0, ge=0, description="Skip results"),
 ):
     db = db_manager.db
     now = datetime.now(timezone.utc)
 
-    query: dict = {"expires_at": {"$gt": now}}
+    query: dict = {}
+    if not include_expired:
+        query["expires_at"] = {"$gt": now}
     if days and days > 0:
         cutoff = now - timedelta(days=days)
         query["created_at"] = {"$gte": cutoff}
 
-    cursor = db.shift_handoffs.find(query).sort("shift_date", -1)
+    cursor = db.shift_handoffs.find(query).sort("shift_date", -1).skip(offset).limit(limit)
     results = []
     async for doc in cursor:
         results.append(_serialize(doc))

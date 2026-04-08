@@ -23,7 +23,9 @@ import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import AnalysisResult from "./pages/AnalysisResult";
 import BatchAnalysis from "./pages/BatchAnalysis";
-import ShiftHandoff from "./pages/ShiftHandoff";
+import ShiftHandoff, {
+  ShiftHandoffHistoryPage,
+} from "./pages/ShiftHandoff";
 import HelpLayout from "./pages/help/HelpLayout";
 import DocsPage from "./pages/help/DocsPage";
 import ShortcutsPage from "./pages/help/ShortcutsPage";
@@ -100,6 +102,7 @@ export default function App() {
                 <Route path="analyze/:target" element={<AnalysisResult />} />
                 <Route path="batch" element={<BatchAnalysis />} />
                 <Route path="shift-handoff" element={<ShiftHandoff />} />
+                <Route path="shift-handoff/history" element={<ShiftHandoffHistoryPage />} />
                 <Route path="help" element={<HelpLayout />}>
                   <Route index element={<Navigate to="/help/docs" replace />} />
                   <Route path="docs" element={<DocsPage />} />

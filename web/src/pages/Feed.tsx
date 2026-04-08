@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Download, Filter, RefreshCw, Rss, ShieldAlert } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Filter, RefreshCw, Rss, ShieldAlert, X } from "lucide-react";
 import API_URL from "../config";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -115,6 +115,7 @@ export default function Feed() {
   const [view, setView] = useState(searchParams.get("view") || "feed");
   const [modelingSnapshot, setModelingSnapshot] = useState<FeedModelingSnapshot | null>(null);
   const [modelingLoading, setModelingLoading] = useState(false);
+  const [isModelingModalOpen, setIsModelingModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const lastFeedRefreshRef = useRef(0);
@@ -316,6 +317,13 @@ export default function Feed() {
         <div className="page-toolbar-copy">{t("feed.actions", "Feed actions")}</div>
         <div className="page-toolbar-actions">
           <button
+            type="button"
+            onClick={() => setIsModelingModalOpen(true)}
+            className="btn btn-outline"
+          >
+            {t("feed.modelingTitle", "CTI Modeling")}
+          </button>
+          <button
             onClick={() => {
               void refreshFeedManually();
             }}
@@ -390,111 +398,6 @@ export default function Feed() {
               <span className="text-3xl font-black tracking-tighter">{newsworthyCount}</span>
               <span className="text-xs text-error font-bold">{linkedCount} {t("feed.externalRefs", "external refs")}</span>
             </div>
-          </div>
-          <div className="bg-surface-container-lowest p-4 shadow-sm rounded-sm border-l-4 border-primary">
-            <span className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
-              {t("feed.modelingTitle", "CTI Modeling")}
-            </span>
-            <h3 className="mt-3 text-lg font-black tracking-tight text-on-surface">
-              {t("feed.modelingObjective", "Story Prioritization Baseline")}
-            </h3>
-            <p className="mt-2 text-sm text-on-surface-variant leading-relaxed">
-              {t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
-            </p>
-            {modelingLoading ? (
-              <div className="mt-4 text-xs text-on-surface-variant">
-                {t("feed.modelingLoading", "Loading modeling readiness...")}
-              </div>
-            ) : modelingSnapshot ? (
-              <>
-                <div className="mt-4 grid grid-cols-2 gap-3">
-                  <div className="bg-surface-container-low p-3 rounded-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      {t("feed.modelingReady", "Ready Items")}
-                    </div>
-                    <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.eligible_items}</div>
-                  </div>
-                  <div className="bg-surface-container-low p-3 rounded-sm">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      {t("feed.modelingNewsworthy", "Newsworthy")}
-                    </div>
-                    <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.newsworthy_items}</div>
-                  </div>
-                </div>
-                <div className="mt-4 grid grid-cols-3 gap-2 text-xs">
-                  <div className="bg-surface-container-low p-3 rounded-sm">
-                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingHigh", "High")}</div>
-                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.high}</div>
-                  </div>
-                  <div className="bg-surface-container-low p-3 rounded-sm">
-                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingMedium", "Medium")}</div>
-                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.medium}</div>
-                  </div>
-                  <div className="bg-surface-container-low p-3 rounded-sm">
-                    <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingLow", "Low")}</div>
-                    <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.low}</div>
-                  </div>
-                </div>
-                <div className="mt-4">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    {t("feed.modelingTopTopics", "Top Topics")}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {modelingSnapshot.topic_distribution.slice(0, 4).map((entry) => (
-                      <span
-                        key={entry.topic}
-                        className="px-2 py-1 bg-surface-container-high text-on-surface-variant text-[10px] font-bold rounded"
-                      >
-                        {entry.topic.toUpperCase()} · {entry.count}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <div className="mt-4 text-xs text-on-surface-variant leading-relaxed">
-                  <span className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">
-                    {t("feed.modelingFeatures", "Feature Pack")}
-                  </span>
-                  <div className="mt-2">
-                    {modelingSnapshot.feature_columns.join(", ")}
-                  </div>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    {t("feed.modelingActions", "Operational actions")}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      className="btn btn-outline"
-                      onClick={() => syncSearchParams(1, "all", "all", "all", "news")}
-                    >
-                      {t("feed.modelingOpenNewsworthy", "Open newsworthy slice")}
-                    </button>
-                    <button
-                      className="btn btn-outline"
-                      onClick={() => syncSearchParams(1, severity, "rss", family, "feed")}
-                    >
-                      {t("feed.modelingOpenRss", "Open RSS editorial feed")}
-                    </button>
-                  </div>
-                </div>
-                {modelingSnapshot.next_steps?.length ? (
-                  <div className="mt-4">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      {t("feed.modelingNextSteps", "Next steps")}
-                    </div>
-                    <ul className="mt-2 space-y-1 text-xs text-on-surface-variant leading-relaxed">
-                      {modelingSnapshot.next_steps.slice(0, 3).map((step) => (
-                        <li key={step}>• {step}</li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="mt-4 text-xs text-on-surface-variant">
-                {t("feed.modelingUnavailable", "Modeling readiness is not available for the current feed window.")}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -621,6 +524,141 @@ export default function Feed() {
               </article>
             );
           })}
+        </div>
+      )}
+
+      {isModelingModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+          <div
+            className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
+            onClick={() => setIsModelingModalOpen(false)}
+          />
+          <div className="modal-surface relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden">
+            <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-lowest px-6 py-5">
+              <div>
+                <div className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
+                  {t("feed.modelingTitle", "CTI Modeling")}
+                </div>
+                <h2 className="mt-3 text-xl font-black tracking-tight text-on-surface">
+                  {t("feed.modelingObjective", "Story Prioritization Baseline")}
+                </h2>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
+                  {t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
+                </p>
+              </div>
+              <button
+                type="button"
+                aria-label={t("feed.closeModelingModal", "Close CTI modeling")}
+                onClick={() => setIsModelingModalOpen(false)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-outline-variant/20 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-6">
+              {modelingLoading ? (
+                <div className="text-xs text-on-surface-variant">
+                  {t("feed.modelingLoading", "Loading modeling readiness...")}
+                </div>
+              ) : modelingSnapshot ? (
+                <>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="bg-surface-container-low p-3 rounded-sm">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        {t("feed.modelingReady", "Ready Items")}
+                      </div>
+                      <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.eligible_items}</div>
+                    </div>
+                    <div className="bg-surface-container-low p-3 rounded-sm">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        {t("feed.modelingNewsworthy", "Newsworthy")}
+                      </div>
+                      <div className="mt-2 text-2xl font-black tracking-tight">{modelingSnapshot.newsworthy_items}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4 grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
+                    <div className="bg-surface-container-low p-3 rounded-sm">
+                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingHigh", "High")}</div>
+                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.high}</div>
+                    </div>
+                    <div className="bg-surface-container-low p-3 rounded-sm">
+                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingMedium", "Medium")}</div>
+                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.medium}</div>
+                    </div>
+                    <div className="bg-surface-container-low p-3 rounded-sm">
+                      <div className="font-bold uppercase tracking-widest text-[10px] text-on-surface-variant">{t("feed.modelingLow", "Low")}</div>
+                      <div className="mt-2 text-lg font-black">{modelingSnapshot.priority_bands.low}</div>
+                    </div>
+                  </div>
+                  <div className="mt-4">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t("feed.modelingTopTopics", "Top Topics")}
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {modelingSnapshot.topic_distribution.slice(0, 4).map((entry) => (
+                        <span
+                          key={entry.topic}
+                          className="rounded bg-surface-container-high px-2 py-1 text-[10px] font-bold text-on-surface-variant"
+                        >
+                          {entry.topic.toUpperCase()} · {entry.count}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="mt-4 text-xs leading-relaxed text-on-surface-variant">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t("feed.modelingFeatures", "Feature Pack")}
+                    </span>
+                    <div className="mt-2">
+                      {modelingSnapshot.feature_columns.join(", ")}
+                    </div>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                      {t("feed.modelingActions", "Operational actions")}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        className="btn btn-outline"
+                        onClick={() => {
+                          syncSearchParams(1, "all", "all", "all", "news");
+                          setIsModelingModalOpen(false);
+                        }}
+                      >
+                        {t("feed.modelingOpenNewsworthy", "Open newsworthy slice")}
+                      </button>
+                      <button
+                        className="btn btn-outline"
+                        onClick={() => {
+                          syncSearchParams(1, severity, "rss", family, "feed");
+                          setIsModelingModalOpen(false);
+                        }}
+                      >
+                        {t("feed.modelingOpenRss", "Open RSS editorial feed")}
+                      </button>
+                    </div>
+                  </div>
+                  {modelingSnapshot.next_steps?.length ? (
+                    <div className="mt-4">
+                      <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        {t("feed.modelingNextSteps", "Next steps")}
+                      </div>
+                      <ul className="mt-2 space-y-1 text-xs leading-relaxed text-on-surface-variant">
+                        {modelingSnapshot.next_steps.slice(0, 3).map((step) => (
+                          <li key={step}>• {step}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="text-xs text-on-surface-variant">
+                  {t("feed.modelingUnavailable", "Modeling readiness is not available for the current feed window.")}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

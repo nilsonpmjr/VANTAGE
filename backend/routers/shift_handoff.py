@@ -9,6 +9,7 @@ from db import db_manager
 from auth import get_current_user, require_role
 from audit import log_action
 from logging_config import get_logger
+from shift_handoff_migration import migrate_shift_handoff_incidents
 
 logger = get_logger("ShiftHandoffRouter")
 
@@ -391,45 +392,6 @@ async def _sync_persistent_incidents(
     return serialized
 
 
-async def _backfill_persistent_incidents_from_handoffs(db) -> None:
-    cursor = db.shift_handoffs.find({}).sort("created_at", -1)
-    async for handoff in cursor:
-        incidents = list(handoff.get("incidents", []))
-        changed = False
-        for index, incident in enumerate(incidents):
-            if incident.get("incident_id"):
-                continue
-            incident_id = ObjectId()
-            now = handoff.get("updated_at") or handoff.get("created_at") or datetime.now(timezone.utc)
-            incident_doc = {
-                "_id": incident_id,
-                "handoff_id": handoff["_id"],
-                "handoff_shift_date": handoff.get("shift_date", ""),
-                "team_members": handoff.get("team_members", []),
-                "created_at": handoff.get("created_at", now),
-                "created_by": handoff.get("created_by", ""),
-                "updated_at": now,
-                "updated_by": handoff.get("created_by", ""),
-                "resolved_at": now if incident.get("status") == "resolved" else None,
-                "resolved_by": handoff.get("created_by", "") if incident.get("status") == "resolved" else "",
-                "title": incident.get("title", ""),
-                "severity": incident.get("severity", "medium"),
-                "status": incident.get("status", "active"),
-                "action_needed": incident.get("action_needed", ""),
-            }
-            await db.shift_handoff_incidents.insert_one(incident_doc)
-            incidents[index] = {
-                "incident_id": str(incident_id),
-                "title": incident.get("title", ""),
-                "status": incident.get("status", "active"),
-                "severity": incident.get("severity", "medium"),
-                "action_needed": incident.get("action_needed", ""),
-            }
-            changed = True
-        if changed:
-            await db.shift_handoffs.update_one({"_id": handoff["_id"]}, {"$set": {"incidents": incidents}})
-
-
 # ── POST / — create shift handoff ────────────────────────────────────────────
 
 @router.post("")
@@ -726,7 +688,7 @@ async def list_persistent_incidents(
     limit: int = Query(200, ge=1, le=500),
 ):
     db = db_manager.db
-    await _backfill_persistent_incidents_from_handoffs(db)
+    await migrate_shift_handoff_incidents(db)
     query: dict = {}
     if status:
         query["status"] = status.strip().lower()

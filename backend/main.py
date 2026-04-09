@@ -19,6 +19,7 @@ from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
 from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff
+from shift_handoff_migration import migrate_shift_handoff_incidents
 
 try:
     from routers import hunting
@@ -260,7 +261,19 @@ async def lifespan(app: FastAPI):
                 [("created_by", 1), ("shift_date", -1)],
                 name="shift_handoffs_author_date",
             )
+            await db.shift_handoff_incidents.create_index(
+                [("status", 1), ("created_at", -1)],
+                name="shift_handoff_incidents_status_created",
+            )
+            await db.shift_handoff_incidents.create_index(
+                [("handoff_id", 1), ("created_at", -1)],
+                name="shift_handoff_incidents_handoff_created",
+            )
             logger.info("MongoDB indexes created/verified.")
+
+            migration_result = await migrate_shift_handoff_incidents(db)
+            if migration_result["created_incidents"] > 0 or migration_result["migrated_handoffs"] > 0:
+                logger.info("Shift handoff incident migration executed: %s", migration_result)
 
             # Clean up legacy refresh_tokens without session_id (created before session tracking)
             result = await db.refresh_tokens.delete_many({"session_id": {"$exists": False}})

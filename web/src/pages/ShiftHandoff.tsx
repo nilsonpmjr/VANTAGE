@@ -452,8 +452,11 @@ export default function ShiftHandoff() {
     if (daysFilter === 0) return t("shift_handoff.filterAll", "All");
     return t(`shift_handoff.filter${daysFilter}d` as `shift_handoff.filter4d`, `${daysFilter}d`);
   }, [daysFilter, t]);
-  const continuitySummary = useMemo(
-    () => buildContinuitySummary(handoffs[0] || null, handoffs),
+  const continuitySummaryByHandoff = useMemo(
+    () =>
+      Object.fromEntries(
+        handoffs.map((handoff) => [handoff.id, buildContinuitySummary(handoff, handoffs)]),
+      ) as Record<string, ContinuityWindowSummary[]>,
     [handoffs],
   );
 
@@ -595,6 +598,7 @@ export default function ShiftHandoff() {
               {handoffs.map((handoff) => {
                 const isExpanded = expandedId === handoff.id;
                 const unresolvedPrev = getUnresolvedFromPrevious(handoff);
+                const continuitySummary = continuitySummaryByHandoff[handoff.id] || [];
                 const shiftPeriod = (() => {
                   const created = new Date(handoff.created_at);
                   const h = created.getHours();
@@ -706,72 +710,70 @@ export default function ShiftHandoff() {
                               />
                             </div>
 
-                            {handoff.id === handoffs[0]?.id && (
-                              <div>
-                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
-                                  <History className="w-3.5 h-3.5" />
-                                  {t("shift_handoff.continuitySummary", "Continuity Summary")}
-                                </h4>
-                                <div className="grid gap-3 lg:grid-cols-2">
-                                  {continuitySummary.map((windowSummary) => (
-                                    <div
-                                      key={windowSummary.windowDays}
-                                      className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 space-y-2"
-                                    >
-                                      <div className="flex items-center justify-between">
-                                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
-                                          {windowSummary.windowDays}d
-                                        </span>
-                                        <span className="badge badge-neutral">
-                                          {windowSummary.handoffs.length} {t("shift_handoff.historyCount", "handoffs")}
-                                        </span>
-                                      </div>
-                                      {windowSummary.handoffs.length > 0 ? (
-                                        <div className="space-y-2">
-                                          {windowSummary.handoffs.map((continuityHandoff) => (
-                                            <button
-                                              key={continuityHandoff.id}
-                                              type="button"
-                                              onClick={() => {
-                                                setExpandedId(continuityHandoff.id);
-                                                document
-                                                  .getElementById(`handoff-card-${continuityHandoff.id}`)
-                                                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                                              }}
-                                              className="w-full rounded-sm border border-outline-variant/10 bg-surface-container-high/40 p-3 text-left transition-colors hover:border-primary/30 hover:bg-surface-container-high"
-                                            >
-                                              <div className="flex items-center justify-between gap-3">
-                                                <span className="text-xs font-bold text-on-surface">
-                                                  {format(new Date(continuityHandoff.shiftDate + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
-                                                </span>
-                                                <span className="badge badge-neutral">
-                                                  {continuityHandoff.activeIncidentCount} {t("shift_handoff.openIncidents", "Open Incidents")}
-                                                </span>
-                                              </div>
-                                              <div className="mt-1 text-[11px] text-on-surface-variant">
-                                                {t("shift_handoff.by", "by")} {continuityHandoff.createdBy} · {continuityHandoff.teamMembers.join(", ")}
-                                              </div>
-                                              {continuityHandoff.shiftFocus ? (
-                                                <div className="mt-2 text-xs font-bold text-primary">
-                                                  {continuityHandoff.shiftFocus}
-                                                </div>
-                                              ) : null}
-                                              <div className="mt-2 text-sm text-on-surface leading-relaxed">
-                                                {continuityHandoff.notePreview || t("shift_handoff.noContinuityNote", "No summarized notes available.")}
-                                              </div>
-                                            </button>
-                                          ))}
-                                        </div>
-                                      ) : (
-                                        <div className="text-sm text-on-surface-variant">
-                                          {t("shift_handoff.noContinuityData", "No persistent handoffs in this window.")}
-                                        </div>
-                                      )}
+                            <div>
+                              <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                <History className="w-3.5 h-3.5" />
+                                {t("shift_handoff.continuitySummary", "Continuity Summary")}
+                              </h4>
+                              <div className="grid gap-3 lg:grid-cols-2">
+                                {continuitySummary.map((windowSummary) => (
+                                  <div
+                                    key={windowSummary.windowDays}
+                                    className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 space-y-2"
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
+                                        {windowSummary.windowDays}d
+                                      </span>
+                                      <span className="badge badge-neutral">
+                                        {windowSummary.handoffs.length} {t("shift_handoff.historyCount", "handoffs")}
+                                      </span>
                                     </div>
-                                  ))}
-                                </div>
+                                    {windowSummary.handoffs.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {windowSummary.handoffs.map((continuityHandoff) => (
+                                          <button
+                                            key={continuityHandoff.id}
+                                            type="button"
+                                            onClick={() => {
+                                              setExpandedId(continuityHandoff.id);
+                                              document
+                                                .getElementById(`handoff-card-${continuityHandoff.id}`)
+                                                ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                            }}
+                                            className="w-full rounded-sm border border-outline-variant/10 bg-surface-container-high/40 p-3 text-left transition-colors hover:border-primary/30 hover:bg-surface-container-high"
+                                          >
+                                            <div className="flex items-center justify-between gap-3">
+                                              <span className="text-xs font-bold text-on-surface">
+                                                {format(new Date(continuityHandoff.shiftDate + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
+                                              </span>
+                                              <span className="badge badge-neutral">
+                                                {continuityHandoff.activeIncidentCount} {t("shift_handoff.openIncidents", "Open Incidents")}
+                                              </span>
+                                            </div>
+                                            <div className="mt-1 text-[11px] text-on-surface-variant">
+                                              {t("shift_handoff.by", "by")} {continuityHandoff.createdBy} · {continuityHandoff.teamMembers.join(", ")}
+                                            </div>
+                                            {continuityHandoff.shiftFocus ? (
+                                              <div className="mt-2 text-xs font-bold text-primary">
+                                                {continuityHandoff.shiftFocus}
+                                              </div>
+                                            ) : null}
+                                            <div className="mt-2 text-sm text-on-surface leading-relaxed">
+                                              {continuityHandoff.notePreview || t("shift_handoff.noContinuityNote", "No summarized notes available.")}
+                                            </div>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <div className="text-sm text-on-surface-variant">
+                                        {t("shift_handoff.noContinuityData", "No persistent handoffs in this window.")}
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
                               </div>
-                            )}
+                            </div>
 
                             {/* Additional Info / Observations */}
                             {handoff.observations && (
@@ -1928,7 +1930,7 @@ export function ShiftHandoffActiveIncidentsPage() {
               tone={activeIncidents.length > 0 ? "primary" : "muted"}
             />
             <PageMetricPill
-              label={`${criticalCount} critical`}
+              label={`${criticalCount} ${t("shift_handoff.sevCritical", "Critical")}`}
               dotClassName={criticalCount > 0 ? "bg-error" : "bg-outline"}
               tone={criticalCount > 0 ? "danger" : "muted"}
             />

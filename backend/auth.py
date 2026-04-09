@@ -22,8 +22,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 logger = get_logger("Auth")
 
-# auto_error=False so the dependency doesn't raise 401 immediately;
-# get_current_user will check both cookie and header.
+# Keep token resolution centralized in get_current_user.
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 
@@ -139,17 +138,17 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
-    # ── API Key path ─────────────────────────────────────────────────────────
+    # API key path
     _api_key_scopes = None
     if token.startswith(("vtg_", "iti_")):
         key_hash = hash_api_key(token)
         key_doc = await db.api_keys.find_one({"key_hash": key_hash, "revoked": False})
         if not key_doc:
             raise credentials_exception
-        # Check expiry (None = never expires)
+        # None means the key does not expire.
         if key_doc.get("expires_at") and key_doc["expires_at"] < datetime.now(timezone.utc):
             raise credentials_exception
-        # Update last_used_at (fire-and-forget; ignore errors)
+        # Best effort usage timestamp.
         try:
             await db.api_keys.update_one(
                 {"key_hash": key_hash},
@@ -160,17 +159,29 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
         username = key_doc["username"]
         _api_key_scopes = key_doc.get("scopes", ["analyze"])
     else:
-        # ── JWT path ──────────────────────────────────────────────────────────
+        # JWT path
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             username: str = payload.get("sub")
+            session_id: Optional[str] = payload.get("sid")
             if username is None:
                 raise credentials_exception
-            # Reject MFA pre-auth tokens (scope != None means limited token)
+            # Reject pre-auth tokens outside the MFA flow.
             if payload.get("scope") == "mfa_pending":
                 raise credentials_exception
         except jwt.PyJWTError:
             raise credentials_exception
+
+        if session_id:
+            session_doc = await db.refresh_tokens.find_one(
+                {
+                    "session_id": session_id,
+                    "revoked": False,
+                    "expires_at": {"$gt": datetime.now(timezone.utc)},
+                }
+            )
+            if not session_doc or session_doc.get("username") != username:
+                raise credentials_exception
 
     user = await db.users.find_one({"username": username})
     if user is None:
@@ -182,7 +193,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
             detail="Inactive user account",
         )
 
-    # IP allowlist check
+    # Enforce any user-level IP allowlist.
     allowed_ips = user.get("allowed_ips", [])
     if allowed_ips:
         client_ip = request.client.host if request.client else ""
@@ -200,7 +211,7 @@ async def _resolve_user(request: Request, bearer_token: Optional[str]) -> dict:
             except ValueError:
                 pass  # If client IP can't be parsed, skip check
 
-    # Attach API key scopes if authenticated via API key
+    # Preserve API key scopes for downstream authorization checks.
     if _api_key_scopes is not None:
         user["_api_key_scopes"] = _api_key_scopes
 
@@ -303,7 +314,7 @@ def require_role(allowed_roles: list):
     return role_checker
 
 
-# ── Fine-Grained Permissions ─────────────────────────────────────────────────
+# Fine-grained permissions
 
 AVAILABLE_PERMISSIONS: list[str] = [
     "audit_logs:read",

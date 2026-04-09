@@ -1,9 +1,5 @@
 """
-Active sessions management endpoints.
-
-Active sessions are backed by the refresh_tokens collection.
-Each login creates a session_id (UUID) stored alongside the opaque refresh token.
-The session_id is safe to expose to the client — it never grants authentication.
+Active session endpoints backed by the refresh token store.
 """
 
 from datetime import datetime, timezone
@@ -68,7 +64,7 @@ def _fmt(doc: dict, current_token: str) -> dict:
     }
 
 
-# ── GET /api/auth/sessions ────────────────────────────────────────────────────
+# List active sessions
 
 @router.get("")
 async def list_sessions(request: Request, current_user: dict = Depends(get_current_user)):
@@ -86,11 +82,11 @@ async def list_sessions(request: Request, current_user: dict = Depends(get_curre
         "expires_at": {"$gt": now},
     })
     docs = await cursor.to_list(length=100)
-    # Exclude legacy docs without session_id (created before Fase 2b)
+    # Skip legacy records created before session IDs were introduced.
     return [_fmt(d, current_token) for d in docs if d.get("session_id")]
 
 
-# ── DELETE /api/auth/sessions/others ─────────────────────────────────────────
+# Revoke every other session
 
 @router.delete("/others")
 async def revoke_other_sessions(
@@ -104,7 +100,7 @@ async def revoke_other_sessions(
 
     current_token = request.cookies.get("refresh_token", "")
 
-    # Fetch all active sessions
+    # Identify the current session before revoking the rest.
     cursor = db.refresh_tokens.find({
         "username": current_user["username"],
         "revoked": False,
@@ -138,7 +134,7 @@ async def revoke_other_sessions(
     return {"revoked": revoked_count}
 
 
-# ── DELETE /api/auth/sessions/{session_id} ────────────────────────────────────
+# Revoke one session
 
 @router.delete("/{session_id}")
 async def revoke_session(
@@ -159,7 +155,7 @@ async def revoke_session(
     if not doc:
         raise HTTPException(status_code=404, detail="session_not_found")
 
-    # Non-admins can only revoke their own sessions
+    # Non-admins can only revoke their own sessions.
     if current_user["role"] != "admin" and doc.get("username") != current_user["username"]:
         raise HTTPException(status_code=403, detail="forbidden")
 
@@ -178,7 +174,7 @@ async def revoke_session(
     return {"revoked": True}
 
 
-# ── GET /api/admin/users/{username}/sessions (admin only) ────────────────────
+# List a user's active sessions
 
 @router.get("/admin/{username}", dependencies=[Depends(require_role(["admin"]))])
 async def list_user_sessions(username: str, request: Request, current_user: dict = Depends(get_current_user)):

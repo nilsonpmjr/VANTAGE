@@ -40,6 +40,9 @@ See the full package and roadmap:
 
 - [`docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md`](docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md)
 - [`docs/VANTAGE/ROADMAP-core-e-pos-v1.md`](docs/VANTAGE/ROADMAP-core-e-pos-v1.md)
+- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/PRD-empacotamento-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/PRD-empacotamento-piloto-interno.md)
+- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/RUNBOOK-rollout-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/RUNBOOK-rollout-piloto-interno.md)
+- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/CHECKLIST-go-live-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/CHECKLIST-go-live-piloto-interno.md)
 
 ## Core Capabilities
 
@@ -138,6 +141,31 @@ docker compose \
 ```
 
 This does not change the default product contract. It only makes the optional Kali lane explicit and observable to the backend and UI.
+
+### Optional: host-specific egress workaround
+
+Some Linux hosts need an extra egress workaround when custom Docker bridges do
+not provide outbound connectivity. This is not part of the default pilot path.
+
+```bash
+docker compose --profile egress-workaround up -d backend-egress
+```
+
+## Internal Pilot Packaging
+
+The first internal pilot is designed for a single Linux host with Docker Engine + Compose, not Kubernetes. The recommended baseline is:
+
+- `Ubuntu 24.04 LTS`
+- `4 vCPU / 8 GB RAM / 120 GB SSD`
+- reverse proxy or private access layer in front of the frontend (`Cloudflare Tunnel`, `Tailscale`, `Nginx Proxy Manager`, or equivalent)
+- daily backup for the `mongodb_data` volume
+
+The stack now exposes lightweight health probes for rollout automation:
+
+- backend live: `GET /health/live` or `GET /api/health/live`
+- backend readiness: `GET /health/ready` or `GET /api/health/ready`
+
+Use the phase 25 runbook and checklist before putting analysts on the system.
 
 ### 3. Seed initial admin user
 

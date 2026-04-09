@@ -1,4 +1,4 @@
-# ── Stage 1: Build the canonical Operational Architect frontend ──────────────
+# Stage 1: build the production frontend
 FROM node:22.14.0-alpine3.21 AS builder
 
 WORKDIR /app
@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# ── Stage 2: Serve with nginx + same-origin /api proxy ──────────────────────
+# Stage 2: serve the built app behind nginx
 FROM nginx:1.27.4-alpine
 
 ENV API_UPSTREAM=http://backend:8000

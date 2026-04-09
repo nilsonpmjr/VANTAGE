@@ -282,7 +282,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.warning(f"Could not create indexes: {e}")
 
-    # Validate secrets before accepting traffic
+    # Refuse to boot with an unsafe production configuration.
     settings.validate_production()
     app.state.extensions_registry = load_extensions_registry(
         plugin_roots=get_configured_plugin_roots(),
@@ -300,18 +300,23 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Background Worker (APScheduler) started.")
 
-    # Start background workers
+    # Keep long-lived worker tasks visible to readiness checks.
     import asyncio as _aio
-    _aio.create_task(start_watchlist_worker())
+    background_tasks = {
+        "watchlist_worker": _aio.create_task(start_watchlist_worker()),
+        "recon_scheduler": _aio.create_task(start_recon_scheduler()),
+        "threat_ingestion_worker": _aio.create_task(start_threat_ingestion_worker()),
+    }
+    app.state.background_tasks = background_tasks
     logger.info("Watchlist worker task created.")
-    _aio.create_task(start_recon_scheduler())
     logger.info("Recon scheduler task created.")
-    _aio.create_task(start_threat_ingestion_worker())
     logger.info("Threat ingestion worker task created.")
 
     yield
 
-    # Shutdown
+    # Cancel long-lived tasks before closing shared resources.
+    for task in getattr(app.state, "background_tasks", {}).values():
+        task.cancel()
     scheduler.shutdown()
     await db_manager.close_db()
 
@@ -322,6 +327,77 @@ app = FastAPI(
     version=settings.core_version,
     lifespan=lifespan,
 )
+app.state.background_tasks = {}
+
+
+def _task_status(task) -> str:
+    if task is None:
+        return "missing"
+    if task.cancelled():
+        return "cancelled"
+    if task.done():
+        return "error" if task.exception() else "stopped"
+    return "ok"
+
+
+def _health_state() -> dict[str, object]:
+    db_connected = db_manager.db is not None
+    scheduler_running = bool(getattr(scheduler, "running", False))
+    extensions_loaded = bool(
+        getattr(app.state, "extensions_registry", None)
+    )
+    background_tasks = {
+        name: _task_status(task)
+        for name, task in getattr(app.state, "background_tasks", {}).items()
+    }
+    background_tasks_ready = bool(background_tasks) and all(
+        status == "ok" for status in background_tasks.values()
+    )
+    ready = (
+        db_connected
+        and scheduler_running
+        and extensions_loaded
+        and background_tasks_ready
+    )
+    return {
+        "status": "ok" if ready else "degraded",
+        "app": settings.app_name,
+        "version": settings.core_version,
+        "environment": settings.environment,
+        "services": {
+            "database": "ok" if db_connected else "disconnected",
+            "scheduler": "ok" if scheduler_running else "stopped",
+            "extensions_registry": (
+                "ok" if extensions_loaded else "not_loaded"
+            ),
+            "background_tasks": background_tasks,
+        },
+    }
+
+
+@app.get("/health/live", include_in_schema=False)
+@app.get(
+    f"{API_CANONICAL_PREFIX}/health/live",
+    include_in_schema=False,
+)
+async def live_health():
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "version": settings.core_version,
+        "environment": settings.environment,
+    }
+
+
+@app.get("/health/ready", include_in_schema=False)
+@app.get(
+    f"{API_CANONICAL_PREFIX}/health/ready",
+    include_in_schema=False,
+)
+async def ready_health():
+    payload = _health_state()
+    status_code = 200 if payload["status"] == "ok" else 503
+    return JSONResponse(status_code=status_code, content=payload)
 
 # Rate limiter state + exception handler
 app.state.limiter = limiter

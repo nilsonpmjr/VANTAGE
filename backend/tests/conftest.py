@@ -23,6 +23,11 @@ class _InsertResult:
         self.inserted_id = inserted_id
 
 
+class _UpdateResult:
+    def __init__(self, modified_count):
+        self.modified_count = modified_count
+
+
 class FakeCursor:
     """Minimal async cursor shim that supports sort/skip/limit chaining."""
 
@@ -144,7 +149,7 @@ class FakeCollection:
                     elif op == "$push":
                         for key, value in fields.items():
                             doc.setdefault(key, []).append(value)
-                return
+                return _UpdateResult(modified_count=1)
         if upsert:
             new_doc = dict(query)
             for op, fields in update.items():
@@ -157,6 +162,8 @@ class FakeCollection:
                     for key, value in fields.items():
                         new_doc[key] = [value]
             self._data.append(new_doc)
+            return _UpdateResult(modified_count=1)
+        return _UpdateResult(modified_count=0)
 
     async def delete_one(self, query):
         for i, doc in enumerate(self._data):
@@ -344,7 +351,7 @@ def admin_token():
 
 @pytest.fixture
 def tech_token():
-    return create_access_token({"sub": "admin", "role": "tech"})
+    return create_access_token({"sub": "techuser", "role": "tech"})
 
 
 @pytest.fixture

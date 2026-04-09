@@ -1,25 +1,41 @@
-__pycache__/
-*.pyc
+# Local secrets and environment files
 .env
-.DS_Store
+.env.local
+
+# Python caches and virtual environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .venv/
 venv/
-node_modules/
 *.egg-info/
+
+# Node and frontend build artifacts
+node_modules/
+dist/
+build/
+coverage/
+
+# Logs and temporary outputs
 *.log
+tmp-*.json
 docker_build.log
-docs/
+
+# IDE and local workspace files
+.DS_Store
 .vscode/
-docker-compose.operational-architect.yml
-.codex
-.hintrc
-.omx/
-
-
-00_INDICE.md
-AUDITORIA_THREAT_TOOL.md
-GUIA_CORRECOES.md
-README_IMPROVED.md
-
 Threat-Intelligence-Tool.code-workspace
+docs/*
+web/docs/
+
+
+# Local agent/runtime state
+.codex
+.omx/
+.hintrc
+
+# Local links and scratch files
 Obsidian
+

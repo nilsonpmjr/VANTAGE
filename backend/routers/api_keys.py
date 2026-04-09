@@ -1,10 +1,8 @@
 """
-API Keys management endpoints (FASE 3a).
+API key endpoints.
 
-Key format : vtg_{48 hex chars}  →  52 chars total, e.g. vtg_a1b2c3...
-Storage    : only SHA-256(key) is persisted — the raw key is shown once on creation.
-Auth       : any endpoint that accepts Bearer tokens will accept vtg_* keys and
-             legacy iti_* keys via the patched _resolve_user() in auth.py.
+Keys use the `vtg_` prefix. Only the SHA-256 digest is stored, and the raw key
+is returned once at creation time.
 """
 
 import secrets
@@ -24,7 +22,7 @@ VALID_SCOPES = ["analyze", "recon", "batch", "stats"]
 router = APIRouter(prefix="/api-keys", tags=["api-keys"])
 
 _KEY_PREFIX = "vtg_"
-_KEY_RAND_BYTES = 24          # 48 hex chars → 52-char total key
+_KEY_RAND_BYTES = 24  # 48 hex chars -> 52-char total key
 
 
 def _generate_raw_key() -> str:
@@ -50,15 +48,15 @@ def _fmt(doc: dict) -> dict:
     }
 
 
-# ── Pydantic models ───────────────────────────────────────────────────────────
+# Request models
 
 class CreateKeyRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=80)
     expires_days: Optional[int] = Field(None, ge=1, le=3650)
-    scopes: Optional[List[str]] = None  # default ["analyze"]
+    scopes: Optional[List[str]] = None  # Defaults to ["analyze"].
 
 
-# ── POST /api/api-keys  ──────────────────────────────────────────────────────
+# Create an API key
 
 @router.post("")
 async def create_api_key(
@@ -79,7 +77,7 @@ async def create_api_key(
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(days=body.expires_days) if body.expires_days else None
 
-    # Validate and set scopes
+    # Keep only scopes supported by the current runtime.
     scopes = body.scopes or ["analyze"]
     scopes = [s for s in scopes if s in VALID_SCOPES]
     if not scopes:
@@ -114,11 +112,11 @@ async def create_api_key(
             "revoked": False,
             "scopes": scopes,
         }),
-        "key": raw_key,   # shown ONCE
+        "key": raw_key,  # Returned once.
     }
 
 
-# ── GET /api/api-keys/me  ────────────────────────────────────────────────────
+# List the caller's API keys
 
 @router.get("/me")
 async def list_my_keys(current_user: dict = Depends(get_current_user)):
@@ -135,7 +133,7 @@ async def list_my_keys(current_user: dict = Depends(get_current_user)):
     return [_fmt(d) for d in docs]
 
 
-# ── DELETE /api/api-keys/{key_id}  ───────────────────────────────────────────
+# Revoke an API key
 
 @router.delete("/{key_id}")
 async def revoke_api_key(
@@ -170,7 +168,7 @@ async def revoke_api_key(
     return {"revoked": True}
 
 
-# ── GET /api/api-keys/admin/{username}  (admin only) ────────────────────────
+# List a user's API keys
 
 @router.get("/admin/{username}")
 async def list_user_keys(

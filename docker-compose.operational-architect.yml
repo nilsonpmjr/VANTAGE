@@ -1,0 +1,4 @@
+services:
+  frontend:
+    ports: !override
+      - "${VANTAGE_FRONTEND_PORT:-80}:80"

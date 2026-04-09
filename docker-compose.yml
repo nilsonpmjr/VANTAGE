@@ -16,9 +16,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # mongo-express is only available in dev profile.
-  # Run with: docker compose --profile dev up
-  # It binds only to localhost on port 8081.
+  # mongo-express stays in the dev profile and only binds to localhost.
   mongo-express:
     image: mongo-express:1.0.2
     container_name: vantage_mongo_express
@@ -46,9 +44,7 @@ services:
     container_name: vantage_backend
     restart: unless-stopped
     ports:
-      # Bind the API to localhost only in the default compose profile.
-      # This preserves the current frontend contract (browser -> localhost:8000)
-      # without exposing the backend on all host interfaces by default.
+      # Keep the API local to the host unless an explicit proxy is added.
       - "127.0.0.1:8000:8000"
     env_file:
       - .env
@@ -57,24 +53,35 @@ services:
       CORS_ORIGINS: '["http://localhost","http://localhost:80","http://localhost:5173","http://localhost:3000"]'
     networks:
       - vantage_internal
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health/ready', timeout=2)"
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
     depends_on:
       mongodb:
         condition: service_healthy
 
-  # Sidecar that connects the backend to the docker0 bridge for internet
-  # egress. Custom Docker bridge networks on Arch Linux kernel 6.19+ with
-  # iptables-legacy do not forward outbound traffic correctly. The default
-  # docker0 bridge has working NAT/masquerade rules, so we attach the
-  # backend to it after startup.
+  # Attach the backend to docker0 when the custom bridge does not provide
+  # outbound connectivity on this host/kernel combination.
   backend-egress:
     image: docker:cli
     container_name: vantage_backend_egress
     restart: "no"
+    profiles: [egress-workaround]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     entrypoint: ["sh", "-c", "docker network connect bridge vantage_backend 2>/dev/null; echo egress-attached"]
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   frontend:
     build:
@@ -88,8 +95,15 @@ services:
       API_UPSTREAM: http://backend:8000
     networks:
       - vantage_internal
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   mongodb_data:

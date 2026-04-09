@@ -180,8 +180,9 @@ async def login(request: Request):
         await log_action(db, user=user["username"], action="login_mfa_setup_required", ip=ip)
     # ── end MFA gate ─────────────────────────────────────────────────────────
 
+    session_id = str(uuid.uuid4())
     access_token = create_access_token(
-        data={"sub": user["username"], "role": role}
+        data={"sub": user["username"], "role": role, "sid": session_id}
     )
     refresh_token = create_refresh_token()
     user_agent = request.headers.get("user-agent", "")
@@ -212,7 +213,7 @@ async def login(request: Request):
 
     # Persist refresh token in MongoDB
     await db.refresh_tokens.insert_one({
-        "session_id": str(uuid.uuid4()),
+        "session_id": session_id,
         "token_hash": hash_refresh_token(refresh_token),
         "username": user["username"],
         "role": role,
@@ -250,12 +251,13 @@ async def refresh_access_token(request: Request):
     if not refresh_token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token missing")
 
+    now = datetime.now(timezone.utc)
     token_hash = hash_refresh_token(refresh_token)
     stored = await db.refresh_tokens.find_one({"token_hash": token_hash, "revoked": False})
     if not stored:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
-    if stored["expires_at"] < datetime.now(timezone.utc):
+    if stored["expires_at"] < now:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token expired")
 
     user = await db.users.find_one({"username": stored["username"]})
@@ -264,26 +266,31 @@ async def refresh_access_token(request: Request):
     if user.get("is_active", True) is False:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Inactive user account")
 
+    session_id = stored.get("session_id", str(uuid.uuid4()))
     new_access_token = create_access_token(
-        data={"sub": user["username"], "role": user.get("role", "tech")}
+        data={"sub": user["username"], "role": user.get("role", "tech"), "sid": session_id}
     )
     new_refresh_token = create_refresh_token()
     new_refresh_token_hash = hash_refresh_token(new_refresh_token)
 
-    # Rotate: revoke old, insert new (preserving session context)
-    await db.refresh_tokens.update_one(
-        {"token_hash": token_hash},
-        {"$set": {"revoked": True}},
+    # Rotate with compare-and-swap semantics so the same refresh token
+    # cannot mint multiple successors under parallel requests.
+    result = await db.refresh_tokens.update_one(
+        {"token_hash": token_hash, "revoked": False},
+        {"$set": {"revoked": True, "rotated_at": now}},
     )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
+
     await db.refresh_tokens.insert_one({
-        "session_id": stored.get("session_id", str(uuid.uuid4())),
+        "session_id": session_id,
         "token_hash": new_refresh_token_hash,
         "username": user["username"],
         "role": user.get("role", "tech"),
         "ip": stored.get("ip", ""),
         "user_agent": stored.get("user_agent", ""),
         "created_at": stored.get("created_at", datetime.now(timezone.utc)),
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=settings.refresh_token_expire_days),
+        "expires_at": now + timedelta(days=settings.refresh_token_expire_days),
         "revoked": False,
     })
 

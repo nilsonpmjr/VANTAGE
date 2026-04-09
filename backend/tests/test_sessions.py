@@ -153,6 +153,30 @@ async def test_admin_can_revoke_any_session(async_client, auth_headers, fake_db)
     assert resp.status_code == 200
 
 
+@pytest.mark.asyncio
+async def test_revoked_session_rejects_bound_access_token(async_client):
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={"username": "techuser", "password": "tech123"},
+    )
+    assert login_resp.status_code == 200
+    access_token = login_resp.cookies["access_token"]
+
+    sessions_resp = await async_client.get("/api/auth/sessions")
+    assert sessions_resp.status_code == 200
+    session_id = sessions_resp.json()[0]["session_id"]
+
+    revoke_resp = await async_client.delete(f"/api/auth/sessions/{session_id}")
+    assert revoke_resp.status_code == 200
+
+    async_client.cookies.clear()
+    me_resp = await async_client.get(
+        "/api/auth/me",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert me_resp.status_code == 401
+
+
 # ── DELETE /api/auth/sessions/others ────────────────────────────────────────
 
 @pytest.mark.asyncio

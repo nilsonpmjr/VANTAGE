@@ -223,7 +223,10 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
 
     # Issue full auth tokens
     import uuid as _uuid
-    access_token = create_access_token(data={"sub": username, "role": role})
+    session_id = str(_uuid.uuid4())
+    access_token = create_access_token(
+        data={"sub": username, "role": role, "sid": session_id}
+    )
     refresh_token = create_refresh_token()
     user_agent = request.headers.get("user-agent", "")
     ip = request.client.host if request.client else "unknown"
@@ -237,7 +240,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
         )
 
     await db.refresh_tokens.insert_one({
-        "session_id": str(_uuid.uuid4()),
+        "session_id": session_id,
         "token_hash": hash_refresh_token(refresh_token),
         "username": username,
         "role": role,

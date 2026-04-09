@@ -25,7 +25,7 @@ MAX_ATTACHMENT_SIZE = 2 * 1024 * 1024  # 2MB
 ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
+# Request models
 
 class IncidentEntry(BaseModel):
     incident_id: str | None = None
@@ -197,7 +197,7 @@ class ShiftHandoffIncidentStatusUpdate(BaseModel):
         return value.strip()[:500]
 
 
-# ── Serialization ─────────────────────────────────────────────────────────────
+# Serialization helpers
 
 def _serialize(doc: dict) -> dict:
     def _ts(v):
@@ -392,7 +392,7 @@ async def _sync_persistent_incidents(
     return serialized
 
 
-# ── POST / — create shift handoff ────────────────────────────────────────────
+# Create a shift handoff
 
 @router.post("")
 async def create_handoff(
@@ -440,6 +440,7 @@ async def create_handoff(
     )
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_create",
         f"Created shift handoff for {payload.shift_date}",
@@ -448,7 +449,7 @@ async def create_handoff(
     return _serialize(doc)
 
 
-# ── GET / — list active handoffs ──────────────────────────────────────────────
+# List active handoffs
 
 @router.get("")
 async def list_handoffs(
@@ -474,7 +475,7 @@ async def list_handoffs(
     return results
 
 
-# ── GET /{id} — handoff detail ────────────────────────────────────────────────
+# Read a handoff
 
 @router.get("/{handoff_id}")
 async def get_handoff(
@@ -493,7 +494,7 @@ async def get_handoff(
     return _serialize(doc)
 
 
-# ── PUT /{id} — edit handoff (author or admin/manager) ───────────────────────
+# Update a handoff
 
 @router.put("/{handoff_id}")
 async def update_handoff(
@@ -560,6 +561,7 @@ async def update_handoff(
 
     updated = await db.shift_handoffs.find_one({"_id": oid})
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_update",
         f"Updated shift handoff {handoff_id}",
@@ -567,7 +569,7 @@ async def update_handoff(
     return _serialize(updated)
 
 
-# ── POST /{id}/acknowledge — incoming team acknowledges ──────────────────────
+# Acknowledge a handoff
 
 @router.post("/{handoff_id}/acknowledge")
 async def acknowledge_handoff(
@@ -598,6 +600,7 @@ async def acknowledge_handoff(
     )
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_acknowledge",
         f"Acknowledged shift handoff {handoff_id}",
@@ -606,7 +609,7 @@ async def acknowledge_handoff(
     return _serialize(updated)
 
 
-# ── POST /{id}/incidents/{index}/status — update incident lifecycle ──────────
+# Update an incident lifecycle
 
 @router.post("/{handoff_id}/incidents/{incident_id}/status")
 async def update_incident_status(
@@ -672,6 +675,7 @@ async def update_incident_status(
     )
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_incident_status_update",
         f"Updated incident {incident_id} on shift handoff {handoff_id} to {payload.status}",
@@ -702,7 +706,23 @@ async def list_persistent_incidents(
     return results
 
 
-# ── POST /{id}/attachments — upload image ────────────────────────────────────
+def _matches_image_signature(content_type: str, contents: bytes) -> bool:
+    if content_type == "image/png":
+        return contents.startswith(b"\x89PNG\r\n\x1a\n")
+    if content_type == "image/jpeg":
+        return contents.startswith(b"\xff\xd8\xff")
+    if content_type == "image/gif":
+        return contents.startswith((b"GIF87a", b"GIF89a"))
+    if content_type == "image/webp":
+        return (
+            len(contents) >= 12
+            and contents.startswith(b"RIFF")
+            and contents[8:12] == b"WEBP"
+        )
+    return False
+
+
+# Upload a handoff attachment
 
 @router.post("/{handoff_id}/attachments")
 async def upload_attachment(
@@ -736,6 +756,8 @@ async def upload_attachment(
     contents = await file.read()
     if len(contents) > MAX_ATTACHMENT_SIZE:
         raise HTTPException(status_code=400, detail="file_too_large_max_2mb")
+    if not _matches_image_signature(content_type, contents):
+        raise HTTPException(status_code=400, detail="invalid_image_payload")
 
     b64 = base64.b64encode(contents).decode("ascii")
     data_uri = f"data:{content_type};base64,{b64}"
@@ -759,6 +781,7 @@ async def upload_attachment(
     )
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_attachment_upload",
         f"Uploaded attachment to handoff {handoff_id}",
@@ -772,7 +795,7 @@ async def upload_attachment(
     }
 
 
-# ── DELETE /{id}/attachments/{attachment_id} — remove image ──────────────────
+# Delete a handoff attachment
 
 @router.delete("/{handoff_id}/attachments/{attachment_id}")
 async def delete_attachment(
@@ -807,6 +830,7 @@ async def delete_attachment(
         raise HTTPException(status_code=404, detail="attachment_not_found")
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_attachment_delete",
         f"Deleted attachment {attachment_id} from handoff {handoff_id}",
@@ -814,7 +838,7 @@ async def delete_attachment(
     return {"deleted": True}
 
 
-# ── DELETE /{id} — remove handoff (admin only) ───────────────────────────────
+# Delete a handoff
 
 @router.delete("/{handoff_id}")
 async def delete_handoff(
@@ -832,6 +856,7 @@ async def delete_handoff(
         raise HTTPException(status_code=404, detail="handoff_not_found")
 
     await log_action(
+        db,
         current_user["username"],
         "shift_handoff_delete",
         f"Deleted shift handoff {handoff_id}",

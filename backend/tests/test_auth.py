@@ -110,6 +110,26 @@ async def test_refresh_rotates_hashed_token_and_uses_current_role(async_client, 
 
 
 @pytest.mark.asyncio
+async def test_refresh_rejects_reuse_of_rotated_refresh_token(async_client):
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={"username": "techuser", "password": "tech123"},
+    )
+    assert login_resp.status_code == 200
+    old_refresh_token = login_resp.cookies["refresh_token"]
+
+    refresh_resp = await async_client.post("/api/auth/refresh")
+    assert refresh_resp.status_code == 200
+
+    reuse_resp = await async_client.post(
+        "/api/auth/refresh",
+        cookies={"refresh_token": old_refresh_token},
+    )
+    assert reuse_resp.status_code == 401
+    assert reuse_resp.json()["detail"] == "Invalid refresh token"
+
+
+@pytest.mark.asyncio
 async def test_refresh_rejects_inactive_user(async_client, fake_db):
     login_resp = await async_client.post(
         "/api/auth/login",

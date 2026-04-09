@@ -173,3 +173,62 @@ async def test_shift_handoff_incident_status_can_be_updated(async_client, auth_h
     body = response.json()
     assert body["incidents"][0]["status"] == "resolved"
     assert body["incidents"][0]["action_needed"] == "Resolved by day shift"
+
+
+@pytest.mark.asyncio
+async def test_shift_handoff_attachment_rejects_mismatched_image_payload(
+    async_client,
+    auth_headers,
+    fake_db,
+):
+    now = datetime.now(timezone.utc)
+    handoff_id = ObjectId()
+    fake_db.shift_handoffs._data = [
+        {
+            "_id": handoff_id,
+            "shift_date": "2026-04-08",
+            "team_members": ["analyst"],
+            "body": "attachment test",
+            "visibility_days": 4,
+            "expires_at": now + timedelta(days=3),
+            "created_by": "admin",
+            "created_at": now - timedelta(hours=1),
+            "updated_at": now - timedelta(hours=1),
+            "incidents": [],
+            "tools_status": [],
+            "observations": "",
+            "shift_focus": "",
+            "acknowledged_by": "",
+            "acknowledged_at": None,
+            "attachments": [],
+            "edit_history": [],
+        }
+    ]
+
+    response = await async_client.post(
+        f"/api/shift-handoffs/{handoff_id}/attachments",
+        headers=auth_headers,
+        files={"file": ("fake.png", b"not-a-real-png", "image/png")},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "invalid_image_payload"
+
+
+@pytest.mark.asyncio
+async def test_shift_handoff_create_writes_audit_row(async_client, auth_headers, fake_db):
+    response = await async_client.post(
+        "/api/shift-handoffs",
+        headers=auth_headers,
+        json={
+            "shift_date": "2026-04-08",
+            "team_members": ["admin"],
+            "body": "audit test",
+            "visibility_days": 4,
+        },
+    )
+
+    assert response.status_code == 200
+    audit = await fake_db.audit_log.find_one({"action": "shift_handoff_create"})
+    assert audit is not None
+    assert audit["user"] == "admin"

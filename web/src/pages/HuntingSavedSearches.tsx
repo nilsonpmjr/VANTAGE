@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, Bookmark, Search, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 interface SavedHuntingSearch {
@@ -93,28 +94,24 @@ export default function HuntingSavedSearches() {
 
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("hunting.savedSearchesEyebrow", "Analyst")}</div>
-          <h1 className="page-heading">{t("hunting.savedSearchesTitle", "Saved Searches")}</h1>
-          <p className="page-subheading">
-            {t(
-              "hunting.savedSearchesSubtitle",
-              "Review, reopen, and curate saved hunting directives without crowding the main execution surface.",
-            )}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("hunting.savedSearchesEyebrow", "Analyst")}
+        title={t("hunting.savedSearchesTitle", "Saved Searches")}
+        description={t(
+          "hunting.savedSearchesSubtitle",
+          "Review, reopen, and curate saved hunting directives without crowding the main execution surface.",
+        )}
+        metrics={<PageMetricPill label={`${items.length} ${t("hunting.savedSearchEntries", "entries")}`} dotClassName="bg-primary" tone="primary" />}
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("hunting.savedSearchesActions", "Saved search actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("hunting.savedSearchesActions", "Saved search actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button onClick={() => navigate("/hunting")} className="btn btn-outline">
             <ArrowLeft className="h-4 w-4" />
             {t("hunting.backToHunting", "Back to Hunting")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

@@ -49,19 +49,23 @@ export default defineConfig(({mode}) => {
               return 'charts';
             }
 
+            if (
+              id.includes('motion') ||
+              id.includes('date-fns') ||
+              id.includes('@tiptap/')
+            ) {
+              return 'shift-handoff-vendor';
+            }
+
+            if (id.includes('clsx') || id.includes('tailwind-merge')) {
+              return 'ui-utils';
+            }
+
             if (id.includes('lucide-react')) {
               return 'icons';
             }
 
-            if (
-              id.includes('/react/') ||
-              id.includes('/react-dom/') ||
-              id.includes('scheduler')
-            ) {
-              return 'react-core';
-            }
-
-            return 'vendor';
+            return undefined;
           },
         },
       },

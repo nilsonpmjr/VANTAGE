@@ -23,6 +23,8 @@ class Settings(BaseSettings):
 
     # Cache
     cache_ttl_hours: int = 24
+    analyze_runtime_lease_seconds: int = 30
+    analyze_shared_wait_seconds: int = 12
 
     # Worker (background rescan job)
     rescan_batch_size: int = 5

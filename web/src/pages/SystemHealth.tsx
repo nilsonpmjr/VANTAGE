@@ -12,6 +12,7 @@ import {
   Copy,
 } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -274,29 +275,20 @@ export default function SystemHealth() {
 
   return (
     <div className="page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("settingsPages.systemHealthEyebrow", "Observability")}</div>
-          <h2 className="page-heading">{t("settingsPages.systemHealthTitle", "Operational Status")}</h2>
-          <p className="page-subheading">
-            {t("settingsPages.systemHealthSubtitle", "Monitore saúde dos serviços, consumo operacional e eventos recentes da infraestrutura sem depender de trilhas de navegação artificiais.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
-            <span>Global Uptime: {uptimeRatio.toFixed(1)}%</span>
-          </div>
-          <div className="summary-pill-muted">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-500"></span>
-            <span>Active Alerts: {Number(payload?.summary?.degraded || 0) + Number(payload?.summary?.error || 0)}</span>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("settingsPages.systemHealthEyebrow", "Observability")}
+        title={t("settingsPages.systemHealthTitle", "Operational Status")}
+        description={t("settingsPages.systemHealthSubtitle", "Monitore saúde dos serviços, consumo operacional e eventos recentes da infraestrutura sem depender de trilhas de navegação artificiais.")}
+        metrics={
+          <>
+            <PageMetricPill label={`Global Uptime: ${uptimeRatio.toFixed(1)}%`} dotClassName="bg-emerald-500" tone="success" />
+            <PageMetricPill label={`Active Alerts: ${Number(payload?.summary?.degraded || 0) + Number(payload?.summary?.error || 0)}`} dotClassName="bg-amber-500" tone="warning" />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("settingsPages.systemHealthActions", "Service actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("settingsPages.systemHealthActions", "Service actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             onClick={() => void loadRuntime()}
             className="btn btn-outline"
@@ -312,8 +304,8 @@ export default function SystemHealth() {
             <RotateCcw className={`w-4 h-4 ${busyService === "threat_ingestion" ? "animate-spin" : ""}`} />
             {busyService === "threat_ingestion" ? t("settingsPages.restarting", "Restarting...") : t("settingsPages.restartIngestion", "Restart Ingestion")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

@@ -63,6 +63,11 @@ async def lifespan(app: FastAPI):
             await db.scans.create_index([("verdict", 1)])
             await db.scans.create_index([("analyst", 1), ("timestamp", -1)])
             await db.scans.create_index([("target", 1), ("timestamp", -1)])
+            await db.analysis_runtime.create_index(
+                [("expires_at", 1)],
+                expireAfterSeconds=0,
+                name="analysis_runtime_ttl",
+            )
             await db.users.create_index(
                 [("normalized_email", 1)],
                 unique=True,

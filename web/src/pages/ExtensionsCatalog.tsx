@@ -16,6 +16,7 @@ import {
   Shield,
 } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -262,28 +263,37 @@ export default function ExtensionsCatalog() {
 
   return (
     <div className="page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
-          <h2 className="page-heading">{t("settingsPages.extensionsTitle", "Extensions Catalog")}</h2>
-          <p className="page-subheading">
-            {t("settingsPages.extensionsSubtitle", "Orquestre módulos, conectores e recursos adicionais em um catálogo administrativo consistente. O backend atual ainda expõe parte desse estado em modo leitura.")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("admin.eyebrow", "Administration")}
+        title={t("settingsPages.extensionsTitle", "Extensions Catalog")}
+        description={t("settingsPages.extensionsSubtitle", "Orquestre módulos, conectores e recursos adicionais em um catálogo administrativo consistente. O backend atual ainda expõe parte desse estado em modo leitura.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${counts.active}/${counts.all} Active`}
+              dotClassName={counts.active > 0 ? "bg-emerald-500" : "bg-outline"}
+              tone={counts.active > 0 ? "success" : "muted"}
+            />
+            <PageMetricPill
+              label={`${counts.attention} Attention`}
+              dotClassName={counts.attention > 0 ? "bg-error" : "bg-outline"}
+              tone={counts.attention > 0 ? "danger" : "muted"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("settingsPages.extensionsActions", "Catalog actions")}</div>
-        <div className="page-toolbar-actions">
-            <button
-              onClick={() => void loadCatalog(true)}
-              className="btn btn-outline"
-            >
-              <span className="inline-flex items-center gap-2">
-                <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-                {t("admin.refresh", "Refresh")}
-              </span>
-            </button>
+      <PageToolbar label={t("settingsPages.extensionsActions", "Catalog actions")}>
+        <PageToolbarGroup className="ml-auto">
+          <button
+            onClick={() => void loadCatalog(true)}
+            className="btn btn-outline"
+          >
+            <span className="inline-flex items-center gap-2">
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              {t("admin.refresh", "Refresh")}
+            </span>
+          </button>
           <button
             onClick={() => {
               setFilter("disabled");
@@ -297,11 +307,11 @@ export default function ExtensionsCatalog() {
             }}
             className="btn btn-primary uppercase tracking-widest flex items-center gap-2"
           >
-              <Plus className="w-4 h-4" />
-              {t("settingsPages.reviewDisabled", "Review Disabled")}
-            </button>
-        </div>
-      </div>
+            <Plus className="w-4 h-4" />
+            {t("settingsPages.reviewDisabled", "Review Disabled")}
+          </button>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

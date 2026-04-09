@@ -17,9 +17,10 @@ import {
   RefreshCw,
   Trash2,
   Eye,
-  X,
 } from "lucide-react";
 import API_URL from "../config";
+import ModalShell from "../components/modal/ModalShell";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTheme } from "../context/ThemeContext";
@@ -295,6 +296,7 @@ export default function Profile() {
       Math.round((Date.now() - new Date(oldest.created_at).getTime()) / (1000 * 60 * 60 * 24)),
     );
   }, [apiKeys]);
+  const activeApiKeysCount = useMemo(() => apiKeys.filter((item) => !item.revoked).length, [apiKeys]);
 
   const currentSession = sessions.find((item) => item.is_current);
   const profileSectionMeta = useMemo(() => {
@@ -333,6 +335,78 @@ export default function Profile() {
       toolbarLabel: "Profile actions",
     };
   }, [activeTab]);
+  const profileHeaderMetrics = useMemo(() => {
+    if (activeTab === "preferences") {
+      return (
+        <>
+          <PageMetricPill
+            label={`${configuredServiceCount}/${THIRD_PARTY_SERVICES.length} Providers`}
+            dotClassName={configuredServiceCount > 0 ? "bg-emerald-500" : "bg-outline"}
+            tone={configuredServiceCount > 0 ? "success" : "muted"}
+          />
+          <PageMetricPill
+            label={`${sessions.length} Active Sessions`}
+            dotClassName="bg-primary"
+            tone="primary"
+          />
+        </>
+      );
+    }
+    if (activeTab === "external_api_keys") {
+      return (
+        <>
+          <PageMetricPill
+            label={`${activeApiKeysCount} Active Keys`}
+            dotClassName={activeApiKeysCount > 0 ? "bg-emerald-500" : "bg-outline"}
+            tone={activeApiKeysCount > 0 ? "success" : "muted"}
+          />
+          <PageMetricPill
+            label={oldestActiveKeyAge !== null ? `${oldestActiveKeyAge}d Oldest Active` : "No active keys"}
+            dotClassName={oldestActiveKeyAge !== null ? "bg-amber-500" : "bg-outline"}
+            tone={oldestActiveKeyAge !== null ? "warning" : "muted"}
+          />
+        </>
+      );
+    }
+    if (activeTab === "audit_logs") {
+      return (
+        <>
+          <PageMetricPill
+            label={`${filteredAuditItems.length} Visible Events`}
+            dotClassName="bg-primary"
+            tone="primary"
+          />
+          <PageMetricPill
+            label={`${auditItems.length} Total Logged`}
+            dotClassName="bg-secondary"
+          />
+        </>
+      );
+    }
+    return (
+      <>
+        <PageMetricPill
+          label={user?.role ? String(user.role).toUpperCase() : "OPERATOR"}
+          dotClassName="bg-primary"
+          tone="primary"
+        />
+        <PageMetricPill
+          label={`${sessions.length} Active Sessions`}
+          dotClassName="bg-emerald-500"
+          tone="success"
+        />
+      </>
+    );
+  }, [
+    activeApiKeysCount,
+    activeTab,
+    auditItems.length,
+    configuredServiceCount,
+    filteredAuditItems.length,
+    oldestActiveKeyAge,
+    sessions.length,
+    user?.role,
+  ]);
 
   const avatarSrc =
     avatarDraft ||
@@ -716,23 +790,21 @@ export default function Profile() {
 
   return (
     <div className="page-frame profile-page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{profileSectionMeta.eyebrow}</div>
-          <h1 className="page-heading">{profileSectionMeta.title}</h1>
-          <p className="page-subheading">{profileSectionMeta.subheading}</p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={profileSectionMeta.eyebrow}
+        title={profileSectionMeta.title}
+        description={profileSectionMeta.subheading}
+        metrics={profileHeaderMetrics}
+      />
 
-      <div className="page-toolbar mb-8">
-        <div className="page-toolbar-copy">{profileSectionMeta.toolbarLabel}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar className="mb-8" label={profileSectionMeta.toolbarLabel}>
+        <PageToolbarGroup className="ml-auto">
           <button className="btn btn-outline" onClick={refreshRuntime}>
             <RefreshCw className="w-4 h-4" />
             Refresh data
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(pageError || notice || user?.force_password_reset) && (
         <div className="mb-6 space-y-3">
@@ -1753,33 +1825,39 @@ export default function Profile() {
       </div>
 
       {isCreateApiKeyOpen && (
-        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
-          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-3xl flex-col overflow-hidden">
-            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
-              <div>
-                <div className="page-eyebrow">Platform Credentials</div>
-                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
-                  Create API Key
-                </h3>
-                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
-                  Define alias, expiration policy and access scope before issuing a
-                  new operator-scoped platform key.
-                </p>
-              </div>
+        <ModalShell
+          title="Create API Key"
+          description="Define alias, expiration policy and access scope before issuing a new operator-scoped platform key."
+          icon="Platform Credentials"
+          variant="editor"
+          onClose={() => {
+            setIsCreateApiKeyOpen(false);
+            setCreateApiKeyError("");
+          }}
+          ariaLabel="Close create API key modal"
+          footer={
+            <>
               <button
                 type="button"
-                className="btn btn-ghost !px-2"
+                className="btn btn-ghost"
                 onClick={() => {
                   setIsCreateApiKeyOpen(false);
                   setCreateApiKeyError("");
                 }}
-                aria-label="Close create API key modal"
               >
-                <X className="h-4 w-4" />
+                Cancel
               </button>
-            </div>
-
-            <div className="overflow-y-auto px-6 py-6">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={createApiKey}
+                disabled={creatingApiKey}
+              >
+                {creatingApiKey ? "Generating..." : "Issue API Key"}
+              </button>
+            </>
+          }
+        >
               <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
                 <div className="space-y-6">
                   <div className="space-y-2">
@@ -1907,56 +1985,18 @@ export default function Profile() {
                   </div>
                 </aside>
               </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-3 border-t border-outline-variant/10 bg-surface-container-low px-6 py-4">
-              <button
-                type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  setIsCreateApiKeyOpen(false);
-                  setCreateApiKeyError("");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn btn-primary"
-                onClick={createApiKey}
-                disabled={creatingApiKey}
-              >
-                {creatingApiKey ? "Generating..." : "Issue API Key"}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {selectedAuditItem && (
-        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
-          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden">
-            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
-              <div>
-                <div className="page-eyebrow">Audit Detail</div>
-                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
-                  {selectedAuditItem.action}
-                </h3>
-                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
-                  Event detail captured from the operator audit registry.
-                </p>
-              </div>
-              <button
-                type="button"
-                className="btn btn-ghost !px-2"
-                onClick={() => setSelectedAuditItem(null)}
-                aria-label="Close audit detail"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto px-6 py-6">
+        <ModalShell
+          title={selectedAuditItem.action}
+          description="Event detail captured from the operator audit registry."
+          icon="Audit Detail"
+          onClose={() => setSelectedAuditItem(null)}
+          ariaLabel="Close audit detail"
+          variant="dialog"
+        >
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                 <Field label="Timestamp" value={formatTimestamp(selectedAuditItem.timestamp)} readOnly />
                 <Field label="User" value={selectedAuditItem.user || "—"} readOnly />
@@ -1971,38 +2011,41 @@ export default function Profile() {
                   readOnly
                 />
               </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {avatarEditorOpen && (
-        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
-          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden">
-            <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
-              <div>
-                <div className="page-eyebrow">Avatar Editor</div>
-                <h3 className="mt-2 text-xl font-extrabold tracking-tight text-on-surface">
-                  Ajustar foto de perfil
-                </h3>
-                <p className="mt-2 max-w-2xl text-sm text-on-surface-variant">
-                  Revise como a foto será exibida no avatar antes de salvar.
-                </p>
-              </div>
+        <ModalShell
+          title="Ajustar foto de perfil"
+          description="Revise como a foto será exibida no avatar antes de salvar."
+          icon="Avatar Editor"
+          onClose={() => {
+            setAvatarEditorOpen(false);
+            setPendingAvatarData("");
+          }}
+          ariaLabel="Close avatar editor"
+          variant="dialog"
+          bodyClassName="space-y-6"
+          footer={
+            <>
               <button
-                type="button"
-                className="btn btn-ghost !px-2"
+                className="btn btn-ghost"
                 onClick={() => {
                   setAvatarEditorOpen(false);
                   setPendingAvatarData("");
                 }}
-                aria-label="Close avatar editor"
               >
-                <X className="h-4 w-4" />
+                Cancelar
               </button>
-            </div>
-
-            <div className="overflow-y-auto px-6 py-6 space-y-6">
+              <button
+                className="btn btn-primary"
+                onClick={confirmAvatarSelection}
+              >
+                Usar foto
+              </button>
+            </>
+          }
+        >
               <div className="flex justify-center">
                 <div className="flex h-56 w-56 items-center justify-center rounded-full border-4 border-white bg-surface-container-low shadow-lg">
                   <img
@@ -2032,27 +2075,7 @@ export default function Profile() {
                   </button>
                 </div>
               </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  className="btn btn-ghost"
-                  onClick={() => {
-                    setAvatarEditorOpen(false);
-                    setPendingAvatarData("");
-                  }}
-                >
-                  Cancelar
-                </button>
-                <button
-                  className="btn btn-primary"
-                  onClick={confirmAvatarSelection}
-                >
-                  Usar foto
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

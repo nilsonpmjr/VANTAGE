@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Bookmark, Crosshair, Search, ShieldCheck, StickyNote, History } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 interface HuntingProvider {
@@ -452,27 +453,21 @@ export default function Hunting() {
   }
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("hunting.eyebrow", "Analyst")}</div>
-          <h1 className="page-heading">{t("hunting.title", "Proactive Threat Hunting")}</h1>
-          <p className="page-subheading">
-            {t("hunting.subtitle", "Execute buscas por usernames, aliases, e-mails e contas com buscas salvas, comparação por fonte e notas analíticas por pesquisa.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <ShieldCheck className="h-4 w-4 text-primary" />
-            {readyProviderCount}/{providers.length} {t("hunting.runtimeReady", "hunting lanes ready")}
-          </div>
-          <div className="summary-pill">{savedSearches.length} {t("hunting.savedSearches", "saved searches")}</div>
-          <div className="summary-pill">{notes.length} {t("hunting.notes", "notes")}</div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("hunting.eyebrow", "Analyst")}
+        title={t("hunting.title", "Proactive Threat Hunting")}
+        description={t("hunting.subtitle", "Execute buscas por usernames, aliases, e-mails e contas com buscas salvas, comparação por fonte e notas analíticas por pesquisa.")}
+        metrics={
+          <>
+            <PageMetricPill label={`${readyProviderCount}/${providers.length} ${t("hunting.runtimeReady", "hunting lanes ready")}`} dotClassName="bg-primary" tone="primary" />
+            <PageMetricPill label={`${savedSearches.length} ${t("hunting.savedSearches", "saved searches")}`} dotClassName="bg-secondary" />
+            <PageMetricPill label={`${notes.length} ${t("hunting.notes", "notes")}`} dotClassName="bg-secondary" />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("hunting.actions", "Hunting actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("hunting.actions", "Hunting actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             onClick={() => navigate("/hunting/saved-searches")}
             className="btn btn-outline"
@@ -496,8 +491,8 @@ export default function Hunting() {
             <Bookmark className="h-4 w-4" />
             {savingSearch ? t("hunting.saving", "Saving") : t("hunting.saveSearch", "Save Search")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

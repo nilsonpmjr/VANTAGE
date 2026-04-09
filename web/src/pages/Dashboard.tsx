@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 
@@ -86,6 +87,8 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const activeView = searchParams.get("view") === "history" ? "history" : "overview";
   const HISTORY_PAGE_SIZE = 20;
+  const criticalIncidentCount = stats?.criticalIncidents?.length || 0;
+  const workerStatusLabel = stats?.workerHealth?.status || "unknown";
 
   useEffect(() => {
     let cancelled = false;
@@ -252,19 +255,32 @@ export default function Dashboard() {
 
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("dashboard.eyebrow", "Observability")}</div>
-          <h1 className="page-heading">{t("dashboard.title", "Operational Overview")}</h1>
-          <p className="page-subheading">
-            {t("dashboard.subtitle", "Telemetria de risco, incidentes recentes e throughput da plataforma em uma única superfície de observabilidade.")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("dashboard.eyebrow", "Observability")}
+        title={t("dashboard.title", "Operational Overview")}
+        description={t("dashboard.subtitle", "Telemetria de risco, incidentes recentes e throughput da plataforma em uma única superfície de observabilidade.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${stats?.totalScans || 0} ${t("dashboard.totalSearches", "total searches")}`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+            <PageMetricPill
+              label={`${criticalIncidentCount} ${criticalIncidentCount === 1 ? "critical incident" : "critical incidents"}`}
+              dotClassName={criticalIncidentCount > 0 ? "bg-error" : "bg-emerald-500"}
+              tone={criticalIncidentCount > 0 ? "danger" : "success"}
+            />
+            <PageMetricPill
+              label={`Worker ${String(workerStatusLabel).toUpperCase()}`}
+              dotClassName={workerStatusLabel === "healthy" ? "bg-emerald-500" : workerStatusLabel === "degraded" ? "bg-amber-500" : "bg-secondary"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("dashboard.timeWindow", "Time window")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("dashboard.timeWindow", "Time window")}>
+        <PageToolbarGroup compact>
           {["day", "week", "month"].map((item) => (
             <button
               key={item}
@@ -274,23 +290,24 @@ export default function Dashboard() {
               {item.toUpperCase()}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="nav-pills">
-        <button
-          className={`nav-pill-item px-6 ${activeView === "overview" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
-          onClick={() => setSearchParams({}, { replace: true })}
-        >
-          {t("dashboard.overview", "Overview")}
-        </button>
-        <button
-          className={`nav-pill-item px-6 ${activeView === "history" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
-          onClick={() => setSearchParams({ view: "history" }, { replace: true })}
-        >
-          {t("dashboard.fullHistory", "Full History")}
-        </button>
-      </div>
+        </PageToolbarGroup>
+        <PageToolbarGroup>
+          <div className="nav-pills">
+            <button
+              className={`nav-pill-item px-6 ${activeView === "overview" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+              onClick={() => setSearchParams({}, { replace: true })}
+            >
+              {t("dashboard.overview", "Overview")}
+            </button>
+            <button
+              className={`nav-pill-item px-6 ${activeView === "history" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
+              onClick={() => setSearchParams({ view: "history" }, { replace: true })}
+            >
+              {t("dashboard.fullHistory", "Full History")}
+            </button>
+          </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {error && (
         <div className="rounded bg-error/10 px-4 py-3 text-sm text-error">{error}</div>

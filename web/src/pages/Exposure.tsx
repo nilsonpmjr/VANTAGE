@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Activity, Globe, Plus, RefreshCw, Search, ShieldAlert, Siren, Layers3 } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 interface ExposureProvider {
@@ -376,24 +377,21 @@ export default function Exposure() {
 
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("exposure.eyebrow", "Analyst")}</div>
-          <h1 className="page-heading">{t("exposure.title", "External Attack Surface Management")}</h1>
-          <p className="page-subheading">
-            {t("exposure.subtitle", "Monitore ativos externos com scans em massa, grupos operacionais e fluxo de incidente para findings relevantes.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">{assets.length} {t("exposure.assets", "assets")}</div>
-          <div className="summary-pill">{groups.length} {t("exposure.groups", "groups")}</div>
-          <div className="summary-pill">{openIncidents} {t("exposure.openIncidents", "open incidents")}</div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("exposure.eyebrow", "Analyst")}
+        title={t("exposure.title", "External Attack Surface Management")}
+        description={t("exposure.subtitle", "Monitore ativos externos com scans em massa, grupos operacionais e fluxo de incidente para findings relevantes.")}
+        metrics={
+          <>
+            <PageMetricPill label={`${assets.length} ${t("exposure.assets", "assets")}`} dotClassName="bg-primary" tone="primary" />
+            <PageMetricPill label={`${groups.length} ${t("exposure.groups", "groups")}`} dotClassName="bg-secondary" />
+            <PageMetricPill label={`${openIncidents} ${t("exposure.openIncidents", "open incidents")}`} dotClassName={openIncidents > 0 ? "bg-error" : "bg-emerald-500"} tone={openIncidents > 0 ? "danger" : "success"} />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("exposure.actions", "Exposure actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("exposure.actions", "Exposure actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button onClick={loadExposureRuntime} className="btn btn-outline">
             <RefreshCw className="h-4 w-4" />
             {t("exposure.refresh", "Refresh")}
@@ -406,8 +404,8 @@ export default function Exposure() {
             <Siren className="h-4 w-4" />
             {t("exposure.promoteIncident", "Promote Incident")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

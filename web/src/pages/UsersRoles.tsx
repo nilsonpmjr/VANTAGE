@@ -18,6 +18,8 @@ import {
   Copy,
 } from "lucide-react";
 import API_URL from "../config";
+import ModalShell from "../components/modal/ModalShell";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -652,29 +654,28 @@ export default function UsersRoles() {
 
   return (
     <div className="page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
-          <h1 className="page-heading">{t("settingsPages.usersRolesTitle", "Users & Roles")}</h1>
-          <p className="page-subheading">
-            {t("settingsPages.usersRolesSubtitle", "Gerencie diretório, autenticação pendente e operações de importação em uma superfície administrativa única.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-            <span>{stats?.active_users || 0} Active Users</span>
-          </div>
-          <div className="summary-pill">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            <span>{(stats?.total_users || 0) - (stats?.users_with_mfa || 0)} Pending Auth</span>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("admin.eyebrow", "Administration")}
+        title={t("settingsPages.usersRolesTitle", "Users & Roles")}
+        description={t("settingsPages.usersRolesSubtitle", "Gerencie diretório, autenticação pendente e operações de importação em uma superfície administrativa única.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${stats?.active_users || 0} Active Users`}
+              dotClassName="bg-emerald-500"
+              tone="success"
+            />
+            <PageMetricPill
+              label={`${(stats?.total_users || 0) - (stats?.users_with_mfa || 0)} Pending Auth`}
+              dotClassName="bg-amber-500"
+              tone="warning"
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("settingsPages.usersRolesActions", "Directory actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("settingsPages.usersRolesActions", "Directory actions")}>
+        <PageToolbarGroup className="ml-auto">
           <input
             ref={fileInputRef}
             type="file"
@@ -708,6 +709,8 @@ export default function UsersRoles() {
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
             {t("admin.refresh", "Refresh")}
           </button>
+        </PageToolbarGroup>
+        <PageToolbarGroup>
           <button
             onClick={openInvite}
             className="btn btn-primary"
@@ -722,8 +725,8 @@ export default function UsersRoles() {
             <Edit className="w-3 h-3" />
             {t("settingsPages.addUser", "Add User")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">
@@ -1190,26 +1193,44 @@ export default function UsersRoles() {
       )}
 
       {editorMode && (
-        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
-          <div className="modal-surface mx-auto flex max-h-[calc(100vh-2rem)] w-full max-w-6xl flex-col overflow-hidden">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-4">
-              <div>
-                <h3 className="font-bold text-sm tracking-tight text-on-surface">
-                  {editorMode === "create"
-                    ? createMode === "invite"
-                      ? "Invite New Operator"
-                      : "Provision New Operator"
-                    : `Edit Operator ${editorUsername}`}
-                </h3>
-                <p className="text-[11px] text-on-surface-variant uppercase tracking-widest mt-1">
-                  Identity, privileges and recovery posture
-                </p>
-              </div>
-              <button onClick={resetForm} className="text-on-surface-variant hover:text-on-surface">
-                <X className="w-4 h-4" />
+        <ModalShell
+          title={
+            editorMode === "create"
+              ? createMode === "invite"
+                ? "Invite New Operator"
+                : "Provision New Operator"
+              : `Edit Operator ${editorUsername}`
+          }
+          description="Identity, privileges and recovery posture"
+          icon="Operator editor"
+          variant="editor"
+          onClose={resetForm}
+          ariaLabel="Close operator editor"
+          bodyClassName="grid flex-1 grid-cols-1 gap-8 lg:grid-cols-2"
+          footer={
+            <>
+              <button
+                onClick={resetForm}
+                className="btn btn-outline"
+              >
+                Cancel
               </button>
-            </div>
-            <div className="grid flex-1 grid-cols-1 gap-8 overflow-y-auto p-6 lg:grid-cols-2">
+              <button
+                onClick={() => void saveUser()}
+                disabled={busy === "save-user"}
+                className="btn btn-primary disabled:opacity-60"
+              >
+                {busy === "save-user"
+                  ? "Saving..."
+                  : editorMode === "create" && createMode === "invite"
+                  ? "Send Invite"
+                  : editorMode === "create"
+                    ? "Create User"
+                    : "Save Changes"}
+              </button>
+            </>
+          }
+        >
             <div className="space-y-5">
               <FormField label="Username">
                 <input
@@ -1425,30 +1446,7 @@ export default function UsersRoles() {
                 desbloqueio, import/export em CSV e permissões extras por usuário.
               </div>
             </div>
-            </div>
-            <div className="sticky bottom-0 flex justify-end gap-3 border-t border-outline-variant/10 bg-surface-container-high px-6 py-4">
-              <button
-                onClick={resetForm}
-                className="px-4 py-2 border border-outline-variant/30 text-xs font-bold uppercase tracking-widest text-on-surface"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => void saveUser()}
-                disabled={busy === "save-user"}
-                className="px-4 py-2 bg-primary text-white text-xs font-bold uppercase tracking-widest rounded-sm disabled:opacity-60"
-              >
-                {busy === "save-user"
-                  ? "Saving..."
-                  : editorMode === "create" && createMode === "invite"
-                  ? "Send Invite"
-                  : editorMode === "create"
-                    ? "Create User"
-                    : "Save Changes"}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       {invitedCredential && (

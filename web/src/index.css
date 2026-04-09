@@ -245,20 +245,40 @@
     @apply max-w-4xl;
   }
 
+  .page-header-compact {
+    @apply gap-3;
+  }
+
+  .page-header-aside {
+    @apply flex w-full min-w-0 flex-col gap-2 lg:w-auto lg:max-w-[28rem] lg:items-end;
+  }
+
+  .page-header-metrics {
+    @apply flex flex-wrap items-center gap-2 justify-start lg:justify-end;
+  }
+
+  .page-header-actions {
+    @apply flex flex-wrap items-center gap-2 justify-start lg:justify-end;
+  }
+
   .page-eyebrow {
     @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/90;
   }
 
   .page-heading {
-    @apply mt-3 text-2xl font-extrabold tracking-tight text-on-surface;
+    @apply mt-2 text-2xl font-extrabold tracking-tight text-on-surface;
   }
 
   .page-subheading {
-    @apply mt-2 text-sm text-on-surface-variant;
+    @apply mt-1.5 text-sm text-on-surface-variant;
   }
 
   .page-toolbar {
     @apply flex flex-col gap-3 border-b border-outline-variant/10 pb-4 lg:flex-row lg:items-center lg:justify-between;
+  }
+
+  .page-toolbar-compact {
+    @apply gap-2 pb-3;
   }
 
   .page-toolbar-copy {
@@ -267,6 +287,18 @@
 
   .page-toolbar-actions {
     @apply flex flex-wrap items-center gap-2;
+  }
+
+  .page-toolbar-groups {
+    @apply flex w-full flex-wrap items-center justify-between gap-3;
+  }
+
+  .page-toolbar-group {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .page-control-cluster {
+    @apply flex flex-wrap items-center gap-1 rounded-sm border border-outline-variant/15 bg-surface-container-low p-1;
   }
 
   .shift-handoff-timeline-toolbar {
@@ -331,15 +363,15 @@
   }
 
   .summary-strip {
-    @apply flex flex-wrap items-center gap-3;
+    @apply flex flex-wrap items-center gap-2;
   }
 
   .summary-pill {
-    @apply inline-flex items-center gap-2 rounded-sm bg-surface-container-low px-3 py-1.5 text-[11px] font-bold text-on-surface;
+    @apply inline-flex items-center gap-2 rounded-sm bg-surface-container-low px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface;
   }
 
   .summary-pill-muted {
-    @apply inline-flex items-center gap-2 rounded-sm bg-surface-container-high px-3 py-1.5 text-[11px] font-bold text-on-surface-variant;
+    @apply inline-flex items-center gap-2 rounded-sm bg-surface-container-high px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-on-surface-variant;
   }
 
   .surface-section {
@@ -376,6 +408,108 @@
 
   .modal-surface {
     @apply rounded-sm border border-outline-variant/20 bg-surface-container-lowest shadow-2xl;
+  }
+
+  .handoff-rich-editor-shell {
+    @apply overflow-hidden rounded-sm border border-outline-variant/30 bg-surface-container-lowest transition-colors focus-within:border-primary focus-within:ring-1 focus-within:ring-primary;
+  }
+
+  .handoff-rich-editor-toolbar {
+    @apply flex flex-wrap items-center gap-1 border-b border-outline-variant/20 bg-surface-container-low px-2 py-2;
+  }
+
+  .handoff-rich-editor-button {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-sm text-on-surface-variant transition-colors hover:bg-surface-container-high hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-40;
+  }
+
+  .handoff-rich-editor-button-active {
+    @apply bg-primary/10 text-primary;
+  }
+
+  .handoff-rich-editor-separator {
+    @apply mx-1 h-4 w-px bg-outline-variant/30;
+  }
+
+  .handoff-rich-editor-content {
+    @apply min-h-[180px] max-w-none overflow-y-auto px-4 py-4 text-sm text-on-surface outline-none;
+  }
+
+  .handoff-rich-editor-content h1 {
+    @apply my-3 text-lg font-bold text-on-surface;
+  }
+
+  .handoff-rich-editor-content h2 {
+    @apply my-3 text-base font-bold text-on-surface;
+  }
+
+  .handoff-rich-editor-content ul {
+    @apply my-3 list-disc pl-5;
+  }
+
+  .handoff-rich-editor-content ol {
+    @apply my-3 list-decimal pl-5;
+  }
+
+  .handoff-rich-editor-content li {
+    @apply my-1;
+  }
+
+  .handoff-rich-editor-content blockquote {
+    @apply my-3 border-l-2 border-primary/30 pl-4 italic text-on-surface-variant;
+  }
+
+  .handoff-rich-editor-content img {
+    @apply my-4 block h-auto max-h-none w-full rounded-sm border border-outline-variant/20 object-contain;
+  }
+
+  .handoff-rich-editor-content p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    @apply pointer-events-none float-left h-0 text-on-surface-variant/50;
+  }
+
+  .handoff-rich-text-render {
+    @apply max-w-none text-sm leading-relaxed text-on-surface;
+  }
+
+  .handoff-rich-text-render p {
+    @apply my-0;
+  }
+
+  .handoff-rich-text-render p + p,
+  .handoff-rich-text-render ul + p,
+  .handoff-rich-text-render ol + p,
+  .handoff-rich-text-render blockquote + p {
+    @apply mt-3;
+  }
+
+  .handoff-rich-text-render ul,
+  .handoff-rich-text-render ol {
+    @apply my-3 pl-5;
+  }
+
+  .handoff-rich-text-render li {
+    @apply my-1;
+  }
+
+  .handoff-rich-text-render blockquote {
+    @apply my-3 border-l-2 border-primary/30 pl-4 italic text-on-surface-variant;
+  }
+
+  .handoff-rich-text-render h1,
+  .handoff-rich-text-render h2 {
+    @apply mt-4 text-on-surface;
+  }
+
+  .handoff-rich-text-render h1 {
+    @apply text-lg font-bold;
+  }
+
+  .handoff-rich-text-render h2 {
+    @apply text-base font-bold;
+  }
+
+  .handoff-rich-text-render img {
+    @apply my-4 block h-auto max-h-none w-full rounded-sm border border-outline-variant/20 object-contain;
   }
 
   /* Dark mode overrides for status badges — base @apply uses light-tuned Tailwind
@@ -436,11 +570,7 @@
 
     .shift-handoff-timeline-toolbar {
       @apply items-center;
-      grid-template-columns: minmax(0, 1fr) auto auto;
-    }
-
-    .shift-handoff-visibility-filter {
-      @apply justify-self-center;
+      grid-template-columns: minmax(0, 1fr) auto;
     }
 
     .shift-handoff-timeline-badge {

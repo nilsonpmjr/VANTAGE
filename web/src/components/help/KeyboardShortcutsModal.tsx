@@ -1,5 +1,4 @@
-import { useEffect, useRef } from "react";
-import { X } from "lucide-react";
+import ModalShell from "../modal/ModalShell";
 import { useLanguage } from "../../context/LanguageContext";
 import { buildShortcutGroups, type ShortcutGroup } from "../../lib/shortcuts";
 
@@ -21,54 +20,26 @@ interface Props {
 }
 
 export default function KeyboardShortcutsModal({ open, onClose }: Props) {
-  const dialogRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
   const groups: ShortcutGroup[] = buildShortcutGroups(t, mod, true);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    }
-
-    document.addEventListener("keydown", handleKey);
-    return () => document.removeEventListener("keydown", handleKey);
-  }, [open, onClose]);
 
   if (!open) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[100] flex items-center justify-center"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+    <ModalShell
+      title={t("help.shortcuts")}
+      description={t("help.shortcutsFooterPost")}
+      icon={t("help.shortcuts")}
+      onClose={onClose}
+      ariaLabel={t("help.shortcutCloseModal")}
+      variant="dialog"
+      bodyClassName="space-y-6 max-h-[70vh]"
+      footer={
+        <p className="text-[10px] text-on-surface-variant">
+          {t("help.press")} <Kbd>Esc</Kbd> {t("help.shortcutsFooterPost")}
+        </p>
+      }
     >
-      <div className="absolute inset-0 bg-black/40" />
-      <div
-        ref={dialogRef}
-        className="relative w-full max-w-2xl bg-surface-container-lowest border border-outline-variant/20 rounded-sm shadow-xl z-10"
-      >
-        <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20 bg-surface-container-high">
-          <h2 className="text-sm font-bold tracking-tight text-on-surface">
-            {t("help.shortcuts")}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={t("help.shortcutCloseModal")}
-            title={t("help.shortcutCloseModal")}
-            className="p-1 text-on-surface-variant hover:text-on-surface hover:bg-surface-container-highest rounded transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           {groups.map((group) => (
             <div key={group.title}>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-on-surface-variant mb-3">
@@ -103,14 +74,6 @@ export default function KeyboardShortcutsModal({ open, onClose }: Props) {
               </div>
             </div>
           ))}
-        </div>
-
-        <div className="px-6 py-3 border-t border-outline-variant/20 bg-surface-container-low">
-          <p className="text-[10px] text-on-surface-variant">
-            {t("help.press")} <Kbd>Esc</Kbd> {t("help.shortcutsFooterPost")}
-          </p>
-        </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

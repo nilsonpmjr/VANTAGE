@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import { useLanguage } from "../context/LanguageContext";
+import { primeAnalyzePayload } from "../lib/analyzeCache";
+import { primeAnalyzeView } from "../lib/analyzeWarmup";
 import { BATCH_MAX_ITEMS, expandIpv4Cidr, parseSearchDirective } from "../lib/scanTargets";
 
 type FeedItem = {
@@ -70,7 +72,7 @@ function formatRelative(dateStr: string | undefined, t: (key: string, fallback?:
 }
 
 export default function Home() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [searchQuery, setSearchQuery] = useState("");
   const [feedItems, setFeedItems] = useState<FeedItem[]>([]);
   const [searchWarning, setSearchWarning] = useState("");
@@ -101,6 +103,10 @@ export default function Home() {
 
   useEffect(() => {
     refreshFeedSample();
+  }, []);
+
+  useEffect(() => {
+    primeAnalyzeView();
   }, []);
 
   useEffect(() => {
@@ -217,6 +223,7 @@ export default function Home() {
       }
 
       localStorage.setItem("lastSearch", sanitized);
+      primeAnalyzePayload(sanitized, language);
       navigate(`/analyze/${encodeURIComponent(sanitized)}`);
     }
   };
@@ -238,6 +245,9 @@ export default function Home() {
               ref={inputRef}
               type="text"
               value={searchQuery}
+              onFocus={() => {
+                primeAnalyzeView();
+              }}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder={t("home.placeholder", "Enter an IP, domain, or hash")}
               className="w-full h-20 pl-16 pr-32 bg-surface-container-lowest text-on-surface border-none shadow-sm focus:ring-2 focus:ring-primary/20 text-xl font-medium tracking-tight rounded-lg placeholder:text-outline-variant/50 transition-all outline-none"

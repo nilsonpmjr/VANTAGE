@@ -5,6 +5,7 @@ Shared pytest fixtures for backend tests.
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
+from pymongo.errors import DuplicateKeyError
 
 from main import app
 from auth import get_password_hash, create_access_token
@@ -27,8 +28,13 @@ class FakeCursor:
 
     def __init__(self, data):
         self._data = list(data)
+        self._index = 0
 
-    def sort(self, *args, **kwargs):
+    def sort(self, key=None, direction=1):
+        if key is None:
+            return self
+        reverse = direction == -1
+        self._data.sort(key=lambda item: item.get(key), reverse=reverse)
         return self
 
     def limit(self, n):
@@ -43,6 +49,17 @@ class FakeCursor:
         if length is not None:
             return self._data[:length]
         return self._data
+
+    def __aiter__(self):
+        self._index = 0
+        return self
+
+    async def __anext__(self):
+        if self._index >= len(self._data):
+            raise StopAsyncIteration
+        item = self._data[self._index]
+        self._index += 1
+        return item
 
 
 class FakeCollection:
@@ -99,6 +116,8 @@ class FakeCollection:
         if "_id" not in doc:
             from bson import ObjectId
             doc["_id"] = ObjectId()
+        elif any(existing.get("_id") == doc["_id"] for existing in self._data):
+            raise DuplicateKeyError(f"Duplicate _id: {doc['_id']}")
         self._data.append(doc)
         return _InsertResult(doc["_id"])
 
@@ -119,6 +138,9 @@ class FakeCollection:
                     elif op == "$inc":
                         for key, value in fields.items():
                             doc[key] = doc.get(key, 0) + value
+                    elif op == "$push":
+                        for key, value in fields.items():
+                            doc.setdefault(key, []).append(value)
                 return
         if upsert:
             new_doc = dict(query)
@@ -128,6 +150,9 @@ class FakeCollection:
                 elif op == "$inc":
                     for key, value in fields.items():
                         new_doc[key] = new_doc.get(key, 0) + value
+                elif op == "$push":
+                    for key, value in fields.items():
+                        new_doc[key] = [value]
             self._data.append(new_doc)
 
     async def delete_one(self, query):
@@ -271,6 +296,8 @@ class FakeDB:
         self.custom_threat_sources = FakeCollection()
         self.hunting_saved_searches = FakeCollection()
         self.hunting_case_notes = FakeCollection()
+        self.analysis_runtime = FakeCollection()
+        self.shift_handoffs = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

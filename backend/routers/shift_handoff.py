@@ -14,7 +14,7 @@ logger = get_logger("ShiftHandoffRouter")
 
 router = APIRouter(prefix="/shift-handoffs", tags=["shift-handoffs"])
 
-BODY_MAX_LENGTH = 5000
+BODY_MAX_LENGTH = 500000
 VALID_VISIBILITY_DAYS = {4, 7, 14, 30}
 VALID_INCIDENT_STATUSES = {"active", "monitoring", "escalated", "resolved"}
 VALID_INCIDENT_SEVERITIES = {"critical", "high", "medium", "low", "info"}
@@ -175,6 +175,26 @@ class ShiftHandoffUpdate(BaseModel):
         return value.strip()[:500]
 
 
+class ShiftHandoffIncidentStatusUpdate(BaseModel):
+    status: str
+    action_needed: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _validate_status(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in VALID_INCIDENT_STATUSES:
+            raise ValueError(f"status must be one of {sorted(VALID_INCIDENT_STATUSES)}")
+        return value
+
+    @field_validator("action_needed")
+    @classmethod
+    def _validate_action_needed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return value.strip()[:500]
+
+
 # ── Serialization ─────────────────────────────────────────────────────────────
 
 def _serialize(doc: dict) -> dict:
@@ -269,7 +289,7 @@ async def create_handoff(
 @router.get("")
 async def list_handoffs(
     current_user: dict = Depends(get_current_user),
-    days: int | None = Query(None, description="Filter by visibility window (days from now)"),
+    days: int | None = Query(None, description="Filter by recent active handoff window"),
     include_expired: bool = Query(False, description="Include expired handoffs (for history)"),
     limit: int = Query(100, ge=1, le=500, description="Max results"),
     offset: int = Query(0, ge=0, description="Skip results"),
@@ -281,10 +301,9 @@ async def list_handoffs(
     if not include_expired:
         query["expires_at"] = {"$gt": now}
     if days and days > 0:
-        cutoff = now - timedelta(days=days)
-        query["created_at"] = {"$gte": cutoff}
+        query["created_at"] = {"$gte": now - timedelta(days=days)}
 
-    cursor = db.shift_handoffs.find(query).sort("shift_date", -1).skip(offset).limit(limit)
+    cursor = db.shift_handoffs.find(query).sort("created_at", -1).skip(offset).limit(limit)
     results = []
     async for doc in cursor:
         results.append(_serialize(doc))
@@ -412,6 +431,56 @@ async def acknowledge_handoff(
         "shift_handoff_acknowledge",
         f"Acknowledged shift handoff {handoff_id}",
     )
+    updated = await db.shift_handoffs.find_one({"_id": oid})
+    return _serialize(updated)
+
+
+# ── POST /{id}/incidents/{index}/status — update incident lifecycle ──────────
+
+@router.post("/{handoff_id}/incidents/{incident_index}/status")
+async def update_incident_status(
+    handoff_id: str,
+    incident_index: int,
+    payload: ShiftHandoffIncidentStatusUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    db = db_manager.db
+    try:
+        oid = ObjectId(handoff_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="invalid_handoff_id")
+
+    doc = await db.shift_handoffs.find_one({"_id": oid})
+    if not doc:
+        raise HTTPException(status_code=404, detail="handoff_not_found")
+
+    incidents = list(doc.get("incidents", []))
+    if incident_index < 0 or incident_index >= len(incidents):
+        raise HTTPException(status_code=404, detail="incident_not_found")
+
+    incident = dict(incidents[incident_index])
+    incident["status"] = payload.status
+    if payload.action_needed is not None:
+        incident["action_needed"] = payload.action_needed
+    incidents[incident_index] = incident
+
+    now = datetime.now(timezone.utc)
+    await db.shift_handoffs.update_one(
+        {"_id": oid},
+        {
+            "$set": {
+                "incidents": incidents,
+                "updated_at": now,
+            },
+        },
+    )
+
+    await log_action(
+        current_user["username"],
+        "shift_handoff_incident_status_update",
+        f"Updated incident {incident_index} on shift handoff {handoff_id} to {payload.status}",
+    )
+
     updated = await db.shift_handoffs.find_one({"_id": oid})
     return _serialize(updated)
 

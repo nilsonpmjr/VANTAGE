@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, Filter, RefreshCw, Rss, ShieldAlert, X } from "lucide-react";
 import API_URL from "../config";
+import ModalShell from "../components/modal/ModalShell";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 type FeedItem = {
@@ -301,21 +303,38 @@ export default function Feed() {
 
   return (
     <div className="page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("feed.eyebrow", "Threat Feed")}</div>
-          <h1 className="mt-4 text-3xl font-extrabold tracking-tighter text-on-surface">
-            {t("feed.title", "Threat Intelligence Feed")}
-          </h1>
-          <p className="page-subheading mt-3">
-            {t("feed.subtitle", "Review operational intelligence, editorial signals, and publication context from the sources already ingested by the platform.")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={
+          <>
+            <Rss className="h-4 w-4" />
+            {t("feed.eyebrow", "Threat Feed")}
+          </>
+        }
+        title={t("feed.title", "Threat Intelligence Feed")}
+        description={t("feed.subtitle", "Review operational intelligence, editorial signals, and publication context from the sources already ingested by the platform.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${items.length} ${t("feed.items", "items")}`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+            <PageMetricPill
+              label={`${newsworthyCount} ${t("feed.modelingNewsworthy", "Newsworthy")}`}
+              dotClassName={newsworthyCount > 0 ? "bg-amber-500" : "bg-outline"}
+              tone={newsworthyCount > 0 ? "warning" : "muted"}
+            />
+            <PageMetricPill
+              label={`${linkedCount} ${t("feed.externalRefs", "external refs")}`}
+              dotClassName={linkedCount > 0 ? "bg-emerald-500" : "bg-outline"}
+              tone={linkedCount > 0 ? "success" : "muted"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar mb-8">
-        <div className="page-toolbar-copy">{t("feed.actions", "Feed actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar className="mb-8" label={t("feed.actions", "Feed actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             type="button"
             onClick={() => setIsModelingModalOpen(true)}
@@ -332,12 +351,14 @@ export default function Feed() {
             <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
             {t("feed.refresh", "Refresh")}
           </button>
+        </PageToolbarGroup>
+        <PageToolbarGroup>
           <button className="btn btn-primary" onClick={exportCurrentView}>
             <Download className="w-4 h-4" />
             {t("feed.exportReport", "Export Report")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       <div className="grid grid-cols-12 gap-6 mb-8 lg:items-start">
         <div className="col-span-12 self-start lg:col-span-8 bg-surface-container-lowest p-6 shadow-sm border-l-4 border-error relative overflow-hidden rounded-sm">
@@ -528,35 +549,19 @@ export default function Feed() {
       )}
 
       {isModelingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-          <div
-            className="absolute inset-0 bg-inverse-surface/80 backdrop-blur-sm"
-            onClick={() => setIsModelingModalOpen(false)}
-          />
-          <div className="modal-surface relative z-10 flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden">
-            <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 bg-surface-container-lowest px-6 py-5">
-              <div>
-                <div className="text-[10px] text-on-surface-variant font-bold uppercase tracking-widest">
-                  {t("feed.modelingTitle", "CTI Modeling")}
-                </div>
-                <h2 className="mt-3 text-xl font-black tracking-tight text-on-surface">
-                  {t("feed.modelingObjective", "Story Prioritization Baseline")}
-                </h2>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-on-surface-variant">
-                  {t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label={t("feed.closeModelingModal", "Close CTI modeling")}
-                onClick={() => setIsModelingModalOpen(false)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-sm border border-outline-variant/20 text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-on-surface"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-
-            <div className="overflow-y-auto px-6 py-6">
+        <ModalShell
+          title={t("feed.modelingObjective", "Story Prioritization Baseline")}
+          description={t("feed.modelingSubtitle", "Use editorial CTI signals already ingested by the platform to prepare labeling and ranking experiments without exposing a fake model layer.")}
+          icon={
+            <>
+              <Rss className="h-4 w-4 text-primary" />
+              {t("feed.modelingTitle", "CTI Modeling")}
+            </>
+          }
+          variant="editor"
+          onClose={() => setIsModelingModalOpen(false)}
+          ariaLabel={t("feed.closeModelingModal", "Close CTI modeling")}
+        >
               {modelingLoading ? (
                 <div className="text-xs text-on-surface-variant">
                   {t("feed.modelingLoading", "Loading modeling readiness...")}
@@ -657,9 +662,7 @@ export default function Feed() {
                   {t("feed.modelingUnavailable", "Modeling readiness is not available for the current feed window.")}
                 </div>
               )}
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
 
       <div className="bg-surface-container-low px-6 py-3 border-t border-surface-container flex items-center justify-between mt-6 rounded-sm">

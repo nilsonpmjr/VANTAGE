@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Radar, Target, Map, Activity, Zap, ShieldAlert, Server, Globe, Clock3, RefreshCw, Eye, History, Radio } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -465,25 +466,27 @@ export default function Recon() {
 
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("recon.eyebrow", "Analyst")}</div>
-          <h1 className="page-heading">{t("recon.title", "Reconnaissance Engine")}</h1>
-          <p className="page-subheading">
-            {t("recon.subtitle", "Execute scanning ativo, orquestração agendada, histórico e correlação de superfície em uma única bancada analítica.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
-            <span>{activeScans} / 10 {t("recon.activeScans", "Active Scans")}</span>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("recon.eyebrow", "Analyst")}
+        title={t("recon.title", "Reconnaissance Engine")}
+        description={t("recon.subtitle", "Execute scanning ativo, orquestração agendada, histórico e correlação de superfície em uma única bancada analítica.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${activeScans} / 10 ${t("recon.activeScans", "Active Scans")}`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+            <PageMetricPill
+              label={`${recentJobs.length} ${t("recon.recentJobs", "Recent Jobs")}`}
+              dotClassName="bg-secondary"
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("recon.actions", "Recon actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("recon.actions", "Recon actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             onClick={loadReconRuntime}
             className="btn btn-outline"
@@ -491,8 +494,8 @@ export default function Recon() {
             <RefreshCw className="w-4 h-4" />
             {t("recon.refresh", "Refresh")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

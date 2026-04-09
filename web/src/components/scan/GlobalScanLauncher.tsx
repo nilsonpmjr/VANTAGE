@@ -1,7 +1,7 @@
 import type { ChangeEvent, FormEvent } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Layers, Search, Upload, X } from "lucide-react";
+import { Layers, Search, Upload } from "lucide-react";
 import {
   BATCH_MAX_ITEMS,
   expandIpv4Cidr,
@@ -11,6 +11,9 @@ import {
   parseTargets,
 } from "../../lib/scanTargets";
 import { useLanguage } from "../../context/LanguageContext";
+import { primeAnalyzePayload } from "../../lib/analyzeCache";
+import { primeAnalyzeView } from "../../lib/analyzeWarmup";
+import ModalShell from "../modal/ModalShell";
 
 type GlobalScanLauncherProps = {
   open: boolean;
@@ -22,7 +25,7 @@ export default function GlobalScanLauncher({
   onClose,
 }: GlobalScanLauncherProps) {
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
@@ -34,6 +37,7 @@ export default function GlobalScanLauncher({
 
   useEffect(() => {
     if (!open) return;
+    primeAnalyzeView();
     const frame = window.requestAnimationFrame(() => inputRef.current?.focus());
     return () => window.cancelAnimationFrame(frame);
   }, [open]);
@@ -44,16 +48,6 @@ export default function GlobalScanLauncher({
       setWarning(null);
     }
   }, [open]);
-
-  useEffect(() => {
-    function handleKeydown(event: KeyboardEvent) {
-      if (!open) return;
-      if (event.key === "Escape") onClose();
-    }
-
-    document.addEventListener("keydown", handleKeydown);
-    return () => document.removeEventListener("keydown", handleKeydown);
-  }, [open, onClose]);
 
   if (!open) return null;
 
@@ -122,6 +116,7 @@ export default function GlobalScanLauncher({
       navigate("/batch", { state: { targets: limitedTargets } });
     } else {
       localStorage.setItem("lastSearch", cleaned);
+      primeAnalyzePayload(cleaned, language);
       navigate(`/analyze/${encodeURIComponent(cleaned)}`);
     }
 
@@ -129,38 +124,16 @@ export default function GlobalScanLauncher({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-inverse-surface/55 px-4 backdrop-blur-sm"
-      onClick={onClose}
+    <ModalShell
+      title={batchMode ? t("scan.actions.startBatch") : t("scan.actions.startQuick")}
+      description={t("scan.description.single")}
+      icon={batchMode ? t("scan.mode.batch") : t("scan.mode.quick")}
+      onClose={onClose}
+      ariaLabel={t("scan.actions.close")}
+      variant="dialog"
+      bodyClassName="space-y-5"
     >
-      <div
-        className="w-full max-w-2xl rounded-sm border border-outline-variant/20 bg-surface-container-lowest shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-5">
-          <div className="space-y-2">
-            <div className="page-eyebrow">
-              {batchMode ? t("scan.mode.batch") : t("scan.mode.quick")}
-            </div>
-            <h2 className="text-xl font-extrabold tracking-tight text-on-surface">
-              {batchMode ? t("scan.actions.startBatch") : t("scan.actions.startQuick")}
-            </h2>
-            <p className="max-w-xl text-sm text-on-surface-variant">
-              {t("scan.description.single")}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn btn-ghost !px-2"
-            aria-label={t("scan.actions.close")}
-            title={t("scan.actions.close")}
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-5 px-6 py-6">
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-5 flex items-center">
               {batchMode ? (
@@ -173,6 +146,9 @@ export default function GlobalScanLauncher({
               ref={inputRef}
               type="text"
               value={query}
+              onFocus={() => {
+                primeAnalyzeView();
+              }}
               onChange={(event) => {
                 setQuery(event.target.value);
                 setWarning(null);
@@ -226,7 +202,6 @@ export default function GlobalScanLauncher({
             </div>
           )}
         </form>
-      </div>
-    </div>
+    </ModalShell>
   );
 }

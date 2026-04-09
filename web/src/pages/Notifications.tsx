@@ -13,6 +13,7 @@ import {
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { resolveAccessiblePath } from "../lib/access";
 
@@ -362,18 +363,19 @@ export default function Notifications() {
   return (
     <div className="page-frame flex flex-col gap-6">
       <section className="flex flex-col gap-4">
-        <div className="page-header">
-          <div className="page-header-copy">
-            <div className="page-eyebrow">{t("notifications.eyebrow", "Observability")}</div>
-            <h2 className="page-heading">{t("notifications.title", "Notifications Center")}</h2>
-            <p className="page-subheading">
-              {t("notifications.subtitle", "Concentre eventos críticos, inteligência recente e sinais sistêmicos sem misturar contexto operacional com navegação fictícia.")}
-            </p>
-          </div>
-        </div>
-        <div className="page-toolbar">
-          <div className="page-toolbar-copy">{t("notifications.globalActions", "Global actions")}</div>
-          <div className="page-toolbar-actions">
+        <PageHeader
+          eyebrow={t("notifications.eyebrow", "Observability")}
+          title={t("notifications.title", "Notifications Center")}
+          description={t("notifications.subtitle", "Concentre eventos críticos, inteligência recente e sinais sistêmicos sem misturar contexto operacional com navegação fictícia.")}
+          metrics={
+            <>
+              <PageMetricPill label={`${notifications.length} notifications`} dotClassName="bg-primary" tone="primary" />
+              <PageMetricPill label={`${archivedCount} archived`} dotClassName="bg-secondary" />
+            </>
+          }
+        />
+        <PageToolbar label={t("notifications.globalActions", "Global actions")}>
+          <PageToolbarGroup className="ml-auto">
             <button
               className="btn btn-outline"
               onClick={markAllAsRead}
@@ -390,8 +392,8 @@ export default function Notifications() {
               <span className="material-symbols-outlined text-[1.125rem]">unarchive</span>
               {t("notifications.restoreArchive", "Restore archive")}
             </button>
-          </div>
-        </div>
+          </PageToolbarGroup>
+        </PageToolbar>
         <div className="nav-pills">
           <button
             className={`nav-pill-item px-6 ${

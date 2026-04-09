@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Key, Lock, AlertTriangle, History } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 type PasswordPolicy = {
@@ -158,20 +159,29 @@ export default function SecurityPolicies() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
-          <h1 className="page-heading">{t("settingsPages.securityPoliciesTitle", "Security Policies")}</h1>
-          <p className="page-subheading">
-            {t("settingsPages.securityPoliciesSubtitle", "Defina padrões globais de senha, mascaramento de PII e mecanismos preventivos de lockout sem perder rastreabilidade administrativa.")}
-          </p>
-        </div>
-      </div>
+    <div className="page-frame space-y-8">
+      <PageHeader
+        eyebrow={t("admin.eyebrow", "Administration")}
+        title={t("settingsPages.securityPoliciesTitle", "Security Policies")}
+        description={t("settingsPages.securityPoliciesSubtitle", "Defina padrões globais de senha, mascaramento de PII e mecanismos preventivos de lockout sem perder rastreabilidade administrativa.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${auditTrail.length} Audit Events`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+            <PageMetricPill
+              label={saving ? t("settingsPages.saving", "Saving...") : "Policy Draft Ready"}
+              dotClassName={saving ? "bg-amber-500" : "bg-emerald-500"}
+              tone={saving ? "warning" : "success"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("settingsPages.securityPoliciesActions", "Policy actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("settingsPages.securityPoliciesActions", "Policy actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             onClick={exportPolicies}
             className="btn btn-outline"
@@ -185,8 +195,8 @@ export default function SecurityPolicies() {
           >
             {saving ? t("settingsPages.saving", "Saving...") : t("settingsPages.savePolicies", "Save Policies")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

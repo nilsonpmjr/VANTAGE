@@ -14,6 +14,8 @@ import {
   Eraser,
 } from "lucide-react";
 import API_URL from "../config";
+import ModalShell from "../components/modal/ModalShell";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -270,6 +272,8 @@ export default function ThreatIngestion() {
 
   const selectedSource = sources.find((item) => item.source_id === selectedSourceId) || sources[0] || null;
   const activeCount = useMemo(() => sources.filter((item) => item.enabled).length, [sources]);
+  const smtpConfigured = Boolean(smtpConfig?.host?.configured && smtpConfig?.from?.configured);
+  const mispEnabled = Boolean(mispConfig?.enabled);
   const syncingCount = useMemo(
     () =>
       sources.filter((item) => {
@@ -449,6 +453,11 @@ export default function ThreatIngestion() {
   function openCreateCustomSourceForm() {
     resetCustomSourceDraft();
     setShowCustomSourceForm(true);
+  }
+
+  function closeCustomSourceForm() {
+    setShowCustomSourceForm(false);
+    resetCustomSourceDraft();
   }
 
   function openEditCustomSourceForm(source: ThreatSource) {
@@ -655,19 +664,33 @@ export default function ThreatIngestion() {
 
   return (
     <div className="page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("admin.eyebrow", "Administration")}</div>
-          <h1 className="page-heading">{t("settingsPages.threatIngestionTitle", "Threat Ingestion & SMTP")}</h1>
-          <p className="page-subheading">
-            {t("settingsPages.threatIngestionSubtitle", "Administre conectores, cadência de sincronização e o gateway SMTP em uma única área de gestão.")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("admin.eyebrow", "Administration")}
+        title={t("settingsPages.threatIngestionTitle", "Threat Ingestion & SMTP")}
+        description={t("settingsPages.threatIngestionSubtitle", "Administre conectores, cadência de sincronização e o gateway SMTP em uma única área de gestão.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${activeCount}/${sources.length || 0} Active Sources`}
+              dotClassName={activeCount > 0 ? "bg-emerald-500" : "bg-outline"}
+              tone={activeCount > 0 ? "success" : "muted"}
+            />
+            <PageMetricPill
+              label={smtpConfigured ? "SMTP Ready" : "SMTP Incomplete"}
+              dotClassName={smtpConfigured ? "bg-emerald-500" : "bg-amber-500"}
+              tone={smtpConfigured ? "success" : "warning"}
+            />
+            <PageMetricPill
+              label={mispEnabled ? "MISP Enabled" : "MISP Paused"}
+              dotClassName={mispEnabled ? "bg-primary" : "bg-secondary"}
+              tone={mispEnabled ? "primary" : "muted"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("settingsPages.threatIngestionActions", "Global actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("settingsPages.threatIngestionActions", "Global actions")}>
+        <PageToolbarGroup className="ml-auto">
           <button
             onClick={() => void loadRuntime()}
             className="btn btn-outline"
@@ -686,17 +709,19 @@ export default function ThreatIngestion() {
             <Eraser className={`w-4 h-4 ${busy === "purge" ? "animate-pulse" : ""}`} />
             {t("settingsPages.purgeOrphaned", "Purge Orphaned")}
           </button>
+        </PageToolbarGroup>
+        <PageToolbarGroup>
           <button
             onClick={() =>
-              showCustomSourceForm ? setShowCustomSourceForm(false) : openCreateCustomSourceForm()
+              showCustomSourceForm ? closeCustomSourceForm() : openCreateCustomSourceForm()
             }
             className="btn btn-primary"
           >
             <Plus className="w-4 h-4" />
             {showCustomSourceForm ? t("settingsPages.closeForm", "Close Form") : t("settingsPages.newSource", "New Source")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">
@@ -1209,38 +1234,69 @@ export default function ThreatIngestion() {
       </div>
 
       {showCustomSourceForm && (
-        <div className="fixed inset-0 z-50 bg-inverse-surface/35 p-4 sm:p-6">
-          <div className="modal-surface mx-auto w-full max-w-4xl overflow-hidden">
-            <div className="flex items-center justify-between border-b border-outline-variant/10 bg-surface-container-high px-6 py-4">
-              <div className="flex items-center gap-3">
-                <Radar className="h-5 w-5 text-primary" />
-                <div>
-                  <h2 className="text-sm font-bold tracking-tight text-on-surface">
-                    {editingBuiltinSourceId
-                      ? "Edit Threat Source"
-                      : editingCustomSourceId
-                        ? "Edit Manual Source"
-                        : "Provision Manual Source"}
-                  </h2>
-                  <p className="mt-1 text-[11px] uppercase tracking-widest text-on-surface-variant">
-                    {editingBuiltinSourceId
-                      ? "Feed endpoint, cadence and operational trust posture"
-                      : "Feed identity, cadence and trust posture"}
-                  </p>
-                </div>
-              </div>
+        <ModalShell
+          title={
+            editingBuiltinSourceId
+              ? "Edit Threat Source"
+              : editingCustomSourceId
+                ? "Edit Manual Source"
+                : "Provision Manual Source"
+          }
+          description={
+            editingBuiltinSourceId
+              ? "Feed endpoint, cadence and operational trust posture"
+              : "Feed identity, cadence and trust posture"
+          }
+          icon={
+            <>
+              <Radar className="h-4 w-4 text-primary" />
+              Threat source editor
+            </>
+          }
+          variant="editor"
+          onClose={closeCustomSourceForm}
+          ariaLabel="Close threat source editor"
+          footer={
+            <>
               <button
                 type="button"
-                onClick={() => {
-                  setShowCustomSourceForm(false);
-                  resetCustomSourceDraft();
-                }}
-                className="text-on-surface-variant hover:text-on-surface"
+                onClick={closeCustomSourceForm}
+                className="btn btn-outline"
               >
-                <X className="h-4 w-4" />
+                Cancel
               </button>
-            </div>
-            <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void (
+                    editingBuiltinSourceId
+                      ? updateExistingBuiltinSource(editingBuiltinSourceId)
+                      : editingCustomSourceId
+                      ? updateExistingCustomSource(editingCustomSourceId)
+                      : createCustomSource()
+                  )
+                }
+                disabled={
+                  busy === "custom" ||
+                  Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
+                  Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
+                }
+                className="btn btn-primary"
+              >
+                {busy === "custom" ||
+                Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
+                Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
+                  ? "Saving..."
+                  : editingBuiltinSourceId
+                    ? "Update Source"
+                    : editingCustomSourceId
+                    ? "Update Source"
+                    : "Create Source"}
+              </button>
+            </>
+          }
+        >
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
               <FormField label="Display Title">
                 <input
                   className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
@@ -1320,48 +1376,7 @@ export default function ThreatIngestion() {
                   : "Manual sources follow the same operational lane as native feeds. Save the source here and keep the selected-row context in the right rail for sync telemetry and quick actions."}
               </div>
             </div>
-            <div className="flex justify-end gap-3 px-6 pb-6">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowCustomSourceForm(false);
-                  resetCustomSourceDraft();
-                }}
-                className="btn btn-outline"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  void (
-                    editingBuiltinSourceId
-                      ? updateExistingBuiltinSource(editingBuiltinSourceId)
-                      : editingCustomSourceId
-                      ? updateExistingCustomSource(editingCustomSourceId)
-                      : createCustomSource()
-                  )
-                }
-                disabled={
-                  busy === "custom" ||
-                  Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
-                  Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
-                }
-                className="btn btn-primary"
-              >
-                {busy === "custom" ||
-                Boolean(editingCustomSourceId && busy === editingCustomSourceId) ||
-                Boolean(editingBuiltinSourceId && busy === editingBuiltinSourceId)
-                  ? "Saving..."
-                  : editingBuiltinSourceId
-                    ? "Update Source"
-                    : editingCustomSourceId
-                    ? "Update Source"
-                    : "Create Source"}
-              </button>
-            </div>
-          </div>
-        </div>
+        </ModalShell>
       )}
     </div>
   );

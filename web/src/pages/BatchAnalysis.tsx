@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -305,36 +306,30 @@ export default function BatchAnalysis() {
 
   return (
     <div className="page-frame space-y-6">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("batch.eyebrow", "Batch Operations")}</div>
-          <h1 className="page-heading">{t("batch.title", "Batch Analysis Workbench")}</h1>
-          <p className="page-subheading">
-            {t("batch.subtitle", "The global launcher now routes multi-target scans into the native VANTAGE backend batch engine with pre-flight estimate, live progress, and exportable results.")}
-          </p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <Layers className="h-3.5 w-3.5 text-primary" />
-            {targets.length} {t("batch.queuedTargets", "queued targets")}
-          </div>
-          <div className="summary-pill-muted">
-            {progress.done}/{progress.total} {t("batch.completed", "completed")}
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("batch.eyebrow", "Batch Operations")}
+        title={t("batch.title", "Batch Analysis Workbench")}
+        description={t("batch.subtitle", "The global launcher now routes multi-target scans into the native VANTAGE backend batch engine with pre-flight estimate, live progress, and exportable results.")}
+        metrics={
+          <>
+            <PageMetricPill label={`${targets.length} ${t("batch.queuedTargets", "queued targets")}`} dotClassName="bg-primary" tone="primary" />
+            <PageMetricPill label={`${progress.done}/${progress.total} ${t("batch.completed", "completed")}`} dotClassName="bg-secondary" />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">
-          {phase === "ready"
+      <PageToolbar
+        label={
+          phase === "ready"
             ? t("batch.readyToLaunch", "Ready to launch")
             : phase === "running"
               ? t("batch.liveExecution", "Live execution")
               : phase === "done"
                 ? t("batch.executionCompleted", "Execution completed")
-                : t("batch.controls", "Batch controls")}
-        </div>
-        <div className="page-toolbar-actions">
+                : t("batch.controls", "Batch controls")
+        }
+      >
+        <PageToolbarGroup className="ml-auto">
           {phase === "ready" && (
             <>
               <label className="inline-flex items-center gap-2 rounded-sm bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface">
@@ -369,8 +364,8 @@ export default function BatchAnalysis() {
               </button>
             </>
           )}
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {error && (
         <div className="rounded-sm bg-error/10 px-4 py-3 text-sm text-error">

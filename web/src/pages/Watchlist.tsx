@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -405,21 +406,35 @@ export default function Watchlist() {
 
   return (
     <div className="page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("watchlist.eyebrow", "Analyst")}</div>
-          <h1 className="page-heading">{t("watchlist.title", "Watchlist Monitoring")}</h1>
-          <p className="page-subheading">
-            {t("watchlist.subtitle", "Monitore IPs, domínios e hashes conhecidos com mudança de veredito, roteamento de alerta e histórico contínuo da plataforma.")}
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("watchlist.eyebrow", "Analyst")}
+        title={t("watchlist.title", "Watchlist Monitoring")}
+        description={t("watchlist.subtitle", "Monitore IPs, domínios e hashes conhecidos com mudança de veredito, roteamento de alerta e histórico contínuo da plataforma.")}
+        metrics={
+          <>
+            <PageMetricPill
+              label={`${items.length} ${t("watchlist.monitoredAssets", "Monitored Assets")}`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+            <PageMetricPill
+              label={selectedIds.length > 0 ? `${selectedIds.length} ${t("watchlist.selectedCount", "item(s) selected")}` : "No selection"}
+              dotClassName={selectedIds.length > 0 ? "bg-amber-500" : "bg-outline"}
+              tone={selectedIds.length > 0 ? "warning" : "muted"}
+            />
+            <PageMetricPill
+              label={smtpConfigured ? t("watchlist.smtpReady", "SMTP READY") : t("watchlist.smtpOffline", "SMTP OFFLINE")}
+              dotClassName={smtpConfigured ? "bg-emerald-500" : "bg-error"}
+              tone={smtpConfigured ? "success" : "danger"}
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">
-          {selectedIds.length > 0 ? `${selectedIds.length} ${t("watchlist.selectedCount", "item(s) selected")}` : t("watchlist.actions", "Watchlist actions")}
-        </div>
-        <div className="page-toolbar-actions">
+      <PageToolbar
+        label={selectedIds.length > 0 ? `${selectedIds.length} ${t("watchlist.selectedCount", "item(s) selected")}` : t("watchlist.actions", "Watchlist actions")}
+      >
+        <PageToolbarGroup className="ml-auto">
           <button onClick={loadWatchlist} className="btn btn-outline">
             <RefreshCw className="h-4 w-4" />
             {t("watchlist.refresh", "Refresh")}
@@ -455,8 +470,8 @@ export default function Watchlist() {
             <Trash2 className="h-4 w-4" />
             {t("watchlist.removeSelected", "Remove selected")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       {(error || notice) && (
         <div className="space-y-3">

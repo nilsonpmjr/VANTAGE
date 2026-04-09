@@ -3,38 +3,58 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { Suspense, lazy, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
-import SettingsLayout from "./components/SettingsLayout";
-import Home from "./pages/Home";
-import Feed from "./pages/Feed";
-import Recon from "./pages/Recon";
-import Watchlist from "./pages/Watchlist";
-import Hunting from "./pages/Hunting";
-import HuntingSavedSearches from "./pages/HuntingSavedSearches";
-import Exposure from "./pages/Exposure";
-import Dashboard from "./pages/Dashboard";
-import ExtensionsCatalog from "./pages/ExtensionsCatalog";
-import ThreatIngestion from "./pages/ThreatIngestion";
-import SystemHealth from "./pages/SystemHealth";
-import UsersRoles from "./pages/UsersRoles";
-import SecurityPolicies from "./pages/SecurityPolicies";
-import Profile from "./pages/Profile";
-import Notifications from "./pages/Notifications";
-import AnalysisResult from "./pages/AnalysisResult";
-import BatchAnalysis from "./pages/BatchAnalysis";
-import ShiftHandoff, {
-  ShiftHandoffHistoryPage,
-} from "./pages/ShiftHandoff";
-import HelpLayout from "./pages/help/HelpLayout";
-import DocsPage from "./pages/help/DocsPage";
-import ShortcutsPage from "./pages/help/ShortcutsPage";
-import ApiReferencePage from "./pages/help/ApiReferencePage";
-import ContactSupportPage from "./pages/help/ContactSupportPage";
 import { AuthProvider, RequireAuth, RequirePathAccess } from "./context/AuthContext";
 import { ExtensionsProvider, RequireExtensionFeature } from "./context/ExtensionsContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { ThemeProvider } from "./context/ThemeContext";
+
+const SettingsLayout = lazy(() => import("./components/SettingsLayout"));
+const Home = lazy(() => import("./pages/Home"));
+const Feed = lazy(() => import("./pages/Feed"));
+const Recon = lazy(() => import("./pages/Recon"));
+const Watchlist = lazy(() => import("./pages/Watchlist"));
+const Hunting = lazy(() => import("./pages/Hunting"));
+const HuntingSavedSearches = lazy(() => import("./pages/HuntingSavedSearches"));
+const Exposure = lazy(() => import("./pages/Exposure"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const ExtensionsCatalog = lazy(() => import("./pages/ExtensionsCatalog"));
+const ThreatIngestion = lazy(() => import("./pages/ThreatIngestion"));
+const SystemHealth = lazy(() => import("./pages/SystemHealth"));
+const UsersRoles = lazy(() => import("./pages/UsersRoles"));
+const SecurityPolicies = lazy(() => import("./pages/SecurityPolicies"));
+const Profile = lazy(() => import("./pages/Profile"));
+const Notifications = lazy(() => import("./pages/Notifications"));
+const AnalysisResult = lazy(() => import("./pages/AnalysisResult"));
+const BatchAnalysis = lazy(() => import("./pages/BatchAnalysis"));
+const ShiftHandoff = lazy(() => import("./pages/ShiftHandoff"));
+const ShiftHandoffHistoryPage = lazy(async () => {
+  const module = await import("./pages/ShiftHandoff");
+  return { default: module.ShiftHandoffHistoryPage };
+});
+const ShiftHandoffIncidentsPage = lazy(async () => {
+  const module = await import("./pages/ShiftHandoff");
+  return { default: module.ShiftHandoffActiveIncidentsPage };
+});
+const HelpLayout = lazy(() => import("./pages/help/HelpLayout"));
+const DocsPage = lazy(() => import("./pages/help/DocsPage"));
+const ShortcutsPage = lazy(() => import("./pages/help/ShortcutsPage"));
+const ApiReferencePage = lazy(() => import("./pages/help/ApiReferencePage"));
+const ContactSupportPage = lazy(() => import("./pages/help/ContactSupportPage"));
+
+function RouteFallback() {
+  return (
+    <div className="page-frame">
+      <div className="card p-6 text-sm text-on-surface-variant">Loading workspace...</div>
+    </div>
+  );
+}
+
+function suspense(element: ReactNode) {
+  return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
+}
 
 export default function App() {
   return (
@@ -52,15 +72,15 @@ export default function App() {
                     </RequireAuth>
                 }
               >
-                <Route index element={<Home />} />
-                <Route path="feed" element={<Feed />} />
-                <Route path="recon" element={<Recon />} />
-                <Route path="watchlist" element={<Watchlist />} />
+                <Route index element={suspense(<Home />)} />
+                <Route path="feed" element={suspense(<Feed />)} />
+                <Route path="recon" element={suspense(<Recon />)} />
+                <Route path="watchlist" element={suspense(<Watchlist />)} />
                 <Route
                   path="hunting"
                   element={
                     <RequireExtensionFeature feature="hunting_provider">
-                      <Hunting />
+                      {suspense(<Hunting />)}
                     </RequireExtensionFeature>
                   }
                 />
@@ -68,7 +88,7 @@ export default function App() {
                   path="hunting/saved-searches"
                   element={
                     <RequireExtensionFeature feature="hunting_provider">
-                      <HuntingSavedSearches />
+                      {suspense(<HuntingSavedSearches />)}
                     </RequireExtensionFeature>
                   }
                 />
@@ -76,39 +96,40 @@ export default function App() {
                   path="exposure"
                   element={
                     <RequireExtensionFeature feature="exposure_provider">
-                      <Exposure />
+                      {suspense(<Exposure />)}
                     </RequireExtensionFeature>
                   }
                 />
-                <Route path="dashboard" element={<Dashboard />} />
+                <Route path="dashboard" element={suspense(<Dashboard />)} />
                 <Route
                   path="settings"
                   element={
                     <RequirePathAccess path="/settings">
-                      <SettingsLayout />
+                      {suspense(<SettingsLayout />)}
                     </RequirePathAccess>
                   }
                 >
                   <Route index element={<Navigate to="/settings/extensions" replace />} />
                   <Route path="patterns" element={<Navigate to="/settings/extensions" replace />} />
-                  <Route path="extensions" element={<ExtensionsCatalog />} />
-                  <Route path="threat-ingestion" element={<ThreatIngestion />} />
-                  <Route path="system-health" element={<SystemHealth />} />
-                  <Route path="users-roles" element={<UsersRoles />} />
-                  <Route path="security-policies" element={<SecurityPolicies />} />
+                  <Route path="extensions" element={suspense(<ExtensionsCatalog />)} />
+                  <Route path="threat-ingestion" element={suspense(<ThreatIngestion />)} />
+                  <Route path="system-health" element={suspense(<SystemHealth />)} />
+                  <Route path="users-roles" element={suspense(<UsersRoles />)} />
+                  <Route path="security-policies" element={suspense(<SecurityPolicies />)} />
                 </Route>
-                <Route path="profile" element={<Profile />} />
-                <Route path="notifications" element={<Notifications />} />
-                <Route path="analyze/:target" element={<AnalysisResult />} />
-                <Route path="batch" element={<BatchAnalysis />} />
-                <Route path="shift-handoff" element={<ShiftHandoff />} />
-                <Route path="shift-handoff/history" element={<ShiftHandoffHistoryPage />} />
-                <Route path="help" element={<HelpLayout />}>
+                <Route path="profile" element={suspense(<Profile />)} />
+                <Route path="notifications" element={suspense(<Notifications />)} />
+                <Route path="analyze/:target" element={suspense(<AnalysisResult />)} />
+                <Route path="batch" element={suspense(<BatchAnalysis />)} />
+                <Route path="shift-handoff" element={suspense(<ShiftHandoff />)} />
+                <Route path="shift-handoff/history" element={suspense(<ShiftHandoffHistoryPage />)} />
+                <Route path="shift-handoff/incidents" element={suspense(<ShiftHandoffIncidentsPage />)} />
+                <Route path="help" element={suspense(<HelpLayout />)}>
                   <Route index element={<Navigate to="/help/docs" replace />} />
-                  <Route path="docs" element={<DocsPage />} />
-                  <Route path="shortcuts" element={<ShortcutsPage />} />
-                  <Route path="api" element={<ApiReferencePage />} />
-                  <Route path="support" element={<ContactSupportPage />} />
+                  <Route path="docs" element={suspense(<DocsPage />)} />
+                  <Route path="shortcuts" element={suspense(<ShortcutsPage />)} />
+                  <Route path="api" element={suspense(<ApiReferencePage />)} />
+                  <Route path="support" element={suspense(<ContactSupportPage />)} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Route>

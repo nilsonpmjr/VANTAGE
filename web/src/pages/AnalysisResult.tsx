@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import API_URL from "../config";
 import { useLanguage } from "../context/LanguageContext";
 import type { SupportedLanguage } from "../lib/language";
 import { translate } from "../lib/i18n";
-import { generatePdfReport } from "../utils/pdfReport";
+import { loadAnalyzePayload, peekAnalyzePayload } from "../lib/analyzeCache";
+import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 
 type AnalyzePayload = {
   target: string;
@@ -708,10 +708,11 @@ export default function AnalysisResult() {
   const navigate = useNavigate();
   const { target } = useParams();
   const displayTarget = decodeTarget(target);
-  const [payload, setPayload] = useState<AnalyzePayload | null>(null);
+  const [payload, setPayload] = useState<AnalyzePayload | null>(() => peekAnalyzePayload<AnalyzePayload>(displayTarget, language));
   const [reportLanguage, setReportLanguage] = useState<"pt" | "en" | "es">(language);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !peekAnalyzePayload<AnalyzePayload>(displayTarget, language));
   const [error, setError] = useState<string | null>(null);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   useEffect(() => {
     setReportLanguage(language);
@@ -722,35 +723,29 @@ export default function AnalysisResult() {
   }, [displayTarget]);
 
   useEffect(() => {
-    let mounted = true;
-    setLoading(true);
+    let cancelled = false;
+    const cachedPayload = peekAnalyzePayload<AnalyzePayload>(displayTarget, language);
+
+    setPayload(cachedPayload);
+    setLoading(!cachedPayload);
     setError(null);
 
-    fetch(`${API_URL}/api/analyze?target=${encodeURIComponent(displayTarget)}&lang=${language}`, {
-      credentials: "include",
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}));
-          throw new Error(err.detail || "Failed to analyze target");
-        }
-        return response.json();
-      })
+    loadAnalyzePayload<AnalyzePayload>(displayTarget, language)
       .then((data) => {
-        if (!mounted) return;
+        if (cancelled) return;
         setPayload(data);
       })
       .catch((err: Error) => {
-        if (!mounted) return;
+        if (cancelled) return;
         setError(err.message);
       })
       .finally(() => {
-        if (!mounted) return;
+        if (cancelled) return;
         setLoading(false);
       });
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [displayTarget, language]);
 
@@ -856,15 +851,21 @@ export default function AnalysisResult() {
     URL.revokeObjectURL(url);
   };
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!payload) return;
-    generatePdfReport(payload, reportTextForExport, reportLanguage);
+    setExportingPdf(true);
+    try {
+      const { generatePdfReport } = await import("../utils/pdfReport");
+      generatePdfReport(payload, reportTextForExport, reportLanguage);
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
   useEffect(() => {
     function handleExportCurrentView() {
       if (!payload) return;
-      exportPdf();
+      void exportPdf();
     }
 
     window.addEventListener("vantage:export-current-view", handleExportCurrentView);
@@ -900,26 +901,28 @@ export default function AnalysisResult() {
 
   return (
     <div className="page-frame analyze-page-frame space-y-8">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <div className="page-eyebrow">{t("analysis.eyebrow", "Analysis")}</div>
-          <h1 className="page-heading">{displayTarget}</h1>
-          <p className="page-subheading">{analysisSubtitle}</p>
-        </div>
-        <div className="summary-strip">
-          <div className="summary-pill">
-            <span className={`w-1.5 h-1.5 rounded-full ${summary?.verdict === "HIGH RISK" ? "bg-error" : summary?.verdict === "SUSPICIOUS" ? "bg-amber-500" : "bg-emerald-500"}`}></span>
-            <span>{t(meta.statusKey, "Safe")}</span>
-          </div>
-          <div className="summary-pill-muted">
-            <span>{threatScore}% {t("analysis.threatScore", "threat score")}</span>
-          </div>
-        </div>
-      </div>
+      <PageHeader
+        eyebrow={t("analysis.eyebrow", "Analysis")}
+        title={displayTarget}
+        description={analysisSubtitle}
+        metrics={
+          <>
+            <PageMetricPill
+              label={t(meta.statusKey, "Safe")}
+              dotClassName={summary?.verdict === "HIGH RISK" ? "bg-error" : summary?.verdict === "SUSPICIOUS" ? "bg-amber-500" : "bg-emerald-500"}
+              tone={summary?.verdict === "HIGH RISK" ? "danger" : summary?.verdict === "SUSPICIOUS" ? "warning" : "success"}
+            />
+            <PageMetricPill
+              label={`${threatScore}% ${t("analysis.threatScore", "threat score")}`}
+              dotClassName="bg-primary"
+              tone="primary"
+            />
+          </>
+        }
+      />
 
-      <div className="page-toolbar">
-        <div className="page-toolbar-copy">{t("analysis.evidenceActions", "Evidence actions")}</div>
-        <div className="page-toolbar-actions">
+      <PageToolbar label={t("analysis.evidenceActions", "Evidence actions")}>
+        <PageToolbarGroup className="ml-auto">
           <label className="inline-flex items-center gap-2 rounded-sm bg-surface-container-low px-3 py-2 text-xs font-semibold text-on-surface">
             {t("analysis.reportLanguage", "Report language")}
             <select
@@ -944,12 +947,15 @@ export default function AnalysisResult() {
           </button>
           <button
             className="btn btn-primary"
-            onClick={exportPdf}
+            onClick={() => void exportPdf()}
+            disabled={exportingPdf}
           >
-            {t("analysis.exportPdf", "Export PDF")}
+            {exportingPdf
+              ? t("analysis.exportingPdf", "Exporting PDF...")
+              : t("analysis.exportPdf", "Export PDF")}
           </button>
-        </div>
-      </div>
+        </PageToolbarGroup>
+      </PageToolbar>
 
       <div className="page-with-side-rail">
         <div className="page-main-pane space-y-6">

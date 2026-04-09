@@ -5,7 +5,7 @@ from bson import ObjectId
 
 
 @pytest.mark.asyncio
-async def test_shift_handoffs_filter_by_recent_active_window(async_client, auth_headers, fake_db):
+async def test_shift_handoffs_filter_by_visibility_days(async_client, auth_headers, fake_db):
     now = datetime.now(timezone.utc)
     fake_db.shift_handoffs._data = [
         {
@@ -46,33 +46,15 @@ async def test_shift_handoffs_filter_by_recent_active_window(async_client, auth_
             "attachments": [],
             "edit_history": [],
         },
-        {
-            "_id": ObjectId(),
-            "shift_date": "2026-04-01",
-            "team_members": ["charlie"],
-            "body": "older but still long visibility",
-            "visibility_days": 30,
-            "expires_at": now + timedelta(days=10),
-            "created_by": "admin",
-            "created_at": now - timedelta(days=8),
-            "updated_at": now - timedelta(days=8),
-            "incidents": [],
-            "tools_status": [],
-            "observations": "",
-            "shift_focus": "",
-            "acknowledged_by": "",
-            "acknowledged_at": None,
-            "attachments": [],
-            "edit_history": [],
-        },
     ]
 
     response = await async_client.get("/api/shift-handoffs?days=4", headers=auth_headers)
 
     assert response.status_code == 200
     body = response.json()
-    assert len(body) == 2
-    assert [item["body"] for item in body] == ["seven day handoff", "four day handoff"]
+    assert len(body) == 1
+    assert body[0]["visibility_days"] == 4
+    assert body[0]["body"] == "four day handoff"
 
 
 @pytest.mark.asyncio
@@ -132,6 +114,7 @@ async def test_shift_handoffs_are_sorted_by_created_at_desc(async_client, auth_h
 async def test_shift_handoff_incident_status_can_be_updated(async_client, auth_headers, fake_db):
     now = datetime.now(timezone.utc)
     handoff_id = ObjectId()
+    incident_id = ObjectId()
     fake_db.shift_handoffs._data = [
         {
             "_id": handoff_id,
@@ -145,6 +128,7 @@ async def test_shift_handoff_incident_status_can_be_updated(async_client, auth_h
             "updated_at": now - timedelta(hours=1),
             "incidents": [
                 {
+                    "incident_id": str(incident_id),
                     "title": "Malicious domain triage",
                     "status": "active",
                     "severity": "high",
@@ -160,9 +144,27 @@ async def test_shift_handoff_incident_status_can_be_updated(async_client, auth_h
             "edit_history": [],
         }
     ]
+    fake_db.shift_handoff_incidents._data = [
+        {
+            "_id": incident_id,
+            "handoff_id": handoff_id,
+            "handoff_shift_date": "2026-04-08",
+            "team_members": ["analyst"],
+            "created_at": now - timedelta(hours=1),
+            "created_by": "admin",
+            "updated_at": now - timedelta(hours=1),
+            "updated_by": "admin",
+            "resolved_at": None,
+            "resolved_by": "",
+            "title": "Malicious domain triage",
+            "severity": "high",
+            "status": "active",
+            "action_needed": "Contain and validate",
+        }
+    ]
 
     response = await async_client.post(
-        f"/api/shift-handoffs/{handoff_id}/incidents/0/status",
+        f"/api/shift-handoffs/{handoff_id}/incidents/{incident_id}/status",
         headers=auth_headers,
         json={"status": "resolved", "action_needed": "Resolved by day shift"},
     )

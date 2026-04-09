@@ -101,6 +101,9 @@ class FakeCollection:
                     if "$lt" in v and doc_val >= v["$lt"]:
                         match = False
                         break
+                    if "$ne" in v and doc_val == v["$ne"]:
+                        match = False
+                        break
                 else:
                     if doc.get(k) != v:
                         match = False
@@ -182,6 +185,9 @@ class FakeCollection:
                         match = False
                         break
                     if "$lt" in v and doc_val >= v["$lt"]:
+                        match = False
+                        break
+                    if "$ne" in v and doc_val == v["$ne"]:
                         match = False
                         break
                 else:
@@ -298,6 +304,7 @@ class FakeDB:
         self.hunting_case_notes = FakeCollection()
         self.analysis_runtime = FakeCollection()
         self.shift_handoffs = FakeCollection()
+        self.shift_handoff_incidents = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

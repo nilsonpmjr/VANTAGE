@@ -45,6 +45,7 @@ import { useLanguage } from "../context/LanguageContext";
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface IncidentEntry {
+  incident_id?: string;
   title: string;
   status: string;
   severity: string;
@@ -93,13 +94,19 @@ interface HandoffDoc {
 }
 
 interface ActiveIncidentItem {
-  handoffId: string;
-  handoffShiftDate: string;
-  handoffCreatedAt: string;
-  handoffCreatedBy: string;
-  teamMembers: string[];
-  incidentIndex: number;
-  incident: IncidentEntry;
+  id: string;
+  handoff_id: string;
+  handoff_shift_date: string;
+  created_at: string;
+  created_by: string;
+  updated_at: string;
+  resolved_at?: string | null;
+  resolved_by?: string;
+  team_members: string[];
+  title: string;
+  severity: string;
+  status: string;
+  action_needed: string;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -222,20 +229,51 @@ function severityLabel(sev: string, t: (k: string, f?: string) => string) {
   }
 }
 
-function collectActiveIncidents(handoffs: HandoffDoc[]): ActiveIncidentItem[] {
-  return handoffs.flatMap((handoff) =>
-    (handoff.incidents || [])
-      .map((incident, incidentIndex) => ({
-        handoffId: handoff.id,
-        handoffShiftDate: handoff.shift_date,
-        handoffCreatedAt: handoff.created_at,
-        handoffCreatedBy: handoff.created_by,
+type ContinuityWindowSummary = {
+  windowDays: 4 | 7 | 14 | 30;
+  handoffs: Array<{
+    id: string;
+    shiftDate: string;
+    createdBy: string;
+    teamMembers: string[];
+    shiftFocus: string;
+    notePreview: string;
+    activeIncidentCount: number;
+  }>;
+};
+
+function extractPlainTextFromBody(value: string) {
+  return value.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function buildContinuitySummary(currentHandoff: HandoffDoc | null, handoffs: HandoffDoc[]): ContinuityWindowSummary[] {
+  const now = new Date();
+  const windows = [4, 7, 14, 30] as const;
+
+  return windows.map((windowDays) => {
+    const relevant = handoffs
+      .filter(
+        (handoff) =>
+          handoff.id !== currentHandoff?.id &&
+          handoff.visibility_days === windowDays &&
+          new Date(handoff.expires_at) > now,
+      )
+      .map((handoff) => ({
+        id: handoff.id,
+        shiftDate: handoff.shift_date,
+        createdBy: handoff.created_by,
         teamMembers: handoff.team_members,
-        incidentIndex,
-        incident,
-      }))
-      .filter((entry) => entry.incident.status !== "resolved"),
-  );
+        shiftFocus: handoff.shift_focus,
+        notePreview: extractPlainTextFromBody(handoff.body).slice(0, 180),
+        activeIncidentCount:
+          handoff.incidents?.filter((incident) => incident.status !== "resolved").length ?? 0,
+      }));
+
+    return {
+      windowDays,
+      handoffs: relevant,
+    };
+  });
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -414,6 +452,10 @@ export default function ShiftHandoff() {
     if (daysFilter === 0) return t("shift_handoff.filterAll", "All");
     return t(`shift_handoff.filter${daysFilter}d` as `shift_handoff.filter4d`, `${daysFilter}d`);
   }, [daysFilter, t]);
+  const continuitySummary = useMemo(
+    () => buildContinuitySummary(handoffs[0] || null, handoffs),
+    [handoffs],
+  );
 
   // Collect only unresolved incidents from previous shifts still within visibility
   function getUnresolvedFromPrevious(handoff: HandoffDoc) {
@@ -562,6 +604,7 @@ export default function ShiftHandoff() {
                 return (
                   <motion.div
                     key={handoff.id}
+                    id={`handoff-card-${handoff.id}`}
                     layout
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -662,6 +705,73 @@ export default function ShiftHandoff() {
                                 className="bg-surface-container-high/20 rounded-sm border border-outline-variant/10 p-4"
                               />
                             </div>
+
+                            {handoff.id === handoffs[0]?.id && (
+                              <div>
+                                <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
+                                  <History className="w-3.5 h-3.5" />
+                                  {t("shift_handoff.continuitySummary", "Continuity Summary")}
+                                </h4>
+                                <div className="grid gap-3 lg:grid-cols-2">
+                                  {continuitySummary.map((windowSummary) => (
+                                    <div
+                                      key={windowSummary.windowDays}
+                                      className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 space-y-2"
+                                    >
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant">
+                                          {windowSummary.windowDays}d
+                                        </span>
+                                        <span className="badge badge-neutral">
+                                          {windowSummary.handoffs.length} {t("shift_handoff.historyCount", "handoffs")}
+                                        </span>
+                                      </div>
+                                      {windowSummary.handoffs.length > 0 ? (
+                                        <div className="space-y-2">
+                                          {windowSummary.handoffs.map((continuityHandoff) => (
+                                            <button
+                                              key={continuityHandoff.id}
+                                              type="button"
+                                              onClick={() => {
+                                                setExpandedId(continuityHandoff.id);
+                                                document
+                                                  .getElementById(`handoff-card-${continuityHandoff.id}`)
+                                                  ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                                              }}
+                                              className="w-full rounded-sm border border-outline-variant/10 bg-surface-container-high/40 p-3 text-left transition-colors hover:border-primary/30 hover:bg-surface-container-high"
+                                            >
+                                              <div className="flex items-center justify-between gap-3">
+                                                <span className="text-xs font-bold text-on-surface">
+                                                  {format(new Date(continuityHandoff.shiftDate + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
+                                                </span>
+                                                <span className="badge badge-neutral">
+                                                  {continuityHandoff.activeIncidentCount} {t("shift_handoff.openIncidents", "Open Incidents")}
+                                                </span>
+                                              </div>
+                                              <div className="mt-1 text-[11px] text-on-surface-variant">
+                                                {t("shift_handoff.by", "by")} {continuityHandoff.createdBy} · {continuityHandoff.teamMembers.join(", ")}
+                                              </div>
+                                              {continuityHandoff.shiftFocus ? (
+                                                <div className="mt-2 text-xs font-bold text-primary">
+                                                  {continuityHandoff.shiftFocus}
+                                                </div>
+                                              ) : null}
+                                              <div className="mt-2 text-sm text-on-surface leading-relaxed">
+                                                {continuityHandoff.notePreview || t("shift_handoff.noContinuityNote", "No summarized notes available.")}
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <div className="text-sm text-on-surface-variant">
+                                          {t("shift_handoff.noContinuityData", "No persistent handoffs in this window.")}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
 
                             {/* Additional Info / Observations */}
                             {handoff.observations && (
@@ -1693,41 +1803,61 @@ export function ShiftHandoffActiveIncidentsPage() {
   const navigate = useNavigate();
   const { t, locale } = useLanguage();
   const dateFnsLocale = getDateFnsLocale(locale);
-  const [handoffs, setHandoffs] = useState<HandoffDoc[]>([]);
+  const [activeIncidents, setActiveIncidents] = useState<ActiveIncidentItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busyKey, setBusyKey] = useState("");
 
-  const activeIncidents = useMemo(
-    () =>
-      collectActiveIncidents(handoffs).sort(
-        (left, right) =>
-          new Date(right.handoffCreatedAt).getTime() - new Date(left.handoffCreatedAt).getTime(),
-      ),
-    [handoffs],
-  );
-
   const criticalCount = useMemo(
-    () => activeIncidents.filter((item) => item.incident.severity === "critical").length,
+    () => activeIncidents.filter((item) => item.severity === "critical").length,
     [activeIncidents],
   );
 
   const affectedHandoffsCount = useMemo(
-    () => new Set(activeIncidents.map((item) => item.handoffId)).size,
+    () => new Set(activeIncidents.map((item) => item.handoff_id)).size,
     [activeIncidents],
   );
 
-  const fetchActiveHandoffs = useCallback(async () => {
+  const fetchActiveIncidents = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch(`${API_URL}/api/shift-handoffs`, {
+      const response = await fetch(`${API_URL}/api/shift-handoffs/incidents/active`, {
         credentials: "include",
       });
       if (!response.ok) throw new Error();
-      const data: HandoffDoc[] = await response.json();
-      setHandoffs(data);
+      const data: ActiveIncidentItem[] = await response.json();
+      if (data.length > 0) {
+        setActiveIncidents(data);
+        return;
+      }
+
+      const fallbackResponse = await fetch(`${API_URL}/api/shift-handoffs`, {
+        credentials: "include",
+      });
+      if (!fallbackResponse.ok) throw new Error();
+      const fallbackHandoffs: HandoffDoc[] = await fallbackResponse.json();
+      const fallbackItems = fallbackHandoffs.flatMap((handoff) =>
+        (handoff.incidents || [])
+          .filter((incident) => incident.status !== "resolved")
+          .map((incident) => ({
+            id: incident.incident_id || `${handoff.id}-${incident.title}`,
+            handoff_id: handoff.id,
+            handoff_shift_date: handoff.shift_date,
+            created_at: handoff.created_at,
+            created_by: handoff.created_by,
+            updated_at: handoff.updated_at,
+            resolved_at: null,
+            resolved_by: "",
+            team_members: handoff.team_members,
+            title: incident.title,
+            severity: incident.severity,
+            status: incident.status,
+            action_needed: incident.action_needed,
+          })),
+      );
+      setActiveIncidents(fallbackItems);
     } catch {
       setError(t("shift_handoff.activeIncidentLoadFailed", "Could not load active incidents."));
     } finally {
@@ -1736,8 +1866,8 @@ export function ShiftHandoffActiveIncidentsPage() {
   }, [t]);
 
   useEffect(() => {
-    void fetchActiveHandoffs();
-  }, [fetchActiveHandoffs]);
+    void fetchActiveIncidents();
+  }, [fetchActiveIncidents]);
 
   useEffect(() => {
     if (!notice) return;
@@ -1746,19 +1876,19 @@ export function ShiftHandoffActiveIncidentsPage() {
   }, [notice]);
 
   async function updateIncidentLifecycle(item: ActiveIncidentItem, status: IncidentEntry["status"]) {
-    const key = `${item.handoffId}:${item.incidentIndex}:${status}`;
+    const key = `${item.handoff_id}:${item.id}:${status}`;
     setBusyKey(key);
     setError("");
     try {
       const response = await fetch(
-        `${API_URL}/api/shift-handoffs/${item.handoffId}/incidents/${item.incidentIndex}/status`,
+        `${API_URL}/api/shift-handoffs/${item.handoff_id}/incidents/${item.id}/status`,
         {
           method: "POST",
           credentials: "include",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             status,
-            action_needed: item.incident.action_needed,
+            action_needed: item.action_needed,
           }),
         },
       );
@@ -1768,7 +1898,7 @@ export function ShiftHandoffActiveIncidentsPage() {
           ? t("shift_handoff.incidentResolved", "Incident resolved.")
           : t("shift_handoff.incidentUpdated", "Incident lifecycle updated."),
       );
-      await fetchActiveHandoffs();
+      await fetchActiveIncidents();
     } catch {
       setError(t("shift_handoff.incidentUpdateFailed", "Could not update incident status."));
     } finally {
@@ -1812,7 +1942,7 @@ export function ShiftHandoffActiveIncidentsPage() {
 
       <PageToolbar label={t("shift_handoff.activeIncidentActions", "Incident actions")}>
         <PageToolbarGroup className="ml-auto">
-          <button type="button" onClick={fetchActiveHandoffs} className="btn btn-outline">
+          <button type="button" onClick={fetchActiveIncidents} className="btn btn-outline">
             <RotateCcw className="h-4 w-4" />
             {t("shift_handoff.refreshIncidentBoard", "Refresh board")}
           </button>
@@ -1838,68 +1968,104 @@ export function ShiftHandoffActiveIncidentsPage() {
           {t("shift_handoff.noActiveIncidentsBoard", "No unresolved incidents across active handoffs.")}
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="surface-section overflow-hidden">
+          <div className="surface-section-header">
+            <div>
+              <h3 className="surface-section-title">{t("shift_handoff.activeIncidentTable", "Persistent Active Incidents")}</h3>
+              <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
+                {t("shift_handoff.activeIncidentTableSubtitle", "Lifecycle is managed independently from the handoff snapshot and remains auditable across shifts.")}
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-surface-container-low border-b border-outline-variant/10 text-[11px] text-on-surface-variant font-bold uppercase tracking-widest">
+                <tr>
+                  <th className="px-6 py-3">Incident</th>
+                  <th className="px-6 py-3">Shift</th>
+                  <th className="px-6 py-3">Status</th>
+                  <th className="px-6 py-3">Created</th>
+                  <th className="px-6 py-3">Last Update</th>
+                  <th className="px-6 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/10">
           {activeIncidents.map((item) => {
-            const busy = busyKey.startsWith(`${item.handoffId}:${item.incidentIndex}:`);
+            const busy = busyKey.startsWith(`${item.handoff_id}:${item.id}:`);
+            const canMutate = /^[a-f0-9]{24}$/i.test(item.id);
             return (
-              <div key={`${item.handoffId}:${item.incidentIndex}`} className="card p-5 space-y-4">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <tr key={item.id} className="align-top">
+                <td className="px-6 py-4">
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("badge", incidentBadge(item.incident.status))}>
-                        {incidentStatusLabel(item.incident.status, t)}
+                      <span className={cn("badge", incidentBadge(item.status))}>
+                        {incidentStatusLabel(item.status, t)}
                       </span>
                       <span className="badge badge-neutral">
-                        {severityLabel(item.incident.severity, t)}
-                      </span>
-                      <span className="badge badge-neutral">
-                        {format(new Date(item.handoffShiftDate + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
+                        {severityLabel(item.severity, t)}
                       </span>
                     </div>
-                    <h3 className="text-lg font-bold text-on-surface">{item.incident.title}</h3>
+                    <div className="text-sm font-bold text-on-surface">{item.title}</div>
                     <p className="text-sm text-on-surface-variant">
-                      {t("shift_handoff.by", "by")} {item.handoffCreatedBy} · {item.teamMembers.join(", ")}
+                      {t("shift_handoff.by", "by")} {item.created_by} · {item.team_members.join(", ")}
                     </p>
-                    {item.incident.action_needed ? (
-                      <p className="text-sm text-on-surface">{item.incident.action_needed}</p>
+                    {item.action_needed ? (
+                      <p className="text-sm text-on-surface">{item.action_needed}</p>
                     ) : null}
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {item.incident.status !== "monitoring" && (
+                </td>
+                <td className="px-6 py-4 text-sm text-on-surface">
+                  {format(new Date(item.handoff_shift_date + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
+                </td>
+                <td className="px-6 py-4 text-sm text-on-surface">
+                  {incidentStatusLabel(item.status, t)}
+                </td>
+                <td className="px-6 py-4 text-sm text-on-surface-variant">
+                  {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
+                </td>
+                <td className="px-6 py-4 text-sm text-on-surface-variant">
+                  {format(new Date(item.updated_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
+                </td>
+                <td className="px-6 py-4">
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {item.status !== "monitoring" && (
                       <button
                         type="button"
                         onClick={() => void updateIncidentLifecycle(item, "monitoring")}
                         className="btn btn-outline"
-                        disabled={busy}
+                        disabled={busy || !canMutate}
                       >
                         {t("shift_handoff.statusMonitoring", "Monitoring")}
                       </button>
                     )}
-                    {item.incident.status !== "escalated" && (
+                    {item.status !== "escalated" && (
                       <button
                         type="button"
                         onClick={() => void updateIncidentLifecycle(item, "escalated")}
                         className="btn btn-outline"
-                        disabled={busy}
+                        disabled={busy || !canMutate}
                       >
                         {t("shift_handoff.statusEscalated", "Escalated")}
                       </button>
                     )}
-                    {item.incident.status !== "resolved" && (
+                    {item.status !== "resolved" && (
                       <button
                         type="button"
                         onClick={() => void updateIncidentLifecycle(item, "resolved")}
                         className="btn btn-primary"
-                        disabled={busy}
+                        disabled={busy || !canMutate}
                       >
                         {busy ? t("shift_handoff.saving", "Saving...") : t("shift_handoff.resolveIncident", "Resolve")}
                       </button>
                     )}
                   </div>
-                </div>
-              </div>
+                </td>
+              </tr>
             );
           })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>

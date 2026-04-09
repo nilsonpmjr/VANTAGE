@@ -27,6 +27,7 @@ ALLOWED_IMAGE_TYPES = {"image/png", "image/jpeg", "image/gif", "image/webp"}
 # ── Models ────────────────────────────────────────────────────────────────────
 
 class IncidentEntry(BaseModel):
+    incident_id: str | None = None
     title: str
     status: str = "active"
     severity: str = "medium"
@@ -242,6 +243,193 @@ def _serialize(doc: dict) -> dict:
     }
 
 
+def _serialize_incident(doc: dict) -> dict:
+    def _ts(v):
+        if hasattr(v, "isoformat"):
+            return v.isoformat()
+        return v
+
+    return {
+        "id": str(doc.get("_id")),
+        "handoff_id": str(doc.get("handoff_id")),
+        "handoff_shift_date": doc.get("handoff_shift_date", ""),
+        "created_at": _ts(doc.get("created_at")),
+        "created_by": doc.get("created_by", ""),
+        "updated_at": _ts(doc.get("updated_at")),
+        "updated_by": doc.get("updated_by", ""),
+        "resolved_at": _ts(doc.get("resolved_at")),
+        "resolved_by": doc.get("resolved_by", ""),
+        "team_members": doc.get("team_members", []),
+        "title": doc.get("title", ""),
+        "severity": doc.get("severity", "medium"),
+        "status": doc.get("status", "active"),
+        "action_needed": doc.get("action_needed", ""),
+    }
+
+
+async def _create_persistent_incidents(
+    db,
+    *,
+    handoff_id: ObjectId,
+    shift_date: str,
+    team_members: list[str],
+    incidents: list[IncidentEntry],
+    current_user: dict,
+    now: datetime,
+) -> list[dict]:
+    serialized: list[dict] = []
+    for incident in incidents:
+        incident_id = ObjectId()
+        incident_doc = {
+            "_id": incident_id,
+            "handoff_id": handoff_id,
+            "handoff_shift_date": shift_date,
+            "team_members": team_members,
+            "created_at": now,
+            "created_by": current_user["username"],
+            "updated_at": now,
+            "updated_by": current_user["username"],
+            "resolved_at": now if incident.status == "resolved" else None,
+            "resolved_by": current_user["username"] if incident.status == "resolved" else "",
+            "title": incident.title,
+            "severity": incident.severity,
+            "status": incident.status,
+            "action_needed": incident.action_needed,
+        }
+        await db.shift_handoff_incidents.insert_one(incident_doc)
+        serialized.append(
+            {
+                "incident_id": str(incident_id),
+                "title": incident.title,
+                "status": incident.status,
+                "severity": incident.severity,
+                "action_needed": incident.action_needed,
+            }
+        )
+    return serialized
+
+
+async def _sync_persistent_incidents(
+    db,
+    *,
+    handoff_oid: ObjectId,
+    existing_doc: dict,
+    incoming_incidents: list[IncidentEntry],
+    current_user: dict,
+    now: datetime,
+) -> list[dict]:
+    existing_snapshots = {
+        incident.get("incident_id"): incident
+        for incident in existing_doc.get("incidents", [])
+        if incident.get("incident_id")
+    }
+    incoming_by_id = {
+        incident.incident_id: incident
+        for incident in incoming_incidents
+        if incident.incident_id
+    }
+
+    for incident_id, snapshot in existing_snapshots.items():
+        if incident_id in incoming_by_id:
+            continue
+        await db.shift_handoff_incidents.update_one(
+            {"_id": ObjectId(incident_id)},
+            {
+                "$set": {
+                    "status": "resolved",
+                    "updated_at": now,
+                    "updated_by": current_user["username"],
+                    "resolved_at": now,
+                    "resolved_by": current_user["username"],
+                    "action_needed": snapshot.get("action_needed", ""),
+                }
+            },
+        )
+
+    serialized: list[dict] = []
+    for incident in incoming_incidents:
+        if incident.incident_id:
+            oid = ObjectId(incident.incident_id)
+            update_fields = {
+                "title": incident.title,
+                "severity": incident.severity,
+                "status": incident.status,
+                "action_needed": incident.action_needed,
+                "updated_at": now,
+                "updated_by": current_user["username"],
+            }
+            if incident.status == "resolved":
+                update_fields["resolved_at"] = now
+                update_fields["resolved_by"] = current_user["username"]
+            else:
+                update_fields["resolved_at"] = None
+                update_fields["resolved_by"] = ""
+
+            await db.shift_handoff_incidents.update_one({"_id": oid}, {"$set": update_fields})
+            serialized.append(
+                {
+                    "incident_id": incident.incident_id,
+                    "title": incident.title,
+                    "status": incident.status,
+                    "severity": incident.severity,
+                    "action_needed": incident.action_needed,
+                }
+            )
+            continue
+
+        created = await _create_persistent_incidents(
+            db,
+            handoff_id=handoff_oid,
+            shift_date=existing_doc["shift_date"],
+            team_members=existing_doc.get("team_members", []),
+            incidents=[incident],
+            current_user=current_user,
+            now=now,
+        )
+        serialized.extend(created)
+
+    return serialized
+
+
+async def _backfill_persistent_incidents_from_handoffs(db) -> None:
+    cursor = db.shift_handoffs.find({}).sort("created_at", -1)
+    async for handoff in cursor:
+        incidents = list(handoff.get("incidents", []))
+        changed = False
+        for index, incident in enumerate(incidents):
+            if incident.get("incident_id"):
+                continue
+            incident_id = ObjectId()
+            now = handoff.get("updated_at") or handoff.get("created_at") or datetime.now(timezone.utc)
+            incident_doc = {
+                "_id": incident_id,
+                "handoff_id": handoff["_id"],
+                "handoff_shift_date": handoff.get("shift_date", ""),
+                "team_members": handoff.get("team_members", []),
+                "created_at": handoff.get("created_at", now),
+                "created_by": handoff.get("created_by", ""),
+                "updated_at": now,
+                "updated_by": handoff.get("created_by", ""),
+                "resolved_at": now if incident.get("status") == "resolved" else None,
+                "resolved_by": handoff.get("created_by", "") if incident.get("status") == "resolved" else "",
+                "title": incident.get("title", ""),
+                "severity": incident.get("severity", "medium"),
+                "status": incident.get("status", "active"),
+                "action_needed": incident.get("action_needed", ""),
+            }
+            await db.shift_handoff_incidents.insert_one(incident_doc)
+            incidents[index] = {
+                "incident_id": str(incident_id),
+                "title": incident.get("title", ""),
+                "status": incident.get("status", "active"),
+                "severity": incident.get("severity", "medium"),
+                "action_needed": incident.get("action_needed", ""),
+            }
+            changed = True
+        if changed:
+            await db.shift_handoffs.update_one({"_id": handoff["_id"]}, {"$set": {"incidents": incidents}})
+
+
 # ── POST / — create shift handoff ────────────────────────────────────────────
 
 @router.post("")
@@ -262,7 +450,7 @@ async def create_handoff(
         "created_by": current_user["username"],
         "created_at": now,
         "updated_at": now,
-        "incidents": [inc.model_dump() for inc in payload.incidents],
+        "incidents": [],
         "tools_status": [ts.model_dump() for ts in payload.tools_status],
         "observations": payload.observations,
         "shift_focus": payload.shift_focus,
@@ -274,6 +462,20 @@ async def create_handoff(
 
     result = await db.shift_handoffs.insert_one(doc)
     doc["_id"] = result.inserted_id
+
+    doc["incidents"] = await _create_persistent_incidents(
+        db,
+        handoff_id=result.inserted_id,
+        shift_date=payload.shift_date,
+        team_members=payload.team_members,
+        incidents=payload.incidents,
+        current_user=current_user,
+        now=now,
+    )
+    await db.shift_handoffs.update_one(
+        {"_id": result.inserted_id},
+        {"$set": {"incidents": doc["incidents"]}},
+    )
 
     await log_action(
         current_user["username"],
@@ -289,7 +491,7 @@ async def create_handoff(
 @router.get("")
 async def list_handoffs(
     current_user: dict = Depends(get_current_user),
-    days: int | None = Query(None, description="Filter by recent active handoff window"),
+    days: int | None = Query(None, description="Filter by configured visibility window"),
     include_expired: bool = Query(False, description="Include expired handoffs (for history)"),
     limit: int = Query(100, ge=1, le=500, description="Max results"),
     offset: int = Query(0, ge=0, description="Skip results"),
@@ -301,7 +503,7 @@ async def list_handoffs(
     if not include_expired:
         query["expires_at"] = {"$gt": now}
     if days and days > 0:
-        query["created_at"] = {"$gte": now - timedelta(days=days)}
+        query["visibility_days"] = days
 
     cursor = db.shift_handoffs.find(query).sort("created_at", -1).skip(offset).limit(limit)
     results = []
@@ -373,7 +575,14 @@ async def update_handoff(
         update_fields["visibility_days"] = payload.visibility_days
         update_fields["expires_at"] = doc["created_at"] + timedelta(days=payload.visibility_days)
     if payload.incidents is not None:
-        update_fields["incidents"] = [inc.model_dump() for inc in payload.incidents]
+        update_fields["incidents"] = await _sync_persistent_incidents(
+            db,
+            handoff_oid=oid,
+            existing_doc=doc,
+            incoming_incidents=payload.incidents,
+            current_user=current_user,
+            now=now,
+        )
     if payload.tools_status is not None:
         update_fields["tools_status"] = [ts.model_dump() for ts in payload.tools_status]
     if payload.observations is not None:
@@ -437,10 +646,10 @@ async def acknowledge_handoff(
 
 # ── POST /{id}/incidents/{index}/status — update incident lifecycle ──────────
 
-@router.post("/{handoff_id}/incidents/{incident_index}/status")
+@router.post("/{handoff_id}/incidents/{incident_id}/status")
 async def update_incident_status(
     handoff_id: str,
-    incident_index: int,
+    incident_id: str,
     payload: ShiftHandoffIncidentStatusUpdate,
     current_user: dict = Depends(get_current_user),
 ):
@@ -455,7 +664,15 @@ async def update_incident_status(
         raise HTTPException(status_code=404, detail="handoff_not_found")
 
     incidents = list(doc.get("incidents", []))
-    if incident_index < 0 or incident_index >= len(incidents):
+    incident_index = next(
+        (
+            index
+            for index, incident in enumerate(incidents)
+            if incident.get("incident_id") == incident_id
+        ),
+        -1,
+    )
+    if incident_index < 0:
         raise HTTPException(status_code=404, detail="incident_not_found")
 
     incident = dict(incidents[incident_index])
@@ -465,6 +682,23 @@ async def update_incident_status(
     incidents[incident_index] = incident
 
     now = datetime.now(timezone.utc)
+    if incident.get("incident_id") != incident_id:
+        raise HTTPException(status_code=400, detail="incident_not_persistent")
+
+    await db.shift_handoff_incidents.update_one(
+        {"_id": ObjectId(incident_id)},
+        {
+            "$set": {
+                "status": payload.status,
+                "action_needed": incident.get("action_needed", ""),
+                "updated_at": now,
+                "updated_by": current_user["username"],
+                "resolved_at": now if payload.status == "resolved" else None,
+                "resolved_by": current_user["username"] if payload.status == "resolved" else "",
+            }
+        },
+    )
+
     await db.shift_handoffs.update_one(
         {"_id": oid},
         {
@@ -478,11 +712,32 @@ async def update_incident_status(
     await log_action(
         current_user["username"],
         "shift_handoff_incident_status_update",
-        f"Updated incident {incident_index} on shift handoff {handoff_id} to {payload.status}",
+        f"Updated incident {incident_id} on shift handoff {handoff_id} to {payload.status}",
     )
 
     updated = await db.shift_handoffs.find_one({"_id": oid})
     return _serialize(updated)
+
+
+@router.get("/incidents/active")
+async def list_persistent_incidents(
+    current_user: dict = Depends(get_current_user),
+    status: str | None = Query(None, description="Filter by status"),
+    limit: int = Query(200, ge=1, le=500),
+):
+    db = db_manager.db
+    await _backfill_persistent_incidents_from_handoffs(db)
+    query: dict = {}
+    if status:
+        query["status"] = status.strip().lower()
+    else:
+        query["status"] = {"$ne": "resolved"}
+
+    cursor = db.shift_handoff_incidents.find(query).sort("created_at", -1).limit(limit)
+    results = []
+    async for doc in cursor:
+        results.append(_serialize_incident(doc))
+    return results
 
 
 # ── POST /{id}/attachments — upload image ────────────────────────────────────

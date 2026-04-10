@@ -1,10 +1,50 @@
 const BATCH_PATTERN = /[,;\n]/;
 export const BATCH_MAX_ITEMS = 100;
+export type SearchInputMode = "auto" | "ioc" | "cidr" | "tag";
 
 export type SearchDirective =
   | { kind: "cidr"; value: string }
   | { kind: "tag"; value: string }
   | null;
+
+export type SearchInterpretation =
+  | {
+      kind: "ioc";
+      valid: boolean;
+      normalized: string;
+      destination: "analyze";
+    }
+  | {
+      kind: "batch";
+      valid: boolean;
+      normalized: string;
+      destination: "batch";
+      targetCount: number;
+      targets: string[];
+    }
+  | {
+      kind: "cidr";
+      valid: boolean;
+      normalized: string;
+      destination: "batch";
+      targetCount: number;
+      targets: string[];
+      error?: "invalid_cidr";
+    }
+  | {
+      kind: "tag";
+      valid: boolean;
+      normalized: string;
+      destination: "feed";
+      error?: "empty_tag";
+    }
+  | {
+      kind: "empty";
+      valid: false;
+      normalized: "";
+      destination: "analyze";
+      error: "empty_query";
+    };
 
 export function parseTargets(value: string) {
   return value
@@ -31,6 +71,92 @@ export function parseSearchDirective(value: string): SearchDirective {
     return { kind: "tag", value: cleaned.replace(/^tag:/i, "").trim() };
   }
   return null;
+}
+
+function stripDirectivePrefix(value: string, prefix: "cidr" | "tag") {
+  return value.trim().replace(new RegExp(`^${prefix}:`, "i"), "").trim();
+}
+
+export function interpretSearchInput(value: string, selectedMode: SearchInputMode): SearchInterpretation {
+  const cleaned = value.trim();
+  if (!cleaned) {
+    return { kind: "empty", valid: false, normalized: "", destination: "analyze", error: "empty_query" };
+  }
+
+  if (selectedMode === "cidr") {
+    const cidrValue = stripDirectivePrefix(cleaned, "cidr");
+    const targets = expandIpv4Cidr(cidrValue).slice(0, BATCH_MAX_ITEMS);
+    return {
+      kind: "cidr",
+      valid: targets.length > 0,
+      normalized: cidrValue,
+      destination: "batch",
+      targetCount: targets.length,
+      targets,
+      ...(targets.length === 0 ? { error: "invalid_cidr" as const } : {}),
+    };
+  }
+
+  if (selectedMode === "tag") {
+    const tagValue = stripDirectivePrefix(cleaned, "tag");
+    return {
+      kind: "tag",
+      valid: tagValue.length > 0,
+      normalized: tagValue,
+      destination: "feed",
+      ...(tagValue.length === 0 ? { error: "empty_tag" as const } : {}),
+    };
+  }
+
+  if (selectedMode === "ioc") {
+    if (isBatchInput(cleaned) && parseTargets(cleaned).length > 1) {
+      const targets = parseTargets(cleaned).slice(0, BATCH_MAX_ITEMS);
+      return {
+        kind: "batch",
+        valid: targets.length > 1,
+        normalized: cleaned,
+        destination: "batch",
+        targetCount: targets.length,
+        targets,
+      };
+    }
+    return { kind: "ioc", valid: true, normalized: cleaned, destination: "analyze" };
+  }
+
+  const directive = parseSearchDirective(cleaned);
+  if (directive?.kind === "cidr") {
+    const targets = expandIpv4Cidr(directive.value).slice(0, BATCH_MAX_ITEMS);
+    return {
+      kind: "cidr",
+      valid: targets.length > 0,
+      normalized: directive.value,
+      destination: "batch",
+      targetCount: targets.length,
+      targets,
+      ...(targets.length === 0 ? { error: "invalid_cidr" as const } : {}),
+    };
+  }
+  if (directive?.kind === "tag") {
+    return {
+      kind: "tag",
+      valid: directive.value.length > 0,
+      normalized: directive.value,
+      destination: "feed",
+      ...(directive.value.length === 0 ? { error: "empty_tag" as const } : {}),
+    };
+  }
+  if (isBatchInput(cleaned) && parseTargets(cleaned).length > 1) {
+    const targets = parseTargets(cleaned).slice(0, BATCH_MAX_ITEMS);
+    return {
+      kind: "batch",
+      valid: targets.length > 1,
+      normalized: cleaned,
+      destination: "batch",
+      targetCount: targets.length,
+      targets,
+    };
+  }
+  return { kind: "ioc", valid: true, normalized: cleaned, destination: "analyze" };
 }
 
 function ipToNumber(ip: string) {

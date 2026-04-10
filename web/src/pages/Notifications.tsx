@@ -2,8 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity,
+  AlertTriangle,
   Archive,
+  ArchiveRestore,
   Bell,
+  CheckCheck,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Eye,
   Newspaper,
@@ -101,16 +106,16 @@ function rowTint(kind: UnifiedNotification["kind"]) {
   return "hover:bg-surface-container-low";
 }
 
-function iconName(kind: UnifiedNotification["kind"]) {
-  if (kind === "critical") return "error";
-  if (kind === "intelligence") return "biotech";
-  return "warning";
-}
-
 function iconClass(kind: UnifiedNotification["kind"]) {
   if (kind === "critical") return "text-error";
   if (kind === "intelligence") return "text-primary";
   return "text-secondary";
+}
+
+function notificationIcon(kind: UnifiedNotification["kind"]) {
+  if (kind === "critical") return <AlertTriangle className={`h-4 w-4 ${iconClass(kind)}`} />;
+  if (kind === "intelligence") return <Newspaper className={`h-4 w-4 ${iconClass(kind)}`} />;
+  return <Activity className={`h-4 w-4 ${iconClass(kind)}`} />;
 }
 
 function badgeClass(kind: UnifiedNotification["kind"]) {
@@ -381,7 +386,7 @@ export default function Notifications() {
               onClick={markAllAsRead}
               disabled={saving || notifications.length === 0}
             >
-              <span className="material-symbols-outlined text-[1.125rem]">done_all</span>
+              <CheckCheck className="h-[1.125rem] w-[1.125rem]" />
               {t("notifications.markAllRead", "Mark all as read")}
             </button>
             <button
@@ -389,7 +394,7 @@ export default function Notifications() {
               onClick={restoreArchive}
               disabled={saving || archivedCount === 0}
             >
-              <span className="material-symbols-outlined text-[1.125rem]">unarchive</span>
+              <ArchiveRestore className="h-[1.125rem] w-[1.125rem]" />
               {t("notifications.restoreArchive", "Restore archive")}
             </button>
           </PageToolbarGroup>
@@ -438,9 +443,7 @@ export default function Notifications() {
           <section className="surface-section p-0">
             <div className="grid grid-cols-[48px_140px_120px_1fr_180px] bg-surface-container-high border-b border-outline-variant/30 py-2.5 px-4 items-center">
               <div className="flex justify-center">
-                <span className="material-symbols-outlined text-[1rem] text-on-surface-variant">
-                  priority_high
-                </span>
+                <AlertTriangle className="h-4 w-4 text-on-surface-variant" />
               </div>
               <div className="text-[0.6875rem] font-black uppercase tracking-widest text-on-surface-variant">
                 {t("notifications.timestamp", "Timestamp (UTC)")}
@@ -474,12 +477,7 @@ export default function Notifications() {
                     )} py-3 px-4 items-center transition-colors`}
                   >
                     <div className="flex justify-center">
-                      <span
-                        className={`material-symbols-outlined ${iconClass(item.kind)}`}
-                        style={{ fontVariationSettings: "'FILL' 1" }}
-                      >
-                        {iconName(item.kind)}
-                      </span>
+                      {notificationIcon(item.kind)}
                     </div>
                     <div className="text-[0.75rem] font-mono text-on-surface-variant tabular-nums">
                       {formatTimestamp(item.timestamp, locale)}
@@ -565,7 +563,7 @@ export default function Notifications() {
                   disabled={currentPage === 1}
                   onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
                 >
-                  <span className="material-symbols-outlined">chevron_left</span>
+                  <ChevronLeft className="h-4 w-4" />
                 </button>
                 <span className="text-[0.75rem] font-bold text-on-surface">
                   {t("notifications.page", "Page")} {totalPages === 0 ? 0 : currentPage} {t("notifications.of", "of")} {totalPages}
@@ -575,7 +573,7 @@ export default function Notifications() {
                   disabled={currentPage >= totalPages}
                   onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
                 >
-                  <span className="material-symbols-outlined">chevron_right</span>
+                  <ChevronRight className="h-4 w-4" />
                 </button>
               </div>
             </div>
@@ -586,7 +584,7 @@ export default function Notifications() {
           <div className="card p-5 card-accent-left card-accent-error">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-error-container/20 rounded-sm">
-                <span className="material-symbols-outlined text-error">gpp_maybe</span>
+                <ShieldAlert className="h-4 w-4 text-error" />
               </div>
               <span className="badge badge-error">{t("notifications.urgentReview", "Urgent Review")}</span>
             </div>
@@ -612,7 +610,7 @@ export default function Notifications() {
           <div className="card p-5 card-accent-left card-accent-primary">
             <div className="flex justify-between items-start mb-4">
               <div className="p-2 bg-primary-container/20 rounded-sm">
-                <span className="material-symbols-outlined text-primary">hub</span>
+                <Newspaper className="h-4 w-4 text-primary" />
               </div>
               <span className="badge badge-primary">{t("notifications.intelligenceLabel", "Intelligence")}</span>
             </div>

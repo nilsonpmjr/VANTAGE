@@ -536,7 +536,7 @@ export default function ShiftHandoff() {
         <PageToolbarGroup>
           <button type="button" onClick={() => navigate("/shift-handoff/incidents")} className="btn btn-outline">
             <AlertTriangle className="w-4 h-4" />
-            {t("shift_handoff.activeIncidentBoard", "Active Incidents")}
+            {t("shift_handoff.incidentBoard", "Incidents")}
           </button>
           <button type="button" onClick={() => navigate("/shift-handoff/history")} className="btn btn-outline">
             <History className="w-4 h-4" />
@@ -1914,13 +1914,13 @@ export function ShiftHandoffActiveIncidentsPage() {
         eyebrow={
           <>
             <AlertTriangle className="h-4 w-4" />
-            {t("shift_handoff.activeIncidentBoard", "Active Incidents")}
+            {t("shift_handoff.incidentBoard", "Incidents")}
           </>
         }
-        title={t("shift_handoff.activeIncidentTitle", "Incident Continuity Board")}
+        title={t("shift_handoff.incidentBoardTitle", "Shift Incident Registry")}
         description={t(
-          "shift_handoff.activeIncidentSubtitle",
-          "Track unresolved incidents across active handoffs and close or reclassify them without losing the originating shift context.",
+          "shift_handoff.incidentBoardSubtitle",
+          "Review every incident ever attached to shift handoffs, including resolved cases, while preserving full shift context and lifecycle history.",
         )}
         metrics={
           <>
@@ -1942,7 +1942,7 @@ export function ShiftHandoffActiveIncidentsPage() {
         }
       />
 
-      <PageToolbar label={t("shift_handoff.activeIncidentActions", "Incident actions")}>
+      <PageToolbar label={t("shift_handoff.incidentBoardActions", "Incident actions")}>
         <PageToolbarGroup className="ml-auto">
           <button type="button" onClick={fetchActiveIncidents} className="btn btn-outline">
             <RotateCcw className="h-4 w-4" />
@@ -1967,15 +1967,15 @@ export function ShiftHandoffActiveIncidentsPage() {
         </div>
       ) : activeIncidents.length === 0 ? (
         <div className="card p-8 text-sm text-on-surface-variant">
-          {t("shift_handoff.noActiveIncidentsBoard", "No unresolved incidents across active handoffs.")}
+          {t("shift_handoff.noIncidentBoardData", "No incidents have been registered in shift handoffs yet.")}
         </div>
       ) : (
         <div className="surface-section overflow-hidden">
           <div className="surface-section-header">
             <div>
-              <h3 className="surface-section-title">{t("shift_handoff.activeIncidentTable", "Persistent Active Incidents")}</h3>
+              <h3 className="surface-section-title">{t("shift_handoff.incidentBoardTable", "Persistent Shift Incidents")}</h3>
               <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
-                {t("shift_handoff.activeIncidentTableSubtitle", "Lifecycle is managed independently from the handoff snapshot and remains auditable across shifts.")}
+                {t("shift_handoff.incidentBoardTableSubtitle", "Incidents remain visible after resolution so the incident chain stays auditable across shift changes.")}
               </p>
             </div>
           </div>

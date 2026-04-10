@@ -1,13 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import Cropper, { type Area } from "react-easy-crop";
+import "react-easy-crop/react-easy-crop.css";
 import {
   Camera,
   History,
   ShieldCheck,
+  ShieldAlert,
   Key,
+  Globe,
+  MapPinned,
   Monitor,
   Smartphone,
   Laptop,
+  Radar,
   Filter,
   Download,
   ExternalLink,
@@ -67,13 +73,13 @@ interface ThirdPartyConfigStatus {
 type ThirdPartyStatusMap = Record<string, ThirdPartyConfigStatus>;
 
 const THIRD_PARTY_SERVICES = [
-  { id: "ip2location", label: "IP2Location", icon: "place", note: "Primary IP geolocation baseline with city, region, ASN, and ISP enrichment." },
-  { id: "virustotal", label: "VirusTotal", icon: "security", note: "File and URL analysis integration for automated malware sandboxing." },
-  { id: "shodan", label: "Shodan.io", icon: "language", note: "Internet-connected device discovery and port scanning metadata." },
-  { id: "alienvault", label: "AlienVault OTX", icon: "public", note: "Open threat exchange pulses and indicator aggregation." },
-  { id: "greynoise", label: "GreyNoise", icon: "radar", note: "Contextual noise and scanning classification for internet activity." },
-  { id: "urlscan", label: "URLScan", icon: "travel_explore", note: "Web capture and rendered-page intelligence for suspect URLs." },
-  { id: "abuseipdb", label: "AbuseIPDB", icon: "gpp_bad", note: "Reputation and abuse confidence scoring for IP infrastructure." },
+  { id: "ip2location", label: "IP2Location", icon: MapPinned, note: "Primary IP geolocation baseline with city, region, ASN, and ISP enrichment." },
+  { id: "virustotal", label: "VirusTotal", icon: ShieldCheck, note: "File and URL analysis integration for automated malware sandboxing." },
+  { id: "shodan", label: "Shodan.io", icon: Globe, note: "Internet-connected device discovery and port scanning metadata." },
+  { id: "alienvault", label: "AlienVault OTX", icon: Eye, note: "Open threat exchange pulses and indicator aggregation." },
+  { id: "greynoise", label: "GreyNoise", icon: Radar, note: "Contextual noise and scanning classification for internet activity." },
+  { id: "urlscan", label: "URLScan", icon: ExternalLink, note: "Web capture and rendered-page intelligence for suspect URLs." },
+  { id: "abuseipdb", label: "AbuseIPDB", icon: ShieldAlert, note: "Reputation and abuse confidence scoring for IP infrastructure." },
 ];
 
 const API_KEY_SCOPE_OPTIONS = [
@@ -118,6 +124,44 @@ function deviceIcon(device: string) {
   return Monitor;
 }
 
+function createImage(src: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", (error) => reject(error));
+    image.setAttribute("crossOrigin", "anonymous");
+    image.src = src;
+  });
+}
+
+async function getCroppedAvatar(src: string, crop: Area) {
+  const image = await createImage(src);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+
+  if (!context) {
+    throw new Error("avatar_canvas_unavailable");
+  }
+
+  const size = Math.max(crop.width, crop.height);
+  canvas.width = size;
+  canvas.height = size;
+
+  context.drawImage(
+    image,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    size,
+    size,
+  );
+
+  return canvas.toDataURL("image/png");
+}
+
 export default function Profile() {
   const { user, updateUserContext } = useAuth();
   const { language, setLanguage, t } = useLanguage();
@@ -151,6 +195,9 @@ export default function Profile() {
   const [avatarFit, setAvatarFit] = useState<"cover" | "contain">(user?.avatar_fit || "cover");
   const [pendingAvatarData, setPendingAvatarData] = useState("");
   const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
+  const [avatarCrop, setAvatarCrop] = useState({ x: 0, y: 0 });
+  const [avatarZoom, setAvatarZoom] = useState(1);
+  const [avatarCropPixels, setAvatarCropPixels] = useState<Area | null>(null);
   const [bio, setBio] = useState(user?.bio || "");
   const [preferredLang, setPreferredLang] = useState(user?.preferred_lang || "pt");
   const [newPassword, setNewPassword] = useState("");
@@ -553,20 +600,39 @@ export default function Profile() {
     reader.onload = () => {
       const result = typeof reader.result === "string" ? reader.result : "";
       if (!result) return;
-      setPendingAvatarData(result);
-      setAvatarEditorOpen(true);
-      setNotice("");
+      openAvatarEditor(result);
     };
     reader.readAsDataURL(file);
   }
 
-  function confirmAvatarSelection() {
+  const openAvatarEditor = useCallback((source: string) => {
+    setPendingAvatarData(source);
+    setAvatarCrop({ x: 0, y: 0 });
+    setAvatarZoom(1);
+    setAvatarCropPixels(null);
+    setAvatarEditorOpen(true);
+    setNotice("");
+  }, []);
+
+  async function confirmAvatarSelection() {
     if (!pendingAvatarData) return;
+    if (!avatarCropPixels) return;
+    const croppedAvatar = await getCroppedAvatar(pendingAvatarData, avatarCropPixels);
     setIdentityDirty(true);
-    setAvatarDraft(pendingAvatarData);
+    setAvatarDraft(croppedAvatar);
+    setAvatarFit("cover");
     setAvatarEditorOpen(false);
     setPendingAvatarData("");
     setNotice("Avatar preparado para salvar.");
+  }
+
+  function removeAvatarSelection() {
+    setIdentityDirty(true);
+    setAvatarDraft("");
+    setPendingAvatarData("");
+    setAvatarFit("cover");
+    setAvatarEditorOpen(false);
+    setNotice("Avatar removido. Salve o perfil para persistir a alteração.");
   }
 
   async function updatePassword() {
@@ -838,6 +904,11 @@ export default function Profile() {
                   src={avatarSrc}
                   alt={user?.username || "User"}
                   className={`w-24 h-24 rounded-full border-4 border-white shadow-lg bg-surface-container-lowest ${avatarObjectClass}`}
+                  onClick={() => {
+                    if (avatarDraft || user?.avatar_base64) {
+                      openAvatarEditor(avatarDraft || user?.avatar_base64 || "");
+                    }
+                  }}
                 />
                 <input
                   ref={avatarInputRef}
@@ -848,9 +919,15 @@ export default function Profile() {
                 />
                 <button
                   className="absolute bottom-0 right-0 bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:bg-primary-dim transition-colors"
-                  title="Atualizar avatar"
+                  title={avatarDraft || user?.avatar_base64 ? "Editar avatar" : "Atualizar avatar"}
                   type="button"
-                  onClick={() => avatarInputRef.current?.click()}
+                  onClick={() => {
+                    if (avatarDraft || user?.avatar_base64) {
+                      openAvatarEditor(avatarDraft || user?.avatar_base64 || "");
+                      return;
+                    }
+                    avatarInputRef.current?.click();
+                  }}
                 >
                   <Camera className="w-4 h-4" />
                 </button>
@@ -1529,6 +1606,7 @@ export default function Profile() {
                         <tbody className="divide-y divide-surface-container-low">
                           {THIRD_PARTY_SERVICES.map((service) => {
                             const configured = Boolean(thirdPartyStatus[service.id]?.configured);
+                            const ServiceIcon = service.icon;
                             return (
                               <tr
                                 key={service.id}
@@ -1537,9 +1615,7 @@ export default function Profile() {
                                 <td className="px-6 py-4 align-top">
                                   <div className="flex items-start gap-3">
                                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface-container-low">
-                                      <span className="material-symbols-outlined text-primary">
-                                        {service.icon}
-                                      </span>
+                                      <ServiceIcon className="h-5 w-5 text-primary" />
                                     </div>
                                     <div>
                                       <div className="text-sm font-bold text-on-surface">
@@ -2029,6 +2105,13 @@ export default function Profile() {
           footer={
             <>
               <button
+                className="btn btn-outline text-error border-error/30 hover:bg-error/10"
+                onClick={removeAvatarSelection}
+                disabled={!avatarDraft && !user?.avatar_base64}
+              >
+                Remover avatar
+              </button>
+              <button
                 className="btn btn-ghost"
                 onClick={() => {
                   setAvatarEditorOpen(false);
@@ -2039,42 +2122,60 @@ export default function Profile() {
               </button>
               <button
                 className="btn btn-primary"
-                onClick={confirmAvatarSelection}
+                onClick={() => void confirmAvatarSelection()}
               >
                 Usar foto
               </button>
             </>
           }
         >
-              <div className="flex justify-center">
-                <div className="flex h-56 w-56 items-center justify-center rounded-full border-4 border-white bg-surface-container-low shadow-lg">
-                  <img
-                    src={pendingAvatarData}
-                    alt="Avatar preview"
-                    className={`h-full w-full rounded-full ${avatarFit === "contain" ? "object-contain" : "object-cover"}`}
-                  />
-                </div>
+          <div className="flex items-center justify-between gap-3 rounded-sm border border-outline-variant/15 bg-surface-container-low px-4 py-3">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                Origem da imagem
               </div>
+              <div className="mt-1 text-sm text-on-surface-variant">
+                Se quiser, você pode substituir a imagem atual antes de ajustar o recorte.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="btn btn-outline whitespace-nowrap"
+              onClick={() => avatarInputRef.current?.click()}
+            >
+              <Camera className="w-4 h-4" />
+              Escolher outra imagem
+            </button>
+          </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                  Ajuste da imagem
-                </label>
-                <div className="nav-pills mt-2 inline-flex w-full">
-                  <button
-                    className={`flex-1 nav-pill-item ${avatarFit === "cover" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
-                    onClick={() => setAvatarFit("cover")}
-                  >
-                    Preencher
-                  </button>
-                  <button
-                    className={`flex-1 nav-pill-item ${avatarFit === "contain" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
-                    onClick={() => setAvatarFit("contain")}
-                  >
-                    Ajustar
-                  </button>
-                </div>
-              </div>
+          <div className="relative h-72 overflow-hidden rounded-sm bg-surface-container-low">
+            <Cropper
+              image={pendingAvatarData}
+              crop={avatarCrop}
+              zoom={avatarZoom}
+              aspect={1}
+              cropShape="round"
+              showGrid={false}
+              onCropChange={setAvatarCrop}
+              onZoomChange={setAvatarZoom}
+              onCropComplete={(_, croppedAreaPixels) => setAvatarCropPixels(croppedAreaPixels)}
+            />
+          </div>
+
+          <div className="space-y-3">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
+              Zoom
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={3}
+              step={0.01}
+              value={avatarZoom}
+              onChange={(event) => setAvatarZoom(Number(event.target.value))}
+              className="w-full accent-primary"
+            />
+          </div>
         </ModalShell>
       )}
     </div>

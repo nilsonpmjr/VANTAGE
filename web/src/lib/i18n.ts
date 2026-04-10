@@ -895,6 +895,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       },
     },
     scan: {
+      modes: {
+        auto: "Auto",
+        ioc: "IOC",
+        cidr: "CIDR",
+        tag: "Tag",
+        batch: "Lote",
+      },
       mode: {
         batch: "Análise em lote",
         quick: "Análise rápida",
@@ -915,6 +922,18 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         singleMode: "Modo alvo único",
         uploadHint: "Envie um arquivo .txt ou .csv para preencher o launcher",
       },
+      interpret: {
+        modeDetected: "Modo detectado",
+        destination: "Destino",
+        targetCount: "Alvos",
+        analyze: "Análise em tempo real",
+        batch: "Análise em lote",
+        feed: "Feed",
+      },
+      examples: {
+        label: "Exemplos",
+        launcher: "Exemplos: 8.8.8.8, cidr:192.168.1.0/24, tag:fortinet",
+      },
       description: {
         single: "Informe um único IP, domínio ou hash, ou cole múltiplos alvos para executar o fluxo de análise em lote do VANTAGE.",
         batch: "O modo lote usa /api/analyze/batch com pré-verificação, progresso em tempo real e resultados exportáveis.",
@@ -923,6 +942,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         noValidTargets: "Nenhum alvo válido encontrado no arquivo enviado.",
         parseError: "Não foi possível processar o arquivo enviado.",
         importedWithSkipped: "Importados {max} alvos. {skipped} entradas adicionais foram ignoradas.",
+        invalidCidr: "Faixa CIDR inválida.",
+        emptyTag: "O modo Tag exige um valor de label.",
       },
     },
     shift_handoff: {
@@ -1105,6 +1126,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       noContinuityData: "Nenhuma passagem vigente nesta janela.",
       noContinuityNote: "Sem notas resumidas disponíveis.",
       none: "nenhuma",
+      incidentBoard: "Incidentes",
+      incidentBoardTitle: "Registro de Incidentes dos Turnos",
+      incidentBoardSubtitle: "Consulte todos os incidentes já adicionados às passagens de turno, inclusive resolvidos, preservando histórico e contexto operacional.",
+      incidentBoardActions: "Ações de incidentes",
+      noIncidentBoardData: "Nenhum incidente foi registrado nas passagens de turno ainda.",
+      incidentBoardTable: "Incidentes Persistentes dos Turnos",
+      incidentBoardTableSubtitle: "Os incidentes permanecem visíveis após a resolução para que a cadeia de eventos continue auditável entre turnos.",
       fmtHeadingOne: "Título 1",
       fmtHeadingTwo: "Título 2",
       fmtBulletList: "Lista com marcadores",
@@ -1991,6 +2019,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       },
     },
     scan: {
+      modes: {
+        auto: "Auto",
+        ioc: "IOC",
+        cidr: "CIDR",
+        tag: "Tag",
+        batch: "Batch",
+      },
       mode: {
         batch: "Batch analysis",
         quick: "Quick analysis",
@@ -2011,6 +2046,18 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         singleMode: "Single target mode",
         uploadHint: "Upload .txt or .csv to prefill the launcher",
       },
+      interpret: {
+        modeDetected: "Mode detected",
+        destination: "Destination",
+        targetCount: "Targets",
+        analyze: "Live Analysis",
+        batch: "Batch Analysis",
+        feed: "Feed",
+      },
+      examples: {
+        label: "Examples",
+        launcher: "Examples: 8.8.8.8, cidr:192.168.1.0/24, tag:fortinet",
+      },
       description: {
         single: "Enter a single IP, domain or hash, or paste multiple targets to run the existing batch analysis flow in the VANTAGE backend.",
         batch: "Batch mode uses /api/analyze/batch with a pre-check, live progress, and exportable results.",
@@ -2019,6 +2066,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         noValidTargets: "No valid targets were found in the uploaded file.",
         parseError: "The uploaded file could not be parsed.",
         importedWithSkipped: "Imported {max} targets. {skipped} extra entries were skipped.",
+        invalidCidr: "Invalid CIDR range.",
+        emptyTag: "Tag mode requires a label value.",
       },
     },
     shift_handoff: {
@@ -2201,6 +2250,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       noContinuityData: "No active handoffs in this window.",
       noContinuityNote: "No summarized notes available.",
       none: "none",
+      incidentBoard: "Incidents",
+      incidentBoardTitle: "Shift Incident Registry",
+      incidentBoardSubtitle: "Review every incident ever attached to shift handoffs, including resolved cases, while preserving full shift context and lifecycle history.",
+      incidentBoardActions: "Incident actions",
+      noIncidentBoardData: "No incidents have been registered in shift handoffs yet.",
+      incidentBoardTable: "Persistent Shift Incidents",
+      incidentBoardTableSubtitle: "Incidents remain visible after resolution so the incident chain stays auditable across shift changes.",
       fmtHeadingOne: "Heading 1",
       fmtHeadingTwo: "Heading 2",
       fmtBulletList: "Bullet list",
@@ -3103,6 +3159,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       },
     },
     scan: {
+      modes: {
+        auto: "Auto",
+        ioc: "IOC",
+        cidr: "CIDR",
+        tag: "Tag",
+        batch: "Lote",
+      },
       mode: {
         batch: "Análisis en lote",
         quick: "Análisis rápido",
@@ -3123,6 +3186,18 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         singleMode: "Modo objetivo único",
         uploadHint: "Sube un archivo .txt o .csv para rellenar el launcher",
       },
+      interpret: {
+        modeDetected: "Modo detectado",
+        destination: "Destino",
+        targetCount: "Objetivos",
+        analyze: "Análisis en vivo",
+        batch: "Análisis en lote",
+        feed: "Feed",
+      },
+      examples: {
+        label: "Ejemplos",
+        launcher: "Ejemplos: 8.8.8.8, cidr:192.168.1.0/24, tag:fortinet",
+      },
       description: {
         single: "Ingrese una IP, dominio o hash único, o pegue múltiples objetivos para ejecutar el flujo de análisis en lote del backend de VANTAGE.",
         batch: "El modo lote usa /api/analyze/batch con verificación previa, progreso en tiempo real y resultados exportables.",
@@ -3131,6 +3206,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         noValidTargets: "No se encontraron objetivos válidos en el archivo cargado.",
         parseError: "No se pudo procesar el archivo cargado.",
         importedWithSkipped: "Se importaron {max} objetivos. Se omitieron {skipped} entradas adicionales.",
+        invalidCidr: "Rango CIDR inválido.",
+        emptyTag: "El modo Tag requiere un valor de etiqueta.",
       },
     },
     shift_handoff: {
@@ -3313,6 +3390,13 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       noContinuityData: "No hay handoffs vigentes en esta ventana.",
       noContinuityNote: "No hay notas resumidas disponibles.",
       none: "ninguno",
+      incidentBoard: "Incidentes",
+      incidentBoardTitle: "Registro de Incidentes de Turno",
+      incidentBoardSubtitle: "Revise todos los incidentes agregados a los handoffs de turno, incluso los resueltos, preservando el historial y el contexto operativo.",
+      incidentBoardActions: "Acciones de incidentes",
+      noIncidentBoardData: "Todavía no se han registrado incidentes en los handoffs de turno.",
+      incidentBoardTable: "Incidentes Persistentes de Turno",
+      incidentBoardTableSubtitle: "Los incidentes siguen visibles tras resolverse para que la cadena de eventos permanezca auditable entre turnos.",
       fmtHeadingOne: "Título 1",
       fmtHeadingTwo: "Título 2",
       fmtBulletList: "Lista con viñetas",

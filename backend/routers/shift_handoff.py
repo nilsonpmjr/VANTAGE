@@ -696,8 +696,6 @@ async def list_persistent_incidents(
     query: dict = {}
     if status:
         query["status"] = status.strip().lower()
-    else:
-        query["status"] = {"$ne": "resolved"}
 
     cursor = db.shift_handoff_incidents.find(query).sort("created_at", -1).limit(limit)
     results = []

@@ -4,11 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { Layers, Search, Upload } from "lucide-react";
 import {
   BATCH_MAX_ITEMS,
-  expandIpv4Cidr,
   isBatchInput,
-  parseSearchDirective,
+  interpretSearchInput,
   parseFileTargets,
-  parseTargets,
 } from "../../lib/scanTargets";
 import { useLanguage } from "../../context/LanguageContext";
 import { primeAnalyzePayload } from "../../lib/analyzeCache";
@@ -32,8 +30,7 @@ export default function GlobalScanLauncher({
   const [warning, setWarning] = useState<string | null>(null);
 
   const batchMode = useMemo(() => isBatchInput(query), [query]);
-  const targets = useMemo(() => parseTargets(query), [query]);
-  const targetCount = targets.length;
+  const interpretedSearch = useMemo(() => interpretSearchInput(query, "auto"), [query]);
 
   useEffect(() => {
     if (!open) return;
@@ -84,40 +81,32 @@ export default function GlobalScanLauncher({
     event.preventDefault();
     const cleaned = query.trim();
     if (!cleaned) return;
-    const directive = parseSearchDirective(cleaned);
 
-    if (directive?.kind === "tag" && directive.value) {
-      navigate(`/feed?family=${encodeURIComponent(directive.value)}`);
-      onClose();
-      return;
-    }
-
-    if (directive?.kind === "cidr" && directive.value) {
-      const expandedTargets = expandIpv4Cidr(directive.value).slice(0, BATCH_MAX_ITEMS);
-      if (!expandedTargets.length) {
-        setWarning(t("scan.warnings.noValidTargets"));
-        return;
+    if (!interpretedSearch.valid) {
+      if (interpretedSearch.kind === "cidr") {
+        setWarning(t("scan.warnings.invalidCidr", "Invalid CIDR range."));
+      } else if (interpretedSearch.kind === "tag") {
+        setWarning(t("scan.warnings.emptyTag", "Tag mode requires a label value."));
       }
-      sessionStorage.setItem(
-        "vantage:last-batch-targets",
-        JSON.stringify(expandedTargets),
-      );
-      navigate("/batch", { state: { targets: expandedTargets } });
+      return;
+    }
+
+    if (interpretedSearch.kind === "tag") {
+      navigate(`/feed?family=${encodeURIComponent(interpretedSearch.normalized)}`);
       onClose();
       return;
     }
 
-    if (batchMode && targetCount > 1) {
-      const limitedTargets = targets.slice(0, BATCH_MAX_ITEMS);
+    if (interpretedSearch.kind === "cidr" || interpretedSearch.kind === "batch") {
       sessionStorage.setItem(
         "vantage:last-batch-targets",
-        JSON.stringify(limitedTargets),
+        JSON.stringify(interpretedSearch.targets),
       );
-      navigate("/batch", { state: { targets: limitedTargets } });
+      navigate("/batch", { state: { targets: interpretedSearch.targets } });
     } else {
-      localStorage.setItem("lastSearch", cleaned);
-      primeAnalyzePayload(cleaned, language);
-      navigate(`/analyze/${encodeURIComponent(cleaned)}`);
+      localStorage.setItem("lastSearch", interpretedSearch.normalized);
+      primeAnalyzePayload(interpretedSearch.normalized, language);
+      navigate(`/analyze/${encodeURIComponent(interpretedSearch.normalized)}`);
     }
 
     onClose();
@@ -125,9 +114,17 @@ export default function GlobalScanLauncher({
 
   return (
     <ModalShell
-      title={batchMode ? t("scan.actions.startBatch") : t("scan.actions.startQuick")}
+      title={
+        interpretedSearch.kind === "cidr" || interpretedSearch.kind === "batch"
+          ? t("scan.actions.startBatch")
+          : t("scan.actions.startQuick")
+      }
       description={t("scan.description.single")}
-      icon={batchMode ? t("scan.mode.batch") : t("scan.mode.quick")}
+      icon={
+        interpretedSearch.kind === "cidr" || interpretedSearch.kind === "batch"
+          ? t("scan.mode.batch")
+          : t("scan.mode.quick")
+      }
       onClose={onClose}
       ariaLabel={t("scan.actions.close")}
       variant="dialog"
@@ -179,14 +176,18 @@ export default function GlobalScanLauncher({
             className="hidden"
           />
 
-          <div className="summary-strip">
-            <div className="summary-pill">
-              {batchMode
-                ? t("scan.status.targetsDetected").replace("{n}", String(targetCount))
-                : t("scan.status.singleMode")}
+          <div className="flex flex-wrap gap-4 text-[11px] font-bold uppercase tracking-wider text-on-surface-variant/70">
+            <div>
+              {t("home.tip", "TIP:")}{" "}
+              {t("home.tipCidr", "Use")}{" "}
+              <code className="rounded bg-surface-container-high px-1">cidr:</code>{" "}
+              {t("home.tipCidrTail", "for range searches")}
             </div>
-            <div className="summary-pill-muted">
-              {t("scan.status.uploadHint")}
+            <div>
+              {t("home.tip", "TIP:")}{" "}
+              {t("home.tipTag", "Prefix with")}{" "}
+              <code className="rounded bg-surface-container-high px-1">tag:</code>{" "}
+              {t("home.tipTagTail", "for labels")}
             </div>
           </div>
 

@@ -27,3 +27,4 @@ docker_build.log
 .DS_Store
 .vscode/
 Threat-Intelligence-Tool.code-workspace
+.omx/

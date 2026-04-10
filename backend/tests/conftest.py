@@ -39,7 +39,13 @@ class FakeCursor:
         if key is None:
             return self
         reverse = direction == -1
-        self._data.sort(key=lambda item: item.get(key), reverse=reverse)
+        self._data.sort(
+            key=lambda item: (
+                item.get(key) is None,
+                item.get(key),
+            ),
+            reverse=reverse,
+        )
         return self
 
     def limit(self, n):

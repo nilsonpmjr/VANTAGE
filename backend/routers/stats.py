@@ -180,6 +180,77 @@ async def get_dashboard_stats(
             for doc in recent_recon_raw
         ]
 
+        # Unified artifact history (analyze + recon), paginated together
+        # Correct pagination: fetch (skip + limit) from each collection, merge, sort, slice
+        fetch_size = skip + limit
+        artifacts_scans_raw = await (
+            db.scans.find(
+                base_query,
+                {
+                    "_id": 0,
+                    "target": 1,
+                    "type": 1,
+                    "verdict": 1,
+                    "risk_score": 1,
+                    "analyst": 1,
+                    "timestamp": 1,
+                },
+            )
+            .sort("timestamp", -1)
+            .limit(fetch_size)
+            .to_list(length=fetch_size)
+        )
+        artifacts_recon_raw = await (
+            db.recon_jobs.find(
+                recon_base_query,
+                {
+                    "_id": 1,
+                    "target": 1,
+                    "target_type": 1,
+                    "modules": 1,
+                    "analyst": 1,
+                    "status": 1,
+                    "created_at": 1,
+                },
+            )
+            .sort("created_at", -1)
+            .limit(fetch_size)
+            .to_list(length=fetch_size)
+        )
+
+        unified: list[dict] = []
+        for doc in artifacts_scans_raw:
+            unified.append({
+                "kind": "analyze",
+                "timestamp": doc.get("timestamp"),
+                "target": doc.get("target"),
+                "target_type": doc.get("type"),
+                "verdict": doc.get("verdict"),
+                "risk_score": doc.get("risk_score"),
+                "analyst": doc.get("analyst"),
+            })
+        for doc in artifacts_recon_raw:
+            unified.append({
+                "kind": "recon",
+                "timestamp": doc.get("created_at"),
+                "target": doc.get("target"),
+                "target_type": doc.get("target_type"),
+                "status": doc.get("status"),
+                "modules": doc.get("modules") or [],
+                "analyst": doc.get("analyst"),
+                "job_id": str(doc["_id"]),
+            })
+
+        _epoch_min = datetime.min.replace(tzinfo=timezone.utc)
+
+        def _sort_key(item: dict):
+            ts = item.get("timestamp")
+            return ts if ts is not None else _epoch_min
+
+        unified.sort(key=_sort_key, reverse=True)  # descending by timestamp, None last
+        recent_artifacts = unified[skip:skip + limit]
+        total_artifacts = total_scans + recon_total
+
         result = {
             "totalScans": total_scans,
             "verdictDistribution": verdict_result,
@@ -191,6 +262,8 @@ async def get_dashboard_stats(
             "workerHealth": worker_status,
             "reconTotal": recon_total,
             "recentReconJobs": recent_recon_jobs,
+            "recentArtifacts": recent_artifacts,
+            "totalArtifacts": total_artifacts,
         }
 
         return jsonable_encoder(result, custom_encoder={ObjectId: str})

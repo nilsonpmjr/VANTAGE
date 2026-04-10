@@ -12,6 +12,8 @@ import {
   History,
   ChevronLeft,
   ChevronRight,
+  Search,
+  Telescope,
 } from "lucide-react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import API_URL from "../config";
@@ -38,6 +40,8 @@ interface StatsPayload {
     completed_at?: string | null;
     modules?: string[];
   }>;
+  recentArtifacts: RecentArtifactItem[];
+  totalArtifacts: number;
 }
 
 interface RecentScanItem {
@@ -46,6 +50,21 @@ interface RecentScanItem {
   verdict?: string;
   timestamp?: string;
   analyst?: string;
+}
+
+interface RecentArtifactItem {
+  kind: "analyze" | "recon";
+  timestamp?: string;
+  target: string;
+  target_type?: string;
+  analyst?: string;
+  // analyze-only
+  verdict?: string;
+  risk_score?: number;
+  // recon-only
+  status?: string;
+  modules?: string[];
+  job_id?: string;
 }
 
 function formatTimestamp(value?: string | null) {
@@ -80,7 +99,7 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [period, setPeriod] = useState("month");
   const [stats, setStats] = useState<StatsPayload | null>(null);
-  const [historyScans, setHistoryScans] = useState<RecentScanItem[]>([]);
+  const [historyArtifacts, setHistoryArtifacts] = useState<RecentArtifactItem[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyPage, setHistoryPage] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -148,7 +167,7 @@ export default function Dashboard() {
         }
         const payload = (await response.json()) as StatsPayload;
         if (!cancelled) {
-          setHistoryScans(payload.recentScans || []);
+          setHistoryArtifacts(payload.recentArtifacts || []);
         }
       } catch {
         if (!cancelled) {
@@ -184,7 +203,8 @@ export default function Dashboard() {
     () => Math.max(...(stats?.topThreatTypes || [{ value: 1 }]).map((row) => row.value), 1),
     [stats],
   );
-  const totalHistoryPages = Math.max(1, Math.ceil((stats?.totalScans || 0) / HISTORY_PAGE_SIZE));
+  const totalHistoryCount = stats?.totalArtifacts ?? stats?.totalScans ?? 0;
+  const totalHistoryPages = Math.max(1, Math.ceil(totalHistoryCount / HISTORY_PAGE_SIZE));
 
   async function copyArtifact(target: string) {
     try {
@@ -214,6 +234,40 @@ export default function Dashboard() {
   function openAnalysis(target: string) {
     localStorage.setItem("lastSearch", target);
     navigate(`/analyze/${encodeURIComponent(target)}`);
+  }
+
+  function openArtifact(item: RecentArtifactItem) {
+    if (item.kind === "recon" && item.job_id) {
+      navigate(`/recon?job=${encodeURIComponent(item.job_id)}`);
+      return;
+    }
+    openAnalysis(item.target);
+  }
+
+  function buildRowActions(item: RecentArtifactItem): RowActionItem[] {
+    const actions: RowActionItem[] = [];
+    if (item.kind === "recon" && item.job_id) {
+      actions.push({
+        key: "open-recon",
+        label: t("dashboard.openReconReport", "Open recon report"),
+        icon: <Eye className="h-3.5 w-3.5" />,
+        onSelect: () => navigate(`/recon?job=${encodeURIComponent(item.job_id!)}`),
+      });
+    } else {
+      actions.push({
+        key: "open-report",
+        label: t("dashboard.openAnalysisReport", "Open analysis report"),
+        icon: <Eye className="h-3.5 w-3.5" />,
+        onSelect: () => openAnalysis(item.target),
+      });
+    }
+    actions.push({
+      key: "copy-artifact",
+      label: t("dashboard.copyArtifact", "Copy artifact"),
+      icon: <Copy className="h-3.5 w-3.5" />,
+      onSelect: () => void copyArtifact(item.target),
+    });
+    return actions;
   }
 
 
@@ -329,7 +383,7 @@ export default function Dashboard() {
             <div className="summary-strip">
               <div className="summary-pill">
                 <History className="h-4 w-4 text-primary" />
-                {stats?.totalScans || 0} {t("dashboard.totalSearches", "total searches")}
+                {totalHistoryCount} {t("dashboard.totalArtifacts", "total artifacts")}
               </div>
             </div>
           </div>
@@ -337,6 +391,7 @@ export default function Dashboard() {
             <table className="w-full text-left">
               <thead>
                 <tr className="bg-surface-container-low text-[10px] font-black text-on-surface-variant uppercase tracking-wider">
+                  <th className="px-6 py-3">{t("dashboard.source", "Source")}</th>
                   <th className="px-6 py-3">{t("dashboard.analyst", "Analyst")}</th>
                   <th className="px-6 py-3">{t("dashboard.dateTime", "Date / Time")}</th>
                   <th className="px-6 py-3">{t("dashboard.artifact", "Artifact")}</th>
@@ -348,62 +403,85 @@ export default function Dashboard() {
               <tbody className="divide-y divide-surface-container">
                 {historyLoading ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-sm text-on-surface-variant">
+                    <td colSpan={7} className="px-6 py-10 text-sm text-on-surface-variant">
                       {t("dashboard.loadingHistory", "Loading search history")}
                     </td>
                   </tr>
-                ) : historyScans.length === 0 ? (
+                ) : historyArtifacts.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-sm text-on-surface-variant">
+                    <td colSpan={7} className="px-6 py-10 text-sm text-on-surface-variant">
                       {t("dashboard.noHistory", "Nenhuma pesquisa encontrada para esta janela.")}
                     </td>
                   </tr>
                 ) : (
-                  historyScans.map((scan, index) => (
-                    <tr key={`${scan.target}-${scan.timestamp || index}`} className="hover:bg-surface-container-low transition-colors">
-                      <td className="px-6 py-3 text-xs text-on-surface">
-                        {scan.analyst || "system"}
-                      </td>
-                      <td className="px-6 py-3 text-xs text-on-surface-variant">
-                        {formatTimestamp(scan.timestamp)}
-                      </td>
-                      <td className="px-6 py-3">
-                        <button
-                          type="button"
-                          onClick={() => openAnalysis(scan.target)}
-                          className="text-left text-xs font-mono font-medium text-primary hover:underline"
-                          title={scan.target}
-                        >
-                          {scan.target}
-                        </button>
-                      </td>
-                      <td className="px-6 py-3 text-[11px] text-on-surface-variant font-bold uppercase">
-                        {scan.type || "artifact"}
-                      </td>
-                      <td className="px-6 py-3">
-                        <span className={`badge ${verdictBadge(scan.verdict)}`}>
-                          {scan.verdict || "UNKNOWN"}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        <div className="flex justify-end gap-2">
-                          <RowPrimaryAction
-                            label={t("dashboard.inspect", "Inspect")}
-                            icon={<Eye className="h-3.5 w-3.5" />}
-                            onClick={() => openAnalysis(scan.target)}
-                          />
-                          <RowActionsMenu items={buildArtifactActions(scan.target)} />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+                  historyArtifacts.map((item, index) => {
+                    const rowKey = `${item.kind}-${item.job_id || item.target}-${item.timestamp || index}`;
+                    const isRecon = item.kind === "recon";
+                    const SourceIcon = isRecon ? Telescope : Search;
+                    const sourceLabel = isRecon
+                      ? t("dashboard.sourceRecon", "Recon")
+                      : t("dashboard.sourceAnalyze", "Analyze");
+                    const typeLabel = (item.target_type || "artifact").toString();
+                    const badgeLabel = isRecon
+                      ? (item.status || "UNKNOWN").toUpperCase()
+                      : (item.verdict || "UNKNOWN");
+                    const badgeClass = isRecon
+                      ? (item.status === "done" ? "badge-primary" : item.status === "error" ? "badge-error" : "badge-warning")
+                      : verdictBadge(item.verdict);
+                    return (
+                      <tr key={rowKey} className="hover:bg-surface-container-low transition-colors">
+                        <td className="px-6 py-3">
+                          <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                            <SourceIcon className="h-3.5 w-3.5" />
+                            {sourceLabel}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-xs text-on-surface">
+                          {item.analyst || "system"}
+                        </td>
+                        <td className="px-6 py-3 text-xs text-on-surface-variant">
+                          {formatTimestamp(item.timestamp)}
+                        </td>
+                        <td className="px-6 py-3">
+                          <button
+                            type="button"
+                            onClick={() => openArtifact(item)}
+                            className="text-left text-xs font-mono font-medium text-primary hover:underline"
+                            title={item.target}
+                          >
+                            {item.target}
+                          </button>
+                        </td>
+                        <td className="px-6 py-3 text-[11px] text-on-surface-variant font-bold uppercase">
+                          {isRecon && item.modules && item.modules.length > 0
+                            ? `${typeLabel} · ${item.modules.length} mod`
+                            : typeLabel}
+                        </td>
+                        <td className="px-6 py-3">
+                          <span className={`badge ${badgeClass}`}>
+                            {badgeLabel}
+                          </span>
+                        </td>
+                        <td className="px-6 py-3 text-right">
+                          <div className="flex justify-end gap-2">
+                            <RowPrimaryAction
+                              label={t("dashboard.inspect", "Inspect")}
+                              icon={<Eye className="h-3.5 w-3.5" />}
+                              onClick={() => openArtifact(item)}
+                            />
+                            <RowActionsMenu items={buildRowActions(item)} />
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
           <div className="mt-auto bg-surface-container px-6 py-3 border-t border-outline-variant/30 flex justify-between items-center">
             <span className="text-[0.6875rem] font-medium text-on-surface-variant uppercase tracking-widest">
-              {t("dashboard.showingSearches", "Showing")} {historyScans.length} {t("dashboard.of", "of")} {stats?.totalScans || 0} {t("dashboard.searches", "searches")}
+              {t("dashboard.showingSearches", "Showing")} {historyArtifacts.length} {t("dashboard.of", "of")} {totalHistoryCount} {t("dashboard.artifactsLabel", "artifacts")}
             </span>
             <div className="flex items-center gap-4">
               <button

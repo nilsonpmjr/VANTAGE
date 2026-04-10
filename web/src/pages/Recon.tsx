@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Radar, Target, Map, Activity, Zap, ShieldAlert, Server, Globe, Clock3, RefreshCw, Eye, History, Radio } from "lucide-react";
 import API_URL from "../config";
 import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
@@ -270,6 +271,8 @@ export default function Recon() {
   const [notice, setNotice] = useState("");
   const pollRef = useRef<number | null>(null);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+
   useEffect(() => {
     void loadReconRuntime();
     return () => {
@@ -277,6 +280,18 @@ export default function Recon() {
         window.clearInterval(pollRef.current);
       }
     };
+  }, []);
+
+  useEffect(() => {
+    const deepLinkJob = searchParams.get("job");
+    if (deepLinkJob) {
+      void loadJob(deepLinkJob, true);
+      // Clear the query param after consuming it so refreshes do not re-trigger.
+      const next = new URLSearchParams(searchParams);
+      next.delete("job");
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadReconRuntime() {

@@ -6,9 +6,11 @@ function returns False. In development mode the reset link is logged so
 developers can test without a real mail server.
 """
 
+from dataclasses import dataclass
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from html import escape
+from socket import gaierror, timeout as socket_timeout
 
 from config import settings
 from db import db_manager
@@ -16,6 +18,33 @@ from logging_config import get_logger
 from operational_config import get_effective_operational_config
 
 logger = get_logger("Mailer")
+
+
+@dataclass
+class SMTPDeliveryError(Exception):
+    code: str
+    message: str
+    hint: str
+    retryable: bool = False
+
+    def to_detail(self, *, smtp: dict, to_email: str) -> dict:
+        def _value(field: str, default):
+            raw = smtp.get(field, default)
+            if isinstance(raw, dict) and "value" in raw:
+                return raw["value"]
+            return raw
+
+        return {
+            "code": self.code,
+            "message": self.message,
+            "hint": self.hint,
+            "retryable": self.retryable,
+            "host": _value("host", ""),
+            "port": _value("port", 0),
+            "tls": bool(_value("tls", False)),
+            "from_email": _value("from", ""),
+            "to_email": to_email,
+        }
 
 
 async def _get_smtp_runtime_config() -> dict:
@@ -36,11 +65,84 @@ async def is_smtp_configured() -> bool:
     return bool(smtp["host"])
 
 
-async def _send_email(to_email: str, subject: str, text_body: str, html_body: str) -> bool:
-    """Internal helper to send an email via SMTP."""
-    smtp = await _get_smtp_runtime_config()
+def _classify_smtp_exception(exc: Exception) -> SMTPDeliveryError:
+    type_name = type(exc).__name__.lower()
+    message = str(exc).strip()
+    lowered = message.lower()
+
+    if isinstance(exc, gaierror) or "getaddrinfo" in lowered or "name or service not known" in lowered:
+        return SMTPDeliveryError(
+            code="smtp_dns_error",
+            message="Nao foi possivel resolver o host SMTP informado.",
+            hint="Revise o hostname do servidor SMTP e a resolucao DNS do ambiente.",
+            retryable=False,
+        )
+
+    if isinstance(exc, (TimeoutError, socket_timeout)) or "timed out" in lowered:
+        return SMTPDeliveryError(
+            code="smtp_timeout",
+            message="A conexao com o servidor SMTP expirou antes de concluir o teste.",
+            hint="Confira host, porta, TLS e regras de firewall entre a aplicacao e o gateway SMTP.",
+            retryable=True,
+        )
+
+    if "authentication" in lowered or "auth" in lowered or "smtpauthenticationerror" in type_name:
+        return SMTPDeliveryError(
+            code="smtp_auth_failed",
+            message="O servidor SMTP rejeitou as credenciais informadas.",
+            hint="Valide usuario, senha e o metodo de autenticacao exigido pelo provedor.",
+            retryable=False,
+        )
+
+    if "sender" in lowered or "mail from" in lowered or "smtpsenderrefused" in type_name:
+        return SMTPDeliveryError(
+            code="smtp_sender_rejected",
+            message="O remetente configurado foi rejeitado pelo servidor SMTP.",
+            hint="Confirme se o endereco de origem esta autorizado para esse dominio ou mailbox.",
+            retryable=False,
+        )
+
+    if "recipient" in lowered or "rcpt to" in lowered or "smtprecipientrefused" in type_name:
+        return SMTPDeliveryError(
+            code="smtp_recipient_rejected",
+            message="O destinatario de teste foi rejeitado pelo servidor SMTP.",
+            hint="Use uma caixa operacional valida e confirme se o servidor aceita esse dominio de destino.",
+            retryable=False,
+        )
+
+    if "starttls" in lowered or "tls" in lowered or "ssl" in lowered:
+        return SMTPDeliveryError(
+            code="smtp_tls_mismatch",
+            message="O handshake TLS falhou para a combinacao atual de porta e seguranca.",
+            hint="Revise se o servidor exige TLS/STARTTLS ou conexao sem TLS nessa porta.",
+            retryable=False,
+        )
+
+    if "connection refused" in lowered or "connect" in lowered:
+        return SMTPDeliveryError(
+            code="smtp_connect_failed",
+            message="Nao foi possivel estabelecer conexao com o gateway SMTP.",
+            hint="Confira host, porta e acessibilidade de rede antes de repetir o teste.",
+            retryable=True,
+        )
+
+    return SMTPDeliveryError(
+        code="smtp_delivery_failed",
+        message="O servidor SMTP recusou ou interrompeu o envio do teste.",
+        hint=message or "Revise a configuracao SMTP e os logs do servidor de email.",
+        retryable=False,
+    )
+
+
+async def _deliver_email(to_email: str, subject: str, text_body: str, html_body: str, *, smtp: dict | None = None) -> dict:
+    smtp = smtp or await _get_smtp_runtime_config()
     if not smtp["host"]:
-        return False
+        raise SMTPDeliveryError(
+            code="smtp_not_configured",
+            message="Nenhum host SMTP esta configurado para a instancia.",
+            hint="Salve host, remetente e credenciais antes de executar o teste.",
+            retryable=False,
+        )
 
     try:
         import aiosmtplib
@@ -61,10 +163,25 @@ async def _send_email(to_email: str, subject: str, text_body: str, html_body: st
             password=smtp["password"] or None,
             use_tls=smtp["tls"],
         )
-        return True
+        return {
+            "to_email": to_email,
+            "from_email": smtp["from"],
+            "host": smtp["host"],
+            "port": smtp["port"],
+            "tls": smtp["tls"],
+        }
 
     except Exception as exc:
-        logger.error(f"Failed to send email to {to_email}: {exc}")
+        raise _classify_smtp_exception(exc) from exc
+
+
+async def _send_email(to_email: str, subject: str, text_body: str, html_body: str) -> bool:
+    """Internal helper to send an email via SMTP."""
+    try:
+        await _deliver_email(to_email, subject, text_body, html_body)
+        return True
+    except SMTPDeliveryError as exc:
+        logger.error(f"Failed to send email to {to_email}: {exc.code} - {exc.message}")
         return False
 
 
@@ -239,3 +356,22 @@ async def send_smtp_test_email(to_email: str) -> bool:
     </div>
     """
     return await _send_email(to_email, subject, text_body, html_body)
+
+
+async def deliver_smtp_test_email(to_email: str) -> dict:
+    """Send an SMTP probe email and return the delivery context used for the test."""
+    smtp = await _get_smtp_runtime_config()
+    subject = "VANTAGE SMTP Test"
+    text_body = (
+        "Este e-mail confirma que a configuracao SMTP do VANTAGE esta funcional.\n\n"
+        "Se voce recebeu esta mensagem, o teste foi concluido com sucesso."
+    )
+    html_body = """
+    <div style="font-family:sans-serif;max-width:560px;">
+      <h2 style="color:#38bdf8;margin-bottom:0.5rem;">VANTAGE SMTP Test</h2>
+      <p>Este e-mail confirma que a configuracao SMTP do VANTAGE esta funcional.</p>
+      <p style="color:#888;font-size:0.9rem;">Se voce recebeu esta mensagem, o teste foi concluido com sucesso.</p>
+    </div>
+    """
+    result = await _deliver_email(to_email, subject, text_body, html_body, smtp=smtp)
+    return {"message": "SMTP test email sent.", **result}

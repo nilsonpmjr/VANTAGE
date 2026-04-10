@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 
 import pytest
 
+from threat_ingestion import record_threat_sync_status
+
 
 @pytest.mark.asyncio
 async def test_read_operational_status_requires_admin(async_client):
@@ -11,6 +13,14 @@ async def test_read_operational_status_requires_admin(async_client):
 
 @pytest.mark.asyncio
 async def test_read_operational_status_returns_aggregated_services(async_client, auth_headers, fake_db, monkeypatch):
+    await record_threat_sync_status(
+        fake_db,
+        "cve_recent",
+        status="success",
+        items_ingested=3,
+        last_run_at=datetime.now(timezone.utc),
+        duration_ms=1200,
+    )
     await fake_db.system_status.insert_one(
         {
             "module": "worker",
@@ -45,6 +55,9 @@ async def test_read_operational_status_returns_aggregated_services(async_client,
     assert data["services"]["backend"]["consumption"]["pending_recon_jobs"] == 0
     assert data["services"]["mongodb"]["details"]["ping"] == "ok"
     assert data["services"]["scheduler"]["consumption"]["scheduled_jobs"] == 3
+    assert data["services"]["threat_ingestion"]["status"] == "degraded"
+    assert data["services"]["threat_ingestion"]["details"]["healthy_sources"] >= 1
+    assert data["services"]["threat_ingestion"]["details"]["never_run_sources"] >= 1
     assert data["services"]["worker"]["status"] == "healthy"
     assert data["services"]["worker"]["consumption"]["altered_targets"] == 2
     assert data["services"]["mailer"]["details"]["configured"] is True
@@ -74,6 +87,7 @@ async def test_operational_status_snapshot_tolerates_collector_failure(fake_db, 
         collect_backend_status,
         collect_mailer_status,
         collect_scheduler_status,
+        collect_threat_ingestion_status,
         collect_worker_status,
         get_operational_status_snapshot,
     )
@@ -87,6 +101,7 @@ async def test_operational_status_snapshot_tolerates_collector_failure(fake_db, 
             "backend": collect_backend_status,
             "mongodb": _boom,
             "scheduler": collect_scheduler_status,
+            "threat_ingestion": collect_threat_ingestion_status,
             "worker": collect_worker_status,
             "mailer": collect_mailer_status,
         },
@@ -97,6 +112,30 @@ async def test_operational_status_snapshot_tolerates_collector_failure(fake_db, 
     assert snapshot["services"]["mongodb"]["status"] == "error"
     assert snapshot["services"]["mongodb"]["error"] == "ping failed"
     assert snapshot["summary"]["error"] >= 1
+
+
+@pytest.mark.asyncio
+async def test_read_operational_status_degrades_stale_or_failing_threat_sources(async_client, auth_headers, fake_db, monkeypatch):
+    await record_threat_sync_status(
+        fake_db,
+        "cve_recent",
+        status="error",
+        items_ingested=0,
+        last_error="upstream failed",
+        last_run_at=datetime.now(timezone.utc),
+        duration_ms=900,
+    )
+    monkeypatch.setattr(
+        "operational_status._get_scheduler_runtime_state",
+        lambda: {"running": True, "scheduled_jobs": 1},
+    )
+
+    resp = await async_client.get("/api/admin/operational-status", headers=auth_headers)
+
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["services"]["threat_ingestion"]["status"] == "error"
+    assert data["services"]["threat_ingestion"]["details"]["error_sources"] >= 1
 
 
 @pytest.mark.asyncio

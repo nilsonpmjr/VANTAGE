@@ -40,13 +40,18 @@ type ThreatSourcesPayload = {
   sources: ThreatSource[];
 };
 
+type SmtpPublicField<T> = {
+  value: T;
+  source: string;
+};
+
 type SmtpConfig = {
-  host: { value: string; configured: boolean };
-  port: { value: number; configured: boolean };
-  username: { value: string; configured: boolean };
-  password: { configured: boolean };
-  from: { value: string; configured: boolean };
-  tls: { value: boolean; configured: boolean };
+  host: SmtpPublicField<string>;
+  port: SmtpPublicField<number>;
+  username: SmtpPublicField<string>;
+  password: { configured: boolean; masked?: string; source: string };
+  from: SmtpPublicField<string>;
+  tls: SmtpPublicField<boolean>;
 };
 
 type MispSourceConfig = {
@@ -81,6 +86,41 @@ type ThreatSourceMetrics = {
     last_run_at?: string | null;
     recorded_at?: string | null;
   }>;
+  current_status?: ThreatSource["sync_status"];
+};
+
+type OperationalService = {
+  status: "healthy" | "degraded" | "error";
+  error?: string | null;
+  last_checked?: string | null;
+  details?: Record<string, unknown>;
+  consumption?: Record<string, unknown>;
+};
+
+type OperationalStatusPayload = {
+  checked_at: string;
+  summary: Record<string, number>;
+  services: Record<string, OperationalService>;
+};
+
+type SmtpTestResponse = {
+  message: string;
+  to_email: string;
+  from_email: string;
+  host: string;
+  port: number;
+  tls: boolean;
+};
+
+type ApiErrorDetail = {
+  code?: string;
+  message?: string;
+  hint?: string;
+};
+
+type ApiErrorPayload = {
+  detail?: string | ApiErrorDetail;
+  error?: string;
 };
 
 function formatTimestamp(value?: string | null) {
@@ -91,6 +131,35 @@ function formatTimestamp(value?: string | null) {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
+}
+
+function extractApiErrorMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") return fallback;
+  const apiError = payload as ApiErrorPayload;
+  if (typeof apiError.detail === "string" && apiError.detail.trim()) {
+    return apiError.detail;
+  }
+  if (apiError.detail && typeof apiError.detail === "object") {
+    const message = typeof apiError.detail.message === "string" ? apiError.detail.message.trim() : "";
+    const hint = typeof apiError.detail.hint === "string" ? apiError.detail.hint.trim() : "";
+    return [message, hint].filter(Boolean).join(" ") || fallback;
+  }
+  if (typeof apiError.error === "string" && apiError.error.trim()) {
+    return apiError.error;
+  }
+  return fallback;
+}
+
+function operationalStatusBadge(status?: string) {
+  if (status === "healthy") return "bg-emerald-500/20 text-emerald-400";
+  if (status === "error") return "bg-error/20 text-error";
+  return "bg-amber-500/20 text-amber-300";
+}
+
+function operationalStatusLabel(status?: string) {
+  if (status === "healthy") return "Healthy";
+  if (status === "error") return "Error";
+  return "Degraded";
 }
 
 function statusMeta(source: ThreatSource) {
@@ -142,6 +211,7 @@ export default function ThreatIngestion() {
   const { t } = useLanguage();
   const [sources, setSources] = useState<ThreatSource[]>([]);
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfig | null>(null);
+  const [operationalStatus, setOperationalStatus] = useState<OperationalStatusPayload | null>(null);
   const [mispConfig, setMispConfig] = useState<MispSourceConfig | null>(null);
   const [selectedSourceId, setSelectedSourceId] = useState("");
   const [showCustomSourceForm, setShowCustomSourceForm] = useState(false);
@@ -153,6 +223,7 @@ export default function ThreatIngestion() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [smtpTestTarget, setSmtpTestTarget] = useState("");
 
   const [smtpDraft, setSmtpDraft] = useState({
     host: "",
@@ -183,20 +254,22 @@ export default function ThreatIngestion() {
     setLoading(true);
     setError("");
     try {
-      const [sourcesRes, smtpRes, mispRes] = await Promise.all([
+      const [sourcesRes, smtpRes, mispRes, statusRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/threat-sources`, { credentials: "include" }),
         fetch(`${API_URL}/api/admin/operational-config/smtp`, { credentials: "include" }),
         fetch(`${API_URL}/api/admin/threat-sources/misp`, { credentials: "include" }),
+        fetch(`${API_URL}/api/admin/operational-status`, { credentials: "include" }),
       ]);
 
       if (!sourcesRes.ok || !smtpRes.ok || !mispRes.ok) {
         throw new Error("threat_ingestion_load_failed");
       }
 
-      const [sourcesData, smtpData, mispData] = await Promise.all([
+      const [sourcesData, smtpData, mispData, statusData] = await Promise.all([
         sourcesRes.json(),
         smtpRes.json(),
         mispRes.json(),
+        statusRes.ok ? statusRes.json() : Promise.resolve(null),
       ]);
 
       const sourceItems = (sourcesData as ThreatSourcesPayload).sources || [];
@@ -205,6 +278,7 @@ export default function ThreatIngestion() {
 
       setSources(sourceItems);
       setSmtpConfig(smtp);
+      setOperationalStatus(statusData as OperationalStatusPayload | null);
       setMispConfig(misp);
       setSelectedSourceId((current) => current || sourceItems[0]?.source_id || "");
       setSmtpDraft({
@@ -272,24 +346,16 @@ export default function ThreatIngestion() {
 
   const selectedSource = sources.find((item) => item.source_id === selectedSourceId) || sources[0] || null;
   const activeCount = useMemo(() => sources.filter((item) => item.enabled).length, [sources]);
-  const smtpConfigured = Boolean(smtpConfig?.host?.configured && smtpConfig?.from?.configured);
+  const smtpConfigured = Boolean(smtpConfig?.host?.value && smtpConfig?.from?.value);
   const mispEnabled = Boolean(mispConfig?.enabled);
-  const syncingCount = useMemo(
-    () =>
-      sources.filter((item) => {
-        const status = String(item.sync_status?.status || "").toLowerCase();
-        return status.includes("sync") || status.includes("running") || status.includes("pending");
-      }).length,
-    [sources],
+  const sourceActivitySeries = useMemo(
+    () => selectedSourceMetrics?.duration_series?.slice(-8) || [],
+    [selectedSourceMetrics],
   );
-  const latencyBars = useMemo(() => {
-    const values =
-      selectedSourceMetrics?.duration_series
-        ?.slice(-8)
-        .map((item) => Math.min(100, Math.max(12, Math.round((item.duration_ms || 0) / 40))))
-        || [];
-    return values.length ? values.slice(0, 8) : [40, 55, 45, 70, 30, 50, 85, 40];
-  }, [selectedSourceMetrics]);
+  const sourceActivityMaxDuration = useMemo(
+    () => Math.max(...sourceActivitySeries.map((item) => Number(item.duration_ms || 0)), 1),
+    [sourceActivitySeries],
+  );
   const fortinetSources = useMemo(
     () => sources.filter((item) => item.family === "fortinet"),
     [sources],
@@ -303,6 +369,31 @@ export default function ThreatIngestion() {
     () => fortinetSources.filter((item) => item.enabled).map((item) => getFeedUrl(item)).filter(Boolean),
     [fortinetSources],
   );
+  const integrityServices = useMemo(() => {
+    const services = operationalStatus?.services || {};
+    return ["threat_ingestion", "mailer"]
+      .map((key) => ({
+        key,
+        snapshot: services[key],
+      }))
+      .filter((entry): entry is { key: string; snapshot: OperationalService } => Boolean(entry.snapshot));
+  }, [operationalStatus]);
+  const integrityHealthyCount = useMemo(
+    () => integrityServices.filter((entry) => entry.snapshot.status === "healthy").length,
+    [integrityServices],
+  );
+  const integrityRatio = useMemo(
+    () => (integrityServices.length ? Math.round((integrityHealthyCount / integrityServices.length) * 100) : 0),
+    [integrityHealthyCount, integrityServices.length],
+  );
+  const integrityStatus = useMemo(() => {
+    if (integrityServices.some((entry) => entry.snapshot.status === "error")) return "error";
+    if (integrityServices.some((entry) => entry.snapshot.status !== "healthy")) return "degraded";
+    if (integrityServices.length > 0) return "healthy";
+    return "degraded";
+  }, [integrityServices]);
+  const ingestionIntegrity = operationalStatus?.services?.threat_ingestion;
+  const smtpIntegrity = operationalStatus?.services?.mailer;
 
   async function saveSmtpConfig() {
     setBusy("smtp");
@@ -322,11 +413,14 @@ export default function ThreatIngestion() {
           tls: smtpDraft.tls,
         }),
       });
-      if (!response.ok) throw new Error("smtp_save_failed");
-      setNotice("Gateway SMTP atualizado.");
+      const payload = (await response.json().catch(() => null)) as SmtpConfig | ApiErrorPayload | null;
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Falha ao salvar o gateway SMTP."));
+      }
+      setNotice("Gateway SMTP atualizado com sucesso.");
       await loadRuntime();
-    } catch {
-      setError("Falha ao salvar o gateway SMTP.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao salvar o gateway SMTP.");
     } finally {
       setBusy("");
     }
@@ -341,12 +435,19 @@ export default function ThreatIngestion() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ to_email: smtpTestTarget.trim() || undefined }),
       });
-      if (!response.ok) throw new Error("smtp_test_failed");
-      setNotice("Teste SMTP disparado com sucesso.");
-    } catch {
-      setError("Falha ao executar o teste SMTP.");
+      const payload = (await response.json().catch(() => null)) as SmtpTestResponse | ApiErrorPayload | null;
+      if (!response.ok) {
+        throw new Error(extractApiErrorMessage(payload, "Falha ao executar o teste SMTP."));
+      }
+      const testResult = payload as SmtpTestResponse;
+      setNotice(
+        `Teste SMTP enviado para ${testResult.to_email} usando ${testResult.from_email} via ${testResult.host}:${testResult.port}${testResult.tls ? " com TLS." : " sem TLS."}`,
+      );
+      await loadRuntime();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao executar o teste SMTP.");
     } finally {
       setBusy("");
     }
@@ -922,11 +1023,29 @@ export default function ThreatIngestion() {
                   <option value="plain">Plain</option>
                 </select>
               </FormField>
+              <FormField label="Test Mailbox (optional)">
+                <input
+                  type="email"
+                  className="w-full bg-surface-container-highest border-b-2 border-outline focus:border-primary px-4 py-2.5 text-sm font-medium outline-none transition-all"
+                  value={smtpTestTarget}
+                  onChange={(event) => setSmtpTestTarget(event.target.value)}
+                  placeholder="soc-ops@company.com"
+                />
+              </FormField>
             </div>
             <div className="pt-4 flex items-center justify-between border-t border-outline-variant/10">
-              <div className="flex items-center gap-2 text-[11px] text-on-surface-variant italic">
-                <Info className="w-4 h-4" />
-                Settings applied globally to all security reporting nodes.
+              <div className="space-y-1 text-[11px] text-on-surface-variant">
+                <div className="flex items-center gap-2 italic">
+                  <Info className="w-4 h-4" />
+                  Settings applied globally to all security reporting nodes.
+                </div>
+                <div>
+                  Active runtime source: host from <span className="font-semibold">{smtpConfig?.host?.source || "default"}</span>, sender from{" "}
+                  <span className="font-semibold">{smtpConfig?.from?.source || "default"}</span>.
+                </div>
+                <div>
+                  Leave the mailbox blank to use the signed-in admin email as the SMTP test target.
+                </div>
               </div>
               <div className="flex items-center gap-4">
                 <button
@@ -1176,22 +1295,53 @@ export default function ThreatIngestion() {
             </h3>
             <div className="flex items-end justify-between mb-2">
               <span className="text-3xl font-black">
-                {sources.length > 0 ? `${Math.round((activeCount / sources.length) * 100)}%` : "0%"}
+                {integrityServices.length > 0 ? `${integrityRatio}%` : "—"}
               </span>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded font-bold uppercase">
-                {activeCount > 0 ? "Optimal" : "Degraded"}
+              <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${operationalStatusBadge(integrityStatus)}`}>
+                {operationalStatusLabel(integrityStatus)}
               </span>
             </div>
             <div className="w-full h-1 bg-white/10 rounded-full overflow-hidden">
               <div
                 className="h-full bg-primary"
-                style={{ width: `${sources.length > 0 ? Math.max(8, Math.round((activeCount / sources.length) * 100)) : 0}%` }}
+                style={{ width: `${integrityServices.length > 0 ? Math.max(8, integrityRatio) : 0}%` }}
               ></div>
             </div>
-            <p className="mt-4 text-xs text-gray-400 leading-relaxed">
-              {syncingCount} source(s) are synchronizing. SMTP changes trigger a
-              validation cycle across the reporting flow.
-            </p>
+            <div className="mt-4 space-y-3">
+              <p className="text-xs text-gray-400 leading-relaxed">
+                {ingestionIntegrity
+                  ? `${Number(ingestionIntegrity.details?.enabled_sources || 0)} source(s) enabled, ${Number(ingestionIntegrity.details?.stale_sources || 0)} stale, ${Number(ingestionIntegrity.details?.error_sources || 0)} with ingestion failure.`
+                  : "Operational snapshot unavailable for threat ingestion."}
+              </p>
+              <div className="grid grid-cols-1 gap-2 text-[11px]">
+                {integrityServices.length > 0 ? (
+                  integrityServices.map((entry) => (
+                    <div key={entry.key} className="flex items-center justify-between gap-3 rounded-sm bg-white/5 px-3 py-2">
+                      <div>
+                        <div className="font-bold uppercase tracking-widest">
+                          {entry.key === "threat_ingestion" ? "Threat Runtime" : "SMTP Gateway"}
+                        </div>
+                        <div className="mt-1 text-gray-400">
+                          {entry.snapshot.error || `Last checked ${formatTimestamp(entry.snapshot.last_checked)}`}
+                        </div>
+                      </div>
+                      <span className={`rounded px-2 py-0.5 font-bold uppercase ${operationalStatusBadge(entry.snapshot.status)}`}>
+                        {operationalStatusLabel(entry.snapshot.status)}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-sm bg-white/5 px-3 py-2 text-gray-400">
+                    No operational integrity snapshot is available.
+                  </div>
+                )}
+              </div>
+              {smtpIntegrity?.details?.configured === false ? (
+                <div className="text-[11px] text-amber-300">
+                  SMTP is still not configured for real delivery checks.
+                </div>
+              ) : null}
+            </div>
           </div>
 
           <div className="bg-surface-container-high p-6 rounded border border-outline-variant/20">
@@ -1199,13 +1349,31 @@ export default function ThreatIngestion() {
               Source Activity
             </h3>
             <div className="relative h-24 flex items-end gap-1">
-              {latencyBars.map((height, index) => (
-                <div
-                  key={`${height}-${index}`}
-                  className={`flex-1 rounded-t-sm ${height > 75 ? "bg-primary/60" : "bg-primary/20"}`}
-                  style={{ height: `${height}%` }}
-                ></div>
-              ))}
+              {sourceActivitySeries.length > 0 ? (
+                sourceActivitySeries.map((item, index) => {
+                  const duration = Number(item.duration_ms || 0);
+                  const height = duration > 0 ? Math.max(12, Math.round((duration / sourceActivityMaxDuration) * 100)) : 10;
+                  const status = String(item.status || "").toLowerCase();
+                  const tone =
+                    status.includes("error") || status.includes("failed")
+                      ? "bg-error/50"
+                      : status.includes("success")
+                        ? "bg-primary/60"
+                        : "bg-primary/20";
+                  return (
+                    <div
+                      key={`${item.timestamp || "bar"}-${index}`}
+                      className={`flex-1 rounded-t-sm ${tone}`}
+                      style={{ height: `${height}%` }}
+                      title={`${formatTimestamp(item.timestamp)} • ${duration || 0} ms • ${item.items_ingested ?? 0} item(ns)`}
+                    ></div>
+                  );
+                })
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-xs text-on-surface-variant">
+                  No source telemetry has been recorded yet.
+                </div>
+              )}
             </div>
             <div className="flex justify-between mt-2 text-[10px] font-bold text-on-surface-variant">
               <span>SYNC DURATION</span>

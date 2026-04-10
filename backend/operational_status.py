@@ -9,6 +9,7 @@ from time import monotonic
 from typing import Any
 
 from operational_config import get_public_operational_config
+from threat_ingestion import get_runtime_threat_sources
 
 
 def _default_scheduler_runtime_provider() -> dict[str, int | bool]:
@@ -156,10 +157,87 @@ async def collect_mailer_status(db) -> dict:
     )
 
 
+async def collect_threat_ingestion_status(db) -> dict:
+    if db is None:
+        return _base_service("error", error="Database not connected")
+
+    sources = await get_runtime_threat_sources(db)
+    enabled_sources = [source for source in sources if source.get("enabled")]
+    now = _now()
+
+    error_sources = 0
+    stale_sources = 0
+    never_run_sources = 0
+    not_configured_sources = 0
+    syncing_sources = 0
+    last_activity_at = None
+
+    for source in enabled_sources:
+        sync_status = source.get("sync_status") or {}
+        status = str(sync_status.get("status") or "").lower()
+        last_run_at = sync_status.get("last_run_at")
+        if isinstance(last_run_at, datetime):
+            last_activity_at = max(last_activity_at, last_run_at) if last_activity_at else last_run_at
+
+        if status in {"error", "unsupported"}:
+            error_sources += 1
+            continue
+        if status in {"running", "syncing", "pending"}:
+            syncing_sources += 1
+            continue
+        if status == "not_configured":
+            not_configured_sources += 1
+            continue
+        if status in {"", "never_run"} or not last_run_at:
+            never_run_sources += 1
+            continue
+
+        poll_minutes = int(source.get("config", {}).get("poll_interval_minutes", 60) or 60)
+        stale_after = now - timedelta(minutes=max(poll_minutes * 2, 60))
+        if last_run_at < stale_after:
+            stale_sources += 1
+
+    healthy_sources = max(
+        len(enabled_sources) - error_sources - stale_sources - never_run_sources - not_configured_sources,
+        0,
+    )
+
+    if not enabled_sources:
+        status = "degraded"
+        error = "No enabled threat sources are configured"
+    elif error_sources:
+        status = "error"
+        error = "One or more enabled sources are failing to ingest"
+    elif stale_sources or never_run_sources or not_configured_sources:
+        status = "degraded"
+        error = "One or more enabled sources are stale or not fully operational"
+    else:
+        status = "healthy"
+        error = None
+
+    return _base_service(
+        status,
+        last_checked=last_activity_at or now,
+        error=error,
+        details={
+            "enabled_sources": len(enabled_sources),
+            "total_sources": len(sources),
+            "healthy_sources": healthy_sources,
+            "error_sources": error_sources,
+            "stale_sources": stale_sources,
+            "never_run_sources": never_run_sources,
+            "not_configured_sources": not_configured_sources,
+            "syncing_sources": syncing_sources,
+        },
+        consumption={},
+    )
+
+
 SERVICE_COLLECTORS = {
     "backend": collect_backend_status,
     "mongodb": collect_mongodb_status,
     "scheduler": collect_scheduler_status,
+    "threat_ingestion": collect_threat_ingestion_status,
     "worker": collect_worker_status,
     "mailer": collect_mailer_status,
 }

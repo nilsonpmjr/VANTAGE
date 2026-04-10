@@ -25,7 +25,7 @@ from operational_status import (
     get_operational_status_history,
     get_operational_status_snapshot,
 )
-from mailer import send_smtp_test_email
+from mailer import SMTPDeliveryError, deliver_smtp_test_email
 from threat_ingestion import (
     get_public_threat_source,
     get_public_threat_sources,
@@ -748,19 +748,35 @@ async def test_smtp_operational_config(
     if not _EMAIL_RE.match(to_email):
         raise HTTPException(status_code=400, detail="Invalid target email for SMTP test.")
 
-    success = await send_smtp_test_email(to_email)
     ip = request.client.host if request.client else ""
+    try:
+        result = await deliver_smtp_test_email(to_email)
+    except SMTPDeliveryError as exc:
+        smtp_public_config = (await get_public_operational_config(db))["smtp"]
+        await log_action(
+            db,
+            user=current_user["username"],
+            action="smtp_test_failed",
+            target=to_email,
+            ip=ip,
+            result="failure",
+            detail=f"code={exc.code}",
+        )
+        status_code = 400 if exc.code == "smtp_not_configured" else 502
+        raise HTTPException(
+            status_code=status_code,
+            detail=exc.to_detail(smtp=smtp_public_config, to_email=to_email),
+        ) from exc
+
     await log_action(
         db,
         user=current_user["username"],
-        action="smtp_test_sent" if success else "smtp_test_failed",
+        action="smtp_test_sent",
         target=to_email,
         ip=ip,
-        result="success" if success else "failure",
+        result="success",
     )
-    if not success:
-        raise HTTPException(status_code=502, detail="SMTP test failed.")
-    return {"message": "SMTP test email sent.", "to_email": to_email}
+    return result
 
 
 @router.get("/operational-status")

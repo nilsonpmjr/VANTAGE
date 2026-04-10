@@ -4,6 +4,7 @@ from slowapi.errors import RateLimitExceeded
 from starlette.requests import Request
 
 from limiters import limiter
+from mailer import SMTPDeliveryError
 
 
 @pytest.mark.asyncio
@@ -92,9 +93,16 @@ async def test_update_smtp_operational_config_preserves_secret_when_password_omi
 async def test_smtp_test_endpoint_sends_and_audits(async_client, auth_headers, fake_db, monkeypatch):
     async def _fake_send(to_email: str):
         assert to_email == "admin@soc.local"
-        return True
+        return {
+            "message": "SMTP test email sent.",
+            "to_email": to_email,
+            "from_email": "noreply@soc.local",
+            "host": "smtp.control.local",
+            "port": 587,
+            "tls": True,
+        }
 
-    monkeypatch.setattr("routers.admin.send_smtp_test_email", _fake_send)
+    monkeypatch.setattr("routers.admin.deliver_smtp_test_email", _fake_send)
 
     resp = await async_client.post(
         "/api/admin/operational-config/smtp/test",
@@ -103,6 +111,7 @@ async def test_smtp_test_endpoint_sends_and_audits(async_client, auth_headers, f
     )
     assert resp.status_code == 200
     assert resp.json()["to_email"] == "admin@soc.local"
+    assert resp.json()["host"] == "smtp.control.local"
 
     audit = await fake_db.audit_log.find_one({"action": "smtp_test_sent"})
     assert audit is not None
@@ -112,7 +121,7 @@ async def test_smtp_test_endpoint_sends_and_audits(async_client, auth_headers, f
 @pytest.mark.asyncio
 async def test_smtp_test_endpoint_requires_target_email_when_admin_has_no_email(async_client, auth_headers, fake_db, monkeypatch):
     await fake_db.users.update_one({"username": "admin"}, {"$set": {"email": None}})
-    monkeypatch.setattr("routers.admin.send_smtp_test_email", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr("routers.admin.deliver_smtp_test_email", lambda *_args, **_kwargs: True)
 
     resp = await async_client.post(
         "/api/admin/operational-config/smtp/test",
@@ -126,9 +135,13 @@ async def test_smtp_test_endpoint_requires_target_email_when_admin_has_no_email(
 @pytest.mark.asyncio
 async def test_smtp_test_endpoint_failure_is_audited(async_client, auth_headers, fake_db, monkeypatch):
     async def _fake_send(_to_email: str):
-        return False
+        raise SMTPDeliveryError(
+            code="smtp_auth_failed",
+            message="O servidor SMTP rejeitou as credenciais informadas.",
+            hint="Valide usuario e senha.",
+        )
 
-    monkeypatch.setattr("routers.admin.send_smtp_test_email", _fake_send)
+    monkeypatch.setattr("routers.admin.deliver_smtp_test_email", _fake_send)
 
     resp = await async_client.post(
         "/api/admin/operational-config/smtp/test",
@@ -136,11 +149,35 @@ async def test_smtp_test_endpoint_failure_is_audited(async_client, auth_headers,
         headers=auth_headers,
     )
     assert resp.status_code == 502
-    assert resp.json()["detail"] == "SMTP test failed."
+    detail = resp.json()["detail"]
+    assert detail["code"] == "smtp_auth_failed"
+    assert detail["to_email"] == "ops@soc.local"
 
     audit = await fake_db.audit_log.find_one({"action": "smtp_test_failed"})
     assert audit is not None
     assert audit["target"] == "ops@soc.local"
+    assert audit["detail"] == "code=smtp_auth_failed"
+
+
+@pytest.mark.asyncio
+async def test_smtp_test_endpoint_returns_bad_request_for_missing_runtime_config(async_client, auth_headers, fake_db, monkeypatch):
+    async def _fake_send(_to_email: str):
+        raise SMTPDeliveryError(
+            code="smtp_not_configured",
+            message="Nenhum host SMTP esta configurado para a instancia.",
+            hint="Salve host, remetente e credenciais antes de executar o teste.",
+        )
+
+    monkeypatch.setattr("routers.admin.deliver_smtp_test_email", _fake_send)
+
+    resp = await async_client.post(
+        "/api/admin/operational-config/smtp/test",
+        json={"to_email": "ops@soc.local"},
+        headers=auth_headers,
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"]["code"] == "smtp_not_configured"
 
 
 @pytest.mark.asyncio

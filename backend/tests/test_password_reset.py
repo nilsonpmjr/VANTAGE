@@ -367,6 +367,25 @@ async def test_update_my_preferences_persists_bio_and_avatar(async_client, fake_
 
 
 @pytest.mark.asyncio
+async def test_update_my_preferences_can_clear_avatar(async_client, fake_db):
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {"avatar_base64": "data:image/png;base64,abc", "avatar_fit": "contain"}},
+    )
+    tech_token = create_access_token({"sub": "techuser", "role": "tech"})
+    resp = await async_client.put(
+        "/api/users/me",
+        json={"avatar_base64": None, "avatar_fit": "cover"},
+        headers={"Authorization": f"Bearer {tech_token}"},
+    )
+    assert resp.status_code == 200
+
+    user = await fake_db.users.find_one({"username": "techuser"})
+    assert user["avatar_base64"] is None
+    assert user["avatar_fit"] == "cover"
+
+
+@pytest.mark.asyncio
 async def test_auth_me_returns_avatar_fit(async_client, fake_db):
     await fake_db.users.update_one(
         {"username": "techuser"},

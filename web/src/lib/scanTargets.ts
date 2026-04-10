@@ -85,7 +85,7 @@ export function interpretSearchInput(value: string, selectedMode: SearchInputMod
 
   if (selectedMode === "cidr") {
     const cidrValue = stripDirectivePrefix(cleaned, "cidr");
-    const targets = expandIpv4Cidr(cidrValue).slice(0, BATCH_MAX_ITEMS);
+    const targets = expandIpv4Cidr(cidrValue, BATCH_MAX_ITEMS);
     return {
       kind: "cidr",
       valid: targets.length > 0,
@@ -125,7 +125,7 @@ export function interpretSearchInput(value: string, selectedMode: SearchInputMod
 
   const directive = parseSearchDirective(cleaned);
   if (directive?.kind === "cidr") {
-    const targets = expandIpv4Cidr(directive.value).slice(0, BATCH_MAX_ITEMS);
+    const targets = expandIpv4Cidr(directive.value, BATCH_MAX_ITEMS);
     return {
       kind: "cidr",
       valid: targets.length > 0,
@@ -176,7 +176,7 @@ function numberToIp(value: number) {
   ].join(".");
 }
 
-export function expandIpv4Cidr(cidr: string) {
+export function expandIpv4Cidr(cidr: string, limit = Number.POSITIVE_INFINITY) {
   const match = cidr.trim().match(/^(\d{1,3}(?:\.\d{1,3}){3})\/(\d|[12]\d|3[0-2])$/);
   if (!match) return [];
 
@@ -189,8 +189,9 @@ export function expandIpv4Cidr(cidr: string) {
   const mask = prefix === 0 ? 0 : ((0xffffffff << hostBits) >>> 0);
   const network = baseIp & mask;
   const targets: string[] = [];
+  const cappedTotal = Math.min(total, Math.max(0, Math.floor(limit)));
 
-  for (let index = 0; index < total; index += 1) {
+  for (let index = 0; index < cappedTotal; index += 1) {
     targets.push(numberToIp((network + index) >>> 0));
   }
 

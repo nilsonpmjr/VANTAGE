@@ -169,16 +169,17 @@ async def update_my_preferences(
 
     username = current_user["username"]
     update_data = {}
+    provided_fields = getattr(prefs, "model_fields_set", set())
 
-    if prefs.preferred_lang is not None:
+    if "preferred_lang" in provided_fields and prefs.preferred_lang is not None:
         update_data["preferred_lang"] = prefs.preferred_lang
-    if prefs.avatar_base64 is not None:
+    if "avatar_base64" in provided_fields:
         update_data["avatar_base64"] = prefs.avatar_base64
-    if prefs.avatar_fit is not None:
+    if "avatar_fit" in provided_fields and prefs.avatar_fit is not None:
         update_data["avatar_fit"] = "contain" if prefs.avatar_fit == "contain" else "cover"
-    if prefs.bio is not None:
-        update_data["bio"] = str(prefs.bio).strip()[:500]
-    if prefs.recovery_email is not None:
+    if "bio" in provided_fields:
+        update_data["bio"] = str(prefs.bio).strip()[:500] if prefs.bio is not None else None
+    if "recovery_email" in provided_fields:
         normalized_recovery_email = normalize_email(prefs.recovery_email)
         if normalized_recovery_email and not is_valid_email_format(normalized_recovery_email):
             raise HTTPException(status_code=400, detail="Invalid email format")
@@ -186,11 +187,11 @@ async def update_my_preferences(
             raise HTTPException(status_code=400, detail="Email already in use")
         update_data["recovery_email"] = normalized_recovery_email
         update_data["normalized_recovery_email"] = normalized_recovery_email
-    if prefs.notification_center is not None:
+    if "notification_center" in provided_fields and prefs.notification_center is not None:
         update_data["notification_center"] = _normalize_notification_center(prefs.notification_center)
 
     password_changed = False
-    if prefs.password is not None:
+    if "password" in provided_fields and prefs.password is not None:
         policy = await get_password_policy(db)
         errors = validate_password(prefs.password, policy)
         if errors:

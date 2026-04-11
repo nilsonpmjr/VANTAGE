@@ -3,13 +3,18 @@ from datetime import datetime, timezone, timedelta
 
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, StrictBool, field_validator
 
 from db import db_manager
 from auth import get_current_user, require_role
 from audit import log_action
 from logging_config import get_logger
 from shift_handoff_migration import migrate_shift_handoff_incidents
+from shift_handoff_config import (
+    get_shift_handoff_config,
+    is_artifact_capture_enabled,
+    update_shift_handoff_config,
+)
 
 logger = get_logger("ShiftHandoffRouter")
 
@@ -475,6 +480,237 @@ async def list_handoffs(
     return results
 
 
+# ── Pending artifacts (analyst activity for a shift window) ────────────────
+#
+# Queries existing `scans` and `recon_jobs` collections filtered by a time
+# window and optional team-members list. No new collection is used — this
+# endpoint is a thin read-model over already-captured analyst activity and
+# is gated by the shift_handoff_config auto_artifacts flags.
+
+
+MAX_PENDING_ARTIFACTS_LIMIT = 500
+
+
+@router.get("/pending-artifacts")
+async def list_pending_artifacts(
+    since: datetime = Query(..., description="ISO-8601 lower bound (inclusive)"),
+    until: datetime = Query(..., description="ISO-8601 upper bound (inclusive)"),
+    team_members: str = Query(
+        "",
+        description="Comma-separated analyst usernames; empty = no analyst filter",
+    ),
+    limit: int = Query(
+        100,
+        ge=1,
+        le=MAX_PENDING_ARTIFACTS_LIMIT,
+        description="Per-source limit",
+    ),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Return analyze + recon activity within [since, until] for the given
+    analyst list, respecting the auto_artifacts master/sub toggles.
+
+    Shape:
+        {
+          "since": "...",
+          "until": "...",
+          "team_members": [...],
+          "analyze": [...],
+          "recon": [...],
+          "total": N,
+          "capture": {"analyze": bool, "recon": bool}
+        }
+    """
+    del current_user  # auth enforced by dependency
+
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="database_unavailable")
+
+    # Normalize datetimes to UTC-aware
+    if since.tzinfo is None:
+        since = since.replace(tzinfo=timezone.utc)
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+
+    if since >= until:
+        raise HTTPException(status_code=400, detail="since_must_precede_until")
+
+    members = [m.strip() for m in team_members.split(",") if m.strip()]
+
+    capture_analyze = await is_artifact_capture_enabled(db, "analyze")
+    capture_recon = await is_artifact_capture_enabled(db, "recon")
+
+    analyze_items: list[dict] = []
+    recon_items: list[dict] = []
+
+    if capture_analyze:
+        analyze_query: dict = {"timestamp": {"$gte": since, "$lte": until}}
+        if members:
+            analyze_query["analyst"] = {"$in": members}
+        scan_docs = await (
+            db.scans.find(
+                analyze_query,
+                {
+                    "_id": 1,
+                    "target": 1,
+                    "type": 1,
+                    "verdict": 1,
+                    "risk_score": 1,
+                    "analyst": 1,
+                    "timestamp": 1,
+                },
+            )
+            .sort("timestamp", -1)
+            .limit(limit)
+            .to_list(length=limit)
+        )
+        for doc in scan_docs:
+            ts = doc.get("timestamp")
+            analyze_items.append(
+                {
+                    "id": str(doc["_id"]) if doc.get("_id") is not None else None,
+                    "kind": "analyze",
+                    "timestamp": ts.isoformat() if isinstance(ts, datetime) else ts,
+                    "target": doc.get("target"),
+                    "target_type": doc.get("type"),
+                    "verdict": doc.get("verdict"),
+                    "risk_score": doc.get("risk_score"),
+                    "analyst": doc.get("analyst"),
+                }
+            )
+
+    if capture_recon:
+        recon_query: dict = {
+            "created_at": {"$gte": since, "$lte": until},
+            "status": "done",
+        }
+        if members:
+            recon_query["analyst"] = {"$in": members}
+        recon_docs = await (
+            db.recon_jobs.find(
+                recon_query,
+                {
+                    "_id": 1,
+                    "target": 1,
+                    "target_type": 1,
+                    "modules": 1,
+                    "analyst": 1,
+                    "status": 1,
+                    "created_at": 1,
+                    "risk_indicators_summary": 1,
+                },
+            )
+            .sort("created_at", -1)
+            .limit(limit)
+            .to_list(length=limit)
+        )
+        for doc in recon_docs:
+            ts = doc.get("created_at")
+            recon_items.append(
+                {
+                    "id": str(doc["_id"]),
+                    "job_id": str(doc["_id"]),
+                    "kind": "recon",
+                    "timestamp": ts.isoformat() if isinstance(ts, datetime) else ts,
+                    "target": doc.get("target"),
+                    "target_type": doc.get("target_type"),
+                    "modules": doc.get("modules") or [],
+                    "status": doc.get("status"),
+                    "analyst": doc.get("analyst"),
+                    "risk_indicators_summary": doc.get("risk_indicators_summary"),
+                }
+            )
+
+    return {
+        "since": since.isoformat(),
+        "until": until.isoformat(),
+        "team_members": members,
+        "analyze": analyze_items,
+        "recon": recon_items,
+        "total": len(analyze_items) + len(recon_items),
+        "capture": {"analyze": capture_analyze, "recon": capture_recon},
+    }
+
+
+# ── Runtime config: auto-artifacts toggle ──────────────────────────────────
+#
+# IMPORTANT: these routes MUST be declared BEFORE any /{handoff_id} route,
+# otherwise FastAPI will match GET /config against GET /{handoff_id} and
+# try to parse "config" as an ObjectId, returning 400.
+
+
+class AutoArtifactsPatch(BaseModel):
+    enabled: StrictBool | None = None
+    capture_analyze: StrictBool | None = None
+    capture_recon: StrictBool | None = None
+
+
+class ShiftHandoffConfigPatch(BaseModel):
+    auto_artifacts: AutoArtifactsPatch
+
+
+@router.get("/config")
+async def read_shift_handoff_config(
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the current shift handoff runtime config for any authenticated user."""
+    del current_user  # required by dependency, unused in body
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="database_unavailable")
+
+    config = await get_shift_handoff_config(db)
+    return config
+
+
+@router.patch("/config")
+async def patch_shift_handoff_config(
+    payload: ShiftHandoffConfigPatch,
+    current_user: dict = Depends(require_role(["admin"])),
+):
+    """Admin-only partial update of shift handoff runtime config."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="database_unavailable")
+
+    # Pydantic -> plain dict, dropping None so we don't overwrite untouched flags
+    auto_patch = {
+        key: value
+        for key, value in payload.auto_artifacts.model_dump().items()
+        if value is not None
+    }
+    if not auto_patch:
+        raise HTTPException(
+            status_code=400,
+            detail="at_least_one_field_required",
+        )
+
+    try:
+        updated = await update_shift_handoff_config(
+            db,
+            {"auto_artifacts": auto_patch},
+            updated_by=current_user["username"],
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await log_action(
+        db,
+        current_user["username"],
+        "settings.shift_handoff.update",
+        target="shift_handoff_config",
+        detail=f"auto_artifacts={auto_patch}",
+    )
+    logger.info(
+        "Shift handoff config updated by %s: %s",
+        current_user["username"],
+        auto_patch,
+    )
+    return updated
+
+
 # Read a handoff
 
 @router.get("/{handoff_id}")
@@ -861,3 +1097,5 @@ async def delete_handoff(
     )
     logger.info("Shift handoff %s deleted by %s", handoff_id, current_user["username"])
     return {"deleted": True}
+
+

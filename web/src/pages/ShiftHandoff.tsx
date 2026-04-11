@@ -160,6 +160,30 @@ function getCurrentShift() {
   };
 }
 
+/**
+ * Compute the [since, until] window in ISO-8601 for a given shift.
+ *
+ * Day shift   = shift_date 07:00 → 19:00 local time
+ * Night shift = (shift_date - 1) 19:00 → shift_date 07:00 local time
+ *
+ * Returns local times converted to ISO; the backend treats naive times
+ * as UTC, so we explicitly use full ISO strings with offset.
+ */
+function computeShiftWindow(shiftDate: string, period: "day" | "night"): { since: string; until: string } {
+  // shiftDate is YYYY-MM-DD; build local Date at 00:00 then shift the hours
+  const [yy, mm, dd] = shiftDate.split("-").map(Number);
+  if (period === "day") {
+    const since = new Date(yy, (mm ?? 1) - 1, dd ?? 1, 7, 0, 0, 0);
+    const until = new Date(yy, (mm ?? 1) - 1, dd ?? 1, 19, 0, 0, 0);
+    return { since: since.toISOString(), until: until.toISOString() };
+  }
+  // night: previous day 19:00 → shift_date 07:00
+  const sinceDate = new Date(yy, (mm ?? 1) - 1, dd ?? 1, 19, 0, 0, 0);
+  sinceDate.setDate(sinceDate.getDate() - 1);
+  const untilDate = new Date(yy, (mm ?? 1) - 1, dd ?? 1, 7, 0, 0, 0);
+  return { since: sinceDate.toISOString(), until: untilDate.toISOString() };
+}
+
 function toolStatusLabel(status: string, t: (k: string, f?: string) => string): string {
   switch (status) {
     case "operational": return t("shift_handoff.toolOk", "Operational");
@@ -710,6 +734,14 @@ export default function ShiftHandoff() {
                               />
                             </div>
 
+                            <ArtifactReadView
+                              shiftDate={handoff.shift_date}
+                              shiftPeriod={shiftPeriod}
+                              team={handoff.team_members}
+                              locale={locale}
+                              t={t}
+                            />
+
                             <div>
                               <h4 className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant mb-3 flex items-center gap-2">
                                 <History className="w-3.5 h-3.5" />
@@ -1051,6 +1083,7 @@ export default function ShiftHandoff() {
             settings={settings}
             defaultToolsStatus={latestToolsStatus}
             t={t}
+            locale={locale}
             onClose={() => {
               setIsFormOpen(false);
               setEditingHandoff(null);
@@ -1070,6 +1103,7 @@ export default function ShiftHandoff() {
           <SettingsModal
             t={t}
             settings={settings}
+            isAdmin={user?.role === "admin"}
             onSave={(nextSettings) => {
               setSettings(nextSettings);
               saveSettings(nextSettings);
@@ -1096,12 +1130,720 @@ export default function ShiftHandoff() {
 
 // ── Modal Form ────────────────────────────────────────────────────────────────
 
+// ── Pending artifacts (analyst activity for the shift window) ─────────────
+
+interface PendingAnalyzeItem {
+  id: string | null;
+  kind: "analyze";
+  timestamp: string | null;
+  target: string | null;
+  target_type: string | null;
+  verdict: string | null;
+  risk_score: number | null;
+  analyst: string | null;
+}
+
+interface PendingReconItem {
+  id: string;
+  job_id: string;
+  kind: "recon";
+  timestamp: string | null;
+  target: string | null;
+  target_type: string | null;
+  modules: string[];
+  status: string | null;
+  analyst: string | null;
+  risk_indicators_summary: Record<string, number> | null;
+}
+
+interface PendingArtifactsResponse {
+  since: string;
+  until: string;
+  team_members: string[];
+  analyze: PendingAnalyzeItem[];
+  recon: PendingReconItem[];
+  total: number;
+  capture: { analyze: boolean; recon: boolean };
+}
+
+/**
+ * Stable identifier for an artifact across re-fetches. Falls back to a
+ * synthetic key if the backend ever returns null IDs (defensive only — the
+ * endpoint always populates `id`).
+ */
+function artifactKey(item: PendingAnalyzeItem | PendingReconItem): string {
+  return item.id ?? `${item.kind}:${item.target ?? ""}:${item.timestamp ?? ""}`;
+}
+
+function formatHM(iso: string | null, locale: string): string {
+  if (!iso) return "—";
+  try {
+    return new Date(iso).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+/**
+ * Build an HTML block (suitable for the rich-text editor) listing the
+ * selected artifacts grouped by kind. Returns an empty string if nothing
+ * is selected.
+ */
+function buildArtifactsHtmlBlock(
+  analyze: PendingAnalyzeItem[],
+  recon: PendingReconItem[],
+  labels: {
+    title: string;
+    analyzeHeading: string;
+    reconHeading: string;
+    locale: string;
+  },
+): string {
+  if (analyze.length === 0 && recon.length === 0) return "";
+
+  const parts: string[] = [];
+  parts.push(`<h2>${escapeHtml(labels.title)}</h2>`);
+
+  if (analyze.length > 0) {
+    parts.push(`<h3>${escapeHtml(labels.analyzeHeading)}</h3><ul>`);
+    for (const item of analyze) {
+      const time = escapeHtml(formatHM(item.timestamp, labels.locale));
+      const target = escapeHtml(item.target ?? "—");
+      const verdict = item.verdict ? ` — ${escapeHtml(item.verdict)}` : "";
+      const score = item.risk_score != null ? ` (${item.risk_score})` : "";
+      const analyst = item.analyst ? ` — ${escapeHtml(item.analyst)}` : "";
+      parts.push(`<li><strong>${time}</strong> · ${target}${verdict}${score}${analyst}</li>`);
+    }
+    parts.push("</ul>");
+  }
+
+  if (recon.length > 0) {
+    parts.push(`<h3>${escapeHtml(labels.reconHeading)}</h3><ul>`);
+    for (const item of recon) {
+      const time = escapeHtml(formatHM(item.timestamp, labels.locale));
+      const target = escapeHtml(item.target ?? "—");
+      const modules = item.modules.length > 0 ? ` [${escapeHtml(item.modules.join(", "))}]` : "";
+      const analyst = item.analyst ? ` — ${escapeHtml(item.analyst)}` : "";
+      parts.push(`<li><strong>${time}</strong> · ${target}${modules}${analyst}</li>`);
+    }
+    parts.push("</ul>");
+  }
+
+  return parts.join("");
+}
+
+function ArtifactPanel({
+  shiftDate,
+  shiftPeriod,
+  team,
+  locale,
+  t,
+  onInsertHtml,
+}: {
+  shiftDate: string;
+  shiftPeriod: "day" | "night";
+  team: string;
+  locale: string;
+  t: (key: string, fallback?: string) => string;
+  onInsertHtml: (html: string) => void;
+}) {
+  const [data, setData] = useState<PendingArtifactsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState(false);
+  const [insertedNotice, setInsertedNotice] = useState("");
+
+  const window = useMemo(
+    () => computeShiftWindow(shiftDate, shiftPeriod),
+    [shiftDate, shiftPeriod],
+  );
+
+  const teamMembers = useMemo(
+    () =>
+      team
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [team],
+  );
+
+  // Debounce team changes so we don't refetch on every keystroke
+  const [debouncedTeam, setDebouncedTeam] = useState<string>(teamMembers.join(","));
+  useEffect(() => {
+    const handle = setTimeout(() => setDebouncedTeam(teamMembers.join(",")), 400);
+    return () => clearTimeout(handle);
+  }, [teamMembers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          since: window.since,
+          until: window.until,
+        });
+        if (debouncedTeam) params.set("team_members", debouncedTeam);
+        const res = await fetch(
+          `${API_URL}/api/shift-handoffs/pending-artifacts?${params.toString()}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) throw new Error(`status_${res.status}`);
+        const json: PendingArtifactsResponse = await res.json();
+        if (cancelled) return;
+        setData(json);
+      } catch {
+        if (!cancelled) {
+          setError(t("shift_handoff.artifactsLoadFailed", "Failed to load shift artifacts."));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [window.since, window.until, debouncedTeam, t]);
+
+  useEffect(() => {
+    if (!insertedNotice) return;
+    const handle = setTimeout(() => setInsertedNotice(""), 4000);
+    return () => clearTimeout(handle);
+  }, [insertedNotice]);
+
+  function toggleExcluded(key: string) {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  function selectAll() {
+    setExcluded(new Set());
+  }
+
+  function clearAll() {
+    if (!data) return;
+    const all = new Set<string>();
+    for (const item of data.analyze) all.add(artifactKey(item));
+    for (const item of data.recon) all.add(artifactKey(item));
+    setExcluded(all);
+  }
+
+  function handleInsert() {
+    if (!data) return;
+    const includedAnalyze = data.analyze.filter((item) => !excluded.has(artifactKey(item)));
+    const includedRecon = data.recon.filter((item) => !excluded.has(artifactKey(item)));
+    if (includedAnalyze.length === 0 && includedRecon.length === 0) return;
+
+    const html = buildArtifactsHtmlBlock(includedAnalyze, includedRecon, {
+      title: t("shift_handoff.artifactsBlockTitle", "Shift Artifacts"),
+      analyzeHeading: t("shift_handoff.artifactsAnalyzeHeading", "IOC Searches"),
+      reconHeading: t("shift_handoff.artifactsReconHeading", "Recon Scans"),
+      locale,
+    });
+    if (!html) return;
+
+    onInsertHtml(html);
+    setInsertedNotice(
+      t("shift_handoff.artifactsInserted", "Artifacts appended to the summary above."),
+    );
+  }
+
+  const analyze = data?.analyze ?? [];
+  const recon = data?.recon ?? [];
+  const totalLoaded = analyze.length + recon.length;
+  const includedCount = totalLoaded - excluded.size;
+  const masterDisabled = data ? !data.capture.analyze && !data.capture.recon : false;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2 hover:text-on-surface transition-colors"
+          aria-expanded={!collapsed}
+        >
+          <Activity className="w-3.5 h-3.5" />
+          {t("shift_handoff.artifactsTitle", "Shift Artifacts")}
+          {totalLoaded > 0 && (
+            <span className="text-on-surface-variant/70 normal-case tracking-normal text-xs font-semibold">
+              ({includedCount}/{totalLoaded})
+            </span>
+          )}
+          {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+        </button>
+        {!collapsed && totalLoaded > 0 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={clearAll}
+              className="btn btn-ghost py-1 px-2 text-[10px]"
+            >
+              {t("shift_handoff.artifactsClearAll", "Exclude all")}
+            </button>
+            <button
+              type="button"
+              onClick={selectAll}
+              className="btn btn-ghost py-1 px-2 text-[10px]"
+            >
+              {t("shift_handoff.artifactsSelectAll", "Include all")}
+            </button>
+            <button
+              type="button"
+              onClick={handleInsert}
+              disabled={includedCount === 0}
+              className="btn btn-outline py-1 px-3 text-[10px]"
+            >
+              <Plus className="w-3 h-3" />
+              {t("shift_handoff.artifactsInsert", "Append to summary")}
+            </button>
+          </div>
+        )}
+      </div>
+
+      {!collapsed && (
+        <>
+          <p className="text-sm text-on-surface-variant">
+            {t(
+              "shift_handoff.artifactsDescription",
+              "Activity from analyze and recon during this shift window. Curate then append to the summary.",
+            )}
+          </p>
+
+          {insertedNotice && (
+            <div className="rounded-sm bg-emerald-500/10 border border-emerald-500/20 px-3 py-2 text-xs font-bold text-emerald-400 flex items-center gap-2">
+              <CheckCircle2 className="h-3.5 w-3.5" /> {insertedNotice}
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-sm bg-error/10 border border-error/20 px-3 py-2 text-xs font-semibold text-error flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5" /> {error}
+            </div>
+          )}
+
+          {masterDisabled && !error && (
+            <div className="rounded-sm bg-surface-container-low border border-outline-variant/20 px-3 py-2 text-xs text-on-surface-variant italic">
+              {t(
+                "shift_handoff.artifactsDisabled",
+                "Automatic artifact capture is currently disabled in Settings.",
+              )}
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t("shift_handoff.artifactsLoading", "Loading shift artifacts…")}
+            </div>
+          )}
+
+          {!loading && !error && totalLoaded === 0 && !masterDisabled && (
+            <div className="rounded-sm bg-surface-container-low border border-outline-variant/10 px-3 py-2 text-xs text-on-surface-variant italic text-center">
+              {t("shift_handoff.artifactsEmpty", "No analyst activity captured for this shift window.")}
+            </div>
+          )}
+
+          {!loading && !error && totalLoaded > 0 && (
+            <div className="space-y-3">
+              {analyze.length > 0 && (
+                <ArtifactGroup
+                  icon={<Search className="w-3.5 h-3.5" />}
+                  label={t("shift_handoff.artifactsAnalyzeHeading", "IOC Searches")}
+                  count={analyze.length}
+                  excluded={excluded}
+                  items={analyze.map((item) => ({
+                    key: artifactKey(item),
+                    time: formatHM(item.timestamp, locale),
+                    target: item.target ?? "—",
+                    badge: item.target_type ?? "",
+                    detail: [item.verdict, item.risk_score != null ? `score ${item.risk_score}` : null]
+                      .filter(Boolean)
+                      .join(" · "),
+                    analyst: item.analyst ?? "",
+                  }))}
+                  onToggle={toggleExcluded}
+                  includeLabel={t("shift_handoff.artifactsInclude", "Include")}
+                />
+              )}
+              {recon.length > 0 && (
+                <ArtifactGroup
+                  icon={<Activity className="w-3.5 h-3.5" />}
+                  label={t("shift_handoff.artifactsReconHeading", "Recon Scans")}
+                  count={recon.length}
+                  excluded={excluded}
+                  items={recon.map((item) => ({
+                    key: artifactKey(item),
+                    time: formatHM(item.timestamp, locale),
+                    target: item.target ?? "—",
+                    badge: item.target_type ?? "",
+                    detail: item.modules.length > 0 ? item.modules.join(", ") : "",
+                    analyst: item.analyst ?? "",
+                  }))}
+                  onToggle={toggleExcluded}
+                  includeLabel={t("shift_handoff.artifactsInclude", "Include")}
+                />
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+interface ArtifactRow {
+  key: string;
+  time: string;
+  target: string;
+  badge: string;
+  detail: string;
+  analyst: string;
+}
+
+function ArtifactGroup({
+  icon,
+  label,
+  count,
+  excluded,
+  items,
+  onToggle,
+  includeLabel,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  count: number;
+  excluded: Set<string>;
+  items: ArtifactRow[];
+  onToggle: (key: string) => void;
+  includeLabel: string;
+}) {
+  const includedInGroup = items.filter((row) => !excluded.has(row.key)).length;
+  return (
+    <div className="rounded-sm border border-outline-variant/20 bg-surface-container-low">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-outline-variant/10">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+          {icon}
+          {label}
+        </div>
+        <span className="text-[10px] font-semibold text-on-surface-variant/70">
+          {includedInGroup}/{count}
+        </span>
+      </div>
+      <ul className="divide-y divide-outline-variant/10">
+        {items.map((row) => {
+          const isExcluded = excluded.has(row.key);
+          return (
+            <li key={row.key} className="flex items-center gap-3 px-3 py-2">
+              <label className="flex items-center gap-2 cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={!isExcluded}
+                  onChange={() => onToggle(row.key)}
+                  aria-label={includeLabel}
+                  className="h-4 w-4 rounded-sm border-outline-variant/40 text-primary focus:ring-primary/40"
+                />
+              </label>
+              <span className="font-mono text-[11px] font-semibold text-on-surface shrink-0 w-12">
+                {row.time}
+              </span>
+              <span
+                className={cn(
+                  "flex-1 min-w-0 truncate text-xs font-semibold",
+                  isExcluded ? "text-on-surface-variant/50 line-through" : "text-on-surface",
+                )}
+                title={row.target}
+              >
+                {row.target}
+                {row.badge && (
+                  <span className="ml-2 text-[9px] uppercase tracking-wider text-on-surface-variant/70">
+                    {row.badge}
+                  </span>
+                )}
+              </span>
+              {row.detail && (
+                <span className="text-[10px] text-on-surface-variant truncate max-w-[160px] hidden md:inline">
+                  {row.detail}
+                </span>
+              )}
+              {row.analyst && (
+                <span className="text-[10px] text-on-surface-variant/70 italic shrink-0 hidden lg:inline">
+                  {row.analyst}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
+function ArtifactReadView({
+  shiftDate,
+  shiftPeriod,
+  team,
+  locale,
+  t,
+}: {
+  shiftDate: string;
+  shiftPeriod: "day" | "night";
+  team: string[];
+  locale: string;
+  t: (key: string, fallback?: string) => string;
+}) {
+  const [data, setData] = useState<PendingArtifactsResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [collapsed, setCollapsed] = useState(true);
+
+  const window = useMemo(
+    () => computeShiftWindow(shiftDate, shiftPeriod),
+    [shiftDate, shiftPeriod],
+  );
+
+  const teamKey = useMemo(() => team.join(","), [team]);
+
+  useEffect(() => {
+    if (collapsed) return;
+    let cancelled = false;
+    async function load() {
+      setLoading(true);
+      setError("");
+      try {
+        const params = new URLSearchParams({
+          since: window.since,
+          until: window.until,
+        });
+        if (teamKey) params.set("team_members", teamKey);
+        const res = await fetch(
+          `${API_URL}/api/shift-handoffs/pending-artifacts?${params.toString()}`,
+          { credentials: "include" },
+        );
+        if (!res.ok) throw new Error(`status_${res.status}`);
+        const json: PendingArtifactsResponse = await res.json();
+        if (cancelled) return;
+        setData(json);
+      } catch {
+        if (!cancelled) {
+          setError(t("shift_handoff.artifactsLoadFailed", "Failed to load shift artifacts."));
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [collapsed, window.since, window.until, teamKey, t]);
+
+  const analyze = data?.analyze ?? [];
+  const recon = data?.recon ?? [];
+  const total = analyze.length + recon.length;
+  const masterDisabled = data ? !data.capture.analyze && !data.capture.recon : false;
+  const expanded: boolean = !collapsed;
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setCollapsed((c) => !c)}
+        className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2 hover:text-on-surface transition-colors mb-3"
+        aria-expanded={expanded}
+      >
+        <Activity className="w-3.5 h-3.5" />
+        {t("shift_handoff.artifactsTitle", "Shift Artifacts")}
+        {data && total > 0 && (
+          <span className="text-on-surface-variant/70 normal-case tracking-normal text-xs font-semibold">
+            ({total})
+          </span>
+        )}
+        {collapsed ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+      </button>
+
+      {!collapsed && (
+        <div className="space-y-3">
+          <p className="text-xs text-on-surface-variant italic">
+            {t(
+              "shift_handoff.artifactsReadOnlyHint",
+              "Live snapshot of analyze/recon activity captured during this shift window.",
+            )}
+          </p>
+
+          {error && (
+            <div className="rounded-sm bg-error/10 border border-error/20 px-3 py-2 text-xs font-semibold text-error flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5" /> {error}
+            </div>
+          )}
+
+          {masterDisabled && !error && (
+            <div className="rounded-sm bg-surface-container-low border border-outline-variant/20 px-3 py-2 text-xs text-on-surface-variant italic">
+              {t(
+                "shift_handoff.artifactsDisabled",
+                "Automatic artifact capture is currently disabled in Settings.",
+              )}
+            </div>
+          )}
+
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              {t("shift_handoff.artifactsLoading", "Loading shift artifacts…")}
+            </div>
+          )}
+
+          {!loading && !error && total === 0 && !masterDisabled && (
+            <div className="rounded-sm bg-surface-container-low border border-outline-variant/10 px-3 py-2 text-xs text-on-surface-variant italic text-center">
+              {t("shift_handoff.artifactsEmpty", "No analyst activity captured for this shift window.")}
+            </div>
+          )}
+
+          {!loading && !error && total > 0 && (
+            <div className="space-y-3">
+              {analyze.length > 0 && (
+                <ArtifactReadGroup
+                  icon={<Search className="w-3.5 h-3.5" />}
+                  label={t("shift_handoff.artifactsAnalyzeHeading", "IOC Searches")}
+                  rows={analyze.map((item) => {
+                    const targetEnc = encodeURIComponent(item.target ?? "");
+                    return {
+                      key: artifactKey(item),
+                      time: formatHM(item.timestamp, locale),
+                      target: item.target ?? "—",
+                      badge: item.target_type ?? "",
+                      detail: [item.verdict, item.risk_score != null ? `score ${item.risk_score}` : null]
+                        .filter(Boolean)
+                        .join(" · "),
+                      analyst: item.analyst ?? "",
+                      href: targetEnc ? `/analyze/${targetEnc}` : null,
+                    };
+                  })}
+                />
+              )}
+              {recon.length > 0 && (
+                <ArtifactReadGroup
+                  icon={<Activity className="w-3.5 h-3.5" />}
+                  label={t("shift_handoff.artifactsReconHeading", "Recon Scans")}
+                  rows={recon.map((item) => ({
+                    key: artifactKey(item),
+                    time: formatHM(item.timestamp, locale),
+                    target: item.target ?? "—",
+                    badge: item.target_type ?? "",
+                    detail: item.modules.length > 0 ? item.modules.join(", ") : "",
+                    analyst: item.analyst ?? "",
+                    href: "/recon",
+                  }))}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ArtifactReadRow {
+  key: string;
+  time: string;
+  target: string;
+  badge: string;
+  detail: string;
+  analyst: string;
+  href: string | null;
+}
+
+function ArtifactReadGroup({
+  icon,
+  label,
+  rows,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  rows: ArtifactReadRow[];
+}) {
+  return (
+    <div className="rounded-sm border border-outline-variant/20 bg-surface-container-low">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-b border-outline-variant/10">
+        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-on-surface-variant">
+          {icon}
+          {label}
+        </div>
+        <span className="text-[10px] font-semibold text-on-surface-variant/70">{rows.length}</span>
+      </div>
+      <ul className="divide-y divide-outline-variant/10">
+        {rows.map((row) => (
+          <li key={row.key} className="flex items-center gap-3 px-3 py-2">
+            <span className="font-mono text-[11px] font-semibold text-on-surface shrink-0 w-12">
+              {row.time}
+            </span>
+            {row.href ? (
+              <a
+                href={row.href}
+                className="flex-1 min-w-0 truncate text-xs font-semibold text-on-surface hover:text-primary transition-colors"
+                title={row.target}
+              >
+                {row.target}
+                {row.badge && (
+                  <span className="ml-2 text-[9px] uppercase tracking-wider text-on-surface-variant/70">
+                    {row.badge}
+                  </span>
+                )}
+              </a>
+            ) : (
+              <span
+                className="flex-1 min-w-0 truncate text-xs font-semibold text-on-surface"
+                title={row.target}
+              >
+                {row.target}
+                {row.badge && (
+                  <span className="ml-2 text-[9px] uppercase tracking-wider text-on-surface-variant/70">
+                    {row.badge}
+                  </span>
+                )}
+              </span>
+            )}
+            {row.detail && (
+              <span className="text-[10px] text-on-surface-variant truncate max-w-[160px] hidden md:inline">
+                {row.detail}
+              </span>
+            )}
+            {row.analyst && (
+              <span className="text-[10px] text-on-surface-variant/70 italic shrink-0 hidden lg:inline">
+                {row.analyst}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function HandoffModal({
   editHandoff,
   currentShift,
   settings,
   defaultToolsStatus,
   t,
+  locale,
   onClose,
   onSuccess,
 }: {
@@ -1110,6 +1852,7 @@ function HandoffModal({
   settings: HandoffSettings;
   defaultToolsStatus: ToolStatusEntry[];
   t: (key: string, fallback?: string) => string;
+  locale: string;
   onClose: () => void;
   onSuccess: (options?: { focusNewest?: boolean }) => void;
 }) {
@@ -1459,6 +2202,27 @@ function HandoffModal({
           )}
         </div>
 
+        {/* Pending shift artifacts (analyze + recon activity) */}
+        <ArtifactPanel
+          shiftDate={isEditing ? editHandoff!.shift_date : currentShift.date}
+          shiftPeriod={(isEditing
+            ? (() => {
+                const created = new Date(editHandoff!.created_at);
+                const hour = created.getHours();
+                return hour >= 7 && hour < 19 ? "day" : "night";
+              })()
+            : (currentShift.period as "day" | "night"))}
+          team={team}
+          locale={locale}
+          t={t}
+          onInsertHtml={(html) => {
+            setBodyHtml((prev) => {
+              const trimmed = (prev ?? "").trim();
+              return trimmed.length > 0 ? `${trimmed}${html}` : html;
+            });
+          }}
+        />
+
         {/* Rich Text Editor for Summary */}
         <div className="space-y-2">
           <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
@@ -1775,6 +2539,7 @@ export function ShiftHandoffHistoryPage() {
                       handoff={handoff}
                       unresolvedPrev={getUnresolvedFromPrevious(handoff)}
                       dateFnsLocale={dateFnsLocale}
+                      locale={locale}
                       t={t}
                       isExpanded={expandedId === handoff.id}
                       onToggle={() => setExpandedId(expandedId === handoff.id ? null : handoff.id)}
@@ -2076,14 +2841,22 @@ export function ShiftHandoffActiveIncidentsPage() {
 
 // ── Settings Modal ────────────────────────────────────────────────────────────
 
+interface AutoArtifactsConfig {
+  enabled: boolean;
+  capture_analyze: boolean;
+  capture_recon: boolean;
+}
+
 function SettingsModal({
   t,
   settings,
+  isAdmin,
   onSave,
   onClose,
 }: {
   t: (key: string, fallback?: string) => string;
   settings: HandoffSettings;
+  isAdmin: boolean;
   onSave: (nextSettings: HandoffSettings) => void;
   onClose: () => void;
 }) {
@@ -2091,6 +2864,84 @@ function SettingsModal({
   const [defaultVis, setDefaultVis] = useState(settings.defaultVisibility);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+
+  // ── Auto-artifacts runtime config (server-backed) ─────────────────────────
+  const [autoArtifacts, setAutoArtifacts] = useState<AutoArtifactsConfig | null>(null);
+  const [autoArtifactsLoading, setAutoArtifactsLoading] = useState(true);
+  const [autoArtifactsSaving, setAutoArtifactsSaving] = useState(false);
+  const [autoArtifactsError, setAutoArtifactsError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfig() {
+      setAutoArtifactsLoading(true);
+      setAutoArtifactsError("");
+      try {
+        const res = await fetch(`${API_URL}/api/shift-handoffs/config`, {
+          credentials: "include",
+        });
+        if (!res.ok) {
+          throw new Error(`status_${res.status}`);
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        const auto = data?.auto_artifacts ?? {};
+        setAutoArtifacts({
+          enabled: Boolean(auto.enabled),
+          capture_analyze: Boolean(auto.capture_analyze),
+          capture_recon: Boolean(auto.capture_recon),
+        });
+      } catch {
+        if (!cancelled) {
+          setAutoArtifactsError(
+            t("shift_handoff.autoArtifactsLoadFailed", "Failed to load auto-artifacts settings."),
+          );
+        }
+      } finally {
+        if (!cancelled) setAutoArtifactsLoading(false);
+      }
+    }
+    void loadConfig();
+    return () => {
+      cancelled = true;
+    };
+  }, [t]);
+
+  async function patchAutoArtifacts(patch: Partial<AutoArtifactsConfig>) {
+    if (!isAdmin || !autoArtifacts) return;
+    const previous = autoArtifacts;
+    // Optimistic update
+    setAutoArtifacts({ ...previous, ...patch });
+    setAutoArtifactsSaving(true);
+    setAutoArtifactsError("");
+    try {
+      const res = await fetch(`${API_URL}/api/shift-handoffs/config`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ auto_artifacts: patch }),
+      });
+      if (!res.ok) {
+        throw new Error(`status_${res.status}`);
+      }
+      const data = await res.json();
+      const auto = data?.auto_artifacts ?? {};
+      setAutoArtifacts({
+        enabled: Boolean(auto.enabled),
+        capture_analyze: Boolean(auto.capture_analyze),
+        capture_recon: Boolean(auto.capture_recon),
+      });
+      setNotice(t("shift_handoff.autoArtifactsSaved", "Auto-artifacts settings updated."));
+    } catch {
+      // Revert on failure
+      setAutoArtifacts(previous);
+      setAutoArtifactsError(
+        t("shift_handoff.autoArtifactsSaveFailed", "Failed to update auto-artifacts settings."),
+      );
+    } finally {
+      setAutoArtifactsSaving(false);
+    }
+  }
 
   useEffect(() => {
     if (!notice) return;
@@ -2238,7 +3089,127 @@ function SettingsModal({
           ))}
         </select>
       </div>
+
+      {/* ── Automatic Artifact Capture ──────────────────────────────────── */}
+      <div className="space-y-3 pt-4 border-t border-outline-variant/10">
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-[0.22em] text-on-surface-variant flex items-center gap-2">
+            <Activity className="w-3.5 h-3.5" />
+            {t("shift_handoff.autoArtifactsTitle", "Automatic Artifact Capture")}
+          </label>
+          <p className="mt-1 text-sm text-on-surface-variant">
+            {t(
+              "shift_handoff.autoArtifactsDescription",
+              "Automatically list analyst activity (IOC searches and recon scans) from the shift period as pending artifacts when creating a handoff.",
+            )}
+          </p>
+          {!isAdmin && (
+            <p className="mt-1 text-[11px] text-on-surface-variant/70 italic">
+              {t("shift_handoff.autoArtifactsAdminOnly", "Only admins can change these settings.")}
+            </p>
+          )}
+        </div>
+
+        {autoArtifactsError && (
+          <div className="rounded-sm bg-error/10 border border-error/20 px-3 py-2 text-xs font-semibold text-error flex items-center gap-2">
+            <AlertTriangle className="h-3.5 w-3.5" /> {autoArtifactsError}
+          </div>
+        )}
+
+        {autoArtifactsLoading || !autoArtifacts ? (
+          <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            {t("shift_handoff.autoArtifactsLoading", "Loading auto-artifacts settings…")}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <AutoArtifactToggle
+              label={t("shift_handoff.autoArtifactsMaster", "Enable automatic capture")}
+              description={t(
+                "shift_handoff.autoArtifactsMasterHelp",
+                "Master switch. When off, no automatic artifacts are listed regardless of the sub-options below.",
+              )}
+              checked={autoArtifacts.enabled}
+              disabled={!isAdmin || autoArtifactsSaving}
+              onChange={(next) => void patchAutoArtifacts({ enabled: next })}
+            />
+            <AutoArtifactToggle
+              label={t("shift_handoff.autoArtifactsAnalyze", "Capture IOC searches (Analyze)")}
+              description={t(
+                "shift_handoff.autoArtifactsAnalyzeHelp",
+                "Include entries from the Analyze history during the shift period.",
+              )}
+              checked={autoArtifacts.capture_analyze}
+              disabled={!isAdmin || autoArtifactsSaving || !autoArtifacts.enabled}
+              onChange={(next) => void patchAutoArtifacts({ capture_analyze: next })}
+            />
+            <AutoArtifactToggle
+              label={t("shift_handoff.autoArtifactsRecon", "Capture recon scans")}
+              description={t(
+                "shift_handoff.autoArtifactsReconHelp",
+                "Include completed recon jobs during the shift period.",
+              )}
+              checked={autoArtifacts.capture_recon}
+              disabled={!isAdmin || autoArtifactsSaving || !autoArtifacts.enabled}
+              onChange={(next) => void patchAutoArtifacts({ capture_recon: next })}
+            />
+          </div>
+        )}
+      </div>
     </ModalShell>
+  );
+}
+
+function AutoArtifactToggle({
+  label,
+  description,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  disabled: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex items-start justify-between gap-3 rounded-sm border border-outline-variant/20 bg-surface-container-low p-3",
+        disabled && "opacity-60",
+      )}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="text-xs font-bold text-on-surface">{label}</div>
+        <div className="text-[11px] text-on-surface-variant mt-0.5">{description}</div>
+      </div>
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          if (disabled) return;
+          onChange(!checked);
+        }}
+        className={cn(
+          "relative h-6 w-11 shrink-0 rounded-full transition-colors",
+          checked ? "bg-primary" : "bg-outline-variant/50",
+          disabled && "cursor-not-allowed",
+        )}
+        role="switch"
+        aria-checked={checked ? "true" : "false"}
+        aria-label={label}
+        disabled={disabled}
+      >
+        <span
+          className={cn(
+            "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform",
+            checked ? "translate-x-5" : "translate-x-0.5",
+          )}
+        />
+      </button>
+    </div>
   );
 }
 
@@ -2246,6 +3217,7 @@ function HistoryHandoffCard({
   handoff,
   unresolvedPrev,
   dateFnsLocale,
+  locale,
   t,
   isExpanded,
   onToggle,
@@ -2254,6 +3226,7 @@ function HistoryHandoffCard({
   handoff: HandoffDoc;
   unresolvedPrev: { shiftDate: string; team: string[]; incident: IncidentEntry }[];
   dateFnsLocale: ReturnType<typeof getDateFnsLocale>;
+  locale: string;
   t: (key: string, fallback?: string) => string;
   isExpanded: boolean;
   onToggle: () => void;
@@ -2361,6 +3334,14 @@ function HistoryHandoffCard({
                   className="bg-surface-container-high/20 rounded-sm border border-outline-variant/10 p-4"
                 />
               </div>
+
+              <ArtifactReadView
+                shiftDate={handoff.shift_date}
+                shiftPeriod={shiftPeriod}
+                team={handoff.team_members}
+                locale={locale}
+                t={t}
+              />
 
               {handoff.observations && (
                 <div>

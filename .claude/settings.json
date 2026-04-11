@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m pytest tests/test_shift_handoff_pending_artifacts.py -x)",
+      "Bash(python -m pytest tests/test_shift_handoff_pending_artifacts.py tests/test_shift_handoff_config.py -q)"
+    ]
+  }
+}

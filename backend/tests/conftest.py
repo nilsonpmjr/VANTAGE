@@ -97,7 +97,17 @@ class FakeCollection:
             for k, v in query.items():
                 if isinstance(v, dict):
                     doc_val = doc.get(k)
-                    if doc_val is None:
+                    if "$in" in v:
+                        if doc_val not in v["$in"]:
+                            match = False
+                            break
+                    if "$nin" in v:
+                        if doc_val in v["$nin"]:
+                            match = False
+                            break
+                    if doc_val is None and any(
+                        op in v for op in ("$gte", "$gt", "$lte", "$lt")
+                    ):
                         match = False
                         break
                     if "$gte" in v and doc_val < v["$gte"]:
@@ -318,6 +328,7 @@ class FakeDB:
         self.analysis_runtime = FakeCollection()
         self.shift_handoffs = FakeCollection()
         self.shift_handoff_incidents = FakeCollection()
+        self.shift_handoff_config = FakeCollection()
 
     async def create_index(self, *args, **kwargs):
         pass

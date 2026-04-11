@@ -73,6 +73,60 @@ class FakeCursor:
         return item
 
 
+def _match_field(doc_val, spec):
+    """Match a doc value against a Mongo-style operator spec."""
+    import re as _re
+    if not isinstance(spec, dict):
+        return doc_val == spec
+    for op, operand in spec.items():
+        if op == "$in":
+            if doc_val not in operand:
+                return False
+        elif op == "$nin":
+            if doc_val in operand:
+                return False
+        elif op == "$gte":
+            if doc_val is None or doc_val < operand:
+                return False
+        elif op == "$gt":
+            if doc_val is None or doc_val <= operand:
+                return False
+        elif op == "$lte":
+            if doc_val is None or doc_val > operand:
+                return False
+        elif op == "$lt":
+            if doc_val is None or doc_val >= operand:
+                return False
+        elif op == "$ne":
+            if doc_val == operand:
+                return False
+        elif op == "$regex":
+            flags = 0
+            if spec.get("$options", "").find("i") != -1:
+                flags |= _re.IGNORECASE
+            if doc_val is None or not _re.search(operand, doc_val, flags):
+                return False
+        elif op == "$options":
+            continue  # handled with $regex
+    return True
+
+
+def _match_doc(doc, query):
+    """Recursively match a document against a Mongo-style query."""
+    for k, v in query.items():
+        if k == "$or":
+            if not any(_match_doc(doc, sub) for sub in v):
+                return False
+            continue
+        if k == "$and":
+            if not all(_match_doc(doc, sub) for sub in v):
+                return False
+            continue
+        if not _match_field(doc.get(k), v):
+            return False
+    return True
+
+
 class FakeCollection:
     """Minimal async collection shim for tests."""
 
@@ -93,43 +147,7 @@ class FakeCollection:
             return FakeCursor(list(self._data))
         results = []
         for doc in self._data:
-            match = True
-            for k, v in query.items():
-                if isinstance(v, dict):
-                    doc_val = doc.get(k)
-                    if "$in" in v:
-                        if doc_val not in v["$in"]:
-                            match = False
-                            break
-                    if "$nin" in v:
-                        if doc_val in v["$nin"]:
-                            match = False
-                            break
-                    if doc_val is None and any(
-                        op in v for op in ("$gte", "$gt", "$lte", "$lt")
-                    ):
-                        match = False
-                        break
-                    if "$gte" in v and doc_val < v["$gte"]:
-                        match = False
-                        break
-                    if "$gt" in v and doc_val <= v["$gt"]:
-                        match = False
-                        break
-                    if "$lte" in v and doc_val > v["$lte"]:
-                        match = False
-                        break
-                    if "$lt" in v and doc_val >= v["$lt"]:
-                        match = False
-                        break
-                    if "$ne" in v and doc_val == v["$ne"]:
-                        match = False
-                        break
-                else:
-                    if doc.get(k) != v:
-                        match = False
-                        break
-            if match:
+            if _match_doc(doc, query):
                 results.append(doc)
         return FakeCursor(results)
 

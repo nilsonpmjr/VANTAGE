@@ -766,10 +766,12 @@ class AsyncThreatIntelClient:
         if target_type == 'domain' and self.services.get('urlscan'):
             tasks.append(('urlscan', self.query_urlscan(target)))
 
-        # Abuse.ch (ThreatFox), URLhaus e Pulsedive — suportam todos os tipos
+        # Abuse.ch (ThreatFox) e Pulsedive suportam todos os tipos
         if self.services.get('abusech'):
             tasks.append(('abusech', self.query_abusech(target)))
-        if self.services.get('urlhaus'):
+        # URLhaus é orientado a URLs/hosts — só faz sentido para domains.
+        # Para IPs e hashes o resultado era ruído, então omitimos.
+        if target_type == 'domain' and self.services.get('urlhaus'):
             tasks.append(('urlhaus', self.query_urlhaus(target, target_type)))
         if self.services.get('pulsedive'):
             tasks.append(('pulsedive', self.query_pulsedive(target)))

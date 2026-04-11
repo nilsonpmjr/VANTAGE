@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
 import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
@@ -68,6 +68,132 @@ function routeTone(route: WatchlistItem["notification_route"]) {
   if (route === "both") return "bg-primary/10 text-primary";
   if (route === "in_app") return "bg-surface-container-high text-on-surface";
   return "bg-surface-container-highest text-on-surface-variant";
+}
+
+function IndicatorDetailModal({
+  item,
+  history,
+  trend,
+  loadingHistory,
+  locale,
+  t,
+  onClose,
+}: {
+  item: WatchlistItem;
+  history: WatchlistHistoryItem[];
+  trend: Array<WatchlistHistoryItem & { height: number }>;
+  loadingHistory: boolean;
+  locale: string;
+  t: (key: string, fallback?: string) => string;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={(event) => {
+        if (dialogRef.current && !dialogRef.current.contains(event.target as Node)) onClose();
+      }}
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("watchlist.selectedIndicatorTitle", "Selected Indicator")}
+    >
+      <div
+        ref={dialogRef}
+        className="relative w-full max-w-md mx-4 surface-section shadow-2xl"
+      >
+        <div className="surface-section-header">
+          <div className="text-xs font-bold uppercase tracking-widest text-on-surface">
+            {t("watchlist.selectedIndicatorTitle", "Selected Indicator")}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="ml-auto -mr-1 flex h-7 w-7 items-center justify-center rounded-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+            aria-label={t("watchlist.closeModal", "Close")}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          <div>
+            <div className="text-sm font-bold text-on-surface">{item.target}</div>
+            <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">
+              {item.target_type} · {t("watchlist.lastScanLabel", "last scan")} {formatTimestamp(item.last_scan_at, locale)}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(item.last_verdict)}`}>
+              {item.last_verdict || t("watchlist.awaitingFirstScan", "Awaiting first scan")}
+            </span>
+            <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(item.notification_route)}`}>
+              {routeLabel(item.notification_route, t)}
+            </span>
+          </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-on-surface-variant">{t("watchlist.notificationState", "Notification state")}</span>
+            <span className="font-medium text-on-surface">
+              {item.notify_on_change ? t("watchlist.enabled", "Enabled") : t("watchlist.muted", "Muted")}
+            </span>
+          </div>
+
+          <div>
+            <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
+              {t("watchlist.historicalTrend", "Historical trend")}
+            </div>
+            {loadingHistory ? (
+              <div className="text-sm text-on-surface-variant">{t("watchlist.loadingTrend", "Loading trend...")}</div>
+            ) : trend.length === 0 ? (
+              <div className="text-sm text-on-surface-variant">{t("watchlist.noHistoryYet", "No history available yet.")}</div>
+            ) : (
+              <>
+                <div className="flex h-28 items-end gap-2">
+                  {trend.map((entry, index) => (
+                    <div
+                      key={`${entry.scanned_at}-${index}`}
+                      className={`flex-1 rounded-t-sm h-[var(--bar-h)] ${
+                        entry.verdict === "HIGH RISK" || entry.verdict === "CRITICAL"
+                          ? "bg-error/70"
+                          : entry.verdict === "SUSPICIOUS"
+                            ? "bg-warning/70"
+                            : "bg-primary/40"
+                      }`}
+                      style={{ "--bar-h": `${entry.height}%` } as React.CSSProperties}
+                      title={`${formatTimestamp(entry.scanned_at, locale)} • ${entry.verdict}`}
+                    />
+                  ))}
+                </div>
+                <div className="mt-4 space-y-2">
+                  {history.slice(0, 4).map((entry) => (
+                    <div key={`${entry.scanned_at}-${entry.verdict}`} className="flex items-start justify-between gap-3 text-xs">
+                      <span className="text-on-surface-variant">{formatTimestamp(entry.scanned_at, locale)}</span>
+                      <span className="font-medium text-on-surface text-right">
+                        {entry.changed && entry.previous_verdict
+                          ? `${entry.previous_verdict} -> ${entry.verdict}`
+                          : entry.verdict}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function Watchlist() {
@@ -406,6 +532,18 @@ export default function Watchlist() {
 
   return (
     <div className="page-frame space-y-8">
+      {selectedItem && (
+        <IndicatorDetailModal
+          item={selectedItem}
+          history={selectedHistory}
+          trend={selectedTrend}
+          loadingHistory={loadingHistory}
+          locale={locale}
+          t={t}
+          onClose={() => setSelectedItemId("")}
+        />
+      )}
+
       <PageHeader
         eyebrow={t("watchlist.eyebrow", "Analyst")}
         title={t("watchlist.title", "Watchlist Monitoring")}
@@ -703,84 +841,6 @@ export default function Watchlist() {
             </div>
           </div>
 
-          <div className="surface-section">
-            <div className="surface-section-header">
-              <div className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                {t("watchlist.selectedIndicatorTitle", "Selected Indicator")}
-              </div>
-            </div>
-            <div className="p-6 space-y-5">
-              {selectedItem ? (
-                <>
-                  <div>
-                    <div className="text-sm font-bold text-on-surface">{selectedItem.target}</div>
-                    <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-on-surface-variant">
-                      {selectedItem.target_type} · {t("watchlist.lastScanLabel", "last scan")} {formatTimestamp(selectedItem.last_scan_at, locale)}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${verdictClasses(selectedItem.last_verdict)}`}>
-                      {selectedItem.last_verdict || t("watchlist.awaitingFirstScan", "Awaiting first scan")}
-                    </span>
-                    <span className={`inline-flex items-center whitespace-nowrap rounded-sm px-2 py-1 text-[10px] font-bold uppercase tracking-[0.16em] ${routeTone(selectedItem.notification_route)}`}>
-                      {routeLabel(selectedItem.notification_route, t)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-on-surface-variant">{t("watchlist.notificationState", "Notification state")}</span>
-                    <span className="font-medium text-on-surface">
-                      {selectedItem.notify_on_change ? t("watchlist.enabled", "Enabled") : t("watchlist.muted", "Muted")}
-                    </span>
-                  </div>
-                  <div>
-                    <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-outline">
-                      {t("watchlist.historicalTrend", "Historical trend")}
-                    </div>
-                    {loadingHistory ? (
-                      <div className="text-sm text-on-surface-variant">{t("watchlist.loadingTrend", "Loading trend...")}</div>
-                    ) : selectedTrend.length === 0 ? (
-                      <div className="text-sm text-on-surface-variant">{t("watchlist.noHistoryYet", "No history available yet.")}</div>
-                    ) : (
-                      <>
-                        <div className="flex h-28 items-end gap-2">
-                          {selectedTrend.map((entry, index) => (
-                            <div
-                              key={`${entry.scanned_at}-${index}`}
-                              className={`flex-1 rounded-t-sm ${
-                                entry.verdict === "HIGH RISK" || entry.verdict === "CRITICAL"
-                                  ? "bg-error/70"
-                                  : entry.verdict === "SUSPICIOUS"
-                                    ? "bg-warning/70"
-                                    : "bg-primary/40"
-                              }`}
-                              style={{ height: `${entry.height}%` }}
-                              title={`${formatTimestamp(entry.scanned_at, locale)} • ${entry.verdict}`}
-                            />
-                          ))}
-                        </div>
-                        <div className="mt-4 space-y-2">
-                          {selectedHistory.slice(0, 4).map((entry) => (
-                            <div key={`${entry.scanned_at}-${entry.verdict}`} className="flex items-start justify-between gap-3 text-xs">
-                              <span className="text-on-surface-variant">{formatTimestamp(entry.scanned_at, locale)}</span>
-                              <span className="font-medium text-on-surface text-right">
-                                {entry.changed && entry.previous_verdict
-                                  ? `${entry.previous_verdict} -> ${entry.verdict}`
-                                  : entry.verdict}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <div className="text-sm text-on-surface-variant">
-                  {t("watchlist.selectIndicatorHint", "Select an indicator to inspect route, trend, and history.")}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

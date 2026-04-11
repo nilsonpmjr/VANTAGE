@@ -283,6 +283,130 @@ async def test_pending_artifacts_empty_team_filter_returns_all_analysts(
     assert {item["target"] for item in data["analyze"]} == {"a.scan", "b.scan"}
 
 
+@pytest.mark.asyncio
+async def test_pending_artifacts_team_filter_resolves_display_name_to_username(
+    async_client, tech_token, fake_db
+):
+    """Typing a user's display name (or first token) should resolve to their
+    login username before the $in filter runs. The `techuser` fixture has
+    name="Tech User" — typing "Tech" must still surface their scans."""
+    now = datetime.now(timezone.utc)
+    _seed_scan(
+        fake_db, target="byname.scan", timestamp=now - timedelta(hours=1), analyst="techuser"
+    )
+    _seed_scan(
+        fake_db, target="other.scan", timestamp=now - timedelta(hours=1), analyst="someoneelse"
+    )
+
+    resp = await async_client.get(
+        "/api/shift-handoffs/pending-artifacts",
+        params={
+            "since": _iso(now - timedelta(hours=12)),
+            "until": _iso(now),
+            "team_members": "Tech",
+        },
+        cookies={"access_token": tech_token},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert {item["target"] for item in data["analyze"]} == {"byname.scan"}
+
+
+@pytest.mark.asyncio
+async def test_pending_artifacts_team_filter_resolves_full_display_name(
+    async_client, tech_token, fake_db
+):
+    """Typing the exact display name should also resolve to the username."""
+    now = datetime.now(timezone.utc)
+    _seed_scan(
+        fake_db, target="byfull.scan", timestamp=now - timedelta(hours=1), analyst="techuser"
+    )
+
+    resp = await async_client.get(
+        "/api/shift-handoffs/pending-artifacts",
+        params={
+            "since": _iso(now - timedelta(hours=12)),
+            "until": _iso(now),
+            "team_members": "Tech User",
+        },
+        cookies={"access_token": tech_token},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert {item["target"] for item in data["analyze"]} == {"byfull.scan"}
+
+
+@pytest.mark.asyncio
+async def test_pending_artifacts_team_filter_resolves_username_directly(
+    async_client, tech_token, fake_db
+):
+    """Typing the exact username must continue to work (backward compat)."""
+    now = datetime.now(timezone.utc)
+    _seed_scan(
+        fake_db, target="byuser.scan", timestamp=now - timedelta(hours=1), analyst="techuser"
+    )
+
+    resp = await async_client.get(
+        "/api/shift-handoffs/pending-artifacts",
+        params={
+            "since": _iso(now - timedelta(hours=12)),
+            "until": _iso(now),
+            "team_members": "techuser",
+        },
+        cookies={"access_token": tech_token},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert {item["target"] for item in data["analyze"]} == {"byuser.scan"}
+
+
+@pytest.mark.asyncio
+async def test_pending_artifacts_team_filter_is_case_insensitive(
+    async_client, tech_token, fake_db
+):
+    """Name resolution must be case-insensitive so 'TECH' and 'tech' both work."""
+    now = datetime.now(timezone.utc)
+    _seed_scan(
+        fake_db, target="upper.scan", timestamp=now - timedelta(hours=1), analyst="techuser"
+    )
+
+    resp = await async_client.get(
+        "/api/shift-handoffs/pending-artifacts",
+        params={
+            "since": _iso(now - timedelta(hours=12)),
+            "until": _iso(now),
+            "team_members": "TECH",
+        },
+        cookies={"access_token": tech_token},
+    )
+    data = resp.json()
+    assert {item["target"] for item in data["analyze"]} == {"upper.scan"}
+
+
+@pytest.mark.asyncio
+async def test_pending_artifacts_team_filter_unknown_name_returns_empty(
+    async_client, tech_token, fake_db
+):
+    """A name that doesn't resolve falls back to literal username matching,
+    which won't match any existing scan — yielding an empty result."""
+    now = datetime.now(timezone.utc)
+    _seed_scan(
+        fake_db, target="x.scan", timestamp=now - timedelta(hours=1), analyst="techuser"
+    )
+
+    resp = await async_client.get(
+        "/api/shift-handoffs/pending-artifacts",
+        params={
+            "since": _iso(now - timedelta(hours=12)),
+            "until": _iso(now),
+            "team_members": "NobodyThisNameExists",
+        },
+        cookies={"access_token": tech_token},
+    )
+    data = resp.json()
+    assert data["analyze"] == []
+
+
 # ── Toggle gating ──────────────────────────────────────────────────────────
 
 

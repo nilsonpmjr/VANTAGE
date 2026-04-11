@@ -1,4 +1,5 @@
 import base64
+import re
 from datetime import datetime, timezone, timedelta
 
 from bson import ObjectId
@@ -491,6 +492,53 @@ async def list_handoffs(
 MAX_PENDING_ARTIFACTS_LIMIT = 500
 
 
+async def _resolve_team_members_to_usernames(db, members: list[str]) -> list[str]:
+    """Resolve free-text team member names to canonical usernames.
+
+    The handoff `team_members` field is a free-text list of names the analyst
+    typed (e.g. "Nilson, Samuel"). Scans/recons store `analyst = username`
+    (login), so a direct `$in` against those strings never matches.
+
+    This helper looks up the `users` collection with a case-insensitive
+    regex against `username`, `name`, and the first token of `name` (so
+    "Nilson" resolves to username of "Nilson PM Jr"). Any member that
+    resolves is expanded to the set of matching usernames. Members that
+    don't resolve are treated as literal usernames (last-resort fallback).
+    The returned list is deduped and never contains empty strings.
+    """
+    if not members:
+        return []
+
+    resolved: set[str] = set()
+    for raw in members:
+        name = raw.strip()
+        if not name:
+            continue
+        # Escape regex metacharacters so user input can't craft a bad regex
+        escaped = re.escape(name)
+        # Match anywhere in username OR anywhere in name (case-insensitive).
+        # `name` is a display name like "Nilson PM Jr" — a first-token search
+        # is achieved naturally by the substring match.
+        query = {
+            "$or": [
+                {"username": {"$regex": f"^{escaped}$", "$options": "i"}},
+                {"name": {"$regex": f"(^|\\s){escaped}(\\s|$)", "$options": "i"}},
+            ]
+        }
+        matched_any = False
+        async for doc in db.users.find(query, {"username": 1}):
+            username = doc.get("username")
+            if username:
+                resolved.add(username)
+                matched_any = True
+        if not matched_any:
+            # Fallback: treat the input as a literal username so users that
+            # happen to type the exact login still work.
+            resolved.add(name)
+
+    return sorted(resolved)
+
+
 @router.get("/pending-artifacts")
 async def list_pending_artifacts(
     since: datetime = Query(..., description="ISO-8601 lower bound (inclusive)"),
@@ -538,6 +586,7 @@ async def list_pending_artifacts(
         raise HTTPException(status_code=400, detail="since_must_precede_until")
 
     members = [m.strip() for m in team_members.split(",") if m.strip()]
+    resolved_usernames = await _resolve_team_members_to_usernames(db, members)
 
     capture_analyze = await is_artifact_capture_enabled(db, "analyze")
     capture_recon = await is_artifact_capture_enabled(db, "recon")
@@ -547,8 +596,8 @@ async def list_pending_artifacts(
 
     if capture_analyze:
         analyze_query: dict = {"timestamp": {"$gte": since, "$lte": until}}
-        if members:
-            analyze_query["analyst"] = {"$in": members}
+        if resolved_usernames:
+            analyze_query["analyst"] = {"$in": resolved_usernames}
         scan_docs = await (
             db.scans.find(
                 analyze_query,
@@ -586,8 +635,8 @@ async def list_pending_artifacts(
             "created_at": {"$gte": since, "$lte": until},
             "status": "done",
         }
-        if members:
-            recon_query["analyst"] = {"$in": members}
+        if resolved_usernames:
+            recon_query["analyst"] = {"$in": resolved_usernames}
         recon_docs = await (
             db.recon_jobs.find(
                 recon_query,

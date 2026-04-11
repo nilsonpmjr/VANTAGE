@@ -58,7 +58,8 @@ def main():
         if client.services['abusech']:
             report.add_result('abusech', client.query_abusech(target))
 
-        if client.services['urlhaus']:
+        # URLhaus é orientado a URLs/hosts — só consultamos para domains.
+        if target_type == 'domain' and client.services['urlhaus']:
             report.add_result('urlhaus', client.query_urlhaus(target, target_type))
 
         if client.services['pulsedive']:

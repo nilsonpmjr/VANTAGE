@@ -2085,7 +2085,7 @@ function HandoffModal({
               required
               value={team}
               onChange={(e) => setTeam(e.target.value)}
-              placeholder={t("shift_handoff.fieldMembersPlaceholder", "e.g. Nilson, Samuel, Rony")}
+              placeholder={t("shift_handoff.fieldMembersPlaceholder", "e.g. John, Peter, Paul")}
               className="w-full bg-surface-container-lowest border border-outline-variant/30 rounded-sm px-4 py-2.5 text-sm font-medium text-on-surface placeholder:text-on-surface-variant/50 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
@@ -2207,10 +2207,10 @@ function HandoffModal({
           shiftDate={isEditing ? editHandoff!.shift_date : currentShift.date}
           shiftPeriod={(isEditing
             ? (() => {
-                const created = new Date(editHandoff!.created_at);
-                const hour = created.getHours();
-                return hour >= 7 && hour < 19 ? "day" : "night";
-              })()
+              const created = new Date(editHandoff!.created_at);
+              const hour = created.getHours();
+              return hour >= 7 && hour < 19 ? "day" : "night";
+            })()
             : (currentShift.period as "day" | "night"))}
           team={team}
           locale={locale}
@@ -2757,79 +2757,79 @@ export function ShiftHandoffActiveIncidentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/10">
-          {activeIncidents.map((item) => {
-            const busy = busyKey.startsWith(`${item.handoff_id}:${item.id}:`);
-            const canMutate = /^[a-f0-9]{24}$/i.test(item.id);
-            return (
-              <tr key={item.id} className="align-top">
-                <td className="px-6 py-4">
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("badge", incidentBadge(item.status))}>
+                {activeIncidents.map((item) => {
+                  const busy = busyKey.startsWith(`${item.handoff_id}:${item.id}:`);
+                  const canMutate = /^[a-f0-9]{24}$/i.test(item.id);
+                  return (
+                    <tr key={item.id} className="align-top">
+                      <td className="px-6 py-4">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={cn("badge", incidentBadge(item.status))}>
+                              {incidentStatusLabel(item.status, t)}
+                            </span>
+                            <span className="badge badge-neutral">
+                              {severityLabel(item.severity, t)}
+                            </span>
+                          </div>
+                          <div className="text-sm font-bold text-on-surface">{item.title}</div>
+                          <p className="text-sm text-on-surface-variant">
+                            {t("shift_handoff.by", "by")} {item.created_by} · {item.team_members.join(", ")}
+                          </p>
+                          {item.action_needed ? (
+                            <p className="text-sm text-on-surface">{item.action_needed}</p>
+                          ) : null}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface">
+                        {format(new Date(item.handoff_shift_date + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface">
                         {incidentStatusLabel(item.status, t)}
-                      </span>
-                      <span className="badge badge-neutral">
-                        {severityLabel(item.severity, t)}
-                      </span>
-                    </div>
-                    <div className="text-sm font-bold text-on-surface">{item.title}</div>
-                    <p className="text-sm text-on-surface-variant">
-                      {t("shift_handoff.by", "by")} {item.created_by} · {item.team_members.join(", ")}
-                    </p>
-                    {item.action_needed ? (
-                      <p className="text-sm text-on-surface">{item.action_needed}</p>
-                    ) : null}
-                  </div>
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface">
-                  {format(new Date(item.handoff_shift_date + "T12:00:00"), "dd/MM/yyyy", { locale: dateFnsLocale })}
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface">
-                  {incidentStatusLabel(item.status, t)}
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface-variant">
-                  {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
-                </td>
-                <td className="px-6 py-4 text-sm text-on-surface-variant">
-                  {format(new Date(item.updated_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {item.status !== "monitoring" && (
-                      <button
-                        type="button"
-                        onClick={() => void updateIncidentLifecycle(item, "monitoring")}
-                        className="btn btn-outline"
-                        disabled={busy || !canMutate}
-                      >
-                        {t("shift_handoff.statusMonitoring", "Monitoring")}
-                      </button>
-                    )}
-                    {item.status !== "escalated" && (
-                      <button
-                        type="button"
-                        onClick={() => void updateIncidentLifecycle(item, "escalated")}
-                        className="btn btn-outline"
-                        disabled={busy || !canMutate}
-                      >
-                        {t("shift_handoff.statusEscalated", "Escalated")}
-                      </button>
-                    )}
-                    {item.status !== "resolved" && (
-                      <button
-                        type="button"
-                        onClick={() => void updateIncidentLifecycle(item, "resolved")}
-                        className="btn btn-primary"
-                        disabled={busy || !canMutate}
-                      >
-                        {busy ? t("shift_handoff.saving", "Saving...") : t("shift_handoff.resolveIncident", "Resolve")}
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">
+                        {format(new Date(item.created_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-on-surface-variant">
+                        {format(new Date(item.updated_at), "dd/MM/yyyy HH:mm", { locale: dateFnsLocale })}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {item.status !== "monitoring" && (
+                            <button
+                              type="button"
+                              onClick={() => void updateIncidentLifecycle(item, "monitoring")}
+                              className="btn btn-outline"
+                              disabled={busy || !canMutate}
+                            >
+                              {t("shift_handoff.statusMonitoring", "Monitoring")}
+                            </button>
+                          )}
+                          {item.status !== "escalated" && (
+                            <button
+                              type="button"
+                              onClick={() => void updateIncidentLifecycle(item, "escalated")}
+                              className="btn btn-outline"
+                              disabled={busy || !canMutate}
+                            >
+                              {t("shift_handoff.statusEscalated", "Escalated")}
+                            </button>
+                          )}
+                          {item.status !== "resolved" && (
+                            <button
+                              type="button"
+                              onClick={() => void updateIncidentLifecycle(item, "resolved")}
+                              className="btn btn-primary"
+                              disabled={busy || !canMutate}
+                            >
+                              {busy ? t("shift_handoff.saving", "Saving...") : t("shift_handoff.resolveIncident", "Resolve")}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

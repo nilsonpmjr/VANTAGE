@@ -20,6 +20,7 @@ from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_sc
 
 from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff
 from shift_handoff_migration import migrate_shift_handoff_incidents
+from scripts.seed_users import seed_admin_user
 
 try:
     from routers import hunting
@@ -270,6 +271,8 @@ async def lifespan(app: FastAPI):
                 name="shift_handoff_incidents_handoff_created",
             )
             logger.info("MongoDB indexes created/verified.")
+
+            await seed_admin_user(db)
 
             migration_result = await migrate_shift_handoff_incidents(db)
             if migration_result["created_incidents"] > 0 or migration_result["migrated_handoffs"] > 0:

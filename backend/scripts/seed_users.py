@@ -14,9 +14,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("DB_Seeder")
 
 
-async def seed_admin_user():
-    await db_manager.connect_db()
-    db = db_manager.db
+async def seed_admin_user(db=None):
+    """Seed default users. If `db` is provided, reuses the existing connection.
+    Otherwise opens and closes its own connection (standalone script mode)."""
+    standalone = db is None
+    if standalone:
+        await db_manager.connect_db()
+        db = db_manager.db
 
     if db is None:
         logger.error("Failed to connect to database.")
@@ -32,26 +36,27 @@ async def seed_admin_user():
             "role": "admin",
             "name": "Administrador SOC",
             "preferred_lang": "pt",
-            "created_at": datetime.now(timezone.utc)
+            "created_at": datetime.now(timezone.utc),
         }
         await db.users.insert_one(admin_doc)
         logger.info("Default Admin user created successfully. [admin / vantage123]")
 
-        # Test: create a standard tech user
         tech_doc = {
             "username": "tech",
             "password_hash": get_password_hash("tech123"),
             "role": "tech",
             "name": "Analista Jr.",
             "preferred_lang": "pt",
-            "created_at": datetime.now(timezone.utc)
+            "created_at": datetime.now(timezone.utc),
         }
         await db.users.insert_one(tech_doc)
         logger.info("Default Tech user created successfully. [tech / tech123]")
     else:
         logger.info("Admin user already exists. Skipping seed.")
 
-    await db_manager.close_db()
+    if standalone:
+        await db_manager.close_db()
+
 
 if __name__ == "__main__":
     asyncio.run(seed_admin_user())

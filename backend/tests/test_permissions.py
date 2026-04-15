@@ -52,8 +52,10 @@ def test_available_permissions_list():
 
 @pytest_asyncio.fixture
 async def client(fake_db, monkeypatch):
+    import app_state
     from db import db_manager
     monkeypatch.setattr(db_manager, "db", fake_db)
+    monkeypatch.setattr(app_state, "APP_INITIALIZED", True)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 

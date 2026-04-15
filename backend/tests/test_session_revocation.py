@@ -15,9 +15,11 @@ from main import app
 
 @pytest_asyncio.fixture
 async def client_pair(fake_db, monkeypatch):
+    import app_state
     from db import db_manager
 
     monkeypatch.setattr(db_manager, "db", fake_db)
+    monkeypatch.setattr(app_state, "APP_INITIALIZED", True)
     transport = ASGITransport(app=app)
     async with (
         AsyncClient(transport=transport, base_url="http://test") as subject_client,
@@ -37,7 +39,7 @@ async def test_suspend_user_revokes_refresh_tokens(client_pair, fake_db):
 
     login_resp = await subject_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     token_hash = hash_refresh_token(login_resp.cookies["refresh_token"])
@@ -63,7 +65,7 @@ async def test_delete_user_revokes_refresh_tokens(client_pair, fake_db):
 
     login_resp = await subject_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
 
@@ -83,7 +85,7 @@ async def test_delete_user_revokes_refresh_tokens(client_pair, fake_db):
 async def test_self_password_change_revokes_refresh_tokens(async_client, fake_db):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     token_hash = hash_refresh_token(login_resp.cookies["refresh_token"])
@@ -106,7 +108,7 @@ async def test_self_password_change_revokes_refresh_tokens(async_client, fake_db
 async def test_reset_password_revokes_refresh_tokens(async_client, fake_db):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     token_hash = hash_refresh_token(login_resp.cookies["refresh_token"])
@@ -144,7 +146,7 @@ async def test_force_password_reset_revokes_refresh_tokens(client_pair, fake_db)
 
     login_resp = await subject_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     token_hash = hash_refresh_token(login_resp.cookies["refresh_token"])

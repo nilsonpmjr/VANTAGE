@@ -1,62 +1,16 @@
-import asyncio
-import os
-import sys
-from datetime import datetime, timezone
-import logging
+"""
+DEPRECATED — this file is no longer used by the application.
 
-# Allow running as standalone script from any directory
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+The automatic seed with hardcoded credentials (admin/vantage123, tech/tech123)
+was removed as a security fix. See: PRD-deploy-glpi-aligned.md
 
-from auth import get_password_hash  # noqa: E402
-from db import db_manager  # noqa: E402
+For production: use `docker compose exec backend python bin/console setup:create-admin`
+For development: set DEV_SEED_USERS=true and DEV_ADMIN_PASSWORD= in .env
+                 (see scripts/seed_dev_users.py)
+"""
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("DB_Seeder")
-
-
-async def seed_admin_user(db=None):
-    """Seed default users. If `db` is provided, reuses the existing connection.
-    Otherwise opens and closes its own connection (standalone script mode)."""
-    standalone = db is None
-    if standalone:
-        await db_manager.connect_db()
-        db = db_manager.db
-
-    if db is None:
-        logger.error("Failed to connect to database.")
-        return
-
-    admin_exists = await db.users.find_one({"username": "admin"})
-
-    if not admin_exists:
-        logger.info("Initializing default Admin user...")
-        admin_doc = {
-            "username": "admin",
-            "password_hash": get_password_hash("vantage123"),
-            "role": "admin",
-            "name": "Administrador SOC",
-            "preferred_lang": "pt",
-            "created_at": datetime.now(timezone.utc),
-        }
-        await db.users.insert_one(admin_doc)
-        logger.info("Default Admin user created successfully. [admin / vantage123]")
-
-        tech_doc = {
-            "username": "tech",
-            "password_hash": get_password_hash("tech123"),
-            "role": "tech",
-            "name": "Analista Jr.",
-            "preferred_lang": "pt",
-            "created_at": datetime.now(timezone.utc),
-        }
-        await db.users.insert_one(tech_doc)
-        logger.info("Default Tech user created successfully. [tech / tech123]")
-    else:
-        logger.info("Admin user already exists. Skipping seed.")
-
-    if standalone:
-        await db_manager.close_db()
-
-
-if __name__ == "__main__":
-    asyncio.run(seed_admin_user())
+raise ImportError(
+    "scripts.seed_users is deprecated and must not be imported. "
+    "Use 'python bin/console setup:create-admin' for production setup, "
+    "or DEV_SEED_USERS=true for development environments."
+)

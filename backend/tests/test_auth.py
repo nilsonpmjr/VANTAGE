@@ -12,7 +12,7 @@ async def test_login_success(async_client):
     # Use techuser (non-mandatory-MFA role) to test normal login flow
     response = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert response.status_code == 200
     body = response.json()
@@ -27,7 +27,7 @@ async def test_login_success(async_client):
 async def test_login_stores_refresh_token_as_hash(async_client, fake_db):
     response = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert response.status_code == 200
 
@@ -81,7 +81,7 @@ async def test_logout(async_client, auth_headers):
 async def test_refresh_rotates_hashed_token_and_uses_current_role(async_client, fake_db):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     old_refresh_token = login_resp.cookies["refresh_token"]
@@ -113,7 +113,7 @@ async def test_refresh_rotates_hashed_token_and_uses_current_role(async_client, 
 async def test_refresh_rejects_reuse_of_rotated_refresh_token(async_client):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     old_refresh_token = login_resp.cookies["refresh_token"]
@@ -133,7 +133,7 @@ async def test_refresh_rejects_reuse_of_rotated_refresh_token(async_client):
 async def test_refresh_rejects_inactive_user(async_client, fake_db):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
 

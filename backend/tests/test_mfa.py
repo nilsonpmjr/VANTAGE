@@ -96,7 +96,7 @@ async def test_login_with_mfa_enabled_returns_pre_auth_cookie(async_client, fake
     _enable_mfa_for(fake_db, "admin")
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -111,7 +111,7 @@ async def test_login_mfa_setup_required_for_mandatory_role(async_client, fake_db
     # Admin in fake_db has mfa_enabled=False and role=admin
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -123,7 +123,7 @@ async def test_login_tech_without_mfa_succeeds(async_client, fake_db):
     """Tech role is not in mfa_required_roles; login proceeds normally."""
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -140,7 +140,7 @@ async def test_verify_mfa_completes_login(async_client, fake_db):
     # Step 1: password login sets the pre_auth_token cookie
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert login_resp.status_code == 200
 
@@ -162,7 +162,7 @@ async def test_verify_mfa_rejects_wrong_otp(async_client, fake_db):
 
     await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
 
     resp = await async_client.post(
@@ -220,7 +220,7 @@ async def test_verify_uses_current_role_from_user_doc(async_client, fake_db):
 
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert login_resp.status_code == 200
 
@@ -241,7 +241,7 @@ async def test_verify_rejects_inactive_user(async_client, fake_db):
 
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert login_resp.status_code == 200
 

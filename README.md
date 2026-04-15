@@ -81,38 +81,57 @@ See the full package and roadmap:
 - technical operators who need visibility into ingestion, policies, sessions, and runtime health
 - maintainers who want an open core with a clear path to downstream and commercial layers
 
-## Quick Start (Docker — recommended)
+## Getting Started
 
-### 1. Clone and configure
+> **No default credentials.** VANTAGE ships with no pre-created users. Step 3 below is mandatory — skip it and the platform will refuse all authenticated requests.
 
 ```bash
+# 1. Clone and configure
 git clone https://github.com/nilsonpmjr/Vantage.git
 cd Vantage
-cp .env.example .env
+cp .env.example .env          # fill in JWT_SECRET, MONGO_PASSWORD, and API keys
+
+# 2. Start the stack
+docker compose up -d
+
+# 3. Create the first admin account (required before first login)
+docker compose exec backend python bin/console setup:create-admin
+
+# 4. Open the platform — http://localhost
 ```
 
-Edit `.env` and fill in the required values (see [Environment Variables](#environment-variables) below).
+The CLI guides you through the setup interactively. After that the system is ready.
 
-If you already cloned the project before the repository rename, you do not need to rename your local folder. Updating the git remotes is enough.
-
-### 2. Start services
+### Non-interactive mode (CI/CD)
 
 ```bash
-docker compose up -d
+docker compose exec -T backend python bin/console setup:create-admin \
+  --name "Admin" --username admin \
+  --email admin@example.com \
+  --password "$(cat /run/secrets/admin_pass)" \
+  --lang pt --no-interaction
 ```
 
-The app will be available at `http://localhost` (frontend) and `http://localhost:8000` (API).
-MongoDB stays on the internal Docker network only; it is no longer published to the host.
+### Development environments
 
-### Frontend Runtime
+Set `DEV_SEED_USERS=true` and `DEV_ADMIN_PASSWORD=<pass>` in `.env` to auto-create users on startup. This is blocked in production — the backend refuses to boot if `DEV_SEED_USERS=true` and `ENVIRONMENT=production`.
 
-The default Docker stack already serves the canonical interface from [`web`](./web).
+```bash
+docker compose --profile dev up -d
+# mongo-express at http://127.0.0.1:8081
+```
 
-Operational note: CI, branding assets, the extension registry, and Docker runtime now treat `web/` as the source of truth for the official interface.
+For the full setup guide see the [documentation](https://vantage.readthedocs.io).
 
-Historical note: `web-legacy/` remains in the repository only as an archived reference and is not used by the official runtime.
+---
 
-For a local rehearsal on an alternate port, use the port override:
+## Deployment Notes
+
+### Frontend runtime
+
+The default stack serves the canonical interface from [`web/`](./web). `web-legacy/` is archived and not used by the runtime.
+
+To rehearse on an alternate port:
 
 ```bash
 VANTAGE_FRONTEND_PORT=4177 docker compose \
@@ -121,17 +140,9 @@ VANTAGE_FRONTEND_PORT=4177 docker compose \
   up -d --build
 ```
 
-The override now changes only the published frontend port. The service definition itself already points to the canonical build.
-
 ### Optional: hunting runtime lane
 
-The main stack does not require Kali. Hunting providers can run in three declared lanes:
-
-- `native_local`
-- `isolated_container`
-- `kali_container`
-
-The current Sherlock provider can fall back to `native_local` when the local binary is available. The optional Kali sidecar is declared in [`docker-compose.hunting-kali.yml`](./docker-compose.hunting-kali.yml) for providers that eventually require that heavier lane.
+The main stack does not require Kali. Hunting providers run in three declared lanes: `native_local`, `isolated_container`, `kali_container`. The optional Kali sidecar is in [`docker-compose.hunting-kali.yml`](./docker-compose.hunting-kali.yml).
 
 ```bash
 docker compose \
@@ -140,45 +151,28 @@ docker compose \
   up -d backend hunting_kali_runtime
 ```
 
-This does not change the default product contract. It only makes the optional Kali lane explicit and observable to the backend and UI.
-
 ### Optional: host-specific egress workaround
 
-Some Linux hosts need an extra egress workaround when custom Docker bridges do
-not provide outbound connectivity. This is not part of the default pilot path.
+Some Linux hosts need this when custom Docker bridges do not provide outbound connectivity.
 
 ```bash
 docker compose --profile egress-workaround up -d backend-egress
 ```
 
-## Internal Pilot Packaging
+### Health probes
 
-The first internal pilot is designed for a single Linux host with Docker Engine + Compose, not Kubernetes. The recommended baseline is:
+- liveness: `GET /health/live`
+- readiness: `GET /health/ready` — returns `503` until `setup:create-admin` has been run
 
-- `Ubuntu 24.04 LTS`
-- `4 vCPU / 8 GB RAM / 120 GB SSD`
-- reverse proxy or private access layer in front of the frontend (`Cloudflare Tunnel`, `Tailscale`, `Nginx Proxy Manager`, or equivalent)
-- daily backup for the `mongodb_data` volume
+### Pilot baseline
 
-The stack now exposes lightweight health probes for rollout automation:
+Single Linux host with Docker Engine + Compose (not Kubernetes):
 
-- backend live: `GET /health/live` or `GET /api/health/live`
-- backend readiness: `GET /health/ready` or `GET /api/health/ready`
+- Ubuntu 24.04 LTS · 4 vCPU / 8 GB RAM / 120 GB SSD
+- reverse proxy in front of the frontend (Cloudflare Tunnel, Tailscale, Nginx, or equivalent)
+- daily backup of the `mongodb_data` volume
 
-Use the phase 25 runbook and checklist before putting analysts on the system.
-
-### 3. Seed initial admin user
-
-```bash
-docker compose exec backend python scripts/seed_users.py
-```
-
-### Optional: mongo-express (dev only)
-
-```bash
-docker compose --profile dev up -d
-# mongo-express at http://127.0.0.1:8081
-```
+---
 
 ## Development Setup (without Docker)
 

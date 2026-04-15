@@ -253,7 +253,7 @@ class FakeDB:
         self.users = FakeCollection([
             {
                 "username": "admin",
-                "password_hash": get_password_hash("admin123"),
+                "password_hash": get_password_hash("TestAdmin@1234"),
                 "role": "admin",
                 "name": "Admin User",
                 "email": "admin@soc.local",
@@ -293,7 +293,7 @@ class FakeDB:
             },
             {
                 "username": "techuser",
-                "password_hash": get_password_hash("tech123"),
+                "password_hash": get_password_hash("TestTech@9876"),
                 "role": "tech",
                 "name": "Tech User",
                 "email": "tech@soc.local",
@@ -369,8 +369,10 @@ def disable_rate_limiter(monkeypatch):
 @pytest_asyncio.fixture
 async def async_client(fake_db, monkeypatch):
     """AsyncClient bound to the FastAPI app with a fake database."""
+    import app_state
     from db import db_manager
     monkeypatch.setattr(db_manager, "db", fake_db)
+    monkeypatch.setattr(app_state, "APP_INITIALIZED", True)
 
     async with AsyncClient(
         transport=ASGITransport(app=app),

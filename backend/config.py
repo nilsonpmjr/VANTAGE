@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # Development seed (never use in production)
+    dev_seed_users: bool = False
+    dev_admin_password: str = ""
+    dev_tech_password: str = ""
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -74,6 +79,11 @@ class Settings(BaseSettings):
             errors.append("JWT_SECRET must be at least 32 characters.")
         if not self.mfa_encryption_key:
             errors.append("MFA_ENCRYPTION_KEY must be set in production.")
+        if self.dev_seed_users:
+            errors.append(
+                "[SECURITY] DEV_SEED_USERS=true is forbidden in production. "
+                "Remove this variable from the production environment."
+            )
         if errors:
             raise ValueError("Insecure production configuration:\n" + "\n".join(f"  - {e}" for e in errors))
 

@@ -20,7 +20,9 @@ from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_sc
 
 from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff
 from shift_handoff_migration import migrate_shift_handoff_incidents
-from scripts.seed_users import seed_admin_user
+from scripts.seed_dev_users import seed_dev_users
+import app_state
+from app_state import check_initialization
 
 try:
     from routers import hunting
@@ -272,7 +274,14 @@ async def lifespan(app: FastAPI):
             )
             logger.info("MongoDB indexes created/verified.")
 
-            await seed_admin_user(db)
+            await check_initialization(db)
+
+            if settings.dev_seed_users and settings.environment == "development":
+                if not settings.dev_admin_password:
+                    logger.warning("[DEV SEED] DEV_SEED_USERS=true but DEV_ADMIN_PASSWORD is empty — skipping seed.")
+                else:
+                    await seed_dev_users(db, settings.dev_admin_password, settings.dev_tech_password)
+                    await check_initialization(db)  # re-check after seed
 
             migration_result = await migrate_shift_handoff_incidents(db)
             if migration_result["created_incidents"] > 0 or migration_result["migrated_handoffs"] > 0:
@@ -398,6 +407,17 @@ async def live_health():
     include_in_schema=False,
 )
 async def ready_health():
+    if not app_state.APP_INITIALIZED:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "not_initialized",
+                "detail": (
+                    "System not initialized. Run: "
+                    "docker compose exec backend python bin/console setup:create-admin"
+                ),
+            },
+        )
     payload = _health_state()
     status_code = 200 if payload["status"] == "ok" else 503
     return JSONResponse(status_code=status_code, content=payload)
@@ -422,6 +442,27 @@ async def security_headers(request: Request, call_next):
     if settings.environment == "production":
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
     return response
+
+
+# Initialization guard — block authenticated endpoints until setup:create-admin runs
+_SETUP_EXEMPT_PATHS = {"/health", "/health/live", "/health/ready", "/api/health",
+                       "/api/health/live", "/api/health/ready", "/api/auth/login",
+                       "/api/v1/auth/login"}
+
+
+@app.middleware("http")
+async def initialization_guard(request: Request, call_next):
+    if not app_state.APP_INITIALIZED and request.url.path not in _SETUP_EXEMPT_PATHS:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "detail": (
+                    "System not initialized. Run: "
+                    "docker compose exec backend python bin/console setup:create-admin"
+                )
+            },
+        )
+    return await call_next(request)
 
 
 # Content-size guard: reject bodies > 1 MB before they reach business logic

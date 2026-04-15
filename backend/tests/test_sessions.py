@@ -157,7 +157,7 @@ async def test_admin_can_revoke_any_session(async_client, auth_headers, fake_db)
 async def test_revoked_session_rejects_bound_access_token(async_client):
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert login_resp.status_code == 200
     access_token = login_resp.cookies["access_token"]

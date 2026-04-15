@@ -1,0 +1,39 @@
+#!/usr/bin/env python3
+"""
+VANTAGE CLI — entry point.
+
+Usage:
+    python bin/console <command> [options]
+
+Available commands:
+    setup:create-admin    Create the first administrator account
+"""
+
+import argparse
+import os
+import sys
+
+# Ensure the backend root is on sys.path so all modules are importable
+_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _BACKEND_ROOT not in sys.path:
+    sys.path.insert(0, _BACKEND_ROOT)
+
+from bin.commands import setup  # noqa: E402
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="console",
+        description="VANTAGE command-line interface",
+    )
+    subparsers = parser.add_subparsers(dest="command", metavar="<command>")
+    subparsers.required = True
+
+    setup.register(subparsers)
+
+    args = parser.parse_args()
+    sys.exit(args.func(args))
+
+
+if __name__ == "__main__":
+    main()

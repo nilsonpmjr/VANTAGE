@@ -38,7 +38,7 @@ async def test_locked_user_denied_even_with_correct_password(async_client: Async
 
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "admin", "password": "admin123"},
+        data={"username": "admin", "password": "TestAdmin@1234"},
     )
     assert resp.status_code == 423
 
@@ -52,7 +52,7 @@ async def test_successful_login_resets_counter(async_client: AsyncClient, fake_d
 
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert resp.status_code == 200
 

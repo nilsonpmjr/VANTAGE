@@ -71,7 +71,7 @@ async def test_last_login_at_set_on_login(async_client, fake_db):
     # Use techuser (non-mandatory-MFA role) to avoid 403 mfa_setup_required
     resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "tech123"},
+        data={"username": "techuser", "password": "TestTech@9876"},
     )
     assert resp.status_code == 200
     user_doc = await fake_db.users.find_one({"username": "techuser"})

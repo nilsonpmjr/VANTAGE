@@ -186,6 +186,23 @@ pip install -r requirements.txt
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
+The backend starts in uninitialized state. Initialize it with one of:
+
+**Option A — interactive setup (mirrors production flow):**
+```bash
+cd backend
+python bin/console setup:create-admin
+```
+
+**Option B — auto-seed for development (fastest):**
+
+Add to `.env`:
+```
+DEV_SEED_USERS=true
+DEV_ADMIN_PASSWORD=DevAdmin123!
+```
+Then restart the backend — users are created automatically on startup.
+
 ### Frontend
 
 ```bash

@@ -17,8 +17,6 @@ The project is released under AGPLv3 by design. The goal is to keep the platform
 - **Core license**: `AGPLv3`
 - **Public core**: this repository and the official runtime shipped here
 - **Commercial layer**: support, managed operation, premium extensions, and contract-specific deliverables outside the public core
-- **Trademark/brand governance**: handled separately from the code license
-
 This keeps the product open and auditable while preserving a clean open-core boundary for commercial offerings.
 
 ## Product Scope
@@ -79,7 +77,7 @@ See the full package and roadmap:
 
 - SOC analysts who need a daily workspace, not just a single lookup tool
 - technical operators who need visibility into ingestion, policies, sessions, and runtime health
-- maintainers who want an open core with a clear path to downstream and commercial layers
+- maintainers who want an open core with a clear commercial boundary
 
 ## Getting Started
 

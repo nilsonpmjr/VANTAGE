@@ -1,6 +1,6 @@
 # Local Plugins
 
-This directory is reserved for local plugins that ship with a downstream or customer-specific deployment.
+This directory is reserved for local plugins specific to this deployment.
 
 - `core` built-ins remain in `backend/extensions/plugins/`
 - `local` plugins may live here

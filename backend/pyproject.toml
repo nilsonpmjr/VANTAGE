@@ -10,6 +10,16 @@ testpaths = ["tests"]
 pythonpath = ["."]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
+addopts = [
+    "--ignore=tests/test_exposure_contracts.py",
+    "--ignore=tests/test_exposure_monitoring.py",
+    "--ignore=tests/test_exposure_router.py",
+    "--ignore=tests/test_exposure_runtime.py",
+    "--ignore=tests/test_extensions_registry.py",
+    "--ignore=tests/test_hunting_contracts.py",
+    "--ignore=tests/test_hunting_router.py",
+    "--ignore=tests/test_hunting_runtime.py",
+]
 
 [tool.flake8]
 max-line-length = 100

@@ -28,3 +28,4 @@ docker_build.log
 .vscode/
 Threat-Intelligence-Tool.code-workspace
 .omx/
+.claude/

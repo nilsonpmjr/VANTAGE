@@ -29,6 +29,7 @@ def _strip_html(text: str | None, max_chars: int = _SUMMARY_MAX_CHARS) -> str:
         plain = plain[:max_chars].rsplit(" ", 1)[0] + "…"
     return plain
 
+
 _SECTOR_KEYWORDS: dict[str, list[str]] = {
     "infrastructure": ["cisco", "firewall", "router", "switch", "vpn", "network", "dns", "proxy", "load balancer", "sd-wan"],
     "finance": ["bank", "payment", "financial", "swift", "credit card", "fintech", "atm"],

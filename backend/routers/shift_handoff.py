@@ -1146,5 +1146,3 @@ async def delete_handoff(
     )
     logger.info("Shift handoff %s deleted by %s", handoff_id, current_user["username"])
     return {"deleted": True}
-
-

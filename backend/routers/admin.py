@@ -1272,7 +1272,7 @@ async def purge_orphaned_threat_items(
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
-    from threat_ingestion import SOURCE_CATALOG, CUSTOM_PREFIX
+    from threat_ingestion import SOURCE_CATALOG
 
     builtin_ids = set(SOURCE_CATALOG.keys())
     custom_cursor = db.custom_threat_sources.find({}, {"source_id": 1, "_id": 0})

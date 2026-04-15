@@ -105,7 +105,6 @@ async def get_shift_handoff_config(db) -> dict:
     Reads from the in-process cache when fresh; otherwise hits Mongo
     and refreshes the cache.
     """
-    global _cache
     if _cache is not None and time.monotonic() < _cache_expires_at:
         return deepcopy(_cache)
 

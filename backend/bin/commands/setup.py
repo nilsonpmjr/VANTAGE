@@ -12,7 +12,6 @@ Non-interactive mode (CI/CD):
         --lang pt --no-interaction
 """
 
-import argparse
 import asyncio
 import getpass
 import re
@@ -137,7 +136,7 @@ async def _run(args) -> int:
             return 1
     else:
         full_name = _prompt("Full name", lambda v: v if v else (_ for _ in ()).throw(ValueError("Name cannot be empty.")))
-        username  = _prompt("Username", _validate_username)
+        username = _prompt("Username", _validate_username)
 
         # Check uniqueness before continuing
         if await db.users.find_one({"username": username}):
@@ -153,7 +152,7 @@ async def _run(args) -> int:
 
         while True:
             password = _prompt("Password (hidden)", _validate_password, secret=True)
-            confirm  = getpass.getpass("Confirm password: ")
+            confirm = getpass.getpass("Confirm password: ")
             if password == confirm:
                 break
             print("  [!] Passwords do not match. Try again.", file=sys.stderr)
@@ -200,7 +199,7 @@ async def _run(args) -> int:
     })
 
     frontend_url = getattr(settings, "frontend_url", "http://localhost")
-    print(f"\n\u2713 Administrator created successfully!")
+    print("\n\u2713 Administrator created successfully!")
     print(f"\u2713 Access the system at: {frontend_url}\n")
 
     await db_manager.close_db()

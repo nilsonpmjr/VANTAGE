@@ -8,8 +8,8 @@ BACKEND_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 if BACKEND_DIR not in sys.path:
     sys.path.insert(0, BACKEND_DIR)
 
-from db import db_manager
-from shift_handoff_migration import migrate_shift_handoff_incidents
+from db import db_manager  # noqa: E402
+from shift_handoff_migration import migrate_shift_handoff_incidents  # noqa: E402
 
 
 async def main():

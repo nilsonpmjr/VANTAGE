@@ -38,11 +38,11 @@ async def seed_dev_users(db, admin_password: str, tech_password: str = "") -> No
             "locked_until": None,
             "last_failed_at": None,
             "password_history": [],
-            "password_changed_at": None,
-            "force_password_reset": False,
+            "password_changed_at": None,  # nosec B105
+            "force_password_reset": False,  # nosec B105
             "last_login_at": None,
             "mfa_enabled": False,
-            "mfa_secret_enc": None,
+            "mfa_secret_enc": None,  # nosec B105
             "mfa_backup_codes": [],
             "extra_permissions": [],
             "created_at": datetime.now(timezone.utc),
@@ -62,11 +62,11 @@ async def seed_dev_users(db, admin_password: str, tech_password: str = "") -> No
             "locked_until": None,
             "last_failed_at": None,
             "password_history": [],
-            "password_changed_at": None,
-            "force_password_reset": False,
+            "password_changed_at": None,  # nosec B105
+            "force_password_reset": False,  # nosec B105
             "last_login_at": None,
             "mfa_enabled": False,
-            "mfa_secret_enc": None,
+            "mfa_secret_enc": None,  # nosec B105
             "mfa_backup_codes": [],
             "extra_permissions": [],
             "created_at": datetime.now(timezone.utc),

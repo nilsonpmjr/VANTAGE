@@ -121,7 +121,7 @@ async def _run(args) -> int:
             password = _validate_password(args.password)
         except (ValueError, AttributeError) as e:
             errors.append(f"--password: {e}")
-            password = ""
+            password = ""  # nosec B105
 
         lang = args.lang or "pt"
         try:
@@ -188,11 +188,11 @@ async def _run(args) -> int:
         "locked_until": None,
         "last_failed_at": None,
         "password_history": [],
-        "password_changed_at": None,
-        "force_password_reset": False,
+        "password_changed_at": None,  # nosec B105
+        "force_password_reset": False,  # nosec B105
         "last_login_at": None,
         "mfa_enabled": False,
-        "mfa_secret_enc": None,
+        "mfa_secret_enc": None,  # nosec B105
         "mfa_backup_codes": [],
         "extra_permissions": [],
         "created_at": datetime.now(timezone.utc),

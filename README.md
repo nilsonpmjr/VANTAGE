@@ -8,52 +8,56 @@
 [![Docker](https://img.shields.io/badge/Docker-Compose-2496ED.svg)](https://docs.docker.com/compose/)
 [![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
 
-VANTAGE is a threat intelligence platform for SOC teams that need fast, explainable verdicts for IPs, domains, and file hashes, plus an operational workspace to triage feeds, recon, watchlists, hunting, and exposure in one place.
+VANTAGE is a threat intelligence and SOC operations platform built for analyst teams. It combines fast, multi-source verdicts for IPs, domains, and file hashes with a full operational workspace — feed triage, recon, watchlists, hunting, exposure monitoring, and shift handoff — in a single product.
 
-The project is released under AGPLv3 by design. The goal is to keep the platform transparent, auditable, and collaborative as it grows from an internal workflow accelerator into an independent cybersecurity product.
+The project is released under AGPLv3. The goal is to keep the platform transparent, auditable, and collaborative as it grows from an internal workflow accelerator into an independent cybersecurity product.
 
 ## Licensing & Distribution
 
 - **Core license**: `AGPLv3`
 - **Public core**: this repository and the official runtime shipped here
 - **Commercial layer**: support, managed operation, premium extensions, and contract-specific deliverables outside the public core
+
 This keeps the product open and auditable while preserving a clean open-core boundary for commercial offerings.
 
 ## Product Scope
 
-### What ships in v1
+### Analyst workspaces
 
-- analyst workspaces for `Feed`, `Recon`, `Watchlist`, `Hunting`, `Exposure`, `Dashboard`, `Home`, and single/batch analysis
-- administrative control surfaces for `Extensions`, `Threat Ingestion`, `System Health`, `Users & Roles`, and `Security Policies`
-- auth, `RBAC`, `MFA`, sessions, audit log, API keys, and guided onboarding
-- editorial intelligence ingestion with `RSS`, `MISP`, curated `Fortinet RSS`, and initial `CTI Modeling Readiness`
+| Module | What it does |
+|---|---|
+| **Analysis** | Single-target lookup (IP, domain, hash) querying all configured sources in parallel; AI-generated verdict summary in PT-BR, EN, or ES |
+| **Batch Analysis** | Upload a list of targets; processes with streaming progress and downloadable report |
+| **Feed** | Ingests RSS/XML threat feeds (NVD CVE, Fortinet FortiGuard, custom sources, MISP); editorial scoring; threat modeling readiness index |
+| **Recon** | On-demand and scheduled deep recon scans; per-target history; streamed results |
+| **Watchlist** | Persistent monitoring list with automatic re-scan and SMTP alert on verdict change |
+| **Hunting** | Premium hunting provider lane (native, isolated container, or Kali sidecar) |
+| **Exposure** | Premium attack surface and brand exposure monitoring provider lane |
+| **Dashboard** | Stats and verdict trends by period (day / week / month / all); top targets; source health |
+| **Shift Handoff** | Structured shift-transition forms; incident tracking per handoff; acknowledgment flow; attachment support; configurable artifact auto-capture from analyze and recon sessions |
 
-### What stays post-v1
+### Administrative control surfaces
 
-- ML models trained in production
-- enterprise distribution and managed operation layers
-- premium extensions and contract-specific deliverables outside this repository
+| Module | What it does |
+|---|---|
+| **Users & Roles** | Create, update, deactivate users; assign roles; extra-permission grants; CSV/JSON import and export |
+| **Security Policies** | Lockout policy (threshold, window, duration); password policy (complexity, history, expiry); export and timeline |
+| **Extensions** | Extension registry with install, enable, disable, update, and uninstall; runtime state; distribution tier and capability metadata |
+| **Threat Ingestion** | Configure and manage threat sources (RSS, MISP, custom); per-source sync, pause, resume, metrics; orphaned-item cleanup |
+| **SMTP Config** | Operational SMTP setup with test dispatch |
+| **System Health** | Operational status, event history, service restart; MongoDB and worker health |
+| **Audit Log** | Paginated, full-fidelity audit trail with CSV/JSON export |
 
-See the full package and roadmap:
+### Platform-wide security
 
-- [`docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md`](docs/VANTAGE/fases/12-consolidacao-produto-e-lancamento-v1/PACOTE-funcional-v1.md)
-- [`docs/VANTAGE/ROADMAP-core-e-pos-v1.md`](docs/VANTAGE/ROADMAP-core-e-pos-v1.md)
-- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/PRD-empacotamento-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/PRD-empacotamento-piloto-interno.md)
-- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/RUNBOOK-rollout-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/RUNBOOK-rollout-piloto-interno.md)
-- [`docs/VANTAGE/fases/25-empacotamento-piloto-interno/CHECKLIST-go-live-piloto-interno.md`](docs/VANTAGE/fases/25-empacotamento-piloto-interno/CHECKLIST-go-live-piloto-interno.md)
-
-## Core Capabilities
-
-- **Parallel Threat Intelligence** — Queries VirusTotal, AbuseIPDB, Shodan, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and BlacklistMaster simultaneously
-- **AI Reports** — Contextual natural-language summaries in PT-BR, EN, and ES
-- **IAM & RBAC** — Role-based access control (admin / manager / tech), JWT + HttpOnly cookies, refresh tokens
-- **MFA (TOTP)** — Authenticator-app 2FA with AES-256 encrypted secrets and backup codes
-- **Session Management** — Active session list, per-session revocation, 30-min inactivity auto-logout
-- **API Keys** — Scoped API keys with SHA-256 hashed storage and configurable TTL
-- **Audit Log** — Full audit trail of all user actions with CSV/JSON export
-- **Background Worker** — Daily re-scan of known targets for verdict change detection
-- **Password Policy** — Configurable complexity, history, expiry, and lockout rules
-- **Dark Mode UI** — Glassmorphism design with responsive layout and guided tour
+- **IAM & RBAC** — roles: `admin`, `manager`, `tech`; extra permission grants per user
+- **MFA (TOTP)** — authenticator-app 2FA with AES-256 encrypted secrets and printable backup codes
+- **JWT + HttpOnly cookies** — SameSite=Strict, refresh token rotation, 30-min inactivity auto-logout
+- **Session Management** — active session list, per-session and bulk revocation
+- **API Keys** — scoped keys with SHA-256 hashed storage, configurable TTL, revocation
+- **Password Security** — Argon2id hashing; configurable complexity, history, expiry, lockout
+- **Rate Limiting** — per-endpoint via SlowAPI
+- **Encryption at Rest** — Fernet (AES-256) for TOTP secrets and third-party API keys
 
 ## Architecture
 
@@ -69,9 +73,9 @@ See the full package and roadmap:
                                     └─────────────────────┘
 ```
 
-**Backend modules**: `routers/` (auth, users, analyze, stats, admin, mfa, sessions, api_keys) · `analyzer.py` · `scoring.py` · `worker.py` · `mailer.py` · `audit.py`
+**Backend modules**: `routers/` (auth, analyze, batch, feed, recon, watchlist, stats, shift_handoff, hunting, exposure, admin, mfa, sessions, api_keys, users) · `analyzer.py` · `scoring.py` · `worker.py` · `mailer.py` · `audit.py` · `extensions/`
 
-**Frontend structure**: `components/auth/` · `components/admin/` · `components/dashboard/` · `components/layout/` · `components/shared/` · `context/`
+**Frontend structure**: `components/page/` · `components/auth/` · `components/shift-handoff/` · `components/scan/` · `components/search/` · `components/modal/` · `context/` · `branding/`
 
 ## Who It Is For
 
@@ -264,72 +268,13 @@ Missing keys are gracefully skipped, except `IP2LOCATION`, which can run in publ
 | `SMTP_FROM` | `noreply@soc.local` | From address for outgoing emails |
 | `LOG_LEVEL` | `INFO` | Python log level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
 
-## API Endpoints
-
-The canonical API prefix is `/api`.
-`/api/v1` remains temporarily available for backwards compatibility, but responses now include explicit deprecation headers and a `Sunset` date of `2026-09-30`.
-
-### Authentication
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/auth/login` | Login (form data: username, password) |
-| `POST` | `/api/auth/logout` | Logout (clears cookies) |
-| `POST` | `/api/auth/refresh` | Rotate access/refresh tokens |
-| `GET` | `/api/auth/me` | Current user info |
-| `GET` | `/api/auth/sessions` | List active sessions |
-| `DELETE` | `/api/auth/sessions/{id}` | Revoke a session |
-| `DELETE` | `/api/auth/sessions/others` | Revoke all other sessions |
-| `POST` | `/api/auth/forgot-password` | Request password-reset email |
-| `POST` | `/api/auth/reset-password` | Reset password with token |
-
-### MFA
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `POST` | `/api/mfa/enroll` | Begin TOTP enrollment (returns QR URI) |
-| `POST` | `/api/mfa/confirm` | Confirm enrollment with OTP code |
-| `POST` | `/api/mfa/verify` | Verify OTP during login (pre-auth token) |
-| `DELETE` | `/api/mfa/me` | Disable own MFA |
-| `DELETE` | `/api/mfa/{username}` | Admin: revoke user MFA |
-
-### Threat Analysis
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/analyze?target=&lang=` | Analyze an IP, domain, or hash |
-| `GET` | `/api/status` | Service availability (which API keys are configured) |
-
-### Users & API Keys
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/users` | List users (admin) |
-| `POST` | `/api/users` | Create user (admin) |
-| `PUT` | `/api/users/{username}` | Update user |
-| `DELETE` | `/api/users/{username}` | Delete user (admin) |
-| `GET` | `/api/api-keys/me` | List own API keys |
-| `POST` | `/api/api-keys` | Create API key |
-| `DELETE` | `/api/api-keys/{id}` | Revoke API key |
-
-### Admin & Stats
-
-| Method | Endpoint | Description |
-|---|---|---|
-| `GET` | `/api/stats` | Dashboard statistics (`?period=day\|week\|month\|all`) |
-| `GET` | `/api/admin/overview` | IAM overview metrics |
-| `GET` | `/api/admin/audit-logs` | Paginated audit log |
-| `GET` | `/api/admin/audit-logs/export` | Export audit log (CSV or JSON) |
-| `PUT` | `/api/admin/password-policy` | Update password policy |
-| `PUT` | `/api/admin/lockout-policy` | Update lockout policy |
-
 ## RBAC — Roles
 
 | Role | Capabilities |
 |---|---|
-| `admin` | Full access; manage users, policies, audit logs; MFA required |
-| `manager` | Dashboard + analysis + stats; read-only on user list; MFA required |
-| `tech` | Analysis only; no admin panels |
+| `admin` | Full access; manage users, policies, extensions, audit logs; can require MFA |
+| `manager` | Dashboard, analysis, stats, feed, watchlist, shift handoff; read-only user list |
+| `tech` | Analysis, recon, watchlist, feed, shift handoff; no admin panels |
 
 ## CI/CD
 
@@ -338,8 +283,8 @@ GitHub Actions runs on every PR and push to `main`:
 - **lint-python** — flake8
 - **test-python** — pytest against MongoDB 8
 - **lint-frontend** — ESLint
-- **test-frontend** — Vitest
 - **build-frontend** — Vite production build
+- **SAST** — Bandit (weekly + on push)
 
 See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
 

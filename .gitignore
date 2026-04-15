@@ -1,6 +1,17 @@
 # Local secrets and environment files
 .env
 .env.local
+.env.*.local
+.env.production
+.env.staging
+
+# TLS certificates and private keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
 
 # Python caches and virtual environments
 __pycache__/
@@ -17,6 +28,10 @@ node_modules/
 dist/
 build/
 coverage/
+
+# SAST / security scan reports
+bandit-report.json
+**/bandit-report.json
 
 # Logs and temporary outputs
 *.log

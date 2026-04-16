@@ -19,7 +19,9 @@ class Settings(BaseSettings):
     mongo_db_name: str = "threat_intel"
 
     # CORS — list specific origins; never use "*" in production
-    cors_origins: List[str] = ["http://localhost:5173"]
+    # In production set CORS_ORIGINS to your public hostname, e.g.:
+    # CORS_ORIGINS=["https://vantage.it-eam.com"]
+    cors_origins: List[str] = ["http://localhost", "http://localhost:5173"]
 
     # Cache
     cache_ttl_hours: int = 24

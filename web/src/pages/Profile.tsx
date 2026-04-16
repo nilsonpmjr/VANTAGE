@@ -72,14 +72,14 @@ interface ThirdPartyConfigStatus {
 
 type ThirdPartyStatusMap = Record<string, ThirdPartyConfigStatus>;
 
-const THIRD_PARTY_SERVICES = [
-  { id: "ip2location", label: "IP2Location", icon: MapPinned, note: "Primary IP geolocation baseline with city, region, ASN, and ISP enrichment." },
-  { id: "virustotal", label: "VirusTotal", icon: ShieldCheck, note: "File and URL analysis integration for automated malware sandboxing." },
-  { id: "shodan", label: "Shodan.io", icon: Globe, note: "Internet-connected device discovery and port scanning metadata." },
-  { id: "alienvault", label: "AlienVault OTX", icon: Eye, note: "Open threat exchange pulses and indicator aggregation." },
-  { id: "greynoise", label: "GreyNoise", icon: Radar, note: "Contextual noise and scanning classification for internet activity." },
-  { id: "urlscan", label: "URLScan", icon: ExternalLink, note: "Web capture and rendered-page intelligence for suspect URLs." },
-  { id: "abuseipdb", label: "AbuseIPDB", icon: ShieldAlert, note: "Reputation and abuse confidence scoring for IP infrastructure." },
+const THIRD_PARTY_SERVICE_DEFS = [
+  { id: "ip2location", label: "IP2Location", icon: MapPinned, noteKey: "profile.thirdParty.services.ip2locationNote" as const },
+  { id: "virustotal", label: "VirusTotal", icon: ShieldCheck, noteKey: "profile.thirdParty.services.virustotalNote" as const },
+  { id: "shodan", label: "Shodan.io", icon: Globe, noteKey: "profile.thirdParty.services.shodanNote" as const },
+  { id: "alienvault", label: "AlienVault OTX", icon: Eye, noteKey: "profile.thirdParty.services.alienvaultNote" as const },
+  { id: "greynoise", label: "GreyNoise", icon: Radar, noteKey: "profile.thirdParty.services.greynoiseNote" as const },
+  { id: "urlscan", label: "URLScan", icon: ExternalLink, noteKey: "profile.thirdParty.services.urlscanNote" as const },
+  { id: "abuseipdb", label: "AbuseIPDB", icon: ShieldAlert, noteKey: "profile.thirdParty.services.abuseipdbNote" as const },
 ];
 
 const API_KEY_SCOPE_OPTIONS = [
@@ -89,28 +89,14 @@ const API_KEY_SCOPE_OPTIONS = [
   { id: "stats", label: "Stats" },
 ] as const;
 
-function formatTimestamp(value?: string | null) {
+function formatTimestamp(value?: string | null, locale = "pt-BR") {
   if (!value) return "—";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("pt-BR", {
+  return new Intl.DateTimeFormat(locale, {
     dateStyle: "short",
     timeStyle: "short",
   }).format(date);
-}
-
-function relativeTime(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  const diffMs = Date.now() - date.getTime();
-  const diffMin = Math.round(diffMs / 60000);
-  if (diffMin < 1) return "Active now";
-  if (diffMin < 60) return `${diffMin} minute(s) ago`;
-  const diffHr = Math.round(diffMin / 60);
-  if (diffHr < 24) return `${diffHr} hour(s) ago`;
-  const diffDay = Math.round(diffHr / 24);
-  return `${diffDay} day(s) ago`;
 }
 
 function deviceIcon(device: string) {
@@ -162,10 +148,37 @@ async function getCroppedAvatar(src: string, crop: Area) {
   return canvas.toDataURL("image/png");
 }
 
+const LOCALE_MAP: Record<string, string> = { pt: "pt-BR", en: "en-US", es: "es-ES" };
+
 export default function Profile() {
   const { user, updateUserContext } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
+
+  const THIRD_PARTY_SERVICES = useMemo(
+    () =>
+      THIRD_PARTY_SERVICE_DEFS.map((svc) => ({
+        ...svc,
+        note: t(svc.noteKey),
+      })),
+    [t],
+  );
+
+  const locale = LOCALE_MAP[language] ?? "pt-BR";
+
+  function relativeTime(value?: string | null) {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    const diffMs = Date.now() - date.getTime();
+    const diffMin = Math.round(diffMs / 60000);
+    if (diffMin < 1) return t("profile.sessions.activeNow");
+    if (diffMin < 60) return `${diffMin} ${t("profile.messages.minutesAgo")}`;
+    const diffHr = Math.round(diffMin / 60);
+    if (diffHr < 24) return `${diffHr} ${t("profile.messages.hoursAgo")}`;
+    const diffDay = Math.round(diffHr / 24);
+    return `${diffDay} ${t("profile.messages.daysAgo")}`;
+  }
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = (searchParams.get("tab") as ProfileTab | null) || "identity";
   const onboardingSource = searchParams.get("source") === "onboarding";
@@ -290,7 +303,7 @@ export default function Profile() {
         }
       } catch {
         if (!cancelled) {
-          setPageError("Não foi possível carregar o cockpit pessoal do operador.");
+          setPageError(t("profile.notices.identityUpdateFailed"));
         }
       } finally {
         if (!cancelled) {
@@ -349,50 +362,46 @@ export default function Profile() {
   const profileSectionMeta = useMemo(() => {
     if (activeTab === "preferences") {
       return {
-        eyebrow: "Operator Profile",
-        title: "Regional Preferences & Security",
-        subheading:
-          "Adjust language, notifications, password posture, and active session controls without fragmenting the operator workflow.",
-        toolbarLabel: "Preference actions",
+        eyebrow: t("profile.page.eyebrow"),
+        title: t("profile.page.preferencesTitle"),
+        subheading: t("profile.page.preferencesSubtitle"),
+        toolbarLabel: t("profile.toolbar.preferences"),
       };
     }
     if (activeTab === "external_api_keys") {
       return {
-        eyebrow: "Operator Profile",
-        title: "Platform & Provider Credentials",
-        subheading:
-          "Manage VANTAGE keys and external provider credentials from a single operator-scoped security surface.",
-        toolbarLabel: "Credential actions",
+        eyebrow: t("profile.page.eyebrow"),
+        title: t("profile.page.apiKeysTitle"),
+        subheading: t("profile.page.apiKeysSubtitle"),
+        toolbarLabel: t("profile.toolbar.credentials"),
       };
     }
     if (activeTab === "audit_logs") {
       return {
-        eyebrow: "Operator Profile",
-        title: "Audit Registry",
-        subheading:
-          "Review your security-relevant activity, export evidence, and keep operational traceability close to the profile itself.",
-        toolbarLabel: "Audit actions",
+        eyebrow: t("profile.page.eyebrow"),
+        title: t("profile.page.auditTitle"),
+        subheading: t("profile.page.auditSubtitle"),
+        toolbarLabel: t("profile.toolbar.audit"),
       };
     }
     return {
-      eyebrow: "Operator Profile",
-      title: "Personal Identity Settings",
-      subheading:
-        "Manage your administrative identity, recovery channels, and operator-facing profile data from a single control surface.",
-      toolbarLabel: "Profile actions",
+      eyebrow: t("profile.page.eyebrow"),
+      title: t("profile.page.identityTitle"),
+      subheading: t("profile.page.identitySubtitle"),
+      toolbarLabel: t("profile.toolbar.identity"),
     };
-  }, [activeTab]);
+  }, [activeTab, t]);
   const profileHeaderMetrics = useMemo(() => {
     if (activeTab === "preferences") {
       return (
         <>
           <PageMetricPill
-            label={`${configuredServiceCount}/${THIRD_PARTY_SERVICES.length} Providers`}
+            label={`${configuredServiceCount}/${THIRD_PARTY_SERVICES.length} ${t("profile.metrics.providers")}`}
             dotClassName={configuredServiceCount > 0 ? "bg-emerald-500" : "bg-outline"}
             tone={configuredServiceCount > 0 ? "success" : "muted"}
           />
           <PageMetricPill
-            label={`${sessions.length} Active Sessions`}
+            label={`${sessions.length} ${t("profile.metrics.activeSessions")}`}
             dotClassName="bg-primary"
             tone="primary"
           />
@@ -403,12 +412,12 @@ export default function Profile() {
       return (
         <>
           <PageMetricPill
-            label={`${activeApiKeysCount} Active Keys`}
+            label={`${activeApiKeysCount} ${t("profile.metrics.activeKeys")}`}
             dotClassName={activeApiKeysCount > 0 ? "bg-emerald-500" : "bg-outline"}
             tone={activeApiKeysCount > 0 ? "success" : "muted"}
           />
           <PageMetricPill
-            label={oldestActiveKeyAge !== null ? `${oldestActiveKeyAge}d Oldest Active` : "No active keys"}
+            label={oldestActiveKeyAge !== null ? `${oldestActiveKeyAge}d ${t("profile.metrics.oldestActive")}` : t("profile.metrics.noActiveKeys")}
             dotClassName={oldestActiveKeyAge !== null ? "bg-amber-500" : "bg-outline"}
             tone={oldestActiveKeyAge !== null ? "warning" : "muted"}
           />
@@ -419,12 +428,12 @@ export default function Profile() {
       return (
         <>
           <PageMetricPill
-            label={`${filteredAuditItems.length} Visible Events`}
+            label={`${filteredAuditItems.length} ${t("profile.metrics.visibleEvents")}`}
             dotClassName="bg-primary"
             tone="primary"
           />
           <PageMetricPill
-            label={`${auditItems.length} Total Logged`}
+            label={`${auditItems.length} ${t("profile.metrics.totalLogged")}`}
             dotClassName="bg-secondary"
           />
         </>
@@ -433,12 +442,12 @@ export default function Profile() {
     return (
       <>
         <PageMetricPill
-          label={user?.role ? String(user.role).toUpperCase() : "OPERATOR"}
+          label={user?.role ? String(user.role).toUpperCase() : t("profile.metrics.defaultRole")}
           dotClassName="bg-primary"
           tone="primary"
         />
         <PageMetricPill
-          label={`${sessions.length} Active Sessions`}
+          label={`${sessions.length} ${t("profile.metrics.activeSessions")}`}
           dotClassName="bg-emerald-500"
           tone="success"
         />
@@ -511,7 +520,7 @@ export default function Profile() {
       setSessions(sessionsData as SessionItem[]);
       setAuditItems(auditData as AuditItem[]);
     } catch {
-      setPageError("Falha ao atualizar os dados pessoais do operador.");
+      setPageError(t("profile.notices.identityUpdateFailed"));
     } finally {
       setLoading(false);
     }
@@ -547,13 +556,13 @@ export default function Profile() {
         });
       }
       setIdentityDirty(false);
-      setNotice("Identity profile synchronized with the backend.");
+      setNotice(t("profile.notices.identitySaved"));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       setPageError(
         detail === "Email already in use"
-          ? "O e-mail de recuperação já está em uso por outro operador."
-          : "Não foi possível salvar o perfil de identidade.",
+          ? t("profile.notices.emailRecoveryInUse")
+          : t("profile.notices.identitySaveFailed"),
       );
     } finally {
       setSavingIdentity(false);
@@ -588,7 +597,7 @@ export default function Profile() {
       setLanguage(preferredLang as "pt" | "en" | "es");
       setNotice(t("profile.preferences.saved", "Regional preferences updated."));
     } catch {
-      setPageError("Não foi possível salvar as preferências pessoais.");
+      setPageError(t("profile.notices.preferencesSaveFailed"));
     } finally {
       setSavingPreferences(false);
     }
@@ -623,7 +632,7 @@ export default function Profile() {
     setAvatarFit("cover");
     setAvatarEditorOpen(false);
     setPendingAvatarData("");
-    setNotice("Avatar preparado para salvar.");
+    setNotice(t("profile.avatar.readyToSave"));
   }
 
   function removeAvatarSelection() {
@@ -632,12 +641,12 @@ export default function Profile() {
     setPendingAvatarData("");
     setAvatarFit("cover");
     setAvatarEditorOpen(false);
-    setNotice("Avatar removido. Salve o perfil para persistir a alteração.");
+    setNotice(t("profile.avatar.removed"));
   }
 
   async function updatePassword() {
     if (!newPassword || newPassword !== confirmPassword) {
-      setPageError("A nova senha precisa ser confirmada corretamente.");
+      setPageError(t("profile.notices.passwordMismatch"));
       return;
     }
     setSavingPassword(true);
@@ -656,14 +665,14 @@ export default function Profile() {
       }
       setNewPassword("");
       setConfirmPassword("");
-      setNotice("Administrative credential updated.");
+      setNotice(t("profile.notices.passwordUpdated"));
       await refreshRuntime();
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       setPageError(
         detail === "password_reuse_denied"
-          ? "A nova senha já foi utilizada recentemente."
-          : "Não foi possível atualizar a senha do operador.",
+          ? t("profile.notices.passwordReuseDenied")
+          : t("profile.notices.passwordUpdateFailed"),
       );
     } finally {
       setSavingPassword(false);
@@ -682,10 +691,10 @@ export default function Profile() {
       if (!response.ok) {
         throw new Error("session_revoke_failed");
       }
-      setNotice("Sessão revogada.");
+      setNotice(t("profile.notices.sessionRevoked"));
       await refreshRuntime();
     } catch {
-      setPageError("Não foi possível revogar a sessão selecionada.");
+      setPageError(t("profile.notices.sessionRevokeFailed"));
     } finally {
       setSessionAction("");
     }
@@ -703,10 +712,10 @@ export default function Profile() {
       if (!response.ok) {
         throw new Error("session_revoke_others_failed");
       }
-      setNotice("Sessões paralelas revogadas.");
+      setNotice(t("profile.notices.sessionsRevoked"));
       await refreshRuntime();
     } catch {
-      setPageError("Não foi possível revogar as outras sessões.");
+      setPageError(t("profile.notices.sessionsRevokeFailed"));
     } finally {
       setSessionAction("");
     }
@@ -718,12 +727,12 @@ export default function Profile() {
       newApiKeyExpiresDays === "never" ? null : Number.parseInt(newApiKeyExpiresDays, 10);
 
     if (!normalizedName) {
-      setCreateApiKeyError("Informe um nome para a nova API key.");
+      setCreateApiKeyError(t("profile.notices.apiKeyNameRequired"));
       return;
     }
 
     if (!newApiKeyScopes.length) {
-      setCreateApiKeyError("Selecione pelo menos um escopo para a API key.");
+      setCreateApiKeyError(t("profile.notices.apiKeyScopeRequired"));
       return;
     }
 
@@ -748,14 +757,14 @@ export default function Profile() {
       }
       const created = (await response.json()) as ApiKeyItem;
       setFreshKey(created);
-      setNotice("Nova chave VANTAGE emitida. O valor bruto é exibido apenas uma vez.");
+      setNotice(t("profile.notices.apiKeyIssued"));
       setIsCreateApiKeyOpen(false);
       setNewApiKeyName(`platform_key_${new Date().toISOString().slice(0, 10)}`);
       setNewApiKeyExpiresDays("30");
       setNewApiKeyScopes(["analyze", "recon", "batch", "stats"]);
       await refreshRuntime();
     } catch {
-      setPageError("Não foi possível emitir a nova chave VANTAGE.");
+      setPageError(t("profile.notices.apiKeyIssueFailed"));
     } finally {
       setCreatingApiKey(false);
     }
@@ -773,10 +782,10 @@ export default function Profile() {
       if (!response.ok) {
         throw new Error("api_key_revoke_failed");
       }
-      setNotice("Chave revogada com sucesso.");
+      setNotice(t("profile.notices.apiKeyRevoked"));
       await refreshRuntime();
     } catch {
-      setPageError("Não foi possível revogar a chave selecionada.");
+      setPageError(t("profile.notices.apiKeyRevokeFailed"));
     } finally {
       setRevokingKeyId("");
     }
@@ -785,7 +794,7 @@ export default function Profile() {
   async function saveThirdPartyKey(service: string) {
     const value = thirdPartyDrafts[service] ?? "";
     if (!value.trim()) {
-      setPageError("Informe a credencial antes de sincronizar.");
+      setPageError(t("profile.notices.credentialRequired"));
       return;
     }
     setThirdPartySaving(service);
@@ -809,7 +818,7 @@ export default function Profile() {
       setNotice(`Credencial ${service} ${t("profile.onboarding.synced", "synchronized with your personal vault and registered in the Audit Registry.")}`);
       await refreshRuntime();
     } catch {
-      setPageError("Não foi possível atualizar a credencial de terceiro.");
+      setPageError(t("profile.notices.credentialUpdateFailed"));
     } finally {
       setThirdPartySaving("");
     }
@@ -819,9 +828,9 @@ export default function Profile() {
     if (!freshKey?.key) return;
     try {
       await navigator.clipboard.writeText(freshKey.key);
-      setNotice("Chave copiada para a área de transferência.");
+      setNotice(t("profile.notices.keyCopied"));
     } catch {
-      setPageError("Não foi possível copiar a chave.");
+      setPageError(t("profile.notices.keyCopyFailed"));
     }
   }
 
@@ -867,7 +876,7 @@ export default function Profile() {
         <PageToolbarGroup className="ml-auto">
           <button className="btn btn-outline" onClick={refreshRuntime}>
             <RefreshCw className="w-4 h-4" />
-            Refresh data
+            {t("profile.toolbar.refreshData")}
           </button>
         </PageToolbarGroup>
       </PageToolbar>
@@ -876,8 +885,7 @@ export default function Profile() {
         <div className="mb-6 space-y-3">
           {user?.force_password_reset && (
             <div className="rounded bg-error/10 px-4 py-3 text-sm text-error">
-              Esta conta foi marcada para troca imediata de senha. Faça isso na aba de
-              preferências antes de continuar a operação.
+              {t("profile.notices.forcePasswordReset")}
             </div>
           )}
           {pageError && <div className="rounded bg-error/10 px-4 py-3 text-sm text-error">{pageError}</div>}
@@ -919,7 +927,7 @@ export default function Profile() {
                 />
                 <button
                   className="absolute bottom-0 right-0 bg-primary text-white w-8 h-8 rounded-full flex items-center justify-center shadow-md hover:bg-primary-dim transition-colors"
-                  title={avatarDraft || user?.avatar_base64 ? "Editar avatar" : "Atualizar avatar"}
+                  title={avatarDraft || user?.avatar_base64 ? t("profile.avatar.edit") : t("profile.avatar.update")}
                   type="button"
                   onClick={() => {
                     if (avatarDraft || user?.avatar_base64) {
@@ -966,36 +974,36 @@ export default function Profile() {
           <section className="surface-section overflow-hidden">
             <div className="surface-section-header">
               <div>
-                <h3 className="surface-section-title">Section Context</h3>
+                <h3 className="surface-section-title">{t("profile.sectionContext.title")}</h3>
                 <p className="mt-1 text-[10px] font-medium uppercase tracking-widest text-on-surface-variant">
-                  Navigation now lives in the fixed sidebar shell
+                  {t("profile.sectionContext.subtitle")}
                 </p>
               </div>
             </div>
             <div className="p-4 space-y-2 text-sm text-on-surface-variant">
               {activeTab === "identity" ? (
                 <>
-                  <ContextNote title="Personal Information" body="Core identity data synchronized from the operator record." />
-                  <ContextNote title="Email Preferences" body="Recovery email and delivery endpoints for operator continuity." />
-                  <ContextNote title="Security & Keys" body="Credential posture remains visible from the preference and key sections." />
+                  <ContextNote title={t("profile.identity.context.personalTitle")} body={t("profile.identity.context.personalBody")} />
+                  <ContextNote title={t("profile.identity.context.emailTitle")} body={t("profile.identity.context.emailBody")} />
+                  <ContextNote title={t("profile.identity.context.securityTitle")} body={t("profile.identity.context.securityBody")} />
                 </>
               ) : activeTab === "preferences" ? (
                 <>
-                  <ContextNote title="Regional Protocols" body="Language and interface conventions applied to the operator session." />
-                  <ContextNote title="Security & Sessions" body="Password, MFA and session controls share the same surface." />
-                  <ContextNote title="Alert Configuration" body="Notification toggles remain local until full server persistence is expanded." />
+                  <ContextNote title={t("profile.preferences.context.regionalTitle")} body={t("profile.preferences.context.regionalBody")} />
+                  <ContextNote title={t("profile.preferences.context.securityTitle")} body={t("profile.preferences.context.securityBody")} />
+                  <ContextNote title={t("profile.preferences.context.alertTitle")} body={t("profile.preferences.context.alertBody")} />
                 </>
               ) : activeTab === "external_api_keys" ? (
                 <>
-                  <ContextNote title="Platform Credentials" body="Keys for VANTAGE automation and external provider integrations." />
-                  <ContextNote title="Integrations" body="Third-party access is configured per operator and masked by default." />
-                  <ContextNote title="Usage Analytics" body="This area should show actionable credential context, not decorative cards." />
+                  <ContextNote title={t("profile.apiKeys.context.platformTitle")} body={t("profile.apiKeys.context.platformBody")} />
+                  <ContextNote title={t("profile.apiKeys.context.integrationsTitle")} body={t("profile.apiKeys.context.integrationsBody")} />
+                  <ContextNote title={t("profile.apiKeys.context.analyticsTitle")} body={t("profile.apiKeys.context.analyticsBody")} />
                 </>
               ) : (
                 <>
-                  <ContextNote title="Activity Stream" body="Recent operator events and outcome-based filtering for audit review." />
-                  <ContextNote title="Security Events" body="Authentication and governance signals remain traceable from the same log surface." />
-                  <ContextNote title="Data Exports" body="CSV export should stay close to the audit table it acts upon." />
+                  <ContextNote title={t("profile.audit.context.activityTitle")} body={t("profile.audit.context.activityBody")} />
+                  <ContextNote title={t("profile.audit.context.securityTitle")} body={t("profile.audit.context.securityBody")} />
+                  <ContextNote title={t("profile.audit.context.exportsTitle")} body={t("profile.audit.context.exportsBody")} />
                 </>
               )}
             </div>
@@ -1005,50 +1013,50 @@ export default function Profile() {
         <div className="page-main-pane">
           {loading ? (
             <div className="card p-8 text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">
-              Loading profile
+              {t("profile.identity.loading")}
             </div>
           ) : (
             <>
               {activeTab === "identity" && (
                 <div className="card overflow-hidden animate-in fade-in slide-in-from-bottom-2">
                   <div className="card-header">
-                    <h3 className="card-title">Administrative Identity</h3>
-                    <span className="badge badge-primary">LOCKED SYNC</span>
+                    <h3 className="card-title">{t("profile.identity.title")}</h3>
+                    <span className="badge badge-primary">{t("profile.identity.lockedSync")}</span>
                   </div>
                   <div className="p-8 space-y-8">
                     <div className="grid grid-cols-2 gap-6">
                       <Field
-                        label="Operational Handle"
+                        label={t("profile.identity.fields.username")}
                         value={user?.username || "—"}
                         readOnly
                       />
-                      <Field label="System Role" value={user?.role || "—"} readOnly />
+                      <Field label={t("profile.identity.fields.role")} value={user?.role || "—"} readOnly />
                       <Field
                         className="col-span-2"
-                        label="Primary Communication Endpoint (Email)"
+                        label={t("profile.identity.fields.email")}
                         value={user?.email || "—"}
                         readOnly
                       />
                       <EditableField
                         className="col-span-2"
-                        label="Recovery Channel (Email)"
+                        label={t("profile.identity.fields.recovery")}
                         value={recoveryEmail}
                         onChange={(value) => {
                           setIdentityDirty(true);
                           setRecoveryEmail(value);
                         }}
-                        placeholder="fallback@vantage.local"
+                        placeholder={t("profile.identity.fields.recoveryPlaceholder")}
                         type="email"
                       />
                       <EditableField
                         className="col-span-2"
-                        label="Bio / Operator Notes"
+                        label={t("profile.identity.fields.bio")}
                         value={bio}
                         onChange={(value) => {
                           setIdentityDirty(true);
                           setBio(value);
                         }}
-                        placeholder="Notas do operador, função, contexto regional ou observações úteis..."
+                        placeholder={t("profile.identity.fields.bioPlaceholder")}
                         multiline
                       />
                     </div>
@@ -1064,14 +1072,14 @@ export default function Profile() {
                           setIdentityDirty(false);
                         }}
                       >
-                        Discard Changes
+                        {t("profile.buttons.discardChanges")}
                       </button>
                       <button
                         className="btn btn-primary"
                         onClick={saveIdentityProfile}
                         disabled={savingIdentity}
                       >
-                        {savingIdentity ? "Saving..." : "Save Identity Profile"}
+                        {savingIdentity ? t("profile.buttons.savingIdentity") : t("profile.buttons.saveIdentity")}
                       </button>
                     </div>
                   </div>
@@ -1082,12 +1090,12 @@ export default function Profile() {
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2">
                   <div className="card overflow-hidden">
                     <div className="card-header">
-                      <h3 className="card-title">Regional Interface</h3>
+                      <h3 className="card-title">{t("profile.preferences.regional.title")}</h3>
                     </div>
                     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="max-w-xs space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                          Interface Language
+                          {t("profile.preferences.regional.languageLabel")}
                         </label>
                         <select
                           value={preferredLang}
@@ -1097,12 +1105,12 @@ export default function Profile() {
                           }}
                           className="w-full bg-surface-container-low border-b-2 border-outline focus:border-primary px-0 py-2 text-sm font-medium transition-all appearance-none cursor-pointer outline-none focus:ring-0 border-t-0 border-x-0"
                         >
-                          <option value="en">Inglês (United States)</option>
-                          <option value="pt">Português (Brasil)</option>
-                          <option value="es">Espanhol (España)</option>
+                          <option value="en">{t("profile.preferences.regional.english")}</option>
+                          <option value="pt">{t("profile.preferences.regional.portuguese")}</option>
+                          <option value="es">{t("profile.preferences.regional.spanish")}</option>
                         </select>
                         <p className="text-[10px] text-on-surface-variant mt-1">
-                          Affects all operational logs and system labels.
+                          {t("profile.preferences.regional.hint")}
                         </p>
                         <div className="pt-2">
                           <button
@@ -1110,37 +1118,37 @@ export default function Profile() {
                             onClick={savePreferences}
                             disabled={savingPreferences || !hasPreferenceChanges}
                           >
-                            {savingPreferences ? "Saving..." : "Save Preferences"}
+                            {savingPreferences ? t("profile.buttons.savingPreferences") : t("profile.buttons.savePreferences")}
                           </button>
                         </div>
                       </div>
 
                       <div className="max-w-xs space-y-2">
                         <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                          Interface Theme
+                          {t("profile.preferences.theme.label")}
                         </label>
                         <div className="nav-pills mt-2 inline-flex w-full">
                           <button
                             className={`flex-1 nav-pill-item ${theme === "light" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
                             onClick={() => setTheme("light")}
                           >
-                            Light
+                            {t("profile.preferences.theme.light")}
                           </button>
                           <button
                             className={`flex-1 nav-pill-item ${theme === "dark" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
                             onClick={() => setTheme("dark")}
                           >
-                            Dark
+                            {t("profile.preferences.theme.dark")}
                           </button>
                           <button
                             className={`flex-1 nav-pill-item ${theme === "system" ? "nav-pill-item-active" : "nav-pill-item-inactive"}`}
                             onClick={() => setTheme("system")}
                           >
-                            System
+                            {t("profile.preferences.theme.system")}
                           </button>
                         </div>
                         <p className="text-[10px] text-on-surface-variant mt-2 hidden md:block">
-                          Instantly repaints local panels.
+                          {t("profile.preferences.theme.hint")}
                         </p>
                       </div>
                     </div>
@@ -1148,36 +1156,36 @@ export default function Profile() {
 
                   <div className="card overflow-hidden">
                     <div className="card-header">
-                      <h3 className="card-title">Security Configuration</h3>
+                      <h3 className="card-title">{t("profile.security.title")}</h3>
                     </div>
                     <div className="p-8 space-y-10">
                       <section className="space-y-6">
                         <div className="flex items-center gap-2 mb-2">
                           <Key className="w-4 h-4 text-primary" />
                           <h4 className="text-xs font-bold uppercase tracking-widest">
-                            Update Administrative Password
+                            {t("profile.security.password.title")}
                           </h4>
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div className="space-y-1 col-span-2">
                             <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                              Current Password
+                              {t("profile.security.password.currentLabel")}
                             </label>
                             <input
                               className="w-full bg-surface-container-highest border-b-2 border-outline-variant px-0 py-2 text-sm font-medium text-on-surface-variant cursor-not-allowed border-t-0 border-x-0 focus:ring-0 outline-none"
-                              placeholder="Managed by secure session context"
+                              placeholder={t("profile.security.password.currentPlaceholder")}
                               type="password"
                               disabled
                             />
                           </div>
                           <EditableField
-                            label="New Password"
+                            label={t("profile.security.password.new")}
                             value={newPassword}
                             onChange={setNewPassword}
                             type="password"
                           />
                           <EditableField
-                            label="Confirm New Password"
+                            label={t("profile.security.password.confirm")}
                             value={confirmPassword}
                             onChange={setConfirmPassword}
                             type="password"
@@ -1189,7 +1197,7 @@ export default function Profile() {
                             onClick={updatePassword}
                             disabled={savingPassword}
                           >
-                            {savingPassword ? "Updating..." : "Update Password"}
+                            {savingPassword ? t("profile.buttons.updatingPassword") : t("profile.buttons.updatePassword")}
                           </button>
                         </div>
                       </section>
@@ -1199,16 +1207,16 @@ export default function Profile() {
                           <div className="flex items-center gap-2">
                             <ShieldCheck className="w-4 h-4 text-primary" />
                             <h4 className="text-xs font-bold uppercase tracking-widest">
-                              Multi-Factor Authentication (MFA)
+                              {t("profile.security.mfa.title")}
                             </h4>
                           </div>
-                          <span className="badge badge-primary">Active</span>
+                          <span className="badge badge-primary">{t("profile.security.mfa.active")}</span>
                         </div>
                         <div className="p-4 bg-surface-container-low rounded border border-outline-variant/20 flex items-center justify-between">
                           <div>
-                            <p className="text-sm font-bold">Authenticator App</p>
+                            <p className="text-sm font-bold">{t("profile.security.mfa.authenticatorTitle")}</p>
                             <p className="text-xs text-on-surface-variant">
-                              Primary verification method using time-based codes.
+                              {t("profile.security.mfa.description")}
                             </p>
                           </div>
                           <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary">
@@ -1221,7 +1229,7 @@ export default function Profile() {
 
                   <div className="card overflow-hidden">
                     <div className="card-header">
-                      <h3 className="card-title">Notification Routing Preferences</h3>
+                      <h3 className="card-title">{t("profile.notifications.title")}</h3>
                     </div>
                     <div className="p-6 space-y-4">
                       <ToggleCard
@@ -1230,8 +1238,8 @@ export default function Profile() {
                           setPreferencesDirty(true);
                           setCriticalAlerts(value);
                         }}
-                        title="Critical Incident Routing"
-                        description="Escalations and high-risk findings shown in the operator queue."
+                        title={t("profile.notifications.critical.title")}
+                        description={t("profile.notifications.critical.description")}
                       />
                       <ToggleCard
                         checked={moduleUpdates}
@@ -1239,8 +1247,8 @@ export default function Profile() {
                           setPreferencesDirty(true);
                           setModuleUpdates(value);
                         }}
-                        title="System Notices"
-                        description="Control-plane and service-state updates relevant to the operator."
+                        title={t("profile.notifications.system.title")}
+                        description={t("profile.notifications.system.description")}
                       />
                       <ToggleCard
                         checked={dailySummary}
@@ -1248,23 +1256,23 @@ export default function Profile() {
                           setPreferencesDirty(true);
                           setDailySummary(value);
                         }}
-                        title="Intelligence Feed Items"
-                        description="Feed-derived signals and editorial intelligence surfaced in notifications."
+                        title={t("profile.notifications.feed.title")}
+                        description={t("profile.notifications.feed.description")}
                       />
                     </div>
                   </div>
 
                   <div className="card overflow-hidden">
                     <div className="card-header flex justify-between items-center">
-                      <h3 className="card-title">Active Operational Sessions</h3>
+                      <h3 className="card-title">{t("profile.sessions.title")}</h3>
                       <button
                         className="text-[9px] font-black text-error hover:underline uppercase tracking-widest"
                         onClick={revokeOtherSessions}
                         disabled={sessionAction === "others"}
                       >
                         {sessionAction === "others"
-                          ? "Revoking..."
-                          : "Revoke All Other Sessions"}
+                          ? t("profile.buttons.revoking")
+                          : t("profile.buttons.revokeOtherSessions")}
                       </button>
                     </div>
                     <div className="overflow-x-auto">
@@ -1272,16 +1280,16 @@ export default function Profile() {
                         <thead className="bg-surface-container-low border-b border-outline-variant/20">
                           <tr>
                             <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-outline">
-                              Device
+                              {t("profile.sessions.headers.device")}
                             </th>
                             <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-outline">
-                              IP Address
+                              {t("profile.sessions.headers.ip")}
                             </th>
                             <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-outline">
-                              Last Activity
+                              {t("profile.sessions.headers.lastActivity")}
                             </th>
                             <th className="px-6 py-3 text-[10px] font-bold uppercase tracking-wider text-outline text-right">
-                              Action
+                              {t("profile.sessions.headers.action")}
                             </th>
                           </tr>
                         </thead>
@@ -1302,26 +1310,29 @@ export default function Profile() {
                                   </div>
                                 </td>
                                 <td className="px-6 py-4 font-mono text-[11px] text-on-surface-variant">
-                                  {session.ip} {session.is_current ? "[Current]" : ""}
+                                  {session.ip} {session.is_current ? t("profile.sessions.current") : ""}
                                 </td>
                                 <td className="px-6 py-4 text-[11px] text-on-surface-variant">
                                   {session.is_current
-                                    ? "Active Now"
+                                    ? t("profile.sessions.activeNow")
                                     : relativeTime(session.created_at)}
                                 </td>
                                 <td className="px-6 py-4 text-right">
                                   {session.is_current ? (
                                     <span className="text-[10px] font-bold text-primary uppercase">
-                                      Current
+                                      {t("profile.sessions.statusCurrent")}
                                     </span>
                                   ) : (
                                     <div className="flex justify-end gap-2">
                                       <RowPrimaryAction
-                                        label="Review"
+                                        label={t("profile.buttons.review")}
                                         icon={<Eye className="h-3.5 w-3.5" />}
                                         onClick={() =>
                                           setNotice(
-                                            `Session ${session.device} / ${session.ip} expires ${formatTimestamp(session.expires_at)}`,
+                                            t("profile.messages.sessionDetail")
+                                              .replace("{device}", session.device)
+                                              .replace("{ip}", session.ip)
+                                              .replace("{date}", formatTimestamp(session.expires_at, locale)),
                                           )
                                         }
                                       />
@@ -1329,16 +1340,19 @@ export default function Profile() {
                                         items={[
                                           {
                                             key: "review",
-                                            label: "Review session context",
+                                            label: t("profile.sessions.reviewContext"),
                                             icon: <Eye className="h-3.5 w-3.5" />,
                                             onSelect: () =>
                                               setNotice(
-                                                `Session ${session.device} / ${session.ip} expires ${formatTimestamp(session.expires_at)}`,
+                                                t("profile.messages.sessionDetail")
+                                                  .replace("{device}", session.device)
+                                                  .replace("{ip}", session.ip)
+                                                  .replace("{date}", formatTimestamp(session.expires_at, locale)),
                                               ),
                                           },
                                           {
                                             key: "revoke",
-                                            label: "Revoke session",
+                                            label: t("profile.sessions.revoke"),
                                             icon: <Trash2 className="h-3.5 w-3.5" />,
                                             onSelect: () => revokeSession(session.session_id),
                                             tone: "danger",
@@ -1370,7 +1384,7 @@ export default function Profile() {
                           setPreferencesDirty(false);
                         }}
                     >
-                      Discard
+                      {t("profile.buttons.discard")}
                     </button>
                   </div>
                 </div>
@@ -1422,9 +1436,7 @@ export default function Profile() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-on-surface-variant text-sm max-w-2xl">
-                        Manage credentials for the VANTAGE core platform and configure
-                        integrations with third-party intelligence providers. API activity
-                        is logged in the Audit Registry.
+                        {t("profile.apiKeys.description")}
                       </p>
                     </div>
                     <button
@@ -1435,7 +1447,7 @@ export default function Profile() {
                       }}
                     >
                       <span className="material-symbols-outlined text-[16px]">add</span>
-                      Generate Platform Key
+                      {t("profile.buttons.generatePlatformKey")}
                     </button>
                   </div>
 
@@ -1444,13 +1456,13 @@ export default function Profile() {
                       <div className="flex items-center justify-between gap-4">
                         <div>
                           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">
-                            Newly issued key
+                            {t("profile.apiKeys.newlyIssued")}
                           </div>
                           <div className="mt-2 font-mono text-sm break-all">{freshKey.key}</div>
                         </div>
                         <button className="btn btn-secondary flex items-center gap-2" onClick={copyFreshKey}>
                           <Copy className="w-4 h-4" />
-                          Copy
+                          {t("profile.buttons.copy")}
                         </button>
                       </div>
                     </div>
@@ -1459,7 +1471,7 @@ export default function Profile() {
                   <section className="card p-0 overflow-hidden">
                     <div className="card-header flex items-center gap-3">
                       <h4 className="font-bold text-xs uppercase tracking-[0.2em] text-on-surface-variant">
-                        Core Platform Credentials
+                        {t("profile.apiKeys.corePlatformTitle")}
                       </h4>
                     </div>
                     <div className="overflow-x-auto">
@@ -1467,19 +1479,19 @@ export default function Profile() {
                         <thead>
                           <tr className="bg-surface-container-high">
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Key Alias
+                              {t("profile.apiKeys.headers.alias")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Created
+                              {t("profile.apiKeys.headers.created")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Last Used
+                              {t("profile.apiKeys.headers.lastUsed")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Scope
+                              {t("profile.apiKeys.headers.scope")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Status
+                              {t("profile.apiKeys.headers.status")}
                             </th>
                             <th className="px-6 py-3 text-right"></th>
                           </tr>
@@ -1514,7 +1526,7 @@ export default function Profile() {
                               </td>
                               <td className="px-6 py-4">
                                 <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-secondary-container text-on-secondary-container uppercase">
-                                  {key.scopes.length > 1 ? "Full Access" : key.scopes[0] || "none"}
+                                  {key.scopes.length > 1 ? t("profile.apiKeys.scopes.fullAccess") : key.scopes[0] || t("profile.apiKeys.scopes.none")}
                                 </span>
                               </td>
                               <td className="px-6 py-4">
@@ -1525,18 +1537,18 @@ export default function Profile() {
                                     }`}
                                   ></div>
                                   <span className="text-[11px] font-bold text-on-surface uppercase tracking-tighter">
-                                    {key.revoked ? "Revoked" : "Active"}
+                                    {key.revoked ? t("profile.apiKeys.status.revoked") : t("profile.apiKeys.status.active")}
                                   </span>
                                 </div>
                               </td>
                               <td className="px-6 py-4 text-right">
                                 <div className="flex justify-end gap-2">
                                   <RowPrimaryAction
-                                    label="Review"
+                                    label={t("profile.buttons.review")}
                                     icon={<Eye className="h-3.5 w-3.5" />}
                                     onClick={() =>
                                       setNotice(
-                                        `${key.name} - scope: ${key.scopes.join(", ") || "none"} / created ${formatTimestamp(key.created_at)}`,
+                                        `${key.name} - scope: ${key.scopes.join(", ") || t("profile.apiKeys.scopes.none")} / created ${formatTimestamp(key.created_at, locale)}`,
                                       )
                                     }
                                   />
@@ -1544,16 +1556,16 @@ export default function Profile() {
                                     items={[
                                       {
                                         key: "review",
-                                        label: "Review credential context",
+                                        label: t("profile.apiKeys.reviewContext"),
                                         icon: <Eye className="h-3.5 w-3.5" />,
                                         onSelect: () =>
                                           setNotice(
-                                            `${key.name} - scope: ${key.scopes.join(", ") || "none"} / created ${formatTimestamp(key.created_at)}`,
+                                            `${key.name} - scope: ${key.scopes.join(", ") || t("profile.apiKeys.scopes.none")} / created ${formatTimestamp(key.created_at, locale)}`,
                                           ),
                                       },
                                       {
                                         key: "revoke",
-                                        label: key.revoked ? "Credential already revoked" : "Revoke credential",
+                                        label: key.revoked ? t("profile.apiKeys.alreadyRevoked") : t("profile.apiKeys.revoke"),
                                         icon: <Trash2 className="h-3.5 w-3.5" />,
                                         onSelect: () => revokeApiKey(key.key_id),
                                         tone: "danger",
@@ -1575,7 +1587,7 @@ export default function Profile() {
                     <div className="surface-section-header">
                       <div className="flex items-center gap-3">
                         <h4 className="surface-section-title uppercase tracking-[0.2em] text-on-surface-variant">
-                          Threat Intelligence Integrations
+                          {t("profile.thirdParty.title")}
                         </h4>
                       </div>
                       <div className="text-[11px] font-bold text-on-surface-variant">
@@ -1587,19 +1599,19 @@ export default function Profile() {
                         <thead className="bg-surface-container-high">
                           <tr>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Provider
+                              {t("profile.thirdParty.headers.provider")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Coverage
+                              {t("profile.thirdParty.headers.coverage")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Status
+                              {t("profile.thirdParty.headers.status")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Credential
+                              {t("profile.thirdParty.headers.credential")}
                             </th>
                             <th className="px-6 py-3 text-right text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Action
+                              {t("profile.thirdParty.headers.action")}
                             </th>
                           </tr>
                         </thead>
@@ -1636,7 +1648,7 @@ export default function Profile() {
                                   <span
                                     className={`badge ${configured ? "badge-success" : "badge-primary"}`}
                                   >
-                                    {configured ? "Connected" : "Pending Setup"}
+                                    {configured ? t("profile.thirdParty.status.connected") : t("profile.thirdParty.status.pending")}
                                   </span>
                                 </td>
                                 <td className="px-6 py-4 align-top">
@@ -1651,7 +1663,7 @@ export default function Profile() {
                                         [service.id]: event.target.value,
                                       }))
                                     }
-                                    placeholder={configured ? "Rotate credential" : "Paste API key"}
+                                    placeholder={configured ? t("profile.thirdParty.placeholderRotate") : t("profile.thirdParty.placeholderPaste")}
                                     className="w-full min-w-[16rem] bg-surface-container-low border-b-2 border-outline px-0 py-2 text-xs font-medium transition-all outline-none focus:border-primary focus:ring-0 border-x-0 border-t-0"
                                   />
                                 </td>
@@ -1661,7 +1673,7 @@ export default function Profile() {
                                     onClick={() => saveThirdPartyKey(service.id)}
                                     disabled={thirdPartySaving === service.id}
                                   >
-                                    {thirdPartySaving === service.id ? "Syncing..." : "Configure Link"}
+                                    {thirdPartySaving === service.id ? t("profile.buttons.configuring") : t("profile.buttons.configureLink")}
                                   </button>
                                 </td>
                               </tr>
@@ -1677,10 +1689,10 @@ export default function Profile() {
                       <div className="flex justify-between items-start mb-8">
                         <div>
                           <h5 className="text-[10px] font-bold uppercase tracking-[0.2em] text-outline-variant mb-1">
-                            Key Utilization Forecast
+                            {t("profile.forecast.title")}
                           </h5>
                           <p className="text-sm font-bold">
-                            Projected monthly quota consumption across all linked intelligence nodes.
+                            {t("profile.forecast.description")}
                           </p>
                         </div>
                         <span className="material-symbols-outlined text-primary">monitoring</span>
@@ -1699,17 +1711,17 @@ export default function Profile() {
                       <div className="mt-4 flex justify-between text-[9px] font-bold text-outline-variant uppercase tracking-widest">
                         <span>01 NOV</span>
                         <span>15 NOV</span>
-                        <span>CURRENT</span>
+                        <span>{t("profile.forecast.current")}</span>
                       </div>
                     </div>
                     <div className="bg-primary text-on-primary p-6 rounded flex flex-col justify-between">
                       <h5 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80">
-                        Security Notice
+                        {t("profile.securityNotice.title")}
                       </h5>
                       <p className="text-xs font-bold leading-tight">
                         {oldestActiveKeyAge
-                          ? `Your oldest active API key was issued ${oldestActiveKeyAge} days ago. System recommends timely rotation.`
-                          : "No active API keys detected. Generate one when automation is required."}
+                          ? t("profile.securityNotice.oldKey").replace("{days}", String(oldestActiveKeyAge))
+                          : t("profile.securityNotice.noKeys")}
                       </p>
                       <button
                         className="mt-4 bg-white/10 hover:bg-white/20 py-2 text-[10px] font-black uppercase tracking-widest transition-all rounded"
@@ -1718,7 +1730,7 @@ export default function Profile() {
                           setIsCreateApiKeyOpen(true);
                         }}
                       >
-                        Rotate Now
+                        {t("profile.buttons.rotateNow")}
                       </button>
                     </div>
                   </section>
@@ -1730,8 +1742,7 @@ export default function Profile() {
                   <div className="flex justify-between items-end">
                     <div>
                       <p className="text-on-surface-variant text-sm mt-1">
-                        Personal activity log tracking your interactions, security updates, and
-                        profile changes.
+                        {t("profile.audit.description")}
                       </p>
                     </div>
                     <div className="flex gap-2">
@@ -1744,11 +1755,11 @@ export default function Profile() {
                         onClick={() => setShowAuditFilters(!showAuditFilters)}
                       >
                         <Filter className="w-4 h-4" />
-                        Filter
+                        {t("profile.buttons.filter")}
                       </button>
                       <button className="btn btn-primary flex items-center gap-2" onClick={exportAuditCsv}>
                         <Download className="w-4 h-4" />
-                        Export CSV
+                        {t("profile.buttons.exportCsv")}
                       </button>
                     </div>
                   </div>
@@ -1757,7 +1768,7 @@ export default function Profile() {
                     <div className="card p-4 bg-surface-container-low border border-outline-variant/20 animate-in fade-in slide-in-from-top-2">
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xs font-bold uppercase tracking-widest text-on-surface">
-                          Filter Audit Logs
+                          {t("profile.audit.filterTitle")}
                         </h3>
                         <button
                           onClick={() => setShowAuditFilters(false)}
@@ -1769,33 +1780,33 @@ export default function Profile() {
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         <div>
                           <label className="block text-[10px] font-bold text-outline uppercase tracking-wider mb-1">
-                            Event Type
+                            {t("profile.audit.filters.eventTypeLabel")}
                           </label>
                           <select
                             value={auditEventFilter}
                             onChange={(event) => setAuditEventFilter(event.target.value)}
                             className="w-full bg-surface-container-high border-none border-b-2 border-outline focus:border-primary text-xs font-semibold p-2 outline-none"
                           >
-                            <option value="all">All Events</option>
-                            <option value="login">System Login</option>
-                            <option value="profile">Profile Update</option>
-                            <option value="search">Search Executed</option>
-                            <option value="api">API Key Rotation</option>
+                            <option value="all">{t("profile.audit.filters.allEvents")}</option>
+                            <option value="login">{t("profile.audit.filters.login")}</option>
+                            <option value="profile">{t("profile.audit.filters.profileUpdate")}</option>
+                            <option value="search">{t("profile.audit.filters.search")}</option>
+                            <option value="api">{t("profile.audit.filters.apiKeyRotation")}</option>
                           </select>
                         </div>
                         <div>
                           <label className="block text-[10px] font-bold text-outline uppercase tracking-wider mb-1">
-                            Status
+                            {t("profile.audit.filters.statusLabel")}
                           </label>
                           <select
                             value={auditResultFilter}
                             onChange={(event) => setAuditResultFilter(event.target.value)}
                             className="w-full bg-surface-container-high border-none border-b-2 border-outline focus:border-primary text-xs font-semibold p-2 outline-none"
                           >
-                            <option value="all">All Statuses</option>
-                            <option value="success">Success</option>
-                            <option value="denied">Denied</option>
-                            <option value="failed">Failed</option>
+                            <option value="all">{t("profile.audit.filters.allStatuses")}</option>
+                            <option value="success">{t("profile.audit.filters.success")}</option>
+                            <option value="denied">{t("profile.audit.filters.denied")}</option>
+                            <option value="failed">{t("profile.audit.filters.failed")}</option>
                           </select>
                         </div>
                         <div className="md:col-span-2 flex items-end gap-2">
@@ -1806,10 +1817,10 @@ export default function Profile() {
                               setAuditResultFilter("all");
                             }}
                           >
-                            Reset
+                            {t("profile.buttons.reset")}
                           </button>
                           <div className="text-[11px] font-semibold text-on-surface-variant">
-                            {filteredAuditItems.length} visible event(s)
+                            {filteredAuditItems.length} {t("profile.metrics.visibleEvents").toLowerCase()}
                           </div>
                         </div>
                       </div>
@@ -1822,19 +1833,19 @@ export default function Profile() {
                         <thead>
                           <tr className="bg-surface-container-high">
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Time
+                              {t("profile.audit.headers.time")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Event
+                              {t("profile.audit.headers.event")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Target
+                              {t("profile.audit.headers.target")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant">
-                              Result
+                              {t("profile.audit.headers.result")}
                             </th>
                             <th className="px-6 py-3 text-[11px] font-black uppercase tracking-widest text-on-surface-variant text-right">
-                              Details
+                              {t("profile.audit.headers.details")}
                             </th>
                           </tr>
                         </thead>
@@ -1869,11 +1880,11 @@ export default function Profile() {
                               <td className="px-6 py-4 text-right">
                                 <button
                                   className="inline-flex items-center gap-1 text-primary text-[11px] font-bold hover:underline"
-                                  title={item.detail || "No extra detail"}
+                                  title={item.detail || t("profile.modals.auditDetail.noDetail")}
                                   type="button"
                                   onClick={() => setSelectedAuditItem(item)}
                                 >
-                                  Detail
+                                  {t("profile.buttons.detail")}
                                   <ExternalLink className="w-3 h-3" />
                                 </button>
                               </td>
@@ -1884,11 +1895,11 @@ export default function Profile() {
                     </div>
                     <div className="flex items-center justify-between border-t border-outline-variant/20 px-6 py-3">
                       <div className="text-[11px] text-on-surface-variant">
-                        Showing {filteredAuditItems.length} audit event(s)
+                        {t("profile.audit.showing").replace("{n}", String(filteredAuditItems.length))}
                       </div>
                       <div className="flex items-center gap-2 text-on-surface-variant">
                         <ChevronLeft className="w-4 h-4 opacity-40" />
-                        <span className="text-xs font-bold text-on-surface">Page 1</span>
+                        <span className="text-xs font-bold text-on-surface">{t("profile.audit.page").replace("{n}", "1")}</span>
                         <ChevronRight className="w-4 h-4 opacity-40" />
                       </div>
                     </div>
@@ -1902,15 +1913,15 @@ export default function Profile() {
 
       {isCreateApiKeyOpen && (
         <ModalShell
-          title="Create API Key"
-          description="Define alias, expiration policy and access scope before issuing a new operator-scoped platform key."
-          icon="Platform Credentials"
+          title={t("profile.modals.createApiKey.title")}
+          description={t("profile.modals.createApiKey.description")}
+          icon={t("profile.modals.createApiKey.icon")}
           variant="editor"
           onClose={() => {
             setIsCreateApiKeyOpen(false);
             setCreateApiKeyError("");
           }}
-          ariaLabel="Close create API key modal"
+          ariaLabel={t("profile.modals.createApiKey.closeLabel")}
           footer={
             <>
               <button
@@ -1921,7 +1932,7 @@ export default function Profile() {
                   setCreateApiKeyError("");
                 }}
               >
-                Cancel
+                {t("profile.buttons.cancel")}
               </button>
               <button
                 type="button"
@@ -1929,7 +1940,7 @@ export default function Profile() {
                 onClick={createApiKey}
                 disabled={creatingApiKey}
               >
-                {creatingApiKey ? "Generating..." : "Issue API Key"}
+                {creatingApiKey ? t("profile.buttons.issuing") : t("profile.buttons.issueApiKey")}
               </button>
             </>
           }
@@ -1938,45 +1949,44 @@ export default function Profile() {
                 <div className="space-y-6">
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                      Key Alias
+                      {t("profile.modals.createApiKey.fields.aliasLabel")}
                     </label>
                     <input
                       type="text"
                       value={newApiKeyName}
                       onChange={(event) => setNewApiKeyName(event.target.value)}
-                      placeholder="platform_key_finops"
+                      placeholder={t("profile.modals.createApiKey.fields.aliasPlaceholder")}
                       className="w-full rounded-sm bg-surface-container-low px-4 py-3 text-sm font-medium text-on-surface outline-none ring-1 ring-outline-variant/20 transition focus:ring-2 focus:ring-primary/20"
                     />
                     <p className="text-xs text-on-surface-variant">
-                      Use a human-readable alias so the operator can identify this
-                      key later in audits, review and rotation.
+                      {t("profile.modals.createApiKey.fields.aliasHint")}
                     </p>
                   </div>
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                      Expiration Policy
+                      {t("profile.modals.createApiKey.fields.expirationLabel")}
                     </label>
                     <select
                       value={newApiKeyExpiresDays}
                       onChange={(event) => setNewApiKeyExpiresDays(event.target.value)}
                       className="w-full rounded-sm bg-surface-container-low px-4 py-3 text-sm font-medium text-on-surface outline-none ring-1 ring-outline-variant/20 transition focus:ring-2 focus:ring-primary/20"
                     >
-                      <option value="30">30 days</option>
-                      <option value="90">90 days</option>
-                      <option value="180">180 days</option>
-                      <option value="365">365 days</option>
-                      <option value="never">No automatic expiration</option>
+                      <option value="30">{t("profile.modals.createApiKey.fields.days30")}</option>
+                      <option value="90">{t("profile.modals.createApiKey.fields.days90")}</option>
+                      <option value="180">{t("profile.modals.createApiKey.fields.days180")}</option>
+                      <option value="365">{t("profile.modals.createApiKey.fields.days365")}</option>
+                      <option value="never">{t("profile.modals.createApiKey.fields.noExpiration")}</option>
                     </select>
                   </div>
 
                   <div className="space-y-3">
                     <div>
                       <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-                        Allowed Scopes
+                        {t("profile.modals.createApiKey.fields.scopesLabel")}
                       </label>
                       <p className="mt-1 text-xs text-on-surface-variant">
-                        Choose only the capabilities this key actually needs.
+                        {t("profile.modals.createApiKey.fields.scopesHint")}
                       </p>
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -2016,12 +2026,12 @@ export default function Profile() {
                 <aside className="space-y-4">
                   <div className="surface-section overflow-hidden">
                     <div className="surface-section-header">
-                      <h4 className="surface-section-title">Issuance Summary</h4>
+                      <h4 className="surface-section-title">{t("profile.modals.createApiKey.summary")}</h4>
                     </div>
                     <div className="space-y-4 p-4 text-sm text-on-surface-variant">
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
-                          Alias
+                          {t("profile.modals.createApiKey.summaryAlias")}
                         </div>
                         <div className="mt-1 break-words text-sm font-semibold text-on-surface">
                           {newApiKeyName.trim() || "—"}
@@ -2029,17 +2039,17 @@ export default function Profile() {
                       </div>
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
-                          Expiration
+                          {t("profile.modals.createApiKey.summaryExpiration")}
                         </div>
                         <div className="mt-1 text-sm font-semibold text-on-surface">
                           {newApiKeyExpiresDays === "never"
-                            ? "No automatic expiration"
-                            : `${newApiKeyExpiresDays} days`}
+                            ? t("profile.modals.createApiKey.summaryNoExpiration")
+                            : `${newApiKeyExpiresDays} ${t("profile.messages.days")}`}
                         </div>
                       </div>
                       <div>
                         <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface">
-                          Scope Set
+                          {t("profile.modals.createApiKey.summaryScope")}
                         </div>
                         <div className="mt-2 flex flex-wrap gap-2">
                           {newApiKeyScopes.length ? (
@@ -2049,13 +2059,12 @@ export default function Profile() {
                               </span>
                             ))
                           ) : (
-                            <span className="badge badge-error">No scope selected</span>
+                            <span className="badge badge-error">{t("profile.modals.createApiKey.summaryNoScope")}</span>
                           )}
                         </div>
                       </div>
                       <p className="text-xs leading-relaxed">
-                        The raw credential will be shown only once after issuance and
-                        the operation will be written to the Audit Registry.
+                        {t("profile.modals.createApiKey.disclaimer")}
                       </p>
                     </div>
                   </div>
@@ -2067,22 +2076,22 @@ export default function Profile() {
       {selectedAuditItem && (
         <ModalShell
           title={selectedAuditItem.action}
-          description="Event detail captured from the operator audit registry."
-          icon="Audit Detail"
+          description={t("profile.modals.auditDetail.description")}
+          icon={t("profile.modals.auditDetail.icon")}
           onClose={() => setSelectedAuditItem(null)}
-          ariaLabel="Close audit detail"
+          ariaLabel={t("profile.modals.auditDetail.closeLabel")}
           variant="dialog"
         >
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <Field label="Timestamp" value={formatTimestamp(selectedAuditItem.timestamp)} readOnly />
-                <Field label="User" value={selectedAuditItem.user || "—"} readOnly />
-                <Field label="Result" value={selectedAuditItem.result || "unknown"} readOnly />
-                <Field label="IP Address" value={selectedAuditItem.ip || "—"} readOnly />
-                <Field className="md:col-span-2" label="Target" value={selectedAuditItem.target || "—"} readOnly />
+                <Field label={t("profile.modals.auditDetail.fields.timestamp")} value={formatTimestamp(selectedAuditItem.timestamp, locale)} readOnly />
+                <Field label={t("profile.modals.auditDetail.fields.user")} value={selectedAuditItem.user || "—"} readOnly />
+                <Field label={t("profile.modals.auditDetail.fields.result")} value={selectedAuditItem.result || "unknown"} readOnly />
+                <Field label={t("profile.modals.auditDetail.fields.ip")} value={selectedAuditItem.ip || "—"} readOnly />
+                <Field className="md:col-span-2" label={t("profile.modals.auditDetail.fields.target")} value={selectedAuditItem.target || "—"} readOnly />
                 <Field
                   className="md:col-span-2"
-                  label="Detail"
-                  value={selectedAuditItem.detail || "No extra detail available for this event."}
+                  label={t("profile.modals.auditDetail.fields.detail")}
+                  value={selectedAuditItem.detail || t("profile.modals.auditDetail.noDetail")}
                   multiline
                   readOnly
                 />
@@ -2092,14 +2101,14 @@ export default function Profile() {
 
       {avatarEditorOpen && (
         <ModalShell
-          title="Ajustar foto de perfil"
-          description="Revise como a foto será exibida no avatar antes de salvar."
-          icon="Avatar Editor"
+          title={t("profile.avatar.editor.title")}
+          description={t("profile.avatar.editor.description")}
+          icon={t("profile.avatar.editor.icon")}
           onClose={() => {
             setAvatarEditorOpen(false);
             setPendingAvatarData("");
           }}
-          ariaLabel="Close avatar editor"
+          ariaLabel={t("profile.avatar.editor.closeLabel")}
           variant="dialog"
           bodyClassName="space-y-6"
           footer={
@@ -2109,7 +2118,7 @@ export default function Profile() {
                 onClick={removeAvatarSelection}
                 disabled={!avatarDraft && !user?.avatar_base64}
               >
-                Remover avatar
+                {t("profile.buttons.removeAvatar")}
               </button>
               <button
                 className="btn btn-ghost"
@@ -2118,13 +2127,13 @@ export default function Profile() {
                   setPendingAvatarData("");
                 }}
               >
-                Cancelar
+                {t("profile.buttons.cancel")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => void confirmAvatarSelection()}
               >
-                Usar foto
+                {t("profile.buttons.usePhoto")}
               </button>
             </>
           }
@@ -2132,10 +2141,10 @@ export default function Profile() {
           <div className="flex items-center justify-between gap-3 rounded-sm border border-outline-variant/15 bg-surface-container-low px-4 py-3">
             <div>
               <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                Origem da imagem
+                {t("profile.avatar.editor.imageSource")}
               </div>
               <div className="mt-1 text-sm text-on-surface-variant">
-                Se quiser, você pode substituir a imagem atual antes de ajustar o recorte.
+                {t("profile.avatar.editor.hint")}
               </div>
             </div>
             <button
@@ -2144,7 +2153,7 @@ export default function Profile() {
               onClick={() => avatarInputRef.current?.click()}
             >
               <Camera className="w-4 h-4" />
-              Escolher outra imagem
+              {t("profile.buttons.chooseImage")}
             </button>
           </div>
 
@@ -2164,7 +2173,7 @@ export default function Profile() {
 
           <div className="space-y-3">
             <label className="text-[10px] font-bold uppercase tracking-wider text-outline">
-              Zoom
+              {t("profile.avatar.editor.zoom")}
             </label>
             <input
               type="range"

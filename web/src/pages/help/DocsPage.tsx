@@ -153,7 +153,7 @@ const sections: DocSection[] = [
     content: [
       {
         title: "Available Sources",
-        body: "Hunting is an extension-driven investigation module. When the Sherlock source is installed, you can search for username and identity presence across social media platforms, forums, and web services. Additional sources can be added through the extensions catalog.",
+        body: "Hunting is an extension-driven investigation module. When it is installed, you can search for username and identity presence across social media platforms, forums, and web services. Additional sources can be added through the extensions catalog.",
       },
       {
         title: "Username / Identity Search",

@@ -48,13 +48,18 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+    *,
+    secret: Optional[str] = None,
+) -> str:
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (
         expires_delta if expires_delta else timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
     to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return jwt.encode(to_encode, secret or SECRET_KEY, algorithm=ALGORITHM)
 
 
 def create_refresh_token() -> str:
@@ -241,6 +246,7 @@ def _build_user_dict(
         "bio": user.get("bio"),
         "recovery_email": user.get("recovery_email"),
         "notification_center": default_notification_center(user.get("notification_center")),
+        "team": user.get("team"),
     }
     if "_api_key_scopes" in user:
         result["_api_key_scopes"] = user["_api_key_scopes"]

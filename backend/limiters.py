@@ -23,11 +23,12 @@ def _get_rate_limit_key(request: Request) -> str:
                 token,
                 settings.jwt_secret,
                 algorithms=[settings.algorithm],
-                options={"verify_exp": False},
             )
             username = payload.get("sub")
             if username:
                 return f"user:{username}"
+        except jwt.ExpiredSignatureError:
+            pass  # expired token → fall back to IP-based limiting
         except (jwt.InvalidTokenError, Exception):
             pass
     return get_remote_address(request)

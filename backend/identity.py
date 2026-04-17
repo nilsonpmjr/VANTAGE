@@ -7,7 +7,11 @@ from __future__ import annotations
 import re
 
 
-EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+# RFC 5321 simplified — requires 2+ char TLD, no consecutive dots, no leading/trailing dots.
+# Deliberately allows internal TLDs (.local, .internal) for B2B/SOC deployments.
+EMAIL_RE = re.compile(
+    r"^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$"
+)
 
 
 def normalize_email(email: str | None) -> str | None:

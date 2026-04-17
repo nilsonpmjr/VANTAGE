@@ -4,6 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
+import DOMPurify from "dompurify";
 import {
   Bold,
   Heading1,
@@ -124,9 +125,12 @@ export function sanitizeHandoffBodyHtml(value: string) {
     return plainTextToHtml(trimmed);
   }
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(trimmed, "text/html");
-  return Array.from(doc.body.childNodes).map(sanitizeNode).join("") || "<p></p>";
+  return DOMPurify.sanitize(trimmed, {
+    ALLOWED_TAGS: [...ALLOWED_TAGS],
+    ALLOWED_ATTR: ["src", "alt", "href"],
+    ALLOW_DATA_ATTR: false,
+    FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover"],
+  }) || "<p></p>";
 }
 
 export function handoffBodyHasMeaningfulContent(value: string) {
@@ -305,6 +309,7 @@ export function HandoffRichTextEditor({
           onClick={() => {
             const src = window.prompt(imagePromptLabel);
             if (!src?.trim()) return;
+            if (!isSafeImageSrc(src.trim())) return;
             editor.chain().focus().setImage({ src: src.trim() }).run();
           }}
         >

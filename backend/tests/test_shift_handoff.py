@@ -232,3 +232,175 @@ async def test_shift_handoff_create_writes_audit_row(async_client, auth_headers,
     audit = await fake_db.audit_log.find_one({"action": "shift_handoff_create"})
     assert audit is not None
     assert audit["user"] == "admin"
+
+
+# ── Cross-team access control (IDOR) ────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_denied_for_different_team(async_client, fake_db):
+    """A tech user from team-B must not read a handoff belonging to team-A."""
+    from auth import create_access_token
+
+    now = datetime.now(timezone.utc)
+    handoff_id = ObjectId()
+    fake_db.shift_handoffs._data = [
+        {
+            "_id": handoff_id,
+            "shift_date": "2026-04-10",
+            "team_members": ["alpha"],
+            "body": "team-A only",
+            "team": "team-alpha",
+            "visibility_days": 7,
+            "expires_at": now + timedelta(days=5),
+            "created_by": "alpha_user",
+            "created_at": now,
+            "updated_at": now,
+            "incidents": [],
+            "tools_status": [],
+            "observations": "",
+            "shift_focus": "",
+            "acknowledged_by": "",
+            "acknowledged_at": None,
+            "attachments": [],
+            "edit_history": [],
+        }
+    ]
+    # techuser belongs to team-bravo
+    for u in fake_db.users._data:
+        if u["username"] == "techuser":
+            u["team"] = "team-bravo"
+
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = await async_client.get(
+        f"/api/shift-handoffs/{handoff_id}", headers=headers,
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "access_denied"
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_allowed_for_same_team(async_client, fake_db):
+    """A tech user from the same team CAN read the handoff."""
+    from auth import create_access_token
+
+    now = datetime.now(timezone.utc)
+    handoff_id = ObjectId()
+    fake_db.shift_handoffs._data = [
+        {
+            "_id": handoff_id,
+            "shift_date": "2026-04-10",
+            "team_members": ["alpha"],
+            "body": "same team ok",
+            "team": "team-alpha",
+            "visibility_days": 7,
+            "expires_at": now + timedelta(days=5),
+            "created_by": "alpha_user",
+            "created_at": now,
+            "updated_at": now,
+            "incidents": [],
+            "tools_status": [],
+            "observations": "",
+            "shift_focus": "",
+            "acknowledged_by": "",
+            "acknowledged_at": None,
+            "attachments": [],
+            "edit_history": [],
+        }
+    ]
+    for u in fake_db.users._data:
+        if u["username"] == "techuser":
+            u["team"] = "team-alpha"
+
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = await async_client.get(
+        f"/api/shift-handoffs/{handoff_id}", headers=headers,
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_get_handoff_admin_bypasses_team_check(async_client, auth_headers, fake_db):
+    """An admin can read any handoff regardless of team."""
+    now = datetime.now(timezone.utc)
+    handoff_id = ObjectId()
+    fake_db.shift_handoffs._data = [
+        {
+            "_id": handoff_id,
+            "shift_date": "2026-04-10",
+            "team_members": ["alpha"],
+            "body": "admin can see all",
+            "team": "team-alpha",
+            "visibility_days": 7,
+            "expires_at": now + timedelta(days=5),
+            "created_by": "alpha_user",
+            "created_at": now,
+            "updated_at": now,
+            "incidents": [],
+            "tools_status": [],
+            "observations": "",
+            "shift_focus": "",
+            "acknowledged_by": "",
+            "acknowledged_at": None,
+            "attachments": [],
+            "edit_history": [],
+        }
+    ]
+    # admin has no team or different team — should still access
+    for u in fake_db.users._data:
+        if u["username"] == "admin":
+            u["team"] = "team-bravo"
+
+    response = await async_client.get(
+        f"/api/shift-handoffs/{handoff_id}", headers=auth_headers,
+    )
+    assert response.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_update_handoff_denied_for_different_team(async_client, fake_db):
+    """A tech user from team-B must not update a handoff belonging to team-A."""
+    from auth import create_access_token
+
+    now = datetime.now(timezone.utc)
+    handoff_id = ObjectId()
+    fake_db.shift_handoffs._data = [
+        {
+            "_id": handoff_id,
+            "shift_date": "2026-04-10",
+            "team_members": ["alpha"],
+            "body": "team-A only",
+            "team": "team-alpha",
+            "visibility_days": 7,
+            "expires_at": now + timedelta(days=5),
+            "created_by": "alpha_user",
+            "created_at": now,
+            "updated_at": now,
+            "incidents": [],
+            "tools_status": [],
+            "observations": "",
+            "shift_focus": "",
+            "acknowledged_by": "",
+            "acknowledged_at": None,
+            "attachments": [],
+            "edit_history": [],
+        }
+    ]
+    for u in fake_db.users._data:
+        if u["username"] == "techuser":
+            u["team"] = "team-bravo"
+
+    token = create_access_token({"sub": "techuser", "role": "tech"})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    response = await async_client.put(
+        f"/api/shift-handoffs/{handoff_id}",
+        headers=headers,
+        json={"body": "hacked"},
+    )
+    assert response.status_code == 403
+    assert response.json()["detail"] == "access_denied"

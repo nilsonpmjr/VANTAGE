@@ -3,12 +3,45 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Suspense, lazy, type ReactNode } from "react";
+import { Component, Suspense, lazy, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider, RequireAuth, RequirePathAccess } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { ThemeProvider } from "./context/ThemeContext";
+
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="page-frame">
+          <div className="card p-6 text-sm text-on-surface-variant">
+            Something went wrong loading this page.{" "}
+            <button
+              className="underline"
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+            >
+              Reload
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 const SettingsLayout = lazy(() => import("./components/SettingsLayout"));
 const Home = lazy(() => import("./pages/Home"));
@@ -49,7 +82,11 @@ function RouteFallback() {
 }
 
 function suspense(element: ReactNode) {
-  return <Suspense fallback={<RouteFallback />}>{element}</Suspense>;
+  return (
+    <ErrorBoundary>
+      <Suspense fallback={<RouteFallback />}>{element}</Suspense>
+    </ErrorBoundary>
+  );
 }
 
 export default function App() {

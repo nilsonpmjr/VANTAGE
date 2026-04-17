@@ -113,6 +113,7 @@ export default function Home() {
         })
         .catch(() => {
           setFeedItems([]);
+          console.warn("Failed to fetch threat feed items");
         }),
       fetch(`${API_URL}/api/feed/summary`, { credentials: "include" })
         .then((response) => (response.ok ? response.json() : null))
@@ -121,9 +122,11 @@ export default function Home() {
         })
         .catch(() => {
           setFeedSummary(null);
+          console.warn("Failed to fetch feed summary");
         }),
     ]).catch(() => {
       setFeedSummary(null);
+      console.warn("Feed refresh failed");
     });
   };
 

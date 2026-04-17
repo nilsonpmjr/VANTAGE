@@ -38,4 +38,40 @@ jobs:
           name: bandit-report
           path: bandit-report.json
 
+  frontend-audit:
+    name: npm audit (Frontend)
+    runs-on: ubuntu-latest
 
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: web
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: web
+        run: npm audit --audit-level=high
+
+  container-scan:
+    name: Trivy (Container Scan)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4.2.2
+
+      - name: Build backend image
+        run: docker build -t vantage-backend:scan ./backend
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: "vantage-backend:scan"
+          format: "table"
+          exit-code: "1"
+          severity: "CRITICAL,HIGH"

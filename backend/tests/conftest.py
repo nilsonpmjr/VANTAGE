@@ -199,6 +199,19 @@ class FakeCollection:
             return _UpdateResult(modified_count=1)
         return _UpdateResult(modified_count=0)
 
+    async def update_many(self, query, update):
+        modified = 0
+        for doc in self._data:
+            if _match_doc(doc, query):
+                for op, fields in update.items():
+                    if op == "$set":
+                        doc.update(fields)
+                    elif op == "$inc":
+                        for key, value in fields.items():
+                            doc[key] = doc.get(key, 0) + value
+                modified += 1
+        return _UpdateResult(modified_count=modified)
+
     async def delete_one(self, query):
         for i, doc in enumerate(self._data):
             if all(doc.get(k) == v for k, v in query.items()):

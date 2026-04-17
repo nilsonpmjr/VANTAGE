@@ -165,9 +165,11 @@ async def login(request: Request):
     # ── MFA gate ────────────────────────────────────────────────────────────
     if user.get("mfa_enabled"):
         # Issue a short-lived pre-auth token (5 min) to proceed to OTP verification
+        _preauth_secret = settings.mfa_preauth_secret or None
         pre_auth_token = create_access_token(
             data={"sub": user["username"], "role": role, "scope": "mfa_pending"},
             expires_delta=timedelta(minutes=5),
+            secret=_preauth_secret,
         )
         await log_action(db, user=user["username"], action="login_mfa_pending", ip=ip)
         response = JSONResponse(content={"mfa_required": True})
@@ -197,19 +199,24 @@ async def login(request: Request):
         )
 
     # Enforce max 10 active sessions per user — revoke oldest if exceeded.
+    # Uses a single sorted query + bulk update to minimise the race window
+    # between counting and revoking sessions during concurrent logins.
     MAX_SESSIONS = 10
     active_cursor = db.refresh_tokens.find(
         {"username": user["username"], "revoked": False, "expires_at": {"$gt": now}},
-    )
+    ).sort("created_at", 1)
     active_sessions = await active_cursor.to_list(length=200)
     if len(active_sessions) >= MAX_SESSIONS:
-        active_sessions.sort(key=lambda s: s.get("created_at", now))
-        for old in active_sessions[: len(active_sessions) - MAX_SESSIONS + 1]:
-            if old.get("session_id"):
-                await db.refresh_tokens.update_one(
-                    {"session_id": old["session_id"]},
-                    {"$set": {"revoked": True}},
-                )
+        excess = len(active_sessions) - MAX_SESSIONS + 1
+        ids_to_revoke = [
+            s["session_id"] for s in active_sessions[:excess]
+            if s.get("session_id")
+        ]
+        if ids_to_revoke:
+            await db.refresh_tokens.update_many(
+                {"session_id": {"$in": ids_to_revoke}},
+                {"$set": {"revoked": True}},
+            )
 
     # Persist refresh token in MongoDB
     await db.refresh_tokens.insert_one({

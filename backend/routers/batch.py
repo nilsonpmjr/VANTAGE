@@ -24,6 +24,7 @@ from audit import log_action
 from logging_config import get_logger
 from config import settings
 from scans import build_scan_document, build_scan_payload, extract_scan_payload
+from mongo_utils import sanitize_for_mongo as _sanitize_for_mongo
 
 logger = get_logger("BatchRouter")
 
@@ -35,9 +36,6 @@ _job_queues: dict[str, asyncio.Queue] = {}
 _job_created_at: dict[str, datetime] = {}
 _JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX_SIZE", "500"))
 _JOB_QUEUE_ORPHAN_TTL_SECONDS = 3600  # 1 hour
-
-# MongoDB int64 ceiling (same constraint as analyze.py)
-_MONGO_MAX_INT = (2 ** 63) - 1
 
 
 def _cleanup_orphaned_batch_queues() -> int:
@@ -62,16 +60,6 @@ class BatchRequest(BaseModel):
 
 
 # ── helpers ─────────────────────────────────────────────────────────────────
-
-def _sanitize_for_mongo(obj):
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_mongo(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_for_mongo(v) for v in obj]
-    if isinstance(obj, int) and abs(obj) > _MONGO_MAX_INT:
-        return str(obj)
-    return obj
-
 
 def _parse_targets(raw: List[str]) -> tuple[list, list]:
     """Validate and deduplicate targets. Returns (valid, errors)."""

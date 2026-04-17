@@ -54,6 +54,7 @@ class Settings(BaseSettings):
 
     # MFA
     mfa_encryption_key: str = ""            # Fernet key; auto-derived in dev if empty
+    mfa_preauth_secret: str = ""            # Separate JWT secret for MFA pre-auth tokens
     mfa_required_roles: List[str] = ["admin", "manager"]  # roles that MUST enroll MFA
 
     # SMTP (optional — needed for password reset emails)
@@ -87,10 +88,14 @@ class Settings(BaseSettings):
         if self.environment != "production":
             return
         errors = []
-        if len(self.jwt_secret) < 32:
-            errors.append("JWT_SECRET must be at least 32 characters.")
+        if len(self.jwt_secret) < 64:
+            errors.append("JWT_SECRET must be at least 64 characters.")
         if not self.mfa_encryption_key:
             errors.append("MFA_ENCRYPTION_KEY must be set in production.")
+        if not self.mfa_preauth_secret:
+            errors.append("MFA_PREAUTH_SECRET must be set in production.")
+        if self.mfa_preauth_secret and self.mfa_preauth_secret == self.jwt_secret:
+            errors.append("MFA_PREAUTH_SECRET must differ from JWT_SECRET.")
         if self.dev_seed_users:
             errors.append(
                 "[SECURITY] DEV_SEED_USERS=true is forbidden in production. "

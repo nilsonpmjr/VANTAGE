@@ -221,19 +221,15 @@ async def get_admin_stats(current_user: dict = Depends(require_role(["admin", "m
     now = datetime.now(timezone.utc)
     yesterday = now - timedelta(hours=24)
 
-    all_users = await db.users.find({}).to_list(length=1000)
-
-    total_users = len(all_users)
-    active_users = sum(1 for u in all_users if u.get("is_active", True))
+    total_users = await db.users.count_documents({})
+    active_users = await db.users.count_documents({"is_active": True})
     suspended_users = total_users - active_users
-    locked_accounts = sum(
-        1 for u in all_users
-        if u.get("locked_until") and u["locked_until"] > now
+    locked_accounts = await db.users.count_documents(
+        {"locked_until": {"$gt": now}}
     )
-    users_with_mfa = sum(1 for u in all_users if u.get("mfa_enabled", False))
-    failed_logins_24h = sum(
-        1 for u in all_users
-        if u.get("last_failed_at") and u["last_failed_at"] > yesterday
+    users_with_mfa = await db.users.count_documents({"mfa_enabled": True})
+    failed_logins_24h = await db.users.count_documents(
+        {"last_failed_at": {"$gt": yesterday}}
     )
 
     active_sessions = await db.refresh_tokens.count_documents({

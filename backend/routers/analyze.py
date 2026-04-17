@@ -25,28 +25,11 @@ from db import inc_service_quota
 from config import settings
 from crypto import decrypt_secret
 from scans import build_scan_document, build_scan_payload, extract_scan_payload
+from mongo_utils import sanitize_for_mongo as _sanitize_for_mongo
 
 logger = get_logger("AnalyzeRouter")
 
 router = APIRouter(prefix="", tags=["analyze"])
-
-# MongoDB supports integers up to int64 (8 bytes)
-_MONGO_MAX_INT = (2 ** 63) - 1
-
-
-def _sanitize_for_mongo(obj: Any) -> Any:
-    """Recursively convert integers that exceed MongoDB's int64 limit to strings.
-
-    Shodan's ssl.cert.serial can be a 128-bit integer which causes
-    OverflowError when Motor tries to BSON-encode it.
-    """
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_mongo(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_for_mongo(v) for v in obj]
-    if isinstance(obj, int) and abs(obj) > _MONGO_MAX_INT:
-        return str(obj)
-    return obj
 
 
 # Semaphore limits concurrent external API bursts to avoid server exhaustion
@@ -78,7 +61,7 @@ async def _get_user_keys(username: str) -> dict | None:
         try:
             decrypted[svc] = decrypt_secret(enc_key)
         except Exception as exc:
-            logger.debug(f"Could not decrypt third-party key for service {svc}: {exc}")
+            logger.warning("Could not decrypt third-party key for service %s: %s", svc, exc)
     return decrypted if decrypted else None
 
 

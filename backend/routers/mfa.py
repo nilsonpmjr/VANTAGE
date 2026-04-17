@@ -49,7 +49,28 @@ MFA_DISABLED = False
 
 
 def _hash_backup_code(code: str) -> str:
-    return hashlib.sha256(code.encode()).hexdigest()
+    from argon2 import PasswordHasher
+    _ph = PasswordHasher()
+    return _ph.hash(code)
+
+
+def _verify_backup_code(code: str, stored_hash: str) -> bool:
+    """Verify a backup code against its stored hash.
+
+    Supports argon2 (preferred) with lazy migration from legacy SHA-256.
+    """
+    from argon2 import PasswordHasher
+    from argon2.exceptions import VerifyMismatchError, InvalidHashError
+    _ph = PasswordHasher()
+    try:
+        return _ph.verify(stored_hash, code)
+    except VerifyMismatchError:
+        return False
+    except InvalidHashError:
+        # Legacy SHA-256 hash (64 hex chars) — check and signal migration needed
+        if len(stored_hash) == 64:
+            return hashlib.sha256(code.encode()).hexdigest() == stored_hash
+        return False
 
 
 def _generate_backup_codes(n: int = 8) -> list[str]:
@@ -175,9 +196,10 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
 
     # Decode pre_auth_token
     try:
+        _preauth_secret = settings.mfa_preauth_secret or settings.jwt_secret
         payload = pyjwt.decode(
             pre_auth_token,
-            settings.jwt_secret,
+            _preauth_secret,
             algorithms=[settings.algorithm],
         )
         if payload.get("scope") != "mfa_pending":
@@ -200,12 +222,12 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
     # Try TOTP first
     if not totp.verify(body.otp, valid_window=1):
         # Try backup codes
-        otp_hash = _hash_backup_code(body.otp.upper().replace("-", ""))
-        otp_hash_dash = _hash_backup_code(body.otp.upper())
+        code_plain = body.otp.upper().replace("-", "")
+        code_dash = body.otp.upper()
         backup_codes = user_doc.get("mfa_backup_codes", [])
         matched_hash = None
         for h in backup_codes:
-            if h in (otp_hash, otp_hash_dash):
+            if _verify_backup_code(code_plain, h) or _verify_backup_code(code_dash, h):
                 matched_hash = h
                 break
 

@@ -776,6 +776,13 @@ async def get_handoff(
     doc = await db.shift_handoffs.find_one({"_id": oid})
     if not doc:
         raise HTTPException(status_code=404, detail="handoff_not_found")
+
+    doc_team = doc.get("team")
+    user_team = current_user.get("team")
+    is_privileged = current_user.get("role") in ("admin", "manager")
+    if doc_team and user_team and doc_team != user_team and not is_privileged:
+        raise HTTPException(status_code=403, detail="access_denied")
+
     return _serialize(doc)
 
 
@@ -799,6 +806,12 @@ async def update_handoff(
 
     is_author = doc.get("created_by") == current_user["username"]
     is_privileged = current_user.get("role") in ("admin", "manager")
+
+    doc_team = doc.get("team")
+    user_team = current_user.get("team")
+    if doc_team and user_team and doc_team != user_team and not is_privileged:
+        raise HTTPException(status_code=403, detail="access_denied")
+
     if not is_author and not is_privileged:
         raise HTTPException(status_code=403, detail="edit_not_allowed")
 

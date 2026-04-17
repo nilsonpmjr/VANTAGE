@@ -419,57 +419,6 @@ const groups: EndpointGroup[] = [
     ],
   },
   {
-    tag: "Hunting",
-    description: "Identity and username hunting through installed extensions.",
-    endpoints: [
-      {
-        method: "GET",
-        path: "/api/hunting/providers",
-        summary: "List active hunting sources supplied by installed extensions.",
-        auth: "jwt+extension",
-      },
-      {
-        method: "POST",
-        path: "/api/hunting/search",
-        summary: "Execute a hunting search across installed sources.",
-        auth: "jwt+extension",
-        body: '{ "query": "string", "scope": ["identity","social"] }',
-      },
-    ],
-  },
-  {
-    tag: "Exposure",
-    description: "External attack surface monitoring through installed extensions.",
-    endpoints: [
-      {
-        method: "GET",
-        path: "/api/exposure/providers",
-        summary: "List active exposure monitoring sources.",
-        auth: "jwt+extension",
-      },
-      {
-        method: "GET",
-        path: "/api/exposure/assets",
-        summary: "List registered exposure assets.",
-        auth: "jwt+extension",
-      },
-      {
-        method: "POST",
-        path: "/api/exposure/assets",
-        summary: "Register a new asset for exposure monitoring.",
-        auth: "jwt+extension",
-        body: '{ "type": "domain|subdomain|brand_keyword", "value": "string" }',
-      },
-      {
-        method: "POST",
-        path: "/api/exposure/assets/{asset_id}/scan",
-        summary: "Trigger an exposure scan on a registered asset.",
-        auth: "jwt+extension",
-        params: "asset_id (path)",
-      },
-    ],
-  },
-  {
     tag: "Admin",
     description: "Platform administration: policies, users, extensions, ingestion, audit.",
     endpoints: [
@@ -568,8 +517,6 @@ function getGroupLabel(tag: string, t: (key: string, fallback?: string) => strin
     Recon: t("help.apiGroupRecon", "Recon"),
     Feed: t("help.apiGroupFeed", "Feed"),
     Watchlist: t("help.apiGroupWatchlist", "Watchlist"),
-    Hunting: t("help.apiGroupHunting", "Hunting"),
-    Exposure: t("help.apiGroupExposure", "Exposure"),
     Admin: t("help.apiGroupAdmin", "Admin"),
   };
 
@@ -588,8 +535,6 @@ function getGroupDescription(tag: string, t: (key: string, fallback?: string) =>
     Recon: t("help.apiGroupReconBody", "Reconnaissance engine with modular scanning."),
     Feed: t("help.apiGroupFeedBody", "Threat intelligence feed with filtering and pagination."),
     Watchlist: t("help.apiGroupWatchlistBody", "Priority asset monitoring with notifications."),
-    Hunting: t("help.apiGroupHuntingBody", "Identity and username hunting through installed extensions."),
-    Exposure: t("help.apiGroupExposureBody", "External attack surface monitoring through installed extensions."),
     Admin: t("help.apiGroupAdminBody", "Platform administration: policies, users, extensions, ingestion, and audit."),
   };
 
@@ -649,12 +594,6 @@ function getEndpointSummary(ep: Endpoint, language: SupportedLanguage) {
       "POST /api/watchlist/": "Adiciona um indicador à Watchlist.",
       "PATCH /api/watchlist/{item_id}": "Atualiza um item da Watchlist.",
       "DELETE /api/watchlist/{item_id}": "Remove um item da Watchlist.",
-      "GET /api/hunting/providers": "Lista as fontes de hunting ativas fornecidas pelas extensões instaladas.",
-      "POST /api/hunting/search": "Executa uma busca de hunting nas fontes instaladas.",
-      "GET /api/exposure/providers": "Lista as fontes ativas de monitoramento de exposure.",
-      "GET /api/exposure/assets": "Lista os ativos registrados no módulo de exposure.",
-      "POST /api/exposure/assets": "Registra um novo ativo para monitoramento de exposure.",
-      "POST /api/exposure/assets/{asset_id}/scan": "Dispara um scan de exposure em um ativo registrado.",
       "GET /api/admin/lockout-policy": "Lê a configuração da política de bloqueio de conta.",
       "PUT /api/admin/lockout-policy": "Atualiza a política de bloqueio de conta.",
       "GET /api/admin/password-policy": "Lê a configuração da política de senha.",
@@ -716,12 +655,6 @@ function getEndpointSummary(ep: Endpoint, language: SupportedLanguage) {
       "POST /api/watchlist/": "Añade un indicador a Watchlist.",
       "PATCH /api/watchlist/{item_id}": "Actualiza un elemento de Watchlist.",
       "DELETE /api/watchlist/{item_id}": "Elimina un elemento de Watchlist.",
-      "GET /api/hunting/providers": "Lista las fuentes activas de hunting suministradas por las extensiones instaladas.",
-      "POST /api/hunting/search": "Ejecuta una búsqueda de hunting en las fuentes instaladas.",
-      "GET /api/exposure/providers": "Lista las fuentes activas de monitorización de exposure.",
-      "GET /api/exposure/assets": "Lista los activos registrados en el módulo de exposure.",
-      "POST /api/exposure/assets": "Registra un nuevo activo para monitorización de exposure.",
-      "POST /api/exposure/assets/{asset_id}/scan": "Lanza un scan de exposure sobre un activo registrado.",
       "GET /api/admin/lockout-policy": "Lee la configuración de la política de bloqueo de cuenta.",
       "PUT /api/admin/lockout-policy": "Actualiza la política de bloqueo de cuenta.",
       "GET /api/admin/password-policy": "Lee la configuración de la política de contraseña.",

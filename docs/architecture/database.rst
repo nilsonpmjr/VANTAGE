@@ -27,10 +27,14 @@ Collections
      - Watchlisted targets for background re-scan
    * - ``feed_items``
      - Ingested threat-feed articles and IOCs
-   * - ``hunting_sessions``
-     - Hunting workspace state
-   * - ``exposure_assets``
-     - Tracked assets for exposure monitoring
+
+Optional / upcoming extension collections
+-----------------------------------------
+
+Extension-backed surfaces may create their own collections when installed. For example,
+future hunting or exposure integrations can persist workspace/runtime state in
+extension-specific collections such as ``hunting_sessions`` or ``exposure_assets``.
+Those collections are not required by the public core deployment.
 
 Indexes
 -------

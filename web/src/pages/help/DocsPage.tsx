@@ -1,16 +1,5 @@
 import { useState } from "react";
-import {
-  BookOpen,
-  Terminal,
-  Rss,
-  Radar,
-  Eye,
-  Crosshair,
-  ShieldAlert,
-  LayoutDashboard,
-  Shield,
-  Play,
-} from "lucide-react";
+import { BookOpen, Terminal, Rss, Radar, Eye, LayoutDashboard, Shield, Play } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useLanguage } from "../../context/LanguageContext";
 
@@ -34,7 +23,7 @@ const sections: DocSection[] = [
     content: [
       {
         title: "What is VANTAGE",
-        body: "VANTAGE is an external threat intelligence and digital risk platform designed for small-to-mid security teams. It aggregates data from 9+ intelligence sources (VirusTotal, Shodan, AbuseIPDB, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and more) into a single analyst environment for IOC analysis, reconnaissance, feed monitoring, and exposure tracking.",
+        body: "VANTAGE is an external threat intelligence and digital risk platform designed for small-to-mid security teams. It aggregates data from 9+ intelligence sources (VirusTotal, Shodan, AbuseIPDB, AlienVault OTX, GreyNoise, UrlScan.io, Abuse.ch, Pulsedive, and more) into a single analyst environment for IOC analysis, reconnaissance, feed monitoring, and operational coordination.",
       },
       {
         title: "First Login & Guided Tour",
@@ -147,44 +136,6 @@ const sections: DocSection[] = [
     ],
   },
   {
-    id: "hunting",
-    label: "Hunting",
-    icon: Crosshair,
-    content: [
-      {
-        title: "Available Sources",
-        body: "Hunting is an extension-driven investigation module. When it is installed, you can search for username and identity presence across social media platforms, forums, and web services. Additional sources can be added through the extensions catalog.",
-      },
-      {
-        title: "Username / Identity Search",
-        body: "Enter a username on the Hunting page and select the scope (identity, social, or both). The provider checks hundreds of platforms for matching accounts and returns a list of confirmed profiles with direct links.",
-      },
-      {
-        title: "Interpreting Results",
-        body: "Results are grouped by platform category. Each finding shows the platform name, profile URL, and confirmation status. Use this data for OSINT investigations, insider threat analysis, or brand monitoring.",
-      },
-    ],
-  },
-  {
-    id: "exposure",
-    label: "Exposure",
-    icon: ShieldAlert,
-    content: [
-      {
-        title: "Registering Assets",
-        body: "The Exposure module tracks your organization's external attack surface. Register assets by type: domains, subdomains, or brand keywords. Each asset can be scanned independently to discover exposed services, leaked credentials, or brand abuse.",
-      },
-      {
-        title: "Surface Scan",
-        body: "Trigger a scan on any registered asset to check for exposure signals. The scan leverages installed exposure providers to search for credential leaks, subdomain takeover opportunities, certificate transparency logs, and other external risk indicators.",
-      },
-      {
-        title: "Active Sources",
-        body: "Exposure sources are installed through the extensions catalog. Check Settings > Extensions Catalog to see which sources are active. Each one specializes in a different exposure type, such as credentials, external surface, or leaks.",
-      },
-    ],
-  },
-  {
     id: "dashboard",
     label: "Dashboard",
     icon: LayoutDashboard,
@@ -241,8 +192,6 @@ export default function DocsPage() {
     feed: t("help.docsSectionFeed", "Threat Feed"),
     recon: t("help.docsSectionRecon", "Recon Engine"),
     watchlist: t("help.docsSectionWatchlist", "Watchlist"),
-    hunting: t("help.docsSectionHunting", "Hunting"),
-    exposure: t("help.docsSectionExposure", "Exposure"),
     dashboard: t("help.docsSectionDashboard", "Dashboard"),
     account: t("help.docsSectionAccount", "Account & Security"),
   };
@@ -340,34 +289,6 @@ export default function DocsPage() {
         {
           title: "Gestão dos itens",
           body: "Você pode editar itens da Watchlist para ajustar notas e prioridade, além de remover o que não precisa mais acompanhar. O indicador de status do SMTP mostra se o envio de notificações está operacional.",
-        },
-      ],
-      hunting: [
-        {
-          title: "Fontes disponíveis",
-          body: "Hunting é um módulo de investigação dirigido por extensões. Quando a fonte Sherlock está instalada, é possível pesquisar presença de usernames e identidades em redes sociais, fóruns e serviços da web. Novas fontes podem ser adicionadas pelo catálogo de extensões.",
-        },
-        {
-          title: "Busca por username e identidade",
-          body: "Digite um username na página Hunting e escolha o escopo desejado. O provedor consulta centenas de plataformas e retorna uma lista de perfis confirmados com links diretos.",
-        },
-        {
-          title: "Interpretando os resultados",
-          body: "Os resultados são agrupados por categoria de plataforma. Cada achado mostra o nome da plataforma, a URL do perfil e o status de confirmação. Isso ajuda em investigações OSINT, análise de insider threat e monitoramento de marca.",
-        },
-      ],
-      exposure: [
-        {
-          title: "Registrando ativos",
-          body: "O módulo Exposure acompanha a superfície externa da organização. Você pode registrar ativos por tipo, como domínios, subdomínios e palavras-chave de marca. Cada ativo pode ser escaneado individualmente para descobrir sinais de exposição, vazamentos ou abuso de marca.",
-        },
-        {
-          title: "Surface scan",
-          body: "Dispare um scan em qualquer ativo registrado para procurar sinais de exposição. O processo usa os provedores instalados para identificar vazamentos de credenciais, oportunidades de takeover, logs de certificate transparency e outros indicadores de risco externo.",
-        },
-        {
-          title: "Fontes ativas",
-          body: "As fontes de Exposure são instaladas pelo catálogo de extensões. Em Settings > Extensions Catalog, você pode ver quais estão ativas e qual tipo de exposição cada uma cobre, como credenciais, superfície externa ou leaks.",
         },
       ],
       dashboard: [
@@ -500,34 +421,6 @@ export default function DocsPage() {
         {
           title: "Gestión de elementos",
           body: "Puedes editar los elementos de la Watchlist para ajustar notas y prioridad, además de eliminar los que ya no deban seguirse. El indicador de estado de SMTP muestra si el envío de notificaciones está operativo.",
-        },
-      ],
-      hunting: [
-        {
-          title: "Fuentes disponibles",
-          body: "Hunting es un módulo de investigación impulsado por extensiones. Cuando la fuente Sherlock está instalada, puedes buscar presencia de usernames e identidades en redes sociales, foros y servicios web. Se pueden añadir nuevas fuentes desde el catálogo de extensiones.",
-        },
-        {
-          title: "Búsqueda por username e identidad",
-          body: "Escribe un username en la página Hunting y elige el alcance deseado. El proveedor consulta cientos de plataformas y devuelve una lista de perfiles confirmados con enlaces directos.",
-        },
-        {
-          title: "Interpretar los resultados",
-          body: "Los resultados se agrupan por categoría de plataforma. Cada hallazgo muestra el nombre de la plataforma, la URL del perfil y el estado de confirmación. Esto ayuda en investigaciones OSINT, análisis de insider threat y monitoreo de marca.",
-        },
-      ],
-      exposure: [
-        {
-          title: "Registrar activos",
-          body: "El módulo Exposure sigue la superficie externa de la organización. Puedes registrar activos por tipo, como dominios, subdominios y palabras clave de marca. Cada activo puede escanearse de forma individual para descubrir señales de exposición, fugas o abuso de marca.",
-        },
-        {
-          title: "Surface scan",
-          body: "Lanza un escaneo sobre cualquier activo registrado para buscar señales de exposición. El proceso utiliza los proveedores instalados para identificar fugas de credenciales, oportunidades de takeover, logs de certificate transparency y otros indicadores de riesgo externo.",
-        },
-        {
-          title: "Fuentes activas",
-          body: "Las fuentes de Exposure se instalan desde el catálogo de extensiones. En Settings > Extensions Catalog puedes ver cuáles están activas y qué tipo de exposición cubre cada una, como credenciales, superficie externa o leaks.",
         },
       ],
       dashboard: [

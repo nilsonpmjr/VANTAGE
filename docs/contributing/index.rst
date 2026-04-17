@@ -11,7 +11,7 @@ Good fits for this repository:
 
 * Bug fixes and UX improvements in the public core
 * Tests, documentation, and release hardening
-* Feed, recon, hunting, watchlist, exposure, and admin improvements that belong in the public product
+* Feed, recon, watchlist, shift handoff, analysis, and admin improvements that belong in the public product
 
 Out of scope:
 

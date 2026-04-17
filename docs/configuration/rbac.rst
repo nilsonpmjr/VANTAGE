@@ -17,7 +17,7 @@ Roles
    * - ``manager``
      - All analyst features + read access to admin surfaces (audit log, system health). Cannot modify users or policies.
    * - ``tech``
-     - Analyst workspace — feed, recon, watchlist, hunting, exposure, analysis. No admin surfaces.
+     - Analyst workspace — feed, recon, watchlist, shift handoff, and analysis. No admin surfaces.
 
 Managing users
 --------------

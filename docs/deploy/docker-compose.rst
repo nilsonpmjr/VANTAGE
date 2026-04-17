@@ -15,7 +15,7 @@ Files
    * - ``docker-compose.yml``
      - Standard production stack (MongoDB + backend + frontend)
    * - ``docker-compose.hunting-kali.yml``
-     - Adds a Kali Linux container for active hunting workflows
+     - Optional extension overlay that adds a Kali Linux container for hunting integrations
    * - ``docker-compose.operational-architect.yml``
      - Extended stack for operational architecture scenarios
 

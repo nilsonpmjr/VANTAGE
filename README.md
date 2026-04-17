@@ -19,7 +19,7 @@
 
 ---
 
-VANTAGE is a threat intelligence and SOC operations platform for analyst teams. It combines fast multi-source verdicts for IPs, domains, and file hashes with a full operational workspace — feed triage, recon, watchlists, hunting, exposure monitoring, and shift handoff — in a single product.
+VANTAGE is a threat intelligence and SOC operations platform for analyst teams. It combines fast multi-source verdicts for IPs, domains, and file hashes with a full operational workspace — feed triage, recon, watchlists, and shift handoff — in a single product.
 
 Released under **AGPLv3**. Open and auditable by design.
 
@@ -36,7 +36,9 @@ Released under **AGPLv3**. Open and auditable by design.
 | **Dashboard** | Verdict trends by period; top targets; source health |
 | **Admin** | Users & roles, security policies, extensions, threat ingestion, SMTP config, system health, audit log |
 
-## What's not included
+## Upcoming extension features
+
+These surfaces are outside the public core today and are expected to live as separate extension-backed features.
 
 | **Hunting** | Premium hunting provider lane (native, isolated container, or Kali sidecar) |
 | **Exposure** | Premium attack surface and brand exposure monitoring provider lane |

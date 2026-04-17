@@ -65,18 +65,23 @@ Routers (``routers/``)
      - API key creation and management
    * - ``feed.py``
      - Threat feed management
-   * - ``hunting.py``
-     - Hunting workspace
    * - ``watchlist.py``
      - Watchlist management
-   * - ``exposure.py``
-     - Exposure monitoring
    * - ``recon.py``
      - Reconnaissance workspace
    * - ``batch.py``
      - Bulk analysis jobs
    * - ``shift_handoff.py``
      - Shift handoff reports
+
+Optional / upcoming extension adapters
+--------------------------------------
+
+Some deployments, private bundles, or future extension releases may install premium
+surfaces outside the public core. In that case the backend can mount thin adapter
+routers such as ``hunting.py`` and ``exposure.py`` that delegate to extension packages.
+These are not part of the public core contract and should be treated as optional
+integration points.
 
 Initialization flow
 --------------------

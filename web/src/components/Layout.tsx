@@ -5,7 +5,6 @@ import {
   Rss,
   Radar,
   Eye,
-  Crosshair,
   ShieldAlert,
   ClipboardList,
   LayoutDashboard,
@@ -24,10 +23,9 @@ import {
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { useAuth } from "../context/AuthContext";
-import { useExtensions } from "../context/ExtensionsContext";
 import { useLanguage } from "../context/LanguageContext";
 import API_URL from "../config";
-import { canAccessExtensionFeature, canAccessPath } from "../lib/access";
+import { canAccessPath } from "../lib/access";
 import { getShortcutSequenceMap, SHORTCUT_SEQUENCE_TIMEOUT_MS } from "../lib/shortcuts";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
@@ -41,8 +39,6 @@ const rootNavItems = [
   { path: "/feed", labelKey: "layout.nav.feed", fallback: "Feed", icon: Rss },
   { path: "/recon", labelKey: "layout.nav.recon", fallback: "Recon", icon: Radar },
   { path: "/watchlist", labelKey: "layout.nav.watchlist", fallback: "Watchlist", icon: Eye },
-  { path: "/hunting", labelKey: "layout.nav.hunting", fallback: "Hunting", icon: Crosshair },
-  { path: "/exposure", labelKey: "layout.nav.exposure", fallback: "Exposure", icon: ShieldAlert },
   { path: "/shift-handoff", labelKey: "layout.nav.shiftHandoff", fallback: "Shift Handoff", icon: ClipboardList },
   { path: "/dashboard", labelKey: "layout.nav.dashboard", fallback: "Dashboard", icon: LayoutDashboard },
 ];
@@ -51,7 +47,6 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const { loading: extensionsLoading, hasFeature } = useExtensions();
   const { language, t } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -83,23 +78,7 @@ export default function Layout() {
     return "identity";
   }, [location.search]);
 
-  const visibleNavItems = rootNavItems.filter((item) => {
-    if (
-      !extensionsLoading &&
-      item.path === "/hunting" &&
-      !canAccessExtensionFeature(user, "hunting_provider", hasFeature)
-    ) {
-      return false;
-    }
-    if (
-      !extensionsLoading &&
-      item.path === "/exposure" &&
-      !canAccessExtensionFeature(user, "exposure_provider", hasFeature)
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const visibleNavItems = rootNavItems;
 
   const settingsNavItems = useMemo(
     () => [
@@ -583,7 +562,7 @@ export default function Layout() {
                     {t("layout.onboarding.eyebrow", "Integration onboarding")}
                   </div>
                   <p className="mt-1 text-sm text-on-surface">
-                    {t("layout.onboarding.title", "Connect your own intelligence provider API keys to unlock richer analysis and hunting results.")}
+                    {t("layout.onboarding.title", "Connect your own intelligence provider API keys to unlock richer analysis results.")}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

@@ -15,7 +15,7 @@ VANTAGE Documentation
 
 VANTAGE is a threat intelligence platform for SOC teams that need fast, explainable verdicts
 for IPs, domains, and file hashes, plus an operational workspace to triage feeds, recon,
-watchlists, hunting, and exposure — all in one place.
+watchlists, and shift handoff — all in one place.
 
 Released under **AGPLv3**. Transparent, auditable, and collaborative by design.
 

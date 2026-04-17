@@ -7,7 +7,6 @@ import { Suspense, lazy, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider, RequireAuth, RequirePathAccess } from "./context/AuthContext";
-import { ExtensionsProvider, RequireExtensionFeature } from "./context/ExtensionsContext";
 import { LanguageProvider } from "./context/LanguageContext";
 import { ThemeProvider } from "./context/ThemeContext";
 
@@ -16,9 +15,6 @@ const Home = lazy(() => import("./pages/Home"));
 const Feed = lazy(() => import("./pages/Feed"));
 const Recon = lazy(() => import("./pages/Recon"));
 const Watchlist = lazy(() => import("./pages/Watchlist"));
-const Hunting = lazy(() => import("./pages/Hunting"));
-const HuntingSavedSearches = lazy(() => import("./pages/HuntingSavedSearches"));
-const Exposure = lazy(() => import("./pages/Exposure"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const ExtensionsCatalog = lazy(() => import("./pages/ExtensionsCatalog"));
 const ThreatIngestion = lazy(() => import("./pages/ThreatIngestion"));
@@ -60,9 +56,8 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <ExtensionsProvider>
-          <LanguageProvider>
-            <BrowserRouter>
+        <LanguageProvider>
+          <BrowserRouter>
             <Routes>
               <Route
                 path="/"
@@ -76,30 +71,6 @@ export default function App() {
                 <Route path="feed" element={suspense(<Feed />)} />
                 <Route path="recon" element={suspense(<Recon />)} />
                 <Route path="watchlist" element={suspense(<Watchlist />)} />
-                <Route
-                  path="hunting"
-                  element={
-                    <RequireExtensionFeature feature="hunting_provider">
-                      {suspense(<Hunting />)}
-                    </RequireExtensionFeature>
-                  }
-                />
-                <Route
-                  path="hunting/saved-searches"
-                  element={
-                    <RequireExtensionFeature feature="hunting_provider">
-                      {suspense(<HuntingSavedSearches />)}
-                    </RequireExtensionFeature>
-                  }
-                />
-                <Route
-                  path="exposure"
-                  element={
-                    <RequireExtensionFeature feature="exposure_provider">
-                      {suspense(<Exposure />)}
-                    </RequireExtensionFeature>
-                  }
-                />
                 <Route path="dashboard" element={suspense(<Dashboard />)} />
                 <Route
                   path="settings"
@@ -136,7 +107,6 @@ export default function App() {
             </Routes>
           </BrowserRouter>
         </LanguageProvider>
-      </ExtensionsProvider>
     </AuthProvider>
     </ThemeProvider>
   );

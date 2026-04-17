@@ -33,10 +33,13 @@ Released under **AGPLv3**. Open and auditable by design.
 | **Recon** | On-demand and scheduled deep recon scans; per-target history; streamed results |
 | **Watchlist** | Persistent monitoring with automatic re-scan and SMTP alert on verdict change |
 | **Shift Handoff** | Structured shift-transition forms; per-handoff incident tracking; acknowledgment flow; attachment support; artifact auto-capture from analyze and recon sessions |
-| **Hunting** | Premium hunting provider lane (native, isolated container, or Kali sidecar) |
-| **Exposure** | Premium attack surface and brand exposure monitoring provider lane |
 | **Dashboard** | Verdict trends by period; top targets; source health |
 | **Admin** | Users & roles, security policies, extensions, threat ingestion, SMTP config, system health, audit log |
+
+## What's not included
+
+| **Hunting** | Premium hunting provider lane (native, isolated container, or Kali sidecar) |
+| **Exposure** | Premium attack surface and brand exposure monitoring provider lane |
 
 **Security**: Argon2id passwords · TOTP MFA with AES-256 encrypted secrets · JWT + HttpOnly cookies · refresh token rotation · per-session revocation · scoped API keys · configurable lockout and password policy · full audit trail
 

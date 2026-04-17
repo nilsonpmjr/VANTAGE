@@ -16,6 +16,7 @@ Endpoints:
 import asyncio
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
@@ -40,6 +41,22 @@ router = APIRouter(prefix="/recon", tags=["recon"])
 
 # In-memory SSE queue registry — same pattern as batch.py
 _job_queues: dict[str, asyncio.Queue] = {}
+_job_created_at: dict[str, datetime] = {}
+_JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX_SIZE", "500"))
+_JOB_QUEUE_ORPHAN_TTL_SECONDS = 3600  # 1 hour
+
+
+def _cleanup_orphaned_recon_queues() -> int:
+    """Remove queues older than the orphan TTL. Returns number removed."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=_JOB_QUEUE_ORPHAN_TTL_SECONDS)
+    stale = [jid for jid, created in _job_created_at.items() if created < cutoff]
+    for jid in stale:
+        _job_queues.pop(jid, None)
+        _job_created_at.pop(jid, None)
+    if stale:
+        logger.info(f"Cleaned up {len(stale)} orphaned recon queue(s)")
+    return len(stale)
 
 
 def _validate_target(raw: str) -> tuple[str, str]:
@@ -216,8 +233,17 @@ async def submit_scan(
             logger.error(f"Failed to persist recon job {job_id}: {e}")
             raise HTTPException(status_code=500, detail="Failed to create scan job.")
 
+    if len(_job_queues) >= _JOB_QUEUE_MAX:
+        _cleanup_orphaned_recon_queues()
+        if len(_job_queues) >= _JOB_QUEUE_MAX:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many active scan jobs. Please wait for existing jobs to complete.",
+            )
+
     queue: asyncio.Queue = asyncio.Queue()
     _job_queues[job_id] = queue
+    _job_created_at[job_id] = datetime.now(timezone.utc)
 
     ip = request.client.host if request.client else ""
     asyncio.create_task(
@@ -570,6 +596,7 @@ async def _process_scan(
         await queue.put({"type": "done", "job_id": job_id})
         await asyncio.sleep(60)   # retain queue for SSE reconnects
         _job_queues.pop(job_id, None)
+        _job_created_at.pop(job_id, None)
 
 
 def _now_ms() -> int:

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import uuid
 import json
 from datetime import datetime, timezone, timedelta
@@ -28,11 +29,28 @@ logger = get_logger("BatchRouter")
 
 router = APIRouter(prefix="/analyze", tags=["batch"])
 
-# In-memory SSE queue registry — sufficient for single-process MVP
+# In-memory SSE queue registry — sufficient for single-process deployment.
+# _job_created_at tracks creation time for periodic cleanup of orphaned queues.
 _job_queues: dict[str, asyncio.Queue] = {}
+_job_created_at: dict[str, datetime] = {}
+_JOB_QUEUE_MAX = int(os.environ.get("JOB_QUEUE_MAX_SIZE", "500"))
+_JOB_QUEUE_ORPHAN_TTL_SECONDS = 3600  # 1 hour
 
 # MongoDB int64 ceiling (same constraint as analyze.py)
 _MONGO_MAX_INT = (2 ** 63) - 1
+
+
+def _cleanup_orphaned_batch_queues() -> int:
+    """Remove queues older than the orphan TTL. Returns number removed."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(seconds=_JOB_QUEUE_ORPHAN_TTL_SECONDS)
+    stale = [jid for jid, created in _job_created_at.items() if created < cutoff]
+    for jid in stale:
+        _job_queues.pop(jid, None)
+        _job_created_at.pop(jid, None)
+    if stale:
+        logger.info(f"Cleaned up {len(stale)} orphaned batch queue(s)")
+    return len(stale)
 
 
 # ── models ──────────────────────────────────────────────────────────────────
@@ -108,6 +126,7 @@ def _entry_from_scan_doc(scan_doc: dict | None) -> Optional[dict]:
 
 @router.post("/batch/estimate")
 async def estimate_batch(
+    request: Request,
     body: BatchRequest,
     current_user: dict = Depends(get_current_user),
 ):
@@ -133,7 +152,8 @@ async def estimate_batch(
 
     services_impacted: list = []
     if external_calls > 0:
-        async with AsyncThreatIntelClient() as client:
+        shared_session = getattr(request.app.state, "http_session", None)
+        async with AsyncThreatIntelClient(shared_session=shared_session) as client:
             services_impacted = [s for s, ok in client.services.items() if ok]
 
     return {
@@ -195,16 +215,27 @@ async def submit_batch(
                 status_code=500, detail="Failed to create batch job."
             )
 
+    if len(_job_queues) >= _JOB_QUEUE_MAX:
+        _cleanup_orphaned_batch_queues()
+        if len(_job_queues) >= _JOB_QUEUE_MAX:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many active batch jobs. Please wait for existing jobs to complete.",
+            )
+
     queue: asyncio.Queue = asyncio.Queue()
     _job_queues[job_id] = queue
+    _job_created_at[job_id] = datetime.now(timezone.utc)
 
     ip = request.client.host if request.client else ""
     notify_email = body.notify_email and bool(current_user.get("email"))
     user_email = current_user.get("email", "") if notify_email else ""
+    shared_session = getattr(request.app.state, "http_session", None)
     asyncio.create_task(
         _process_batch(
             job_id, valid, body.lang, current_user["username"], ip, queue,
             notify_email=notify_email, user_email=user_email,
+            shared_session=shared_session,
         )
     )
 
@@ -371,6 +402,7 @@ async def _process_batch(
     queue: asyncio.Queue,
     notify_email: bool = False,
     user_email: str = "",
+    shared_session=None,
 ) -> None:
     """
     Sequential batch processor:
@@ -419,7 +451,7 @@ async def _process_batch(
                     await asyncio.sleep(
                         settings.batch_inter_target_delay_ms / 1000
                     )
-                    async with AsyncThreatIntelClient() as client:
+                    async with AsyncThreatIntelClient(shared_session=shared_session) as client:
                         raw_results = await client.query_all(
                             sanitized, target_type
                         )
@@ -587,3 +619,4 @@ async def _process_batch(
         # Keep queue alive for 60 s to allow SSE reconnects, then clean up
         await asyncio.sleep(60)
         _job_queues.pop(job_id, None)
+        _job_created_at.pop(job_id, None)

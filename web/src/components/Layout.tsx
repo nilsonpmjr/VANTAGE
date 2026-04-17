@@ -27,7 +27,7 @@ import { useAuth } from "../context/AuthContext";
 import { useExtensions } from "../context/ExtensionsContext";
 import { useLanguage } from "../context/LanguageContext";
 import API_URL from "../config";
-import { canAccessPath } from "../lib/access";
+import { canAccessExtensionFeature, canAccessPath } from "../lib/access";
 import { getShortcutSequenceMap, SHORTCUT_SEQUENCE_TIMEOUT_MS } from "../lib/shortcuts";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
@@ -84,14 +84,19 @@ export default function Layout() {
   }, [location.search]);
 
   const visibleNavItems = rootNavItems.filter((item) => {
-    if (!extensionsLoading && item.path === "/hunting" && !hasFeature("hunting_provider")) {
+    if (
+      !extensionsLoading &&
+      item.path === "/hunting" &&
+      !canAccessExtensionFeature(user, "hunting_provider", hasFeature)
+    ) {
       return false;
     }
-    if (!extensionsLoading && item.path === "/exposure" && !hasFeature("exposure_provider")) {
+    if (
+      !extensionsLoading &&
+      item.path === "/exposure" &&
+      !canAccessExtensionFeature(user, "exposure_provider", hasFeature)
+    ) {
       return false;
-    }
-    if ((item.path === "/hunting" || item.path === "/exposure") && user?.role === "tech") {
-      return true;
     }
     return true;
   });

@@ -1,6 +1,8 @@
+import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 
+import aiohttp
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -312,6 +314,17 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     logger.info("Background Worker (APScheduler) started.")
 
+    # Global aiohttp session — shared across all AsyncThreatIntelClient instances
+    # to avoid creating a new connection pool per request.
+    http_connector = aiohttp.TCPConnector(
+        limit=int(os.environ.get("HTTP_CLIENT_MAX_CONNECTIONS", "100")),
+        limit_per_host=int(os.environ.get("HTTP_CLIENT_MAX_PER_HOST", "10")),
+    )
+    app.state.http_session = aiohttp.ClientSession(
+        connector=http_connector,
+        timeout=aiohttp.ClientTimeout(total=10),
+    )
+
     # Keep long-lived worker tasks visible to readiness checks.
     import asyncio as _aio
     background_tasks = {
@@ -330,6 +343,10 @@ async def lifespan(app: FastAPI):
     for task in getattr(app.state, "background_tasks", {}).values():
         task.cancel()
     scheduler.shutdown()
+    # Close shared aiohttp session
+    http_session = getattr(app.state, "http_session", None)
+    if http_session and not http_session.closed:
+        await http_session.close()
     await db_manager.close_db()
 
 

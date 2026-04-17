@@ -2,8 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { Link } from "react-router-dom";
 import API_URL from "../config";
 import { useAuth } from "./AuthContext";
-
-type ExtensionFeature = "hunting_provider" | "exposure_provider";
+import { canAccessExtensionFeature, type ExtensionFeature } from "../lib/access";
 
 interface ExtensionsContextValue {
   features: ExtensionFeature[];
@@ -75,6 +74,7 @@ export function RequireExtensionFeature({
   children: ReactNode;
   feature: ExtensionFeature;
 }) {
+  const { user } = useAuth();
   const { loading, hasFeature } = useExtensions();
 
   if (loading) {
@@ -87,7 +87,7 @@ export function RequireExtensionFeature({
     );
   }
 
-  if (!hasFeature(feature)) {
+  if (!canAccessExtensionFeature(user, feature, hasFeature)) {
     return (
       <div className="page-frame">
         <div className="max-w-3xl rounded-sm border border-outline-variant/15 bg-surface-container-lowest p-8 shadow-sm space-y-4">

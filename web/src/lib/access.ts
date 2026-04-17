@@ -1,5 +1,7 @@
 import type { AuthUser } from "../context/AuthContext";
 
+export type ExtensionFeature = "hunting_provider" | "exposure_provider";
+
 const ROUTE_ROLE_POLICIES: Array<{ prefix: string; roles: string[] }> = [
   { prefix: "/settings", roles: ["admin"] },
 ];
@@ -17,4 +19,16 @@ export function resolveAccessiblePath(
   fallbackPath = "/",
 ) {
   return canAccessPath(user, preferredPath) ? preferredPath : fallbackPath;
+}
+
+export function canAccessExtensionFeature(
+  user: AuthUser | null,
+  feature: ExtensionFeature,
+  hasFeature: (feature: ExtensionFeature) => boolean,
+) {
+  if (user?.role === "tech") {
+    return true;
+  }
+
+  return hasFeature(feature);
 }

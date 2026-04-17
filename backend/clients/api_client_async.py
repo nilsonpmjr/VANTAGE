@@ -58,6 +58,7 @@ class APIResponse:
 # Module-level cooldown: once a service returns 429, skip it for this period
 # so subsequent requests don't waste time retrying an exhausted quota.
 _service_cooldown: Dict[str, datetime] = {}
+_service_cooldown_lock = asyncio.Lock()
 
 
 class RateLimiter:
@@ -204,6 +205,7 @@ class AsyncThreatIntelClient:
         cache_ttl: int = 3600,  # 1 hora
         cache_size: int = 100,
         user_keys: dict | None = None,
+        shared_session: Optional[aiohttp.ClientSession] = None,
     ):
         """
         Args:
@@ -211,10 +213,13 @@ class AsyncThreatIntelClient:
             max_retries: Número máximo de tentativas
             cache_ttl: TTL do cache em segundos
             cache_size: Tamanho máximo do cache
+            shared_session: Reuse an existing aiohttp.ClientSession (avoids
+                creating a new connection pool per request).
         """
         self.timeout = aiohttp.ClientTimeout(total=timeout)
         self.max_retries = max_retries
-        self.session: Optional[aiohttp.ClientSession] = None
+        self.session: Optional[aiohttp.ClientSession] = shared_session
+        self._owns_session = shared_session is None
 
         # Cache
         self.cache = TTLCache(maxsize=cache_size, ttl=cache_ttl)
@@ -258,12 +263,13 @@ class AsyncThreatIntelClient:
 
     async def __aenter__(self):
         """Context manager entry."""
-        self.session = aiohttp.ClientSession(timeout=self.timeout)
+        if self._owns_session:
+            self.session = aiohttp.ClientSession(timeout=self.timeout)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
-        if self.session:
+        """Context manager exit — only close sessions we created."""
+        if self._owns_session and self.session:
             await self.session.close()
 
     def _get_cache_key(self, service: str, target: str, endpoint: str = "") -> str:
@@ -290,8 +296,10 @@ class AsyncThreatIntelClient:
             APIResponse com resultado
         """
         # Check module-level cooldown: skip service immediately if recently rate-limited
-        if service in _service_cooldown and datetime.now() < _service_cooldown[service]:
-            remaining = int((_service_cooldown[service] - datetime.now()).total_seconds())
+        async with _service_cooldown_lock:
+            cooldown_until = _service_cooldown.get(service)
+        if cooldown_until is not None and datetime.now() < cooldown_until:
+            remaining = int((cooldown_until - datetime.now()).total_seconds())
             logger.debug(f"{service} in cooldown for {remaining}s more, skipping")
             return APIResponse(
                 service=service, data=None, success=False,
@@ -329,7 +337,8 @@ class AsyncThreatIntelClient:
                     if response.status == 429:
                         # Fail fast — no retry. Set 1-hour cooldown so subsequent
                         # requests skip this service without timeout overhead.
-                        _service_cooldown[service] = datetime.now() + timedelta(hours=1)
+                        async with _service_cooldown_lock:
+                            _service_cooldown[service] = datetime.now() + timedelta(hours=1)
                         logger.warning(f"{service} rate-limited (429). Cooldown set for 1h.")
                         return APIResponse(
                             service=service, data=None, success=False,
@@ -342,7 +351,8 @@ class AsyncThreatIntelClient:
                     # 204 No Content or empty body → treat as "nothing found"
                     raw = await response.read()
                     if not raw.strip():
-                        _service_cooldown.pop(service, None)
+                        async with _service_cooldown_lock:
+                            _service_cooldown.pop(service, None)
                         return APIResponse(
                             service=service,
                             data={"_meta_msg": "No content returned"},
@@ -353,7 +363,8 @@ class AsyncThreatIntelClient:
                     data = _json.loads(raw)
 
                     # Clear any previous cooldown on success
-                    _service_cooldown.pop(service, None)
+                    async with _service_cooldown_lock:
+                        _service_cooldown.pop(service, None)
 
                     return APIResponse(service=service, data=data, success=True)
 

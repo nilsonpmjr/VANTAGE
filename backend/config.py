@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     # Database — no default; must be set via environment variable
     mongo_uri: str
     mongo_db_name: str = "threat_intel"
+    mongo_max_pool_size: int = 100
+    mongo_min_pool_size: int = 5
 
     # CORS — list specific origins; never use "*" in production
     # In production set CORS_ORIGINS to your public hostname, e.g.:
@@ -28,6 +30,9 @@ class Settings(BaseSettings):
     analyze_runtime_lease_seconds: int = 30
     analyze_shared_wait_seconds: int = 12
 
+    # Concurrency
+    analyze_max_concurrent: int = 80
+
     # Worker (background rescan job)
     rescan_batch_size: int = 5
     max_rescan_targets: int = 100
@@ -36,6 +41,11 @@ class Settings(BaseSettings):
     batch_max_targets: int = 50
     batch_inter_target_delay_ms: int = 500  # ms between external calls
     batch_job_ttl_hours: int = 24
+
+    # Rate limiting
+    rate_limit_analyze: str = "30/minute"
+    rate_limit_batch: str = "5/minute"
+    rate_limit_recon: str = "10/hour"
 
     # Recon Engine
     recon_cache_ttl_hours: int = 6

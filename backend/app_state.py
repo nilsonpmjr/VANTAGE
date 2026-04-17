@@ -6,12 +6,14 @@ exists in the database). The flag is set during lifespan startup and updated
 by the setup:create-admin CLI command after a successful admin creation.
 """
 
+import asyncio
 import logging
 
 logger = logging.getLogger("AppState")
 
 # Global flag — False until check_initialization() confirms an admin exists.
 APP_INITIALIZED: bool = False
+_init_lock = asyncio.Lock()
 
 
 async def check_initialization(db) -> bool:
@@ -23,8 +25,9 @@ async def check_initialization(db) -> bool:
     Should be called once during lifespan startup, after indexes are created.
     """
     global APP_INITIALIZED
-    admin_count = await db.users.count_documents({"role": "admin"})
-    APP_INITIALIZED = admin_count > 0
+    async with _init_lock:
+        admin_count = await db.users.count_documents({"role": "admin"})
+        APP_INITIALIZED = admin_count > 0
 
     if not APP_INITIALIZED:
         logger.warning(

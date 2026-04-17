@@ -50,7 +50,7 @@ def _sanitize_for_mongo(obj: Any) -> Any:
 
 
 # Semaphore limits concurrent external API bursts to avoid server exhaustion
-_semaphore = asyncio.Semaphore(20)
+_semaphore = asyncio.Semaphore(settings.analyze_max_concurrent)
 _analysis_inflight: dict[str, asyncio.Task] = {}
 _analysis_inflight_lock = asyncio.Lock()
 
@@ -232,15 +232,16 @@ def _analysis_request_key(target: str, service_signature: str) -> str:
 
 
 @router.get("/status")
-async def get_status(current_user: dict = Depends(get_current_user)):
+async def get_status(request: Request, current_user: dict = Depends(get_current_user)):
     """Returns the initialization status of all services based on API keys."""
     user_keys = await _get_user_keys(current_user["username"])
-    async with AsyncThreatIntelClient(user_keys=user_keys) as client:
+    shared_session = getattr(request.app.state, "http_session", None)
+    async with AsyncThreatIntelClient(user_keys=user_keys, shared_session=shared_session) as client:
         return {"status": "ok", "services": client.services}
 
 
 @router.get("/analyze")
-@limiter.limit("10/minute")
+@limiter.limit(settings.rate_limit_analyze)
 async def analyze_target(
     request: Request,
     target: str = Query(..., description="IP address, Domain, or File Hash"),
@@ -298,8 +299,9 @@ async def analyze_target(
 
     async def _run_live_analysis() -> dict[str, Any]:
         # Fetch all services in parallel (rate-limited by the async client)
+        shared_session = getattr(request.app.state, "http_session", None)
         async with _semaphore:
-            async with AsyncThreatIntelClient(user_keys=user_keys) as async_client:
+            async with AsyncThreatIntelClient(user_keys=user_keys, shared_session=shared_session) as async_client:
                 raw_results = await async_client.query_all(sanitized, target_type)
 
         # Separate successful results from errors
@@ -417,56 +419,61 @@ async def analyze_target(
     request_started_at = datetime.now(timezone.utc)
     distributed_owner_id = f"{current_user['username']}:{uuid4().hex}"
 
+    # Minimize critical section: only check/set the inflight dict under lock
     async with _analysis_inflight_lock:
-        task = _analysis_inflight.get(request_key)
-        owner = task is None
-        if task is None:
-            task = None
+        existing_task = _analysis_inflight.get(request_key)
+        owner = existing_task is None
 
-            lease_acquired = await _try_acquire_distributed_lease(
+    if not owner:
+        # Another coroutine is already running this analysis — wait for it
+        task = existing_task
+    else:
+        # We are the owner — try distributed lease (outside the lock)
+        lease_acquired = await _try_acquire_distributed_lease(
+            request_key,
+            distributed_owner_id,
+            sanitized,
+            _analysis_service_signature(user_keys),
+        )
+
+        if lease_acquired:
+            async def _run_with_lease() -> dict[str, Any]:
+                try:
+                    return await _run_live_analysis()
+                finally:
+                    await _release_distributed_lease(request_key, distributed_owner_id)
+
+            task = asyncio.create_task(_run_with_lease())
+        else:
+            shared_payload = await _wait_for_shared_scan_result(
+                target=sanitized,
+                lang=lang,
+                current_username=current_user["username"],
+                not_before=request_started_at,
+            )
+            if shared_payload is not None:
+                return shared_payload
+
+            retry_acquired = await _try_acquire_distributed_lease(
                 request_key,
                 distributed_owner_id,
                 sanitized,
                 _analysis_service_signature(user_keys),
             )
-
-            if lease_acquired:
-                async def _run_with_lease() -> dict[str, Any]:
+            if retry_acquired:
+                async def _run_with_lease_retry() -> dict[str, Any]:
                     try:
                         return await _run_live_analysis()
                     finally:
                         await _release_distributed_lease(request_key, distributed_owner_id)
 
-                task = asyncio.create_task(_run_with_lease())
-                _analysis_inflight[request_key] = task
+                task = asyncio.create_task(_run_with_lease_retry())
             else:
-                shared_payload = await _wait_for_shared_scan_result(
-                    target=sanitized,
-                    lang=lang,
-                    current_username=current_user["username"],
-                    not_before=request_started_at,
-                )
-                if shared_payload is not None:
-                    return shared_payload
+                task = asyncio.create_task(_run_live_analysis())
 
-                retry_acquired = await _try_acquire_distributed_lease(
-                    request_key,
-                    distributed_owner_id,
-                    sanitized,
-                    _analysis_service_signature(user_keys),
-                )
-                if retry_acquired:
-                    async def _run_with_lease_retry() -> dict[str, Any]:
-                        try:
-                            return await _run_live_analysis()
-                        finally:
-                            await _release_distributed_lease(request_key, distributed_owner_id)
-
-                    task = asyncio.create_task(_run_with_lease_retry())
-                    _analysis_inflight[request_key] = task
-                else:
-                    task = asyncio.create_task(_run_live_analysis())
-                    _analysis_inflight[request_key] = task
+        # Register the task in the inflight dict
+        async with _analysis_inflight_lock:
+            _analysis_inflight[request_key] = task
 
     try:
         results = await task

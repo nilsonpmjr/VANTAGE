@@ -23,7 +23,16 @@ class DatabaseManager:
         mongo_url = settings.mongo_uri
         logger.info(f"Connecting to MongoDB at {_mask_uri(mongo_url)}")
         try:
-            cls.client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=5000, tz_aware=True)
+            cls.client = AsyncIOMotorClient(
+                mongo_url,
+                maxPoolSize=settings.mongo_max_pool_size,
+                minPoolSize=settings.mongo_min_pool_size,
+                maxIdleTimeMS=30000,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=5000,
+                waitQueueTimeoutMS=10000,
+                tz_aware=True,
+            )
             cls.db = cls.client[settings.mongo_db_name]
 
             # Verify connection

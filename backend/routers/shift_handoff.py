@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timezone, timedelta
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Depends, Query, UploadFile, File
 from pydantic import BaseModel, StrictBool, field_validator
 
@@ -770,7 +771,7 @@ async def get_handoff(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -797,7 +798,7 @@ async def update_handoff(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -877,7 +878,7 @@ async def acknowledge_handoff(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -919,7 +920,7 @@ async def update_incident_status(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -1029,7 +1030,7 @@ async def upload_attachment(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -1102,7 +1103,7 @@ async def delete_attachment(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     doc = await db.shift_handoffs.find_one({"_id": oid})
@@ -1144,7 +1145,7 @@ async def delete_handoff(
     db = db_manager.db
     try:
         oid = ObjectId(handoff_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="invalid_handoff_id")
 
     result = await db.shift_handoffs.delete_one({"_id": oid})

@@ -1616,30 +1616,58 @@ async def export_audit_logs(
         raise HTTPException(status_code=500, detail="Database not connected")
 
     query = _build_audit_query(user, action, result, ip, from_date, to_date)
-    items = await db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).to_list(length=10000)
-    _serialize_items(items)
-
-    # Apply PII masking if enabled
     policy = await get_password_policy(db)
-    if policy.get("mask_pii", True):
-        _mask_audit_items(items)
+    mask = policy.get("mask_pii", True)
+    batch_size = 500
+
+    async def iter_batches():
+        cursor = db.audit_log.find(query, {"_id": 0}).sort("timestamp", -1).batch_size(batch_size)
+        buffer: list[dict] = []
+        async for doc in cursor:
+            buffer.append(doc)
+            if len(buffer) >= batch_size:
+                _serialize_items(buffer)
+                if mask:
+                    _mask_audit_items(buffer)
+                yield buffer
+                buffer = []
+        if buffer:
+            _serialize_items(buffer)
+            if mask:
+                _mask_audit_items(buffer)
+            yield buffer
 
     if format == "json":
-        content = json.dumps(items, ensure_ascii=False, indent=2)
+        async def json_stream():
+            yield "["
+            first = True
+            async for batch in iter_batches():
+                for item in batch:
+                    prefix = "" if first else ","
+                    first = False
+                    yield prefix + json.dumps(item, ensure_ascii=False)
+            yield "]"
+
         return StreamingResponse(
-            iter([content]),
+            json_stream(),
             media_type="application/json",
             headers={"Content-Disposition": "attachment; filename=audit_log.json"},
         )
 
-    # CSV
     fieldnames = ["timestamp", "user", "action", "target", "result", "ip", "detail"]
-    output = io.StringIO()
-    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
-    writer.writeheader()
-    writer.writerows(items)
+
+    async def csv_stream():
+        header_buf = io.StringIO()
+        csv.DictWriter(header_buf, fieldnames=fieldnames, extrasaction="ignore").writeheader()
+        yield header_buf.getvalue().encode("utf-8-sig")
+        async for batch in iter_batches():
+            chunk_buf = io.StringIO()
+            writer = csv.DictWriter(chunk_buf, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writerows(batch)
+            yield chunk_buf.getvalue().encode("utf-8")
+
     return StreamingResponse(
-        iter([output.getvalue().encode("utf-8-sig")]),
+        csv_stream(),
         media_type="text/csv",
         headers={"Content-Disposition": "attachment; filename=audit_log.csv"},
     )

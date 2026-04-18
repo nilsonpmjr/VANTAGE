@@ -8,7 +8,7 @@ export type ShortcutGroup = {
 
 export const SHORTCUT_SEQUENCE_TIMEOUT_MS = 1000;
 
-export function getShortcutSequenceMap(canAccessSettings: boolean) {
+export function getShortcutSequenceMap(canAccessSettings: boolean): Record<string, string> {
   return {
     h: "/",
     f: "/feed",

@@ -1949,7 +1949,7 @@ function HandoffModal({
           }),
         });
         if (!res.ok) {
-          const payload = await res.json().catch(() => null);
+          const payload: { detail?: unknown } | null = await res.json().catch((): null => null);
           throw new Error(
             typeof payload?.detail === "string"
               ? payload.detail
@@ -1973,7 +1973,7 @@ function HandoffModal({
           }),
         });
         if (!res.ok) {
-          const payload = await res.json().catch(() => null);
+          const payload: { detail?: unknown } | null = await res.json().catch((): null => null);
           throw new Error(
             typeof payload?.detail === "string"
               ? payload.detail
@@ -2615,7 +2615,7 @@ export function ShiftHandoffActiveIncidentsPage() {
             created_at: handoff.created_at,
             created_by: handoff.created_by,
             updated_at: handoff.updated_at,
-            resolved_at: null,
+            resolved_at: null as string | null,
             resolved_by: "",
             team_members: handoff.team_members,
             title: incident.title,

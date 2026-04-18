@@ -413,7 +413,7 @@ export default function ThreatIngestion() {
           tls: smtpDraft.tls,
         }),
       });
-      const payload = (await response.json().catch(() => null)) as SmtpConfig | ApiErrorPayload | null;
+      const payload = (await response.json().catch((): null => null)) as SmtpConfig | ApiErrorPayload | null;
       if (!response.ok) {
         throw new Error(extractApiErrorMessage(payload, "Falha ao salvar o gateway SMTP."));
       }
@@ -437,7 +437,7 @@ export default function ThreatIngestion() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ to_email: smtpTestTarget.trim() || undefined }),
       });
-      const payload = (await response.json().catch(() => null)) as SmtpTestResponse | ApiErrorPayload | null;
+      const payload = (await response.json().catch((): null => null)) as SmtpTestResponse | ApiErrorPayload | null;
       if (!response.ok) {
         throw new Error(extractApiErrorMessage(payload, "Falha ao executar o teste SMTP."));
       }

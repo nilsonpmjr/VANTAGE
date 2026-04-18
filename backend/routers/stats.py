@@ -125,6 +125,7 @@ async def get_dashboard_stats(
                 if item["_id"] and isinstance(item["_id"], str)
             ]
         except Exception:
+            logger.warning("top_threat_types aggregation failed", exc_info=True)
             top_threat_types = []
 
         # Recent scans (paginated via skip + limit)

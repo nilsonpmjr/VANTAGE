@@ -287,7 +287,7 @@ function buildDetailFields(
 }
 
 function getOpenPorts(results?: Record<string, any>, language: SupportedLanguage = "pt") {
-  const ports = Array.isArray(results?.shodan?.ports) ? results?.shodan?.ports : [];
+  const ports: number[] = Array.isArray(results?.shodan?.ports) ? results?.shodan?.ports : [];
   return ports.slice(0, 6).map((port: number) => ({
     port,
     label:

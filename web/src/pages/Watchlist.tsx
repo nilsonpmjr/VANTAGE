@@ -495,10 +495,13 @@ export default function Watchlist() {
   );
 
   const selectedTrend = useMemo(() => {
-    const source = selectedHistory.length
+    const source: WatchlistHistoryItem[] = selectedHistory.length
       ? [...selectedHistory].reverse()
       : selectedItem?.last_verdict
         ? [{
+            watchlist_item_id: selectedItem.id,
+            target: selectedItem.target,
+            target_type: selectedItem.target_type,
             verdict: selectedItem.last_verdict,
             changed: false,
             scanned_at: selectedItem.last_scan_at || new Date().toISOString(),

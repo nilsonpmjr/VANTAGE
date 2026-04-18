@@ -349,7 +349,7 @@ export default function Notifications() {
     if (archivedCount === 0) return;
     const nextState = {
       ...notificationCenter,
-      archived_ids: [],
+      archived_ids: [] as string[],
     };
     void persistNotificationCenter(nextState, t("notifications.noticeRestoredArchive", "Archived notifications restored to the active queue."));
   }

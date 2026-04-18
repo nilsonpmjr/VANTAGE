@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from bson import ObjectId
+from bson.errors import InvalidId
 
 
 async def migrate_shift_handoff_incidents(db) -> dict[str, int]:
@@ -25,7 +26,7 @@ async def migrate_shift_handoff_incidents(db) -> dict[str, int]:
                     persistent_doc = await db.shift_handoff_incidents.find_one(
                         {"_id": ObjectId(incident_id)}
                     )
-                except Exception:
+                except (InvalidId, TypeError):
                     persistent_doc = None
 
             if persistent_doc:

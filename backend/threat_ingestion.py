@@ -8,8 +8,11 @@ from copy import deepcopy
 from datetime import datetime, timezone
 import ipaddress
 import json
+import logging
 import secrets
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 from crypto import decrypt_secret, encrypt_secret
 from network_security import UnsafeTargetError, validate_public_url
@@ -222,6 +225,7 @@ def _apply_source_override(
             try:
                 effective["config"]["api_key"] = decrypt_secret(api_key_enc)
             except Exception:
+                logger.warning("MISP api_key decryption failed for source=%s", source_id, exc_info=True)
                 effective["config"]["api_key"] = ""
                 effective["config"]["api_key_decryption_error"] = "Stored MISP API key could not be decrypted."
         else:

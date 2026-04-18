@@ -89,7 +89,8 @@ class SSLModule(ReconModule):
         # Fingerprint
         try:
             fingerprint = cert.fingerprint(hashes.SHA256()).hex()
-        except Exception:
+        except Exception as exc:
+            logger.debug(f"Failed to compute cert fingerprint for {target}: {exc}")
             fingerprint = None
 
         return {

@@ -56,6 +56,9 @@ class FakeCursor:
         self._data = self._data[n:]
         return self
 
+    def batch_size(self, _n):
+        return self
+
     async def to_list(self, length=None):
         if length is not None:
             return self._data[:length]

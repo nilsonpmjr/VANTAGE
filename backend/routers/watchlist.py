@@ -164,10 +164,11 @@ async def update_watchlist_item(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     from bson import ObjectId
+    from bson.errors import InvalidId
 
     try:
         oid = ObjectId(item_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="Invalid ID.")
 
     doc = await db_manager.db.watchlist.find_one({"_id": oid})
@@ -198,12 +199,13 @@ async def bulk_watchlist_action(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     from bson import ObjectId
+    from bson.errors import InvalidId
 
     normalized_ids = []
     for item_id in body.item_ids:
         try:
             normalized_ids.append(ObjectId(item_id))
-        except Exception:
+        except (InvalidId, TypeError):
             raise HTTPException(status_code=400, detail="Invalid ID.")
 
     owned_items = []
@@ -257,11 +259,12 @@ async def scan_watchlist_item(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     from bson import ObjectId
+    from bson.errors import InvalidId
     from clients.api_client_async import AsyncThreatIntelClient
 
     try:
         oid = ObjectId(item_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="Invalid ID.")
 
     doc = await db_manager.db.watchlist.find_one({"_id": oid})
@@ -303,10 +306,11 @@ async def read_watchlist_item_history(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     from bson import ObjectId
+    from bson.errors import InvalidId
 
     try:
         oid = ObjectId(item_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="Invalid ID.")
 
     doc = await db_manager.db.watchlist.find_one({"_id": oid})
@@ -339,10 +343,11 @@ async def remove_from_watchlist(
         raise HTTPException(status_code=503, detail="Database unavailable.")
 
     from bson import ObjectId
+    from bson.errors import InvalidId
 
     try:
         oid = ObjectId(item_id)
-    except Exception:
+    except (InvalidId, TypeError):
         raise HTTPException(status_code=400, detail="Invalid ID.")
 
     result = await db_manager.db.watchlist.delete_one({

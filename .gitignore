@@ -44,3 +44,4 @@ docker_build.log
 Threat-Intelligence-Tool.code-workspace
 .omx/
 .claude/
+.planning/

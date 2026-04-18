@@ -107,7 +107,7 @@ export default function Home() {
     lastFeedRefreshRef.current = now;
     Promise.all([
       fetch(`${API_URL}/api/feed?limit=4&offset=0`, { credentials: "include" })
-        .then((response) => (response.ok ? response.json() : { items: [] }))
+        .then((response) => (response.ok ? response.json() : { items: [] as unknown[] }))
         .then((payload) => {
           setFeedItems(payload.items || []);
         })

@@ -51,7 +51,8 @@ class DNSModule(ReconModule):
                 return rtype, [r.to_text() for r in ans]
             except dns.exception.DNSException:
                 return rtype, []
-            except Exception:
+            except Exception as exc:
+                logger.debug(f"Unexpected DNS query error for {domain}/{rtype}: {exc}")
                 return rtype, []
 
         responses = await asyncio.gather(*[query_one(rt) for rt in record_types])

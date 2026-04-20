@@ -310,7 +310,6 @@ export default function Dashboard() {
   return (
     <div className="page-frame space-y-8">
       <PageHeader
-        eyebrow={t("dashboard.eyebrow", "Observability")}
         title={t("dashboard.title", "Operational Overview")}
         description={t("dashboard.subtitle", "Telemetria de risco, incidentes recentes e throughput da plataforma em uma única superfície de observabilidade.")}
         metrics={

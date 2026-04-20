@@ -835,7 +835,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
           iSavedCheckbox: "Salvei meus códigos de recuperação em um local seguro",
           doneCta: "Concluir",
           disableConfirmTitle: "Desativar autenticação multifator",
-          disableConfirmBody: "Sua conta ficará com apenas um fator de autenticação. Para confirmar, digite",
+          disableConfirmBody: "Sua conta ficará protegida apenas por senha. Você pode reativar o MFA a qualquer momento.",
           disableConfirmKeyword: "DESATIVAR",
           disableConfirmPlaceholder: "Digite DESATIVAR para confirmar",
           errors: {
@@ -2240,7 +2240,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
           iSavedCheckbox: "I saved my recovery codes in a safe place",
           doneCta: "Done",
           disableConfirmTitle: "Disable multi-factor authentication",
-          disableConfirmBody: "Your account will rely on a single authentication factor. To confirm, type",
+          disableConfirmBody: "Your account will be protected by password only. You can re-enable MFA at any time.",
           disableConfirmKeyword: "DISABLE",
           disableConfirmPlaceholder: "Type DISABLE to confirm",
           errors: {
@@ -3661,7 +3661,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
           iSavedCheckbox: "Guardé mis códigos de recuperación en un lugar seguro",
           doneCta: "Concluir",
           disableConfirmTitle: "Desactivar autenticación multifactor",
-          disableConfirmBody: "Su cuenta quedará con un solo factor de autenticación. Para confirmar, escriba",
+          disableConfirmBody: "Su cuenta quedará protegida solo con contraseña. Puede reactivar MFA en cualquier momento.",
           disableConfirmKeyword: "DESACTIVAR",
           disableConfirmPlaceholder: "Escriba DESACTIVAR para confirmar",
           errors: {

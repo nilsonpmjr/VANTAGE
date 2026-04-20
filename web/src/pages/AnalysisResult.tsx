@@ -902,7 +902,6 @@ export default function AnalysisResult() {
   return (
     <div className="page-frame analyze-page-frame space-y-8">
       <PageHeader
-        eyebrow={t("analysis.eyebrow", "Analysis")}
         title={displayTarget}
         description={analysisSubtitle}
         metrics={

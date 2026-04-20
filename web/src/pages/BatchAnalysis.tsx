@@ -289,7 +289,6 @@ export default function BatchAnalysis() {
     return (
       <div className="page-frame">
         <div className="surface-section px-6 py-8">
-          <div className="page-eyebrow">{t("batch.eyebrow", "Batch Operations")}</div>
           <h1 className="page-heading">{t("batch.emptyTitle", "No Batch Targets Loaded")}</h1>
           <p className="page-subheading">
             {t("batch.emptySubtitle", "Start a batch run from the global launcher in the sidebar or return to Home.")}
@@ -307,7 +306,6 @@ export default function BatchAnalysis() {
   return (
     <div className="page-frame space-y-6">
       <PageHeader
-        eyebrow={t("batch.eyebrow", "Batch Operations")}
         title={t("batch.title", "Batch Analysis Workbench")}
         description={t("batch.subtitle", "The global launcher now routes multi-target scans into the native VANTAGE backend batch engine with pre-flight estimate, live progress, and exportable results.")}
         metrics={

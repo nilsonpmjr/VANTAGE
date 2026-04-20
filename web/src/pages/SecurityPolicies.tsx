@@ -161,7 +161,6 @@ export default function SecurityPolicies() {
   return (
     <div className="page-frame space-y-8">
       <PageHeader
-        eyebrow={t("admin.eyebrow", "Administration")}
         title={t("settingsPages.securityPoliciesTitle", "Security Policies")}
         description={t("settingsPages.securityPoliciesSubtitle", "Defina padrões globais de senha, mascaramento de PII e mecanismos preventivos de lockout sem perder rastreabilidade administrativa.")}
         metrics={

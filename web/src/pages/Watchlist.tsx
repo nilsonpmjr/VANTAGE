@@ -548,7 +548,6 @@ export default function Watchlist() {
       )}
 
       <PageHeader
-        eyebrow={t("watchlist.eyebrow", "Analyst")}
         title={t("watchlist.title", "Watchlist Monitoring")}
         description={t("watchlist.subtitle", "Monitore IPs, domínios e hashes conhecidos com mudança de veredito, roteamento de alerta e histórico contínuo da plataforma.")}
         metrics={

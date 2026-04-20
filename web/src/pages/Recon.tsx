@@ -482,7 +482,6 @@ export default function Recon() {
   return (
     <div className="page-frame space-y-8">
       <PageHeader
-        eyebrow={t("recon.eyebrow", "Analyst")}
         title={t("recon.title", "Reconnaissance Engine")}
         description={t("recon.subtitle", "Execute scanning ativo, orquestração agendada, histórico e correlação de superfície em uma única bancada analítica.")}
         metrics={

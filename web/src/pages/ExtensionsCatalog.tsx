@@ -264,7 +264,6 @@ export default function ExtensionsCatalog() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={t("admin.eyebrow", "Administration")}
         title={t("settingsPages.extensionsTitle", "Extensions Catalog")}
         description={t("settingsPages.extensionsSubtitle", "Orquestre módulos, conectores e recursos adicionais em um catálogo administrativo consistente. O backend atual ainda expõe parte desse estado em modo leitura.")}
         metrics={

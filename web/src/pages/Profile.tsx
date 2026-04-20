@@ -874,7 +874,6 @@ export default function Profile() {
   return (
     <div className="page-frame profile-page-frame">
       <PageHeader
-        eyebrow={profileSectionMeta.eyebrow}
         title={profileSectionMeta.title}
         description={profileSectionMeta.subheading}
         metrics={profileHeaderMetrics}

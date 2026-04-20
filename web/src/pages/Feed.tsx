@@ -304,12 +304,6 @@ export default function Feed() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={
-          <>
-            <Rss className="h-4 w-4" />
-            {t("feed.eyebrow", "Threat Feed")}
-          </>
-        }
         title={t("feed.title", "Threat Intelligence Feed")}
         description={t("feed.subtitle", "Review operational intelligence, editorial signals, and publication context from the sources already ingested by the platform.")}
         metrics={

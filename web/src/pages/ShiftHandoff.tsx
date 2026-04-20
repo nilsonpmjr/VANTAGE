@@ -505,11 +505,6 @@ export default function ShiftHandoff() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={
-          <>
-            {t("shift_handoff.eyebrow", "Operations")}
-          </>
-        }
         title={t("shift_handoff.title", "SOC Shift Handoff")}
         description={t("shift_handoff.subtitle", "Register and review shift handoffs for your SOC rotation teams.")}
         metrics={
@@ -2423,12 +2418,6 @@ export function ShiftHandoffHistoryPage() {
   return (
     <div className="page-frame space-y-6">
       <PageHeader
-        eyebrow={
-          <>
-            <History className="h-4 w-4" />
-            {t("shift_handoff.history", "History")}
-          </>
-        }
         title={t("shift_handoff.historyTitle", "Handoff History")}
         description={t("shift_handoff.historySubtitle", "Review complete and expired handoffs with their full operational context.")}
         metrics={
@@ -2676,12 +2665,6 @@ export function ShiftHandoffActiveIncidentsPage() {
   return (
     <div className="page-frame space-y-6">
       <PageHeader
-        eyebrow={
-          <>
-            <AlertTriangle className="h-4 w-4" />
-            {t("shift_handoff.incidentBoard", "Incidents")}
-          </>
-        }
         title={t("shift_handoff.incidentBoardTitle", "Shift Incident Registry")}
         description={t(
           "shift_handoff.incidentBoardSubtitle",

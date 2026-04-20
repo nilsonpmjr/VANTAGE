@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { ShieldAlert, AlertTriangle } from "lucide-react";
 import ModalShell from "../modal/ModalShell";
 import { useLanguage } from "../../context/LanguageContext";
@@ -12,17 +12,12 @@ interface Props {
 
 export default function DisableMfaModal({ open, onClose, onDisabled }: Props) {
   const { t } = useLanguage();
-  const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
   if (!open) return null;
 
-  const keyword = t("profile.security.mfa.disableConfirmKeyword");
-
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (input.trim().toUpperCase() !== keyword.toUpperCase()) return;
+  const handleConfirm = async () => {
     setLoading(true);
     setError("");
     try {
@@ -41,8 +36,6 @@ export default function DisableMfaModal({ open, onClose, onDisabled }: Props) {
     }
   };
 
-  const disabled = input.trim().toUpperCase() !== keyword.toUpperCase();
-
   return (
     <ModalShell
       title={t("profile.security.mfa.disableConfirmTitle")}
@@ -55,26 +48,13 @@ export default function DisableMfaModal({ open, onClose, onDisabled }: Props) {
       onClose={onClose}
       variant="dialog"
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <div className="space-y-5">
         <div className="flex items-start gap-3 rounded-sm border border-warning/30 bg-warning/10 p-4">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
           <p className="text-xs text-on-surface">
-            {t("profile.security.mfa.disableConfirmBody")}{" "}
-            <code className="rounded-sm bg-surface-container-highest px-1.5 py-0.5 font-mono text-[11px] font-black tracking-widest text-on-surface">
-              {keyword}
-            </code>
-            .
+            {t("profile.security.mfa.disableConfirmBody")}
           </p>
         </div>
-
-        <input
-          type="text"
-          autoFocus
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={t("profile.security.mfa.disableConfirmPlaceholder")}
-          className="w-full rounded-sm border border-outline-variant/40 bg-surface-container-lowest px-3 py-2 font-mono text-sm text-on-surface outline-none focus:border-error"
-        />
 
         {error ? (
           <p role="alert" className="flex items-center gap-2 text-xs font-bold text-error">
@@ -93,16 +73,17 @@ export default function DisableMfaModal({ open, onClose, onDisabled }: Props) {
             {t("profile.buttons.cancel")}
           </button>
           <button
-            type="submit"
+            type="button"
             className="btn btn-primary !bg-error hover:!bg-error/90"
-            disabled={disabled || loading}
+            onClick={handleConfirm}
+            disabled={loading}
           >
             {loading
               ? t("profile.security.mfa.disabling")
               : t("profile.security.mfa.disableCta")}
           </button>
         </div>
-      </form>
+      </div>
     </ModalShell>
   );
 }

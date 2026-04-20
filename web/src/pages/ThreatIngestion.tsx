@@ -766,7 +766,6 @@ export default function ThreatIngestion() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={t("admin.eyebrow", "Administration")}
         title={t("settingsPages.threatIngestionTitle", "Threat Ingestion & SMTP")}
         description={t("settingsPages.threatIngestionSubtitle", "Administre conectores, cadência de sincronização e o gateway SMTP em uma única área de gestão.")}
         metrics={

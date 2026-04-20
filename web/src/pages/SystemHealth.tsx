@@ -277,7 +277,6 @@ export default function SystemHealth() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={t("settingsPages.systemHealthEyebrow", "Observability")}
         title={t("settingsPages.systemHealthTitle", "Operational Status")}
         description={t("settingsPages.systemHealthSubtitle", "Monitore saúde dos serviços, consumo operacional e eventos recentes da infraestrutura sem depender de trilhas de navegação artificiais.")}
         metrics={

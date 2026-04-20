@@ -16,6 +16,7 @@ import {
   Monitor,
   Smartphone,
   Copy,
+  ShieldOff,
 } from "lucide-react";
 import API_URL from "../config";
 import ModalShell from "../components/modal/ModalShell";
@@ -288,11 +289,6 @@ export default function UsersRoles() {
     [editorMode, editorUsername, users],
   );
 
-  const selectedRoleBlueprint = ROLE_PROFILES[form.role] || ROLE_PROFILES.tech;
-  const roleRequiresMfa = MFA_REQUIRED_ROLES.has(form.role);
-  const roleDowngradeRevokesSessions = isSensitiveRoleDowngrade(editingUser?.role, form.role);
-  const redundantPermissions = form.role === "admin" ? form.extra_permissions : [];
-  const additivePermissions = form.role === "admin" ? [] : form.extra_permissions;
 
   const filteredUsers = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -536,6 +532,32 @@ export default function UsersRoles() {
     }
   }
 
+  async function revokeUserMfa(username: string) {
+    if (
+      !window.confirm(
+        `Revogar MFA de ${username}? O usuário precisará se inscrever novamente no próximo login.`,
+      )
+    ) {
+      return;
+    }
+    setBusy(`mfa-${username}`);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch(
+        `${API_URL}/api/mfa/${encodeURIComponent(username)}`,
+        { method: "DELETE", credentials: "include" },
+      );
+      if (!response.ok) throw new Error("mfa_revoke_failed");
+      setNotice(`MFA revogado para ${username}.`);
+      await loadRuntime();
+    } catch {
+      setError("Falha ao revogar o MFA do usuário.");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function importUsers(file: File) {
     setBusy("import");
     setError("");
@@ -656,7 +678,6 @@ export default function UsersRoles() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={t("admin.eyebrow", "Administration")}
         title={t("settingsPages.usersRolesTitle", "Users & Roles")}
         description={t("settingsPages.usersRolesSubtitle", "Gerencie diretório, autenticação pendente e operações de importação em uma superfície administrativa única.")}
         metrics={
@@ -977,6 +998,25 @@ export default function UsersRoles() {
                   >
                     <Monitor className="w-3 h-3" />
                     Inspect Active Sessions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void revokeUserMfa(selectedUser.username)}
+                    disabled={
+                      !selectedUser.mfa_enabled ||
+                      busy === `mfa-${selectedUser.username}`
+                    }
+                    className="btn btn-outline text-error border-error/30 hover:bg-error/10"
+                    title={
+                      !selectedUser.mfa_enabled
+                        ? "Este usuário ainda não ativou o MFA."
+                        : undefined
+                    }
+                  >
+                    <ShieldOff className="w-3 h-3" />
+                    {busy === `mfa-${selectedUser.username}`
+                      ? "Revogando MFA..."
+                      : "Revogar MFA"}
                   </button>
                 </div>
               </div>
@@ -1370,86 +1410,6 @@ export default function UsersRoles() {
                     </div>
                   )}
                 </div>
-              </div>
-              <div className="rounded-sm border border-outline-variant/15 bg-surface-container-low p-4 space-y-4">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    Role Impact Preview
-                  </p>
-                  <h4 className="mt-2 text-sm font-semibold text-on-surface">{selectedRoleBlueprint.tier}</h4>
-                  <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                    {selectedRoleBlueprint.summary}
-                  </p>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-sm bg-surface-container-high p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      MFA Policy
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-on-surface">
-                      {roleRequiresMfa ? "Mandatory enrollment" : "Optional enrollment"}
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                      {roleRequiresMfa
-                        ? editingUser?.mfa_enabled
-                          ? "The selected operator already satisfies the mandatory MFA policy for this role."
-                          : "This role is part of the MFA-required set and will demand enrollment."
-                        : "This role can operate without enforced MFA, though enrollment still improves resilience."}
-                    </p>
-                  </div>
-                  <div className="rounded-sm bg-surface-container-high p-3">
-                    <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                      Session Impact
-                    </div>
-                    <div className="mt-2 text-sm font-semibold text-on-surface">
-                      {roleDowngradeRevokesSessions ? "Refresh sessions will be revoked" : "No forced revocation from role change"}
-                    </div>
-                    <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                      {roleDowngradeRevokesSessions
-                        ? `Changing ${editingUser?.role || "this operator"} to ${form.role} is treated as a sensitive downgrade and terminates active refresh sessions.`
-                        : form.force_password_reset
-                          ? "Force Password Reset remains active and will still interrupt the current credential posture on the next sign-in."
-                          : "This role transition does not trigger automatic session invalidation by itself."}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-sm bg-surface-container-high p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
-                    Permission Resolution
-                  </div>
-                  <div className="mt-2 text-sm font-semibold text-on-surface">
-                    {form.role === "admin"
-                      ? "Admin role already implies all fine-grained permissions"
-                      : additivePermissions.length > 0
-                        ? `${additivePermissions.length} additive permission(s) selected`
-                        : "No additive permissions selected"}
-                  </div>
-                  <p className="mt-1 text-xs leading-relaxed text-on-surface-variant">
-                    {selectedRoleBlueprint.operationalScope}
-                  </p>
-                  {redundantPermissions.length > 0 ? (
-                    <p className="mt-2 text-xs leading-relaxed text-on-surface-variant">
-                      Extra permissions become redundant for admins: {redundantPermissions.join(", ")}.
-                    </p>
-                  ) : additivePermissions.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {additivePermissions.map((permission) => (
-                        <span
-                          key={permission}
-                          className="rounded-sm bg-surface-container-lowest px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-primary"
-                        >
-                          {permission}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="rounded-sm bg-surface-container-low p-4 text-xs text-on-surface-variant leading-relaxed">
-                O backend atual já suporta criação, suspensão, reativação,
-                desbloqueio, import/export em CSV e permissões extras por usuário.
               </div>
             </div>
         </ModalShell>

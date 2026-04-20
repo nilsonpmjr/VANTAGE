@@ -369,7 +369,6 @@ export default function Notifications() {
     <div className="page-frame flex flex-col gap-6">
       <section className="flex flex-col gap-4">
         <PageHeader
-          eyebrow={t("notifications.eyebrow", "Observability")}
           title={t("notifications.title", "Notifications Center")}
           description={t("notifications.subtitle", "Concentre eventos críticos, inteligência recente e sinais sistêmicos sem misturar contexto operacional com navegação fictícia.")}
           metrics={

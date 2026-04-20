@@ -361,7 +361,46 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     );
   }
 
+  const mfaRequiredForRole = MFA_REQUIRED_ROLES.has(user.role);
+  const needsMfaEnrollment =
+    (user.mfa_setup_required === true || (mfaRequiredForRole && !user.mfa_enabled)) &&
+    location.pathname !== "/profile";
+
+  if (needsMfaEnrollment) {
+    return <MfaEnrollmentGate />;
+  }
+
   return <>{children}</>;
+}
+
+const MFA_REQUIRED_ROLES = new Set(["admin", "manager"]);
+
+function MfaEnrollmentGate() {
+  const { logout } = useAuth();
+  return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-6">
+      <div className="max-w-lg rounded-sm bg-surface-container-lowest shadow-sm border border-outline-variant/15 p-8 space-y-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-warning">
+          Security Policy
+        </div>
+        <h1 className="text-2xl font-black tracking-tight text-on-surface">
+          Multi-factor authentication is required
+        </h1>
+        <p className="text-sm text-on-surface-variant">
+          Your role requires a second authentication factor before accessing operational
+          workflows. Enroll an authenticator app from your profile to continue.
+        </p>
+        <div className="flex flex-wrap gap-3 pt-2">
+          <Link to="/profile?tab=identity" className="btn btn-primary inline-flex">
+            Enroll now
+          </Link>
+          <button type="button" className="btn btn-ghost" onClick={() => void logout()}>
+            Log out
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function RequireRole({

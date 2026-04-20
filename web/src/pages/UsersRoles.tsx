@@ -22,6 +22,7 @@ import ModalShell from "../components/modal/ModalShell";
 import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
+import MfaCoverageCard from "../components/mfa/MfaCoverageCard";
 
 type UserItem = {
   username: string;
@@ -1001,7 +1002,12 @@ export default function UsersRoles() {
               <CompactMetric label="Total Operators" value={String(stats?.total_users ?? 0)} />
               <CompactMetric label="Active Sessions" value={String(stats?.active_sessions ?? 0)} />
               <CompactMetric label="Locked Accounts" value={String(stats?.locked_accounts ?? 0)} />
-              <CompactMetric label="MFA Coverage" value={`${stats?.total_users ? Math.round(((stats.users_with_mfa || 0) / stats.total_users) * 100) : 0}%`} />
+              <MfaCoverageCard
+                totalUsers={stats?.total_users ?? 0}
+                usersWithMfa={stats?.users_with_mfa ?? 0}
+                label={t("profile.security.mfa.coverageLabel")}
+                helpText={t("profile.security.mfa.coverageHelp")}
+              />
             </div>
           </section>
 

@@ -15,6 +15,7 @@ import API_URL from "../config";
 import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
+import MfaCoverageCard from "../components/mfa/MfaCoverageCard";
 
 type OperationalService = {
   status: "healthy" | "degraded" | "error";
@@ -579,6 +580,15 @@ export default function SystemHealth() {
           <MetricCard label="Active Sessions" value={String(adminStats?.active_sessions || 0)} helper="Refresh tokens alive" />
           <MetricCard label="Locked Accounts" value={String(adminStats?.locked_accounts || 0)} helper="IAM security pressure" />
           <MetricCard label="API Keys" value={String(adminStats?.active_api_keys || 0)} helper="Active operator tokens" accent />
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          <MfaCoverageCard
+            totalUsers={adminStats?.total_users ?? 0}
+            usersWithMfa={adminStats?.users_with_mfa ?? 0}
+            label={t("profile.security.mfa.coverageLabel")}
+            helpText={t("profile.security.mfa.coverageHelp")}
+          />
         </div>
         </div>
 

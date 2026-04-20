@@ -31,6 +31,10 @@ import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTheme } from "../context/ThemeContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
+import EnrollMfaModal from "../components/mfa/EnrollMfaModal";
+import DisableMfaModal from "../components/mfa/DisableMfaModal";
+
+const MFA_REQUIRED_ROLES = new Set(["admin", "manager"]);
 
 type ProfileTab = "identity" | "preferences" | "external_api_keys" | "audit_logs";
 
@@ -151,7 +155,11 @@ async function getCroppedAvatar(src: string, crop: Area) {
 const LOCALE_MAP: Record<string, string> = { pt: "pt-BR", en: "en-US", es: "es-ES" };
 
 export default function Profile() {
-  const { user, updateUserContext } = useAuth();
+  const { user, updateUserContext, refreshUser } = useAuth();
+  const [mfaEnrollOpen, setMfaEnrollOpen] = useState(false);
+  const [mfaDisableOpen, setMfaDisableOpen] = useState(false);
+  const mfaEnabled = Boolean(user?.mfa_enabled);
+  const mfaMandatory = user ? MFA_REQUIRED_ROLES.has(user.role) : false;
   const { language, setLanguage, t } = useLanguage();
   const { theme, setTheme } = useTheme();
 
@@ -1205,23 +1213,53 @@ export default function Profile() {
                       <section className="space-y-4">
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            <ShieldCheck className="w-4 h-4 text-primary" />
+                            {mfaEnabled ? (
+                              <ShieldCheck className="w-4 h-4 text-primary" />
+                            ) : (
+                              <ShieldAlert className="w-4 h-4 text-warning" />
+                            )}
                             <h4 className="text-xs font-bold uppercase tracking-widest">
                               {t("profile.security.mfa.title")}
                             </h4>
                           </div>
-                          <span className="badge badge-primary">{t("profile.security.mfa.active")}</span>
+                          <span
+                            className={`badge ${mfaEnabled ? "badge-primary" : "badge-warning"}`}
+                          >
+                            {mfaEnabled
+                              ? t("profile.security.mfa.active")
+                              : t("profile.security.mfa.inactive")}
+                          </span>
                         </div>
-                        <div className="p-4 bg-surface-container-low rounded border border-outline-variant/20 flex items-center justify-between">
-                          <div>
+                        <div className="p-4 bg-surface-container-low rounded border border-outline-variant/20 flex items-center justify-between gap-4">
+                          <div className="min-w-0">
                             <p className="text-sm font-bold">{t("profile.security.mfa.authenticatorTitle")}</p>
                             <p className="text-xs text-on-surface-variant">
                               {t("profile.security.mfa.description")}
                             </p>
                           </div>
-                          <div className="relative inline-flex h-6 w-11 items-center rounded-full bg-primary">
-                            <span className="inline-block h-4 w-4 translate-x-6 transform rounded-full bg-white transition shadow-sm"></span>
-                          </div>
+                          {mfaEnabled ? (
+                            <button
+                              type="button"
+                              className="btn btn-ghost shrink-0"
+                              onClick={() => setMfaDisableOpen(true)}
+                              disabled={mfaMandatory}
+                              title={
+                                mfaMandatory
+                                  ? t("profile.security.mfa.mandatoryTooltip")
+                                  : undefined
+                              }
+                            >
+                              {t("profile.security.mfa.disableCta")}
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-primary shrink-0"
+                              onClick={() => setMfaEnrollOpen(true)}
+                            >
+                              {t("profile.security.mfa.enableCta")}
+                            </button>
+                          )}
                         </div>
                       </section>
                     </div>
@@ -2187,6 +2225,24 @@ export default function Profile() {
           </div>
         </ModalShell>
       )}
+
+      <EnrollMfaModal
+        open={mfaEnrollOpen}
+        onClose={() => setMfaEnrollOpen(false)}
+        onEnrolled={async () => {
+          setNotice(t("profile.security.mfa.notices.enabled"));
+          await refreshUser();
+        }}
+      />
+
+      <DisableMfaModal
+        open={mfaDisableOpen}
+        onClose={() => setMfaDisableOpen(false)}
+        onDisabled={async () => {
+          setNotice(t("profile.security.mfa.notices.disabled"));
+          await refreshUser();
+        }}
+      />
     </div>
   );
 }

@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import ModalShell from "../components/modal/ModalShell";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 import MfaCoverageCard from "../components/mfa/MfaCoverageCard";
@@ -680,20 +680,6 @@ export default function UsersRoles() {
       <PageHeader
         title={t("settingsPages.usersRolesTitle", "Users & Roles")}
         description={t("settingsPages.usersRolesSubtitle", "Gerencie diretório, autenticação pendente e operações de importação em uma superfície administrativa única.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${stats?.active_users || 0} Active Users`}
-              dotClassName="bg-emerald-500"
-              tone="success"
-            />
-            <PageMetricPill
-              label={`${(stats?.total_users || 0) - (stats?.users_with_mfa || 0)} Pending Auth`}
-              dotClassName="bg-amber-500"
-              tone="warning"
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("settingsPages.usersRolesActions", "Directory actions")}>

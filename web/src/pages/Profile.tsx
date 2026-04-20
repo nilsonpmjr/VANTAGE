@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import API_URL from "../config";
 import ModalShell from "../components/modal/ModalShell";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 import { useTheme } from "../context/ThemeContext";
@@ -399,79 +399,6 @@ export default function Profile() {
       toolbarLabel: t("profile.toolbar.identity"),
     };
   }, [activeTab, t]);
-  const profileHeaderMetrics = useMemo(() => {
-    if (activeTab === "preferences") {
-      return (
-        <>
-          <PageMetricPill
-            label={`${configuredServiceCount}/${THIRD_PARTY_SERVICES.length} ${t("profile.metrics.providers")}`}
-            dotClassName={configuredServiceCount > 0 ? "bg-emerald-500" : "bg-outline"}
-            tone={configuredServiceCount > 0 ? "success" : "muted"}
-          />
-          <PageMetricPill
-            label={`${sessions.length} ${t("profile.metrics.activeSessions")}`}
-            dotClassName="bg-primary"
-            tone="primary"
-          />
-        </>
-      );
-    }
-    if (activeTab === "external_api_keys") {
-      return (
-        <>
-          <PageMetricPill
-            label={`${activeApiKeysCount} ${t("profile.metrics.activeKeys")}`}
-            dotClassName={activeApiKeysCount > 0 ? "bg-emerald-500" : "bg-outline"}
-            tone={activeApiKeysCount > 0 ? "success" : "muted"}
-          />
-          <PageMetricPill
-            label={oldestActiveKeyAge !== null ? `${oldestActiveKeyAge}d ${t("profile.metrics.oldestActive")}` : t("profile.metrics.noActiveKeys")}
-            dotClassName={oldestActiveKeyAge !== null ? "bg-amber-500" : "bg-outline"}
-            tone={oldestActiveKeyAge !== null ? "warning" : "muted"}
-          />
-        </>
-      );
-    }
-    if (activeTab === "audit_logs") {
-      return (
-        <>
-          <PageMetricPill
-            label={`${filteredAuditItems.length} ${t("profile.metrics.visibleEvents")}`}
-            dotClassName="bg-primary"
-            tone="primary"
-          />
-          <PageMetricPill
-            label={`${auditItems.length} ${t("profile.metrics.totalLogged")}`}
-            dotClassName="bg-secondary"
-          />
-        </>
-      );
-    }
-    return (
-      <>
-        <PageMetricPill
-          label={user?.role ? String(user.role).toUpperCase() : t("profile.metrics.defaultRole")}
-          dotClassName="bg-primary"
-          tone="primary"
-        />
-        <PageMetricPill
-          label={`${sessions.length} ${t("profile.metrics.activeSessions")}`}
-          dotClassName="bg-emerald-500"
-          tone="success"
-        />
-      </>
-    );
-  }, [
-    activeApiKeysCount,
-    activeTab,
-    auditItems.length,
-    configuredServiceCount,
-    filteredAuditItems.length,
-    oldestActiveKeyAge,
-    sessions.length,
-    user?.role,
-  ]);
-
   const avatarSrc =
     avatarDraft ||
     user?.avatar_base64 ||
@@ -876,7 +803,6 @@ export default function Profile() {
       <PageHeader
         title={profileSectionMeta.title}
         description={profileSectionMeta.subheading}
-        metrics={profileHeaderMetrics}
       />
 
       <PageToolbar className="mb-8" label={profileSectionMeta.toolbarLabel}>

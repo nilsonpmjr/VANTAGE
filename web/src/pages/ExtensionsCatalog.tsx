@@ -16,7 +16,7 @@ import {
   Shield,
 } from "lucide-react";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -266,20 +266,6 @@ export default function ExtensionsCatalog() {
       <PageHeader
         title={t("settingsPages.extensionsTitle", "Extensions Catalog")}
         description={t("settingsPages.extensionsSubtitle", "Orquestre módulos, conectores e recursos adicionais em um catálogo administrativo consistente. O backend atual ainda expõe parte desse estado em modo leitura.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${counts.active}/${counts.all} Active`}
-              dotClassName={counts.active > 0 ? "bg-emerald-500" : "bg-outline"}
-              tone={counts.active > 0 ? "success" : "muted"}
-            />
-            <PageMetricPill
-              label={`${counts.attention} Attention`}
-              dotClassName={counts.attention > 0 ? "bg-error" : "bg-outline"}
-              tone={counts.attention > 0 ? "danger" : "muted"}
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("settingsPages.extensionsActions", "Catalog actions")}>

@@ -33,7 +33,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { cn } from "../lib/utils";
 import API_URL from "../config";
 import ModalShell from "../components/modal/ModalShell";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import {
   HandoffRichTextContent,
   HandoffRichTextEditor,
@@ -468,10 +468,6 @@ export default function ShiftHandoff() {
       status: statusByTool.get(name.trim().toLowerCase()) || "operational",
     }));
   }, [handoffs, settings.tools]);
-  const operationalToolsCount = useMemo(
-    () => latestToolsStatus.filter((tool) => tool.status === "operational").length,
-    [latestToolsStatus],
-  );
   const currentVisibilityLabel = useMemo(() => {
     if (daysFilter === 0) return t("shift_handoff.filterAll", "All");
     return t(`shift_handoff.filter${daysFilter}d` as `shift_handoff.filter4d`, `${daysFilter}d`);
@@ -507,24 +503,6 @@ export default function ShiftHandoff() {
       <PageHeader
         title={t("shift_handoff.title", "SOC Shift Handoff")}
         description={t("shift_handoff.subtitle", "Register and review shift handoffs for your SOC rotation teams.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${stats.total} ${t("shift_handoff.statActive", "active")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={`${stats.activeIncidents} ${t("shift_handoff.sectionIncidents", "incidents")}`}
-              dotClassName={stats.activeIncidents > 0 ? "bg-amber-500" : "bg-emerald-500"}
-              tone={stats.activeIncidents > 0 ? "warning" : "success"}
-            />
-            <PageMetricPill
-              label={`${operationalToolsCount}/${latestToolsStatus.length} ${t("shift_handoff.sectionTools", "tools")}`}
-              dotClassName={operationalToolsCount === latestToolsStatus.length ? "bg-emerald-500" : "bg-secondary"}
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("shift_handoff.visibilityFilter", "Visibility filter")}>
@@ -2389,9 +2367,6 @@ export function ShiftHandoffHistoryPage() {
 
     return groups;
   }, [filtered, dateFnsLocale]);
-  const historySummaryLabel = useMemo(() => periodLabel(periodFilter), [periodFilter, t]);
-  const filteredMonthsCount = grouped.length;
-
   function getUnresolvedFromPrevious(handoff: HandoffDoc) {
     const results: { shiftDate: string; team: string[]; incident: IncidentEntry }[] = [];
     for (const h of allHistory) {
@@ -2420,20 +2395,6 @@ export function ShiftHandoffHistoryPage() {
       <PageHeader
         title={t("shift_handoff.historyTitle", "Handoff History")}
         description={t("shift_handoff.historySubtitle", "Review complete and expired handoffs with their full operational context.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${filtered.length} ${t("shift_handoff.historyCount", "handoffs")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={`${filteredMonthsCount} ${filteredMonthsCount === 1 ? "month" : "months"}`}
-              dotClassName="bg-secondary"
-            />
-            <PageMetricPill label={historySummaryLabel} tone="muted" />
-          </>
-        }
       />
 
       <PageToolbar label={t("shift_handoff.historyFilterAll", "History filters")}>
@@ -2565,16 +2526,6 @@ export function ShiftHandoffActiveIncidentsPage() {
   const [notice, setNotice] = useState("");
   const [busyKey, setBusyKey] = useState("");
 
-  const criticalCount = useMemo(
-    () => activeIncidents.filter((item) => item.severity === "critical").length,
-    [activeIncidents],
-  );
-
-  const affectedHandoffsCount = useMemo(
-    () => new Set(activeIncidents.map((item) => item.handoff_id)).size,
-    [activeIncidents],
-  );
-
   const fetchActiveIncidents = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -2670,24 +2621,6 @@ export function ShiftHandoffActiveIncidentsPage() {
           "shift_handoff.incidentBoardSubtitle",
           "Review every incident ever attached to shift handoffs, including resolved cases, while preserving full shift context and lifecycle history.",
         )}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${activeIncidents.length} ${t("shift_handoff.sectionIncidents", "incidents")}`}
-              dotClassName={activeIncidents.length > 0 ? "bg-primary" : "bg-outline"}
-              tone={activeIncidents.length > 0 ? "primary" : "muted"}
-            />
-            <PageMetricPill
-              label={`${criticalCount} ${t("shift_handoff.sevCritical", "Critical")}`}
-              dotClassName={criticalCount > 0 ? "bg-error" : "bg-outline"}
-              tone={criticalCount > 0 ? "danger" : "muted"}
-            />
-            <PageMetricPill
-              label={`${affectedHandoffsCount} ${t("shift_handoff.historyCount", "handoffs")}`}
-              dotClassName="bg-secondary"
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("shift_handoff.incidentBoardActions", "Incident actions")}>

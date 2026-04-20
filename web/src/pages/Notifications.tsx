@@ -18,7 +18,7 @@ import {
 import API_URL from "../config";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { resolveAccessiblePath } from "../lib/access";
 
@@ -371,12 +371,6 @@ export default function Notifications() {
         <PageHeader
           title={t("notifications.title", "Notifications Center")}
           description={t("notifications.subtitle", "Concentre eventos críticos, inteligência recente e sinais sistêmicos sem misturar contexto operacional com navegação fictícia.")}
-          metrics={
-            <>
-              <PageMetricPill label={`${notifications.length} notifications`} dotClassName="bg-primary" tone="primary" />
-              <PageMetricPill label={`${archivedCount} archived`} dotClassName="bg-secondary" />
-            </>
-          }
         />
         <PageToolbar label={t("notifications.globalActions", "Global actions")}>
           <PageToolbarGroup className="ml-auto">

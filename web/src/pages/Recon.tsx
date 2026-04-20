@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Radar, Target, Map, Activity, Zap, ShieldAlert, Server, Globe, Clock3, RefreshCw, Eye, History, Radio } from "lucide-react";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -459,10 +459,6 @@ export default function Recon() {
     }
   }
 
-  const activeScans = useMemo(
-    () => recentJobs.filter((job) => job.status === "pending" || job.status === "running").length,
-    [recentJobs],
-  );
   const infrastructure = activeJob?.attack_surface?.infrastructure;
   const certificates = activeJob?.attack_surface?.certificates;
   const passive = activeJob?.attack_surface?.passive;
@@ -484,19 +480,6 @@ export default function Recon() {
       <PageHeader
         title={t("recon.title", "Reconnaissance Engine")}
         description={t("recon.subtitle", "Execute scanning ativo, orquestração agendada, histórico e correlação de superfície em uma única bancada analítica.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${activeScans} / 10 ${t("recon.activeScans", "Active Scans")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={`${recentJobs.length} ${t("recon.recentJobs", "Recent Jobs")}`}
-              dotClassName="bg-secondary"
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("recon.actions", "Recon actions")}>

@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Download, Filter, RefreshCw, Rss, ShieldAlert, X } from "lucide-react";
 import API_URL from "../config";
 import ModalShell from "../components/modal/ModalShell";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 type FeedItem = {
@@ -306,25 +306,6 @@ export default function Feed() {
       <PageHeader
         title={t("feed.title", "Threat Intelligence Feed")}
         description={t("feed.subtitle", "Review operational intelligence, editorial signals, and publication context from the sources already ingested by the platform.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${items.length} ${t("feed.items", "items")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={`${newsworthyCount} ${t("feed.modelingNewsworthy", "Newsworthy")}`}
-              dotClassName={newsworthyCount > 0 ? "bg-amber-500" : "bg-outline"}
-              tone={newsworthyCount > 0 ? "warning" : "muted"}
-            />
-            <PageMetricPill
-              label={`${linkedCount} ${t("feed.externalRefs", "external refs")}`}
-              dotClassName={linkedCount > 0 ? "bg-emerald-500" : "bg-outline"}
-              tone={linkedCount > 0 ? "success" : "muted"}
-            />
-          </>
-        }
       />
 
       <PageToolbar className="mb-8" label={t("feed.actions", "Feed actions")}>

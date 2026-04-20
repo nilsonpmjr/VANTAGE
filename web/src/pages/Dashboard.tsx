@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 
@@ -106,9 +106,6 @@ export default function Dashboard() {
   const [error, setError] = useState("");
   const activeView = searchParams.get("view") === "history" ? "history" : "overview";
   const HISTORY_PAGE_SIZE = 20;
-  const criticalIncidentCount = stats?.criticalIncidents?.length || 0;
-  const workerStatusLabel = stats?.workerHealth?.status || "unknown";
-
   useEffect(() => {
     let cancelled = false;
 
@@ -312,24 +309,6 @@ export default function Dashboard() {
       <PageHeader
         title={t("dashboard.title", "Operational Overview")}
         description={t("dashboard.subtitle", "Telemetria de risco, incidentes recentes e throughput da plataforma em uma única superfície de observabilidade.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${stats?.totalScans || 0} ${t("dashboard.totalSearches", "total searches")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={`${criticalIncidentCount} ${criticalIncidentCount === 1 ? "critical incident" : "critical incidents"}`}
-              dotClassName={criticalIncidentCount > 0 ? "bg-error" : "bg-emerald-500"}
-              tone={criticalIncidentCount > 0 ? "danger" : "success"}
-            />
-            <PageMetricPill
-              label={`Worker ${String(workerStatusLabel).toUpperCase()}`}
-              dotClassName={workerStatusLabel === "healthy" ? "bg-emerald-500" : workerStatusLabel === "degraded" ? "bg-amber-500" : "bg-secondary"}
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("dashboard.timeWindow", "Time window")}>

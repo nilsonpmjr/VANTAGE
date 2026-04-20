@@ -4,7 +4,7 @@ import { useLanguage } from "../context/LanguageContext";
 import type { SupportedLanguage } from "../lib/language";
 import { translate } from "../lib/i18n";
 import { loadAnalyzePayload, peekAnalyzePayload } from "../lib/analyzeCache";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 
 type AnalyzePayload = {
   target: string;
@@ -904,20 +904,6 @@ export default function AnalysisResult() {
       <PageHeader
         title={displayTarget}
         description={analysisSubtitle}
-        metrics={
-          <>
-            <PageMetricPill
-              label={t(meta.statusKey, "Safe")}
-              dotClassName={summary?.verdict === "HIGH RISK" ? "bg-error" : summary?.verdict === "SUSPICIOUS" ? "bg-amber-500" : "bg-emerald-500"}
-              tone={summary?.verdict === "HIGH RISK" ? "danger" : summary?.verdict === "SUSPICIOUS" ? "warning" : "success"}
-            />
-            <PageMetricPill
-              label={`${threatScore}% ${t("analysis.threatScore", "threat score")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("analysis.evidenceActions", "Evidence actions")}>

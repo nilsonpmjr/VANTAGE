@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Activity, Bell, BellOff, Eye, Mail, Plus, RefreshCw, ScanSearch, ShieldAlert, Trash2, X } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -550,25 +550,6 @@ export default function Watchlist() {
       <PageHeader
         title={t("watchlist.title", "Watchlist Monitoring")}
         description={t("watchlist.subtitle", "Monitore IPs, domínios e hashes conhecidos com mudança de veredito, roteamento de alerta e histórico contínuo da plataforma.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${items.length} ${t("watchlist.monitoredAssets", "Monitored Assets")}`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={selectedIds.length > 0 ? `${selectedIds.length} ${t("watchlist.selectedCount", "item(s) selected")}` : "No selection"}
-              dotClassName={selectedIds.length > 0 ? "bg-amber-500" : "bg-outline"}
-              tone={selectedIds.length > 0 ? "warning" : "muted"}
-            />
-            <PageMetricPill
-              label={smtpConfigured ? t("watchlist.smtpReady", "SMTP READY") : t("watchlist.smtpOffline", "SMTP OFFLINE")}
-              dotClassName={smtpConfigured ? "bg-emerald-500" : "bg-error"}
-              tone={smtpConfigured ? "success" : "danger"}
-            />
-          </>
-        }
       />
 
       <PageToolbar

@@ -13,7 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -308,12 +308,6 @@ export default function BatchAnalysis() {
       <PageHeader
         title={t("batch.title", "Batch Analysis Workbench")}
         description={t("batch.subtitle", "The global launcher now routes multi-target scans into the native VANTAGE backend batch engine with pre-flight estimate, live progress, and exportable results.")}
-        metrics={
-          <>
-            <PageMetricPill label={`${targets.length} ${t("batch.queuedTargets", "queued targets")}`} dotClassName="bg-primary" tone="primary" />
-            <PageMetricPill label={`${progress.done}/${progress.total} ${t("batch.completed", "completed")}`} dotClassName="bg-secondary" />
-          </>
-        }
       />
 
       <PageToolbar

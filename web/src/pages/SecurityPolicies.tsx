@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Key, Lock, AlertTriangle, History } from "lucide-react";
 import API_URL from "../config";
-import { PageHeader, PageMetricPill, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
+import { PageHeader, PageToolbar, PageToolbarGroup } from "../components/page/PageChrome";
 import { useLanguage } from "../context/LanguageContext";
 
 type PasswordPolicy = {
@@ -163,20 +163,6 @@ export default function SecurityPolicies() {
       <PageHeader
         title={t("settingsPages.securityPoliciesTitle", "Security Policies")}
         description={t("settingsPages.securityPoliciesSubtitle", "Defina padrões globais de senha, mascaramento de PII e mecanismos preventivos de lockout sem perder rastreabilidade administrativa.")}
-        metrics={
-          <>
-            <PageMetricPill
-              label={`${auditTrail.length} Audit Events`}
-              dotClassName="bg-primary"
-              tone="primary"
-            />
-            <PageMetricPill
-              label={saving ? t("settingsPages.saving", "Saving...") : "Policy Draft Ready"}
-              dotClassName={saving ? "bg-amber-500" : "bg-emerald-500"}
-              tone={saving ? "warning" : "success"}
-            />
-          </>
-        }
       />
 
       <PageToolbar label={t("settingsPages.securityPoliciesActions", "Policy actions")}>

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Outlet, NavLink, Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Home,
@@ -19,6 +19,7 @@ import {
   Menu,
   ChevronLeft,
   Key,
+  Search,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -27,6 +28,13 @@ import { useLanguage } from "../context/LanguageContext";
 import API_URL from "../config";
 import { canAccessPath } from "../lib/access";
 import { getShortcutSequenceMap, SHORTCUT_SEQUENCE_TIMEOUT_MS } from "../lib/shortcuts";
+import {
+  buildNavigationSearchEntries,
+  filterNavigationSearchEntries,
+  getNavigationSearchGroupLabel,
+  resolveTopbarContext,
+  type NavigationSearchEntry,
+} from "../lib/navigationSearch";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
 
@@ -54,8 +62,13 @@ export default function Layout() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isScanLauncherOpen, setIsScanLauncherOpen] = useState(false);
   const [showApiKeyToast, setShowApiKeyToast] = useState(false);
+  const [topbarSearchQuery, setTopbarSearchQuery] = useState("");
+  const [isTopbarSearchOpen, setIsTopbarSearchOpen] = useState(false);
+  const [highlightedSearchIndex, setHighlightedSearchIndex] = useState(0);
   const profileRef = useRef<HTMLDivElement>(null);
   const helpRef = useRef<HTMLDivElement>(null);
+  const topbarSearchRef = useRef<HTMLDivElement>(null);
+  const topbarSearchInputRef = useRef<HTMLInputElement>(null);
   const shortcutSequenceRef = useRef<{ prefix: string | null; expiresAt: number }>({
     prefix: null,
     expiresAt: 0,
@@ -156,13 +169,34 @@ export default function Layout() {
         }
       : null;
   const contextualBackPath = sessionStorage.getItem(lastRootPathKey) || "/";
-  const topbarSectionLabel = contextualNav?.title || t("layout.topbar.analyst", "Analyst");
   const profileAvatarSrc =
     user?.avatar_base64 ||
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
       user?.username || "operator",
     )}`;
   const profileAvatarObjectClass = user?.avatar_fit === "contain" ? "object-contain" : "object-cover";
+  const navigationSearchEntries = useMemo(
+    () => buildNavigationSearchEntries(t, canAccessSettings),
+    [canAccessSettings, t],
+  );
+  const topbarContext = useMemo(
+    () => resolveTopbarContext(location.pathname, location.search, t),
+    [location.pathname, location.search, t],
+  );
+  const visibleNavigationResults = useMemo(
+    () => filterNavigationSearchEntries(navigationSearchEntries, topbarSearchQuery),
+    [navigationSearchEntries, topbarSearchQuery],
+  );
+  const groupedNavigationResults = useMemo(() => {
+    const grouped = new Map<string, NavigationSearchEntry[]>();
+    for (const entry of visibleNavigationResults) {
+      if (!grouped.has(entry.group)) {
+        grouped.set(entry.group, []);
+      }
+      grouped.get(entry.group)?.push(entry);
+    }
+    return grouped;
+  }, [visibleNavigationResults]);
 
   const handleHistoryClick = () => {
     const lastSearch = localStorage.getItem("lastSearch");
@@ -181,10 +215,22 @@ export default function Layout() {
       if (helpRef.current && !helpRef.current.contains(event.target as Node)) {
         setIsHelpOpen(false);
       }
+      if (topbarSearchRef.current && !topbarSearchRef.current.contains(event.target as Node)) {
+        setIsTopbarSearchOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    setHighlightedSearchIndex(0);
+  }, [topbarSearchQuery, isTopbarSearchOpen]);
+
+  useEffect(() => {
+    setIsTopbarSearchOpen(false);
+    setTopbarSearchQuery("");
+  }, [location.pathname, location.search]);
 
   useEffect(() => {
     function handleKeydown(e: KeyboardEvent) {
@@ -289,6 +335,66 @@ export default function Layout() {
   const dismissApiKeyToast = () => {
     sessionStorage.setItem(apiKeyToastDismissKey, "true");
     setShowApiKeyToast(false);
+  };
+
+  const handleNavigationSearchSelect = (entry: NavigationSearchEntry) => {
+    setIsTopbarSearchOpen(false);
+    setTopbarSearchQuery("");
+
+    if (entry.kind === "route") {
+      navigate(entry.href);
+      return;
+    }
+
+    if (entry.actionId === "open-shortcuts") {
+      setIsShortcutsOpen(true);
+      return;
+    }
+  };
+
+  const handleTopbarSearchKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      if (!isTopbarSearchOpen) {
+        setIsTopbarSearchOpen(true);
+        setHighlightedSearchIndex(0);
+        return;
+      }
+      setHighlightedSearchIndex((current) =>
+        visibleNavigationResults.length
+          ? (current + 1) % visibleNavigationResults.length
+          : 0,
+      );
+      return;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      if (!isTopbarSearchOpen) {
+        setIsTopbarSearchOpen(true);
+        setHighlightedSearchIndex(Math.max(visibleNavigationResults.length - 1, 0));
+        return;
+      }
+      setHighlightedSearchIndex((current) =>
+        visibleNavigationResults.length
+          ? (current - 1 + visibleNavigationResults.length) % visibleNavigationResults.length
+          : 0,
+      );
+      return;
+    }
+
+    if (event.key === "Enter") {
+      if (!visibleNavigationResults.length) return;
+      event.preventDefault();
+      handleNavigationSearchSelect(visibleNavigationResults[highlightedSearchIndex] || visibleNavigationResults[0]);
+      return;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setIsTopbarSearchOpen(false);
+      topbarSearchInputRef.current?.blur();
+    }
   };
 
   return (
@@ -429,20 +535,78 @@ export default function Layout() {
 
       <div className={cn("flex-1 flex flex-col min-h-screen transition-all duration-300", isSidebarCollapsed ? "ml-20" : "ml-64")}>
         <header className="h-14 bg-surface-container-high border-b border-outline-variant/20 flex items-center justify-between px-6 sticky top-0 z-40">
-          <div className="flex items-center gap-4">
+          <div className="flex min-w-0 items-center gap-4">
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
               className="p-1.5 text-on-surface-variant hover:bg-surface-container-highest rounded transition-colors"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2 text-on-surface-variant uppercase tracking-widest text-[10px] font-bold">
-              <Activity className="w-3 h-3" />
-              {topbarSectionLabel}
+            <div className="topbar-context-eyebrow">
+              <span className="topbar-context-eyebrow-accent">{topbarContext.section}</span>
+              <span className="text-outline">/</span>
+              <span>{topbarContext.label}</span>
             </div>
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
+              <div className="topbar-nav-search" ref={topbarSearchRef}>
+                <Search className="topbar-nav-search-icon" />
+                <input
+                  ref={topbarSearchInputRef}
+                  type="text"
+                  value={topbarSearchQuery}
+                  onFocus={() => setIsTopbarSearchOpen(true)}
+                  onChange={(event) => {
+                    setTopbarSearchQuery(event.target.value);
+                    setIsTopbarSearchOpen(true);
+                  }}
+                  onKeyDown={handleTopbarSearchKeyDown}
+                  placeholder={t("layout.topbar.navSearchPlaceholder", "Go to page, settings, docs...")}
+                  aria-label={t("layout.topbar.navSearchLabel", "Navigation search")}
+                  className="topbar-nav-search-input"
+                />
+                {isTopbarSearchOpen && (
+                  <div className="topbar-nav-search-dropdown">
+                    {visibleNavigationResults.length ? (
+                      <div className="max-h-[28rem] overflow-y-auto p-1">
+                        {Array.from(groupedNavigationResults.entries()).map(([group, entries]) => (
+                          <div key={group} className="topbar-nav-search-group">
+                            <div className="topbar-nav-search-group-label">
+                              {getNavigationSearchGroupLabel(group as NavigationSearchEntry["group"], t)}
+                            </div>
+                            <div className="space-y-1">
+                              {entries.map((entry) => {
+                                const entryIndex = visibleNavigationResults.findIndex((item) => item.id === entry.id);
+                                const active = entryIndex === highlightedSearchIndex;
+                                return (
+                                  <button
+                                    key={entry.id}
+                                    type="button"
+                                    className={cn(
+                                      "topbar-nav-search-item",
+                                      active && "topbar-nav-search-item-active",
+                                    )}
+                                    onMouseEnter={() => setHighlightedSearchIndex(entryIndex)}
+                                    onClick={() => handleNavigationSearchSelect(entry)}
+                                  >
+                                    <span className="topbar-nav-search-item-label">{entry.label}</span>
+                                    <span className="topbar-nav-search-item-meta">{entry.section}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="topbar-nav-search-empty">
+                        {t("layout.topbar.navSearchEmpty", "No navigation matches for this query.")}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               <div className="summary-pill-muted">{languageLabel}</div>
               <Link to="/notifications" className="p-1.5 text-on-surface-variant hover:bg-surface-container-highest rounded transition-colors relative">
                 <Bell className="w-4 h-4" />

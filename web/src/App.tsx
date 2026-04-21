@@ -54,6 +54,7 @@ const ThreatIngestion = lazy(() => import("./pages/ThreatIngestion"));
 const SystemHealth = lazy(() => import("./pages/SystemHealth"));
 const UsersRoles = lazy(() => import("./pages/UsersRoles"));
 const SecurityPolicies = lazy(() => import("./pages/SecurityPolicies"));
+const ApiCredentials = lazy(() => import("./pages/ApiCredentials"));
 const Profile = lazy(() => import("./pages/Profile"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const AnalysisResult = lazy(() => import("./pages/AnalysisResult"));
@@ -124,6 +125,7 @@ export default function App() {
                   <Route path="system-health" element={suspense(<SystemHealth />)} />
                   <Route path="users-roles" element={suspense(<UsersRoles />)} />
                   <Route path="security-policies" element={suspense(<SecurityPolicies />)} />
+                  <Route path="api-credentials" element={suspense(<ApiCredentials />)} />
                 </Route>
                 <Route path="profile" element={suspense(<Profile />)} />
                 <Route path="notifications" element={suspense(<Notifications />)} />

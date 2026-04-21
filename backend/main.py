@@ -20,7 +20,8 @@ from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff, platform_credentials
+import credential_manager
 from shift_handoff_migration import migrate_shift_handoff_incidents
 from scripts.seed_dev_users import seed_dev_users
 import app_state
@@ -285,6 +286,14 @@ async def lifespan(app: FastAPI):
                     await seed_dev_users(db, settings.dev_admin_password, settings.dev_tech_password)
                     await check_initialization(db)  # re-check after seed
 
+            try:
+                await credential_manager.seed_builtin_platforms()
+                await credential_manager.bootstrap_from_env()
+                await credential_manager.hydrate_os_environ()
+                logger.info("Platform credentials registry initialized.")
+            except Exception as exc:
+                logger.warning(f"Platform credentials bootstrap failed: {exc}")
+
             migration_result = await migrate_shift_handoff_incidents(db)
             if migration_result["created_incidents"] > 0 or migration_result["migrated_handoffs"] > 0:
                 logger.info("Shift handoff incident migration executed: %s", migration_result)
@@ -542,7 +551,7 @@ _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
     batch.router, recon.router, watchlist.router, feed.router,
-    shift_handoff.router,
+    shift_handoff.router, platform_credentials.router,
     *([hunting.router] if hunting else []),
     *([exposure.router] if exposure else []),
 ]

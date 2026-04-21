@@ -120,6 +120,11 @@ export default function Layout() {
         label: t("settings.securityPolicies", "Security Policies"),
         icon: ShieldAlert,
       },
+      {
+        path: "/settings/api-credentials",
+        label: t("settings.apiCredentials", "Platform Credentials"),
+        icon: Key,
+      },
     ],
     [t],
   );

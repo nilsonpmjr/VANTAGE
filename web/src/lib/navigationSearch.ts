@@ -290,6 +290,16 @@ export function buildNavigationSearchEntries(
         aliases: ["policies", "password policy", "mfa policy", "security"],
         featured: true,
       },
+      {
+        id: "settings.api_credentials",
+        kind: "route",
+        group: "settings",
+        href: "/settings/api-credentials",
+        label: t("settings.apiCredentials", "Platform Credentials"),
+        section: administrationSection,
+        aliases: ["api keys", "credentials", "platforms", "virustotal", "shodan", "env"],
+        featured: true,
+      },
     );
   }
 
@@ -365,6 +375,9 @@ export function resolveTopbarContext(
   }
   if (pathname.startsWith("/settings/security-policies")) {
     return { section: administrationSection, label: t("settings.securityPolicies", "Security Policies") };
+  }
+  if (pathname.startsWith("/settings/api-credentials")) {
+    return { section: administrationSection, label: t("settings.apiCredentials", "Platform Credentials") };
   }
   if (pathname === "/profile") {
     const tab = params.get("tab");

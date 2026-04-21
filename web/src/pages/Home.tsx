@@ -378,7 +378,7 @@ export default function Home() {
             {t("home.informationalOnly", "Passive health readout for the current intelligence sample. This panel is informational only.")}
           </p>
           {sourceDistribution.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
               {sourceDistribution.map((entry) => (
                 <div key={entry.name}>
                   <NodeStatus
@@ -430,9 +430,9 @@ export default function Home() {
               </div>
             </div>
             <div className="space-y-3">
-              <SummaryMeter label={t("home.criticalItems", "CRITICAL ITEMS")} value={criticalCount} />
-              <SummaryMeter label={t("home.elevatedItems", "ELEVATED ITEMS")} value={highCount} />
-              <SummaryMeter label={t("home.mediumItems", "MEDIUM ITEMS")} value={mediumCount} />
+              <SummaryMeter label={t("home.criticalItems", "CRITICAL ITEMS")} value={criticalCount} total={feedVolume} />
+              <SummaryMeter label={t("home.elevatedItems", "ELEVATED ITEMS")} value={highCount} total={feedVolume} />
+              <SummaryMeter label={t("home.mediumItems", "MEDIUM ITEMS")} value={mediumCount} total={feedVolume} />
             </div>
           </div>
         </div>
@@ -526,7 +526,8 @@ function FeedCard({
   );
 }
 
-function SummaryMeter({ label, value }: { label: string; value: number }) {
+function SummaryMeter({ label, value, total }: { label: string; value: number; total: number }) {
+  const ratio = total > 0 ? Math.min(100, Math.round((value / total) * 100)) : 0;
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between text-[11px] font-bold text-on-surface">
@@ -534,7 +535,7 @@ function SummaryMeter({ label, value }: { label: string; value: number }) {
         <span>{value}</span>
       </div>
       <div className="h-1 rounded-full bg-surface-container-high">
-        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.max(10, value * 20)}%` }} />
+        <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${ratio}%` }} />
       </div>
     </div>
   );
@@ -552,12 +553,14 @@ function NodeStatus({
   width?: string;
 }) {
   return (
-    <div className="bg-surface-container-lowest rounded-sm p-4 space-y-3 shadow-sm">
-      <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase tracking-[0.2em] text-on-surface-variant">{name}</span>
-        <span className="text-sm font-black text-on-surface">{value}</span>
+    <div className="min-w-0 rounded-sm bg-surface-container-lowest p-4 shadow-sm">
+      <div className="space-y-2">
+        <span className="block text-[11px] font-bold uppercase leading-relaxed tracking-[0.2em] text-on-surface-variant break-normal">
+          {name}
+        </span>
+        <span className="block text-sm font-black text-on-surface">{value}</span>
       </div>
-      <div className="w-full h-1.5 bg-surface-container rounded-full overflow-hidden">
+      <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-surface-container">
         <div className={`${color} h-full`} style={{ width }} />
       </div>
     </div>

@@ -391,7 +391,7 @@ function MfaEnrollmentGate() {
           workflows. Enroll an authenticator app from your profile to continue.
         </p>
         <div className="flex flex-wrap gap-3 pt-2">
-          <Link to="/profile?tab=identity" className="btn btn-primary inline-flex">
+          <Link to="/profile?tab=preferences" className="btn btn-primary inline-flex">
             Enroll now
           </Link>
           <button type="button" className="btn btn-ghost" onClick={() => void logout()}>

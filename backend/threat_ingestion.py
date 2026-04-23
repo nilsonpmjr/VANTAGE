@@ -12,10 +12,10 @@ import logging
 import secrets
 from urllib.parse import urlparse
 
-logger = logging.getLogger(__name__)
-
 from crypto import decrypt_secret, encrypt_secret
 from network_security import UnsafeTargetError, validate_public_url
+
+logger = logging.getLogger(__name__)
 
 
 INTEL_SOURCES_DOC_ID = "singleton"

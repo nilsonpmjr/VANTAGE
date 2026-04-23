@@ -87,6 +87,7 @@ def _resolve_env_value(env_var: str, dotenv_cache: dict[str, str]) -> str:
         return current
     return (dotenv_cache.get(env_var) or "").strip()
 
+
 BUILTIN_PLATFORMS: list[dict[str, Any]] = [
     {
         "_id": "virustotal",

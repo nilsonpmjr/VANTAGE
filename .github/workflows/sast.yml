@@ -69,7 +69,7 @@ jobs:
         run: docker build -t vantage-backend:scan ./backend
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.29.0
+        uses: aquasecurity/trivy-action@0.36.0
         with:
           image-ref: "vantage-backend:scan"
           format: "table"

@@ -3,8 +3,6 @@
 from datetime import timedelta
 from unittest.mock import MagicMock
 
-import pytest
-
 from auth import create_access_token
 from limiters import _get_rate_limit_key
 

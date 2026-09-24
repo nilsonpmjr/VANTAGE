@@ -6,6 +6,9 @@ const ROUTE_ROLE_POLICIES: Array<{ prefix: string; roles: string[] }> = [
 
 export function canAccessPath(user: AuthUser | null, path: string) {
   if (!user) return false;
+  if (path === "/redmode" || path.startsWith("/redmode/")) {
+    return user.role === "admin" || Boolean(user.extra_permissions?.includes("redmode:access"));
+  }
   const policy = ROUTE_ROLE_POLICIES.find((item) => path.startsWith(item.prefix));
   if (!policy) return true;
   return policy.roles.includes(user.role);

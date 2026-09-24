@@ -71,6 +71,28 @@
     /* Keep sidebar same */
     --color-inverse-surface: #0d1117;
   }
+
+  [data-workspace="redmode"] {
+    --color-primary: #b4233c;
+    --color-primary-dim: #8f1b30;
+    --color-on-primary: #ffffff;
+    --color-inverse-surface: #280e17;
+  }
+
+  [data-theme="dark"] [data-workspace="redmode"] {
+    --color-primary: #fb7185;
+    --color-primary-dim: #e11d48;
+    --color-on-primary: #250b13;
+    --color-inverse-surface: #1a0a10;
+  }
+
+  [data-workspace="redmode"] .workspace-topbar {
+    background-color: #fff1f2;
+  }
+
+  [data-theme="dark"] [data-workspace="redmode"] .workspace-topbar {
+    background-color: #30151f;
+  }
 }
 
 @layer components {

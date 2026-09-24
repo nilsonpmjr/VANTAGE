@@ -323,6 +323,7 @@ def require_role(allowed_roles: list):
 # Fine-grained permissions
 
 AVAILABLE_PERMISSIONS: list[str] = [
+    "redmode:access",
     "audit_logs:read",
     "users:export",
     "apikeys:manage",

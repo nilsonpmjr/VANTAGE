@@ -42,6 +42,11 @@ class Settings(BaseSettings):
     batch_inter_target_delay_ms: int = 500  # ms between external calls
     batch_job_ttl_hours: int = 24
 
+    # RedMode scope attachments (private GridFS bucket)
+    redmode_scope_max_files: int = 10
+    redmode_scope_max_file_bytes: int = 5 * 1024 * 1024
+    redmode_evidence_max_file_bytes: int = 10 * 1024 * 1024
+
     # Rate limiting
     rate_limit_analyze: str = "30/minute"
     rate_limit_batch: str = "5/minute"

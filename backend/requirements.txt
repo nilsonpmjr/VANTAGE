@@ -44,6 +44,7 @@ mccabe==0.7.0
 mdurl==0.1.2
 more-itertools==10.8.0
 motor==3.7.1
+openpyxl==3.1.5
 multidict==6.7.1
 packaging==26.0
 passlib==1.7.4
@@ -61,6 +62,7 @@ Pygments==2.19.2
 PyJWT==2.11.0
 pymongo==4.16.0
 pypdf==6.7.3
+python-docx==1.2.0
 python-dotenv==1.2.1
 python-multipart==0.0.22
 PyYAML==6.0.3

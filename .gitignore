@@ -21,6 +21,7 @@ coverage/
 # Logs and temporary outputs
 *.log
 tmp-*.json
+backend/pytest-tmp-codex-*/
 docker_build.log
 
 # IDE and local workspace files
@@ -28,6 +29,7 @@ docker_build.log
 .vscode/
 Threat-Intelligence-Tool.code-workspace
 .omx/
+docs/
 
 # Legacy frontend (archived, not part of the active build)
 web-legacy/

@@ -47,6 +47,7 @@ export function cn(...inputs: ClassValue[]) {
 const rootNavItems = [
   { path: "/", labelKey: "layout.nav.home", fallback: "Home", icon: Home },
   { path: "/feed", labelKey: "layout.nav.feed", fallback: "Feed", icon: Rss },
+  { path: "/redmode", labelKey: "layout.nav.redmode", fallback: "RedMode", icon: ShieldAlert },
   { path: "/recon", labelKey: "layout.nav.recon", fallback: "Recon", icon: Radar },
   { path: "/watchlist", labelKey: "layout.nav.watchlist", fallback: "Watchlist", icon: Eye },
   { path: "/socc", labelKey: "socc.nav", fallback: "SOC Copilot", icon: Terminal },
@@ -82,6 +83,7 @@ export default function Layout() {
   const lastRootPathKey = "vantage.sidebar.last-root-path";
   const isSettingsContext = location.pathname.startsWith("/settings");
   const isProfileContext = location.pathname === "/profile";
+  const isRedModeContext = location.pathname === "/redmode" || location.pathname.startsWith("/redmode/");
   const profileTab = useMemo(() => {
     const currentTab = new URLSearchParams(location.search).get("tab");
     if (
@@ -99,8 +101,8 @@ export default function Layout() {
   // surface the user can't actually use.
   const { enabled: isSoccEnabled } = useExtensionEnabled("socc");
   const visibleNavItems = useMemo(
-    () => rootNavItems.filter((item) => item.path !== "/socc" || isSoccEnabled),
-    [isSoccEnabled],
+    () => rootNavItems.filter((item) => (item.path !== "/socc" || isSoccEnabled) && canAccessPath(user, item.path)),
+    [isSoccEnabled, user],
   );
 
   const settingsNavItems = useMemo(
@@ -413,7 +415,7 @@ export default function Layout() {
   };
 
   return (
-    <div className="min-h-screen bg-background flex">
+    <div className="min-h-screen bg-background flex" data-workspace={isRedModeContext ? "redmode" : undefined}>
       <aside className={cn("fixed left-0 top-0 h-screen bg-inverse-surface flex flex-col z-50 transition-all duration-300", isSidebarCollapsed ? "w-20" : "w-64")}>
         <div className={cn("py-8 flex items-center", isSidebarCollapsed ? "px-0 justify-center" : "px-6")}>
           <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "w-full")}>
@@ -549,7 +551,7 @@ export default function Layout() {
       </aside>
 
       <div className={cn("flex-1 flex flex-col min-h-screen transition-all duration-300", isSidebarCollapsed ? "ml-20" : "ml-64")}>
-        <header className="h-14 bg-surface-container-high border-b border-outline-variant/20 flex items-center justify-between px-6 sticky top-0 z-40">
+        <header className="workspace-topbar h-14 bg-surface-container-high border-b border-outline-variant/20 flex items-center justify-between px-6 sticky top-0 z-40">
           <div className="flex min-w-0 items-center gap-4">
             <button 
               onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}

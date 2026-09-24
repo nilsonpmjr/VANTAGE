@@ -46,6 +46,8 @@ class ErrorBoundary extends Component<
 const SettingsLayout = lazy(() => import("./components/SettingsLayout"));
 const Home = lazy(() => import("./pages/Home"));
 const Feed = lazy(() => import("./pages/Feed"));
+const RedModeFeed = lazy(() => import("./pages/redmode/RedModeFeed"));
+const RedModeProject = lazy(() => import("./pages/redmode/RedModeProject"));
 const Recon = lazy(() => import("./pages/Recon"));
 const Watchlist = lazy(() => import("./pages/Watchlist"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -109,6 +111,8 @@ export default function App() {
               >
                 <Route index element={suspense(<Home />)} />
                 <Route path="feed" element={suspense(<Feed />)} />
+                <Route path="redmode" element={<RequirePathAccess path="/redmode">{suspense(<RedModeFeed />)}</RequirePathAccess>} />
+                <Route path="redmode/:slug" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
                 <Route path="recon" element={suspense(<Recon />)} />
                 <Route path="watchlist" element={suspense(<Watchlist />)} />
                 <Route path="dashboard" element={suspense(<Dashboard />)} />

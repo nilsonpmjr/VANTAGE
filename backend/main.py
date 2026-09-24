@@ -20,7 +20,7 @@ from operational_status import set_scheduler_runtime_provider
 from threat_ingestion_runtime import start_threat_ingestion_worker
 from worker import scan_safe_targets_job, start_watchlist_worker, start_recon_scheduler
 
-from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, shift_handoff, platform_credentials
+from routers import auth, users, analyze, stats, admin, mfa, sessions, api_keys, batch, recon, watchlist, feed, redmode, redmode_evidence, redmode_findings, shift_handoff, platform_credentials
 
 # SOC Copilot router is opt-in: it only mounts when the operator has
 # provisioned SOCC_INTERNAL_SECRET (i.e. the extension is installed).
@@ -195,6 +195,30 @@ async def lifespan(app: FastAPI):
             await db.threat_items.create_index(
                 [("published_at", -1)],
                 name="threat_items_published_at",
+            )
+            await db.redmode_projects.create_index(
+                [("last_activity_at", -1)],
+                name="redmode_projects_last_activity",
+            )
+            await db.redmode_scope_versions.create_index(
+                [("project_slug", 1), ("created_at", -1)],
+                name="redmode_scope_project_created",
+            )
+            await db.redmode_evidence.create_index(
+                [("project_slug", 1), ("created_at", -1)],
+                name="redmode_evidence_project_created",
+            )
+            await db.redmode_evidence.create_index(
+                [("project_slug", 1), ("finding_id", 1)],
+                name="redmode_evidence_finding",
+            )
+            await db.redmode_findings.create_index(
+                [("project_slug", 1), ("updated_at", -1)],
+                name="redmode_findings_project_updated",
+            )
+            await db.redmode_finding_revisions.create_index(
+                [("project_slug", 1), ("finding_id", 1), ("number", -1)],
+                name="redmode_finding_revisions_history",
             )
             await db.threat_sync_status.create_index(
                 [("source_id", 1)],
@@ -563,7 +587,7 @@ app.add_middleware(
 _routers = [
     auth.router, users.router, analyze.router, stats.router,
     admin.router, mfa.router, sessions.router, api_keys.router,
-    batch.router, recon.router, watchlist.router, feed.router,
+    batch.router, recon.router, watchlist.router, feed.router, redmode.router, redmode_evidence.router, redmode_findings.router,
     shift_handoff.router, platform_credentials.router,
     *([hunting.router] if hunting else []),
     *([exposure.router] if exposure else []),

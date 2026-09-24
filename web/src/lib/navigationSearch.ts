@@ -413,6 +413,9 @@ export function resolveTopbarContext(
   if (pathname === "/feed") {
     return { section: operationsSection, label: t("layout.nav.feed", "Feed") };
   }
+  if (pathname === "/redmode" || pathname.startsWith("/redmode/")) {
+    return { section: operationsSection, label: t("layout.nav.redmode", "RedMode") };
+  }
   if (pathname === "/recon") {
     return { section: operationsSection, label: t("layout.nav.recon", "Recon") };
   }

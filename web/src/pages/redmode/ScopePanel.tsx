@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Search } from "lucide-react";
 import {
   getActiveScope,
   getScopeLimits,
@@ -24,6 +25,8 @@ const categoryClasses: Record<ScopeRule["category"], string> = {
   excluded: "badge-error",
 };
 
+const TARGETS_PER_PAGE = 100;
+
 export default function ScopePanel({
   slug,
   initialVersionId,
@@ -43,6 +46,40 @@ export default function ScopePanel({
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [error, setError] = useState("");
+  const [targetQuery, setTargetQuery] = useState("");
+  const [targetCategory, setTargetCategory] = useState<"all" | ScopeRule["category"]>("all");
+  const [targetPage, setTargetPage] = useState(1);
+
+  const filteredRules = useMemo(() => {
+    if (!selectedScope) return [];
+    const query = targetQuery.trim().toLocaleLowerCase("pt-BR");
+    return selectedScope.rules.filter((rule) => (
+      (targetCategory === "all" || rule.category === targetCategory)
+      && (!query || rule.value.toLocaleLowerCase("pt-BR").includes(query) || rule.kind.includes(query))
+    ));
+  }, [selectedScope, targetCategory, targetQuery]);
+  const targetPageCount = Math.max(1, Math.ceil(filteredRules.length / TARGETS_PER_PAGE));
+  const visibleRules = useMemo(() => {
+    const start = (targetPage - 1) * TARGETS_PER_PAGE;
+    return filteredRules.slice(start, start + TARGETS_PER_PAGE);
+  }, [filteredRules, targetPage]);
+  const categoryCounts = useMemo(() => {
+    const rules = selectedScope?.rules || [];
+    return {
+      all: rules.length,
+      client: rules.filter((rule) => rule.category === "client").length,
+      third_party: rules.filter((rule) => rule.category === "third_party").length,
+      excluded: rules.filter((rule) => rule.category === "excluded").length,
+    };
+  }, [selectedScope]);
+
+  useEffect(() => {
+    setTargetPage(1);
+  }, [selectedScope?.id, targetCategory, targetQuery]);
+
+  useEffect(() => {
+    if (targetPage > targetPageCount) setTargetPage(targetPageCount);
+  }, [targetPage, targetPageCount]);
 
   useEffect(() => {
     let mounted = true;
@@ -194,9 +231,50 @@ export default function ScopePanel({
           </div>
           {selectedScope && (
             <div className="space-y-4">
-              <h3 className="text-sm font-bold text-on-surface">{selectedScope.id === activeScope.id ? "Regras ativas" : "Regras desta versão"}</h3>
+              <div className="flex flex-col gap-4 border-t border-outline-variant/20 pt-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-on-surface">{selectedScope.id === activeScope.id ? "Alvos ativos" : "Alvos desta versão"}</h3>
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    {categoryCounts.all.toLocaleString("pt-BR")} regras · {categoryCounts.client.toLocaleString("pt-BR")} cliente · {categoryCounts.third_party.toLocaleString("pt-BR")} terceiros · {categoryCounts.excluded.toLocaleString("pt-BR")} excluídas
+                  </p>
+                </div>
+                <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto">
+                  <label className="relative min-w-64 flex-1">
+                    <span className="sr-only">Buscar alvo</span>
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+                    <input
+                      type="search"
+                      value={targetQuery}
+                      onChange={(event) => setTargetQuery(event.target.value)}
+                      placeholder="Buscar IP, CIDR, domínio ou URL"
+                      className="w-full rounded-sm border border-outline-variant/30 bg-surface-container-low py-2 pl-10 pr-3 text-sm text-on-surface"
+                    />
+                  </label>
+                  <label>
+                    <span className="sr-only">Filtrar categoria</span>
+                    <select
+                      value={targetCategory}
+                      onChange={(event) => setTargetCategory(event.target.value as "all" | ScopeRule["category"])}
+                      className="w-full rounded-sm border border-outline-variant/30 bg-surface-container-low px-3 py-2 text-sm text-on-surface sm:w-auto"
+                    >
+                      <option value="all">Todas as categorias</option>
+                      <option value="client">Cliente</option>
+                      <option value="third_party">Terceiros</option>
+                      <option value="excluded">Excluídos</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-outline-variant/20 bg-surface-container-low px-3 py-2 text-xs text-on-surface-variant">
+                <span>
+                  {filteredRules.length
+                    ? `Exibindo ${((targetPage - 1) * TARGETS_PER_PAGE + 1).toLocaleString("pt-BR")}–${Math.min(targetPage * TARGETS_PER_PAGE, filteredRules.length).toLocaleString("pt-BR")} de ${filteredRules.length.toLocaleString("pt-BR")}`
+                    : "Nenhum alvo corresponde aos filtros"}
+                </span>
+                <span>Página {targetPage.toLocaleString("pt-BR")} de {targetPageCount.toLocaleString("pt-BR")}</span>
+              </div>
               <ul className="space-y-2">
-                {selectedScope.rules.map((rule) => (
+                {visibleRules.map((rule) => (
                   <li key={`${rule.kind}:${rule.value}`} className="flex flex-wrap items-center justify-between gap-2 rounded-sm bg-surface-container-low px-3 py-2 text-sm text-on-surface">
                     <span className="break-all font-mono">{rule.value}</span>
                     <span className="flex flex-wrap items-center gap-2"><span className={`badge ${categoryClasses[rule.category]}`}>{categoryLabels[rule.category]}</span><span className="text-xs text-on-surface-variant">{rule.origins.map((origin) => {
@@ -208,6 +286,26 @@ export default function ScopePanel({
                   </li>
                 ))}
               </ul>
+              {targetPageCount > 1 && (
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    disabled={targetPage === 1}
+                    onClick={() => setTargetPage((current) => Math.max(1, current - 1))}
+                  >
+                    Anterior
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-outline"
+                    disabled={targetPage === targetPageCount}
+                    onClick={() => setTargetPage((current) => Math.min(targetPageCount, current + 1))}
+                  >
+                    Próxima
+                  </button>
+                </div>
+              )}
               {selectedScope.source.files.length > 0 && (
                 <div>
                   <h4 className="text-sm font-semibold text-on-surface">Anexos desta versão</h4>

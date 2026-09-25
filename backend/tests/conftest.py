@@ -39,6 +39,10 @@ class FakeCursor:
     def sort(self, key=None, direction=1):
         if key is None:
             return self
+        if isinstance(key, list):
+            for sort_key, sort_direction in reversed(key):
+                self.sort(sort_key, sort_direction)
+            return self
         reverse = direction == -1
         self._data.sort(
             key=lambda item: (
@@ -273,37 +277,7 @@ class FakeCollection:
         return _DeleteResult(deleted_count=deleted)
 
     async def count_documents(self, query):
-        count = 0
-        for doc in self._data:
-            match = True
-            for k, v in query.items():
-                if isinstance(v, dict):
-                    doc_val = doc.get(k)
-                    if doc_val is None:
-                        match = False
-                        break
-                    if "$gte" in v and doc_val < v["$gte"]:
-                        match = False
-                        break
-                    if "$gt" in v and doc_val <= v["$gt"]:
-                        match = False
-                        break
-                    if "$lte" in v and doc_val > v["$lte"]:
-                        match = False
-                        break
-                    if "$lt" in v and doc_val >= v["$lt"]:
-                        match = False
-                        break
-                    if "$ne" in v and doc_val == v["$ne"]:
-                        match = False
-                        break
-                else:
-                    if doc.get(k) != v:
-                        match = False
-                        break
-            if match:
-                count += 1
-        return count
+        return sum(1 for doc in self._data if _match_doc(doc, query))
 
     async def distinct(self, field, query=None):
         values = []
@@ -397,6 +371,7 @@ class FakeDB:
         self.redmode_projects = FakeCollection()
         self.redmode_scope_versions = FakeCollection()
         self.redmode_scope_sources = FakeCollection()
+        self.redmode_scope_assets = FakeCollection()
         self.redmode_evidence = FakeCollection()
         self.redmode_findings = FakeCollection()
         self.redmode_finding_revisions = FakeCollection()

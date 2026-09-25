@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from mimetypes import guess_type
+import re
 from typing import Literal
 from uuid import uuid4
 from urllib.parse import quote
@@ -26,7 +27,12 @@ from redmode_files import (
     extract_scope_content,
 )
 from redmode_scope import compile_scope_document, merge_scope_context_assets, merge_scope_rules
-from redmode_scope_normalizer import public_suffix_list_version
+from redmode_scope_normalizer import (
+    ScopeNormalizationError,
+    normalize_declared_target,
+    parse_declared_target,
+    public_suffix_list_version,
+)
 
 
 router = APIRouter(prefix="/redmode", tags=["redmode"])
@@ -85,6 +91,11 @@ def scope_versions_collection():
 def scope_sources_collection():
     projects_collection()
     return db_manager.db.redmode_scope_sources
+
+
+def scope_assets_collection():
+    projects_collection()
+    return db_manager.db.redmode_scope_assets
 
 
 def file_store():
@@ -555,6 +566,10 @@ async def _clean_source_publication(version_id: str, representation_ids: list[st
     except Exception:
         logger.warning("Failed to clean up unpublished RedMode scope source metadata")
     try:
+        await scope_assets_collection().delete_many({"version_id": version_id})
+    except Exception:
+        logger.warning("Failed to clean up unpublished RedMode scope assets")
+    try:
         store = source_text_store()
     except Exception:
         store = None
@@ -599,6 +614,7 @@ async def _publish_scope(
             "classifications": ["declared", "derived", "enriched"],
         },
         "source_schema_version": 1,
+        "asset_schema_version": 1,
     }
     versions = scope_versions_collection()
     event = {"type": "scope_published", "author": current_user["username"], "subject": version_id, "at": now}
@@ -647,6 +663,40 @@ async def _publish_scope(
                     "rule_count": rule_count,
                     "context_count": context_count,
                 },
+            })
+        for order, item in enumerate([*rules, *context_assets]):
+            source_ids = list(dict.fromkeys(
+                origin["source_id"] for origin in item.get("origins", [])
+            ))
+            asset_id = sha256(
+                f'{item["kind"]}\0{item["value"]}'.encode("utf-8")
+            ).hexdigest()
+            original_values = item.get(
+                "original_values",
+                [item.get("original_value", item["value"])],
+            )
+            await scope_assets_collection().insert_one({
+                "_id": uuid4().hex,
+                "asset_id": asset_id,
+                "project_slug": slug,
+                "version_id": version_id,
+                "order": order,
+                "kind": item["kind"],
+                "value": item["value"],
+                "original_value": item.get("original_value", item["value"]),
+                "original_values": original_values,
+                "category": item["category"],
+                "classification": item.get("classification", "declared"),
+                "executable": item.get("executable", True),
+                "origins": item.get("origins", []),
+                "source_ids": source_ids,
+                "normalized": item.get("normalized"),
+                "search_text": " ".join([
+                    item["kind"],
+                    item["category"],
+                    item["value"],
+                    *original_values,
+                ]).casefold(),
             })
         await versions.insert_one(version)
         result = await projects_collection().update_one(
@@ -942,15 +992,146 @@ def _scope_source_detail(source: dict) -> dict:
     }
 
 
+async def _read_scope_source_content(source: dict) -> bytes | None:
+    content = source.get("legacy_representation")
+    representation_id = source.get("representation_file_id")
+    if content is None and representation_id:
+        try:
+            content = await source_text_store().read(representation_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail="scope_source_representation_unavailable",
+            ) from exc
+    return content
+
+
+def _representation_page(content: bytes | None, offset: int, limit: int) -> dict:
+    if content is None:
+        return {
+            "available": False,
+            "offset": offset,
+            "limit": limit,
+            "total_characters": None,
+            "truncated": False,
+            "content": None,
+        }
+    text = content.decode("utf-8")
+    total = len(text)
+    return {
+        "available": True,
+        "offset": offset,
+        "limit": limit,
+        "total_characters": total,
+        "truncated": offset + limit < total,
+        "content": text[offset:offset + limit],
+    }
+
+
+def _legacy_asset_documents(version: dict) -> list[dict]:
+    documents = []
+    items = [*version.get("rules", []), *version.get("context_assets", [])]
+    for order, item in enumerate(items):
+        kind = item.get("kind")
+        original_values = item.get(
+            "original_values",
+            [item.get("original_value", item["value"])],
+        )
+        normalized = item.get("normalized")
+        if normalized is None:
+            try:
+                original = item.get("original_value", item["value"])
+                normalized = (
+                    normalize_declared_target(kind, original)
+                    if kind
+                    else parse_declared_target(original)
+                )
+                kind = normalized["kind"]
+            except ScopeNormalizationError:
+                normalized = None
+        if kind is None:
+            continue
+        documents.append({
+            "asset_id": sha256(
+                f'{kind}\0{item["value"]}'.encode("utf-8")
+            ).hexdigest(),
+            "project_slug": version["project_slug"],
+            "version_id": version["_id"],
+            "order": order,
+            "kind": kind,
+            "value": item["value"],
+            "original_value": item.get("original_value", item["value"]),
+            "original_values": original_values,
+            "category": item["category"],
+            "classification": item.get("classification", "declared"),
+            "executable": item.get("executable", kind != "asn"),
+            "origins": item.get("origins", []),
+            "source_ids": list(dict.fromkeys(
+                origin["source_id"] for origin in item.get("origins", [])
+            )),
+            "normalized": normalized,
+            "search_text": " ".join([
+                kind,
+                item["category"],
+                item["value"],
+                *original_values,
+            ]).casefold(),
+        })
+    return documents
+
+
+def _scope_asset_detail(asset: dict) -> dict:
+    return {
+        "asset_id": asset["asset_id"],
+        "project_slug": asset["project_slug"],
+        "version_id": asset["version_id"],
+        "kind": asset["kind"],
+        "value": asset["value"],
+        "original_value": asset["original_value"],
+        "original_values": asset["original_values"],
+        "category": asset["category"],
+        "classification": asset["classification"],
+        "executable": asset["executable"],
+        "origins": asset["origins"],
+        "source_ids": asset["source_ids"],
+        "normalized": asset["normalized"],
+    }
+
+
+async def _source_rules(version: dict, source_id: str) -> list[dict]:
+    if version.get("asset_schema_version") == 1:
+        return [
+            _scope_asset_detail(item)
+            async for item in scope_assets_collection().find({
+                "project_slug": version["project_slug"],
+                "version_id": version["_id"],
+                "source_ids": {"$in": [source_id]},
+                "executable": True,
+            }).sort([("order", 1), ("asset_id", 1)])
+        ]
+    return [
+        _scope_asset_detail(item)
+        for item in _legacy_asset_documents(version)
+        if item["executable"] and source_id in item["source_ids"]
+    ]
+
+
 @router.get("/projects/{slug}/scope/versions/{version_id}/sources")
 async def list_scope_sources(
     slug: str,
     version_id: str,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
     current_user: dict = Depends(require_redmode_access),
 ):
     version = await _load_scope_version_for_member(slug, version_id, current_user)
     sources = await _scope_sources_for_version(version)
-    return {"items": [_scope_source_detail(source) for source in sources]}
+    return {
+        "items": [_scope_source_detail(source) for source in sources[offset:offset + limit]],
+        "total": len(sources),
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/projects/{slug}/scope/versions/{version_id}/sources/{source_id}")
@@ -958,6 +1139,10 @@ async def get_scope_source(
     slug: str,
     version_id: str,
     source_id: str,
+    content_offset: int = Query(0, ge=0),
+    content_limit: int = Query(20_000, ge=1, le=100_000),
+    rule_offset: int = Query(0, ge=0),
+    rule_limit: int = Query(50, ge=1, le=100),
     current_user: dict = Depends(require_redmode_access),
 ):
     version = await _load_scope_version_for_member(slug, version_id, current_user)
@@ -965,7 +1150,20 @@ async def get_scope_source(
     source = next((item for item in sources if item["source_id"] == source_id), None)
     if source is None:
         raise HTTPException(status_code=404, detail="scope_source_not_found")
-    return _scope_source_detail(source)
+    content = await _read_scope_source_content(source)
+    rules = await _source_rules(version, source_id)
+    detail = _scope_source_detail(source)
+    detail["representation"] = {
+        **detail["representation"],
+        **_representation_page(content, content_offset, content_limit),
+    }
+    detail["rules"] = {
+        "items": rules[rule_offset:rule_offset + rule_limit],
+        "total": len(rules),
+        "limit": rule_limit,
+        "offset": rule_offset,
+    }
+    return detail
 
 
 @router.get("/projects/{slug}/scope/versions/{version_id}/sources/{source_id}/representation")
@@ -973,6 +1171,8 @@ async def read_scope_source_representation(
     slug: str,
     version_id: str,
     source_id: str,
+    offset: int = Query(0, ge=0),
+    limit: int = Query(100_000, ge=1, le=100_000),
     current_user: dict = Depends(require_redmode_access),
 ):
     version = await _load_scope_version_for_member(slug, version_id, current_user)
@@ -980,25 +1180,156 @@ async def read_scope_source_representation(
     source = next((item for item in sources if item["source_id"] == source_id), None)
     if source is None:
         raise HTTPException(status_code=404, detail="scope_source_not_found")
-    content = source.get("legacy_representation")
-    representation_id = source.get("representation_file_id")
-    if content is None and representation_id:
-        try:
-            content = await source_text_store().read(representation_id)
-        except FileNotFoundError as exc:
-            raise HTTPException(status_code=503, detail="scope_source_representation_unavailable") from exc
+    content = await _read_scope_source_content(source)
     if content is None:
         raise HTTPException(status_code=404, detail="scope_source_representation_not_materialized")
+    page = _representation_page(content, offset, limit)
     filename = f"{clean_filename(source['name']) or source_id}.txt"
     return Response(
-        content=content,
+        content=page["content"].encode("utf-8"),
         media_type="text/plain; charset=utf-8",
         headers={
             "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
+            "X-Content-Offset": str(offset),
+            "X-Content-Limit": str(limit),
+            "X-Content-Total": str(page["total_characters"]),
+            "X-Content-Truncated": str(page["truncated"]).lower(),
         },
     )
+
+
+SCOPE_ASSET_KINDS = ("ip", "cidr", "domain", "url", "asn")
+SCOPE_ASSET_CATEGORIES = ("client", "third_party", "excluded")
+
+
+def _asset_matches(
+    asset: dict,
+    query: str | None,
+    kind: str | None,
+    category: str | None,
+    source_id: str | None,
+) -> bool:
+    if query and query.casefold() not in asset["search_text"]:
+        return False
+    if kind and asset["kind"] != kind:
+        return False
+    if category and asset["category"] != category:
+        return False
+    if source_id and source_id not in asset["source_ids"]:
+        return False
+    return True
+
+
+def _asset_sort_key(asset: dict, sort_by: str) -> tuple:
+    if sort_by == "kind":
+        return asset["kind"], asset["value"], asset["asset_id"]
+    if sort_by == "category":
+        return asset["category"], asset["value"], asset["asset_id"]
+    return asset["value"], asset["kind"], asset["asset_id"]
+
+
+@router.get("/projects/{slug}/scope/versions/{version_id}/assets")
+async def list_scope_assets(
+    slug: str,
+    version_id: str,
+    q: str | None = Query(None, max_length=200),
+    kind: Literal["ip", "cidr", "domain", "url", "asn"] | None = Query(None),
+    category: Literal["client", "third_party", "excluded"] | None = Query(None),
+    source_id: str | None = Query(None, max_length=128),
+    sort_by: Literal["canonical", "kind", "category"] = Query("canonical"),
+    direction: Literal["asc", "desc"] = Query("asc"),
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(require_redmode_access),
+):
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
+    search = q.strip() if q and q.strip() else None
+    if version.get("asset_schema_version") != 1:
+        assets = [
+            asset
+            for asset in _legacy_asset_documents(version)
+            if _asset_matches(asset, search, kind, category, source_id)
+        ]
+        assets.sort(key=lambda item: _asset_sort_key(item, sort_by), reverse=direction == "desc")
+        total = len(assets)
+        return {
+            "items": [_scope_asset_detail(item) for item in assets[offset:offset + limit]],
+            "total": total,
+            "totals": {
+                "by_kind": {
+                    candidate: sum(item["kind"] == candidate for item in assets)
+                    for candidate in SCOPE_ASSET_KINDS
+                },
+                "by_category": {
+                    candidate: sum(item["category"] == candidate for item in assets)
+                    for candidate in SCOPE_ASSET_CATEGORIES
+                },
+            },
+            "limit": limit,
+            "offset": offset,
+        }
+
+    collection = scope_assets_collection()
+    base_query = {"project_slug": slug, "version_id": version_id}
+    materialized_total = await collection.count_documents(base_query)
+    if materialized_total == 0 and (
+        version.get("rules") or version.get("context_assets")
+    ):
+        raise HTTPException(status_code=503, detail="scope_assets_unavailable")
+    query_filter = dict(base_query)
+    if search:
+        query_filter["search_text"] = {
+            "$regex": re.escape(search.casefold()),
+            "$options": "i",
+        }
+    if kind:
+        query_filter["kind"] = kind
+    if category:
+        query_filter["category"] = category
+    if source_id:
+        query_filter["source_ids"] = {"$in": [source_id]}
+
+    total = await collection.count_documents(query_filter)
+    by_kind = {}
+    for candidate in SCOPE_ASSET_KINDS:
+        if kind and candidate != kind:
+            by_kind[candidate] = 0
+        else:
+            by_kind[candidate] = await collection.count_documents({
+                **query_filter,
+                "kind": candidate,
+            })
+    by_category = {}
+    for candidate in SCOPE_ASSET_CATEGORIES:
+        if category and candidate != category:
+            by_category[candidate] = 0
+        else:
+            by_category[candidate] = await collection.count_documents({
+                **query_filter,
+                "category": candidate,
+            })
+    sort_field = {
+        "canonical": "value",
+        "kind": "kind",
+        "category": "category",
+    }[sort_by]
+    sort_direction = -1 if direction == "desc" else 1
+    cursor = (
+        collection.find(query_filter)
+        .sort([(sort_field, sort_direction), ("value", sort_direction), ("asset_id", 1)])
+        .skip(offset)
+        .limit(limit)
+    )
+    items = [_scope_asset_detail(item) async for item in cursor]
+    return {
+        "items": items,
+        "total": total,
+        "totals": {"by_kind": by_kind, "by_category": by_category},
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 @router.get("/projects/{slug}/scope/versions/{version_id}/files/{file_id}")

@@ -217,6 +217,25 @@ async def lifespan(app: FastAPI):
                 unique=True,
                 name="redmode_scope_sources_version_source",
             )
+            await db.redmode_scope_assets.create_index(
+                [
+                    ("project_slug", 1),
+                    ("version_id", 1),
+                    ("kind", 1),
+                    ("category", 1),
+                    ("value", 1),
+                ],
+                name="redmode_scope_assets_inventory",
+            )
+            await db.redmode_scope_assets.create_index(
+                [("project_slug", 1), ("version_id", 1), ("source_ids", 1)],
+                name="redmode_scope_assets_source",
+            )
+            await db.redmode_scope_assets.create_index(
+                [("project_slug", 1), ("version_id", 1), ("asset_id", 1)],
+                unique=True,
+                name="redmode_scope_assets_version_asset",
+            )
             await db.redmode_evidence.create_index(
                 [("project_slug", 1), ("created_at", -1)],
                 name="redmode_evidence_project_created",

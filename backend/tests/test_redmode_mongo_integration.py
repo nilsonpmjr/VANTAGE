@@ -138,6 +138,13 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
             )
             assert extracted.status_code == 200
             assert extracted.content == b"192.0.2.20"
+            inventory = await http.get(
+                f"{base}/scope/versions/{active['id']}/assets?limit=2",
+                headers=member,
+            )
+            assert inventory.status_code == 200, inventory.text
+            assert inventory.json()["total"] == 7
+            assert len(inventory.json()["items"]) == 2
             file_id = active["source"]["files"][0]["id"]
             scope_file_url = f"{base}/scope/versions/{active['id']}/files/{file_id}"
             for metadata, (filename, content, _) in zip(active["source"]["files"], uploads):

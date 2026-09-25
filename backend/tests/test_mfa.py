@@ -157,6 +157,40 @@ async def test_verify_mfa_completes_login(async_client, fake_db):
 
 
 @pytest.mark.asyncio
+async def test_verify_mfa_uses_standard_user_contract(async_client, fake_db):
+    secret = _enable_mfa_for(fake_db, "techuser")
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {
+            "extra_permissions": ["redmode:access"],
+            "preferred_workspace": "offensive",
+            "team": "red-team",
+        }},
+    )
+
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={"username": "techuser", "password": "TestTech@9876"},
+    )
+    assert login_resp.status_code == 200
+    assert login_resp.json()["mfa_required"] is True
+
+    verify_resp = await async_client.post(
+        "/api/mfa/verify",
+        json={"otp": pyotp.TOTP(secret).now()},
+    )
+    assert verify_resp.status_code == 200
+    user = verify_resp.json()["user"]
+    assert user["extra_permissions"] == ["redmode:access"]
+    assert user["preferred_workspace"] == "offensive"
+    assert user["team"] == "red-team"
+
+    me_resp = await async_client.get("/api/auth/me")
+    assert me_resp.status_code == 200
+    assert me_resp.json() == user
+
+
+@pytest.mark.asyncio
 async def test_verify_mfa_rejects_wrong_otp(async_client, fake_db):
     _enable_mfa_for(fake_db, "admin")
 

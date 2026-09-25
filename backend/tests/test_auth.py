@@ -17,6 +17,8 @@ async def test_login_success(async_client):
     assert response.status_code == 200
     body = response.json()
     assert body["user"]["username"] == "techuser"
+    assert body["user"]["extra_permissions"] == []
+    assert body["user"]["preferred_workspace"] == "soc"
     assert body["token_type"] == "bearer"
     # HttpOnly cookies must be set
     assert "access_token" in response.cookies
@@ -62,6 +64,27 @@ async def test_get_me_authenticated(async_client, auth_headers):
     data = response.json()
     assert data["username"] == "admin"
     assert data["role"] == "admin"
+    assert data["preferred_workspace"] == "soc"
+
+
+@pytest.mark.asyncio
+async def test_invalid_workspace_preference_falls_back_without_granting_access(async_client, fake_db):
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {"preferred_workspace": "unknown", "extra_permissions": []}},
+    )
+
+    login_response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "techuser", "password": "TestTech@9876"},
+    )
+
+    assert login_response.status_code == 200
+    assert login_response.json()["user"]["preferred_workspace"] == "soc"
+    assert login_response.json()["user"]["extra_permissions"] == []
+
+    redmode_response = await async_client.get("/api/redmode/projects")
+    assert redmode_response.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -89,7 +112,11 @@ async def test_refresh_rotates_hashed_token_and_uses_current_role(async_client, 
 
     await fake_db.users.update_one(
         {"username": "techuser"},
-        {"$set": {"role": "manager"}},
+        {"$set": {
+            "role": "manager",
+            "extra_permissions": ["redmode:access"],
+            "preferred_workspace": "offensive",
+        }},
     )
 
     refresh_resp = await async_client.post("/api/auth/refresh")
@@ -107,6 +134,8 @@ async def test_refresh_rotates_hashed_token_and_uses_current_role(async_client, 
     me_resp = await async_client.get("/api/auth/me")
     assert me_resp.status_code == 200
     assert me_resp.json()["role"] == "manager"
+    assert me_resp.json()["extra_permissions"] == ["redmode:access"]
+    assert me_resp.json()["preferred_workspace"] == "offensive"
 
 
 @pytest.mark.asyncio

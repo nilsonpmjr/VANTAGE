@@ -19,6 +19,7 @@ export interface AuthUser {
   name?: string;
   email?: string | null;
   preferred_lang?: string;
+  preferred_workspace?: "soc" | "offensive";
   is_active?: boolean;
   force_password_reset?: boolean;
   mfa_enabled?: boolean;

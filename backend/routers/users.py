@@ -6,7 +6,14 @@ from pydantic import BaseModel
 from typing import Optional
 
 from db import db_manager
-from auth import get_password_hash, verify_password, get_current_user, get_current_user_allow_expired, require_role
+from auth import (
+    WORKSPACE_SOC,
+    get_password_hash,
+    verify_password,
+    get_current_user,
+    get_current_user_allow_expired,
+    require_role,
+)
 from policies import get_password_policy, validate_password
 from audit import log_action
 from logging_config import get_logger
@@ -138,6 +145,7 @@ async def create_user(request: Request, user: UserCreate, current_user: dict = D
         "email": normalized_email,
         "normalized_email": normalized_email,
         "preferred_lang": "pt",
+        "preferred_workspace": WORKSPACE_SOC,
         "is_active": True,
         "created_at": datetime.now(timezone.utc),
         "password_history": [password_hash],

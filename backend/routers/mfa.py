@@ -32,6 +32,7 @@ from auth import (
     require_role,
     _set_auth_cookies,
     _clear_pre_auth_cookie,
+    _build_user_dict,
 )
 from config import settings
 from crypto import encrypt_secret, decrypt_secret
@@ -277,19 +278,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
     policy = await get_password_policy(db)
     days_left = compute_expiry_days_left(user_doc, policy)
 
-    user_payload = {
-        "username": username,
-        "role": role,
-        "name": user_doc.get("name", ""),
-        "email": user_doc.get("email"),
-        "preferred_lang": user_doc.get("preferred_lang", "pt"),
-        "is_active": user_doc.get("is_active", True),
-        "force_password_reset": user_doc.get("force_password_reset", False),
-        "mfa_enabled": user_doc.get("mfa_enabled", False),
-        "avatar_base64": user_doc.get("avatar_base64", ""),
-        "recovery_email": user_doc.get("recovery_email"),
-        **({"password_expires_in_days": days_left} if days_left is not None else {}),
-    }
+    user_payload = _build_user_dict(user_doc, days_left)
 
     response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
     _set_auth_cookies(response, access_token, refresh_token)

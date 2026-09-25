@@ -18,6 +18,9 @@ from policies import compute_expiry_days_left, get_password_policy
 SECRET_KEY = settings.jwt_secret
 ALGORITHM = settings.algorithm
 ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
+WORKSPACE_SOC = "soc"
+WORKSPACE_OFFENSIVE = "offensive"
+VALID_WORKSPACES = frozenset({WORKSPACE_SOC, WORKSPACE_OFFENSIVE})
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 logger = get_logger("Auth")
@@ -38,6 +41,11 @@ def default_notification_center(value: Optional[dict] = None) -> dict:
             "intelligence": preferences.get("intelligence", True) is not False,
         },
     }
+
+
+def normalize_preferred_workspace(value: object) -> str:
+    """Return a supported workspace preference without granting access to it."""
+    return value if isinstance(value, str) and value in VALID_WORKSPACES else WORKSPACE_SOC
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -236,6 +244,7 @@ def _build_user_dict(
         "name": user.get("name", ""),
         "email": user.get("email"),
         "preferred_lang": user.get("preferred_lang", "pt"),
+        "preferred_workspace": normalize_preferred_workspace(user.get("preferred_workspace")),
         "is_active": user.get("is_active", True),
         "force_password_reset": user.get("force_password_reset", False),
         "extra_permissions": user.get("extra_permissions", []),

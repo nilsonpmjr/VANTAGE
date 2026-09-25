@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Users } from "lucide-react";
 import { PageHeader } from "../../components/page/PageChrome";
 import { useAuth } from "../../context/AuthContext";
-import { changeProjectMember, getProject, listProjectActivity, type ProjectActivity, type ProjectDetail } from "./api";
+import { changeProjectMember, getProject, listProjectActivity, rememberEngagement, type ProjectActivity, type ProjectDetail } from "./api";
 import ScopePanel from "./ScopePanel";
 import EvidencePanel from "./EvidencePanel";
 import FindingsPanel from "./FindingsPanel";
@@ -39,6 +39,7 @@ export default function RedModeProject() {
       .then((data) => {
         if (!active) return;
         setProject(data);
+        void rememberEngagement(data.slug).catch(() => undefined);
         void listProjectActivity(slug)
           .then((events) => { if (active) setActivity(events.items); })
           .catch(() => { if (active) setActivityError("Não foi possível carregar o histórico."); });

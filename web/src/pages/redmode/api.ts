@@ -14,6 +14,19 @@ export interface ProjectDetail extends ProjectSummary {
   created_at: string;
 }
 
+export interface OffensiveHomeSummary {
+  generated_at: string;
+  resume: (ProjectSummary & {
+    active_scope: { id: string; author: string; created_at: string } | null;
+  }) | null;
+  metrics: {
+    active_engagements: number;
+    scopes_needing_attention: number;
+    high_critical_findings: number;
+    activity_7d: number;
+  };
+}
+
 export interface ProjectActivity {
   type: string;
   author: string;
@@ -117,6 +130,10 @@ export async function listProjects(offset = 0, limit = 20): Promise<{ items: Pro
   return readResponse(await fetch(`${API_URL}/api/redmode/projects?limit=${limit}&offset=${offset}`, { credentials: "include" }));
 }
 
+export async function getOffensiveHome(): Promise<OffensiveHomeSummary> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/home`, { credentials: "include" }));
+}
+
 export async function createProject(slug: string, displayName: string): Promise<ProjectDetail> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects`, {
     method: "POST",
@@ -128,6 +145,13 @@ export async function createProject(slug: string, displayName: string): Promise<
 
 export async function getProject(slug: string): Promise<ProjectDetail> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`, {
+    credentials: "include",
+  }));
+}
+
+export async function rememberEngagement(slug: string): Promise<void> {
+  await readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/resume`, {
+    method: "PUT",
     credentials: "include",
   }));
 }

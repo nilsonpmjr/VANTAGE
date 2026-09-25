@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { ArrowRight, Plus, ShieldAlert } from "lucide-react";
 import { PageHeader } from "../../components/page/PageChrome";
 import { createProject, listProjects, type ProjectSummary } from "./api";
@@ -14,12 +14,13 @@ function formatActivity(value: string) {
 
 export default function RedModeFeed() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(() => searchParams.get("create") === "1");
   const [submitting, setSubmitting] = useState(false);
   const [slug, setSlug] = useState("");
   const [displayName, setDisplayName] = useState("");

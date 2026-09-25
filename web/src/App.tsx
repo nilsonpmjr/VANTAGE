@@ -48,6 +48,7 @@ const Home = lazy(() => import("./pages/Home"));
 const Feed = lazy(() => import("./pages/Feed"));
 const RedModeFeed = lazy(() => import("./pages/redmode/RedModeFeed"));
 const RedModeProject = lazy(() => import("./pages/redmode/RedModeProject"));
+const OffensiveModeHome = lazy(() => import("./pages/redmode/OffensiveModeHome"));
 const Recon = lazy(() => import("./pages/Recon"));
 const Watchlist = lazy(() => import("./pages/Watchlist"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -116,7 +117,7 @@ export default function App() {
               >
                 <Route index element={suspense(<Home />)} />
                 <Route path="feed" element={suspense(<Feed />)} />
-                <Route path="redmode" element={<RequirePathAccess path="/redmode"><Navigate to="/redmode/engagements" replace /></RequirePathAccess>} />
+                <Route path="redmode" element={<RequirePathAccess path="/redmode">{suspense(<OffensiveModeHome />)}</RequirePathAccess>} />
                 <Route path="redmode/engagements" element={<RequirePathAccess path="/redmode">{suspense(<RedModeFeed />)}</RequirePathAccess>} />
                 <Route path="redmode/engagements/:slug" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
                 <Route path="redmode/:slug" element={<RequirePathAccess path="/redmode"><LegacyOffensiveEngagementRedirect /></RequirePathAccess>} />

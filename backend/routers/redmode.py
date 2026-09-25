@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
 from urllib.parse import quote
@@ -76,6 +76,94 @@ def project_detail(doc: dict) -> dict:
     return {**project_summary(doc), "members": doc["members"], "created_at": doc["created_at"]}
 
 
+HOME_ACTIVITY_TYPES = frozenset({
+    "scope_published",
+    "evidence_added",
+    "finding_created",
+    "finding_updated",
+})
+
+
+async def _current_revisions_for_projects(project_slugs: list[str]) -> list[dict]:
+    if not project_slugs:
+        return []
+    db = db_manager.db
+    findings = [
+        item
+        async for item in db.redmode_findings.find({"project_slug": {"$in": project_slugs}})
+    ]
+    revision_ids = [item.get("current_revision_id") for item in findings]
+    revision_ids = [item for item in revision_ids if item]
+    if not revision_ids:
+        return []
+    return [
+        item
+        async for item in db.redmode_finding_revisions.find({"_id": {"$in": revision_ids}})
+    ]
+
+
+@router.get("/home")
+async def get_offensive_home(current_user: dict = Depends(require_redmode_access)):
+    """Return a member-scoped operational summary for the Offensive Mode Home."""
+    db = db_manager.db
+    username = current_user["username"]
+    now = datetime.now(timezone.utc)
+    projects = [
+        item
+        async for item in projects_collection().find({"members": username}).sort("last_activity_at", -1)
+    ]
+    project_slugs = [item["_id"] for item in projects]
+    active_projects = [item for item in projects if item.get("status") == "active"]
+    current_revisions = await _current_revisions_for_projects(project_slugs)
+    recent_cutoff = now - timedelta(days=7)
+    recent_activity = sum(
+        1
+        for project in projects
+        for event in project.get("activity_events", [])
+        if event.get("type") in HOME_ACTIVITY_TYPES
+        and isinstance(event.get("at"), datetime)
+        and event["at"] >= recent_cutoff
+    )
+
+    user_doc = await db.users.find_one({"username": username})
+    remembered_slug = user_doc.get("last_offensive_engagement") if user_doc else None
+    resume_project = next(
+        (item for item in projects if item["_id"] == remembered_slug),
+        projects[0] if projects else None,
+    )
+    resume = None
+    if resume_project is not None:
+        active_scope = None
+        active_scope_id = resume_project.get("active_scope_version")
+        if active_scope_id:
+            scope_doc = await db.redmode_scope_versions.find_one({
+                "_id": active_scope_id,
+                "project_slug": resume_project["_id"],
+            })
+            if scope_doc is not None:
+                active_scope = {
+                    "id": scope_doc["_id"],
+                    "author": scope_doc["author"],
+                    "created_at": scope_doc["created_at"],
+                }
+        resume = {**project_summary(resume_project), "active_scope": active_scope}
+
+    return {
+        "generated_at": now,
+        "resume": resume,
+        "metrics": {
+            "active_engagements": len(active_projects),
+            "scopes_needing_attention": sum(
+                1 for item in active_projects if not item.get("active_scope_version")
+            ),
+            "high_critical_findings": sum(
+                1 for item in current_revisions if item.get("severity") in {"high", "critical"}
+            ),
+            "activity_7d": recent_activity,
+        },
+    }
+
+
 async def load_project_for_member(slug: str, current_user: dict) -> dict:
     doc = await projects_collection().find_one({"_id": slug})
     if doc is None:
@@ -133,6 +221,19 @@ async def get_project(
 ):
     doc = await load_project_for_member(slug, current_user)
     return project_detail(doc)
+
+
+@router.put("/projects/{slug}/resume")
+async def remember_project_for_resume(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    await db_manager.db.users.update_one(
+        {"username": current_user["username"]},
+        {"$set": {"last_offensive_engagement": slug}},
+    )
+    return {"slug": slug}
 
 
 @router.get("/projects/{slug}/activity")

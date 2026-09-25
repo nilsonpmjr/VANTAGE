@@ -81,10 +81,15 @@ def _match_field(doc_val, spec):
     """Match a doc value against a Mongo-style operator spec."""
     import re as _re
     if not isinstance(spec, dict):
-        return doc_val == spec
+        return spec in doc_val if isinstance(doc_val, list) else doc_val == spec
     for op, operand in spec.items():
         if op == "$in":
-            if doc_val not in operand:
+            matches = (
+                any(item in operand for item in doc_val)
+                if isinstance(doc_val, list)
+                else doc_val in operand
+            )
+            if not matches:
                 return False
         elif op == "$nin":
             if doc_val in operand:

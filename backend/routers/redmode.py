@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from uuid import uuid4
@@ -82,6 +83,16 @@ HOME_ACTIVITY_TYPES = frozenset({
     "finding_created",
     "finding_updated",
 })
+PTES_PHASE_ORDER = (
+    "pre-engagement",
+    "reconnaissance",
+    "threat-modeling",
+    "vulnerability-analysis",
+    "exploitation",
+    "post-exploitation",
+    "reporting",
+)
+FINDING_SEVERITY_ORDER = ("informational", "low", "medium", "high", "critical")
 
 
 async def _current_revisions_for_projects(project_slugs: list[str]) -> list[dict]:
@@ -115,6 +126,9 @@ async def get_offensive_home(current_user: dict = Depends(require_redmode_access
     project_slugs = [item["_id"] for item in projects]
     active_projects = [item for item in projects if item.get("status") == "active"]
     current_revisions = await _current_revisions_for_projects(project_slugs)
+    phase_counts = Counter(item.get("phase") for item in projects)
+    severity_counts = Counter(item.get("severity") for item in current_revisions)
+    active_with_scope = sum(1 for item in active_projects if item.get("active_scope_version"))
     recent_cutoff = now - timedelta(days=7)
     recent_activity = sum(
         1
@@ -160,6 +174,20 @@ async def get_offensive_home(current_user: dict = Depends(require_redmode_access
                 1 for item in current_revisions if item.get("severity") in {"high", "critical"}
             ),
             "activity_7d": recent_activity,
+        },
+        "charts": {
+            "ptes_pipeline": [
+                {"phase": phase, "count": phase_counts[phase]}
+                for phase in PTES_PHASE_ORDER
+            ],
+            "finding_severity": [
+                {"severity": severity, "count": severity_counts[severity]}
+                for severity in FINDING_SEVERITY_ORDER
+            ],
+            "scope_readiness": {
+                "with_active_scope": active_with_scope,
+                "without_active_scope": len(active_projects) - active_with_scope,
+            },
         },
     }
 

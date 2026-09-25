@@ -25,6 +25,14 @@ export interface OffensiveHomeSummary {
     high_critical_findings: number;
     activity_7d: number;
   };
+  charts: {
+    ptes_pipeline: Array<{ phase: string; count: number }>;
+    finding_severity: Array<{ severity: string; count: number }>;
+    scope_readiness: {
+      with_active_scope: number;
+      without_active_scope: number;
+    };
+  };
 }
 
 export interface ProjectActivity {

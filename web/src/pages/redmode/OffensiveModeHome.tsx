@@ -12,6 +12,7 @@ import {
 import { PageHeader } from "../../components/page/PageChrome";
 import { useLanguage } from "../../context/LanguageContext";
 import { getOffensiveHome, type OffensiveHomeSummary } from "./api";
+import OffensiveHomeCharts from "./OffensiveHomeCharts";
 
 function MetricCard({ icon, label, value, detail }: {
   icon: ReactNode;
@@ -207,6 +208,8 @@ export default function OffensiveModeHome() {
               </div>
             </section>
           )}
+
+          <OffensiveHomeCharts charts={summary.charts} />
         </>
       ) : null}
     </div>

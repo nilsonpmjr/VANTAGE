@@ -14,15 +14,17 @@ from config import settings
 from db import db_manager
 from logging_config import get_logger
 from redmode_files import GridFSEvidenceStore, clean_filename
-from routers.redmode import load_project_for_member, projects_collection, require_redmode_access
+from routers.redmode import (
+    PTES_PHASE_ORDER,
+    load_project_for_member,
+    projects_collection,
+    require_redmode_access,
+)
 
 
 router = APIRouter(prefix="/redmode", tags=["redmode-evidence"])
 logger = get_logger("RedModeEvidence")
-PTES_PHASES = frozenset({
-    "pre-engagement", "reconnaissance", "threat-modeling", "vulnerability-analysis",
-    "exploitation", "post-exploitation", "reporting",
-})
+PTES_PHASES = frozenset(PTES_PHASE_ORDER)
 
 
 def evidence_collection():

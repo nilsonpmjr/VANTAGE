@@ -25,13 +25,14 @@ def project_doc(
     members: list[str],
     last_activity_at: datetime,
     status: str = "active",
+    phase: str = "reconnaissance",
     active_scope_version: str | None = None,
     activity_events: list[dict] | None = None,
 ) -> dict:
     return {
         "_id": slug,
         "display_name": slug.replace("-", " ").title(),
-        "phase": "reconnaissance",
+        "phase": phase,
         "status": status,
         "responsible": members[0],
         "members": members,
@@ -68,6 +69,25 @@ async def test_home_returns_zero_values_without_member_engagements(async_client,
         "high_critical_findings": 0,
         "activity_7d": 0,
     }
+    assert response.json()["charts"] == {
+        "ptes_pipeline": [
+            {"phase": phase, "count": 0}
+            for phase in (
+                "pre-engagement",
+                "reconnaissance",
+                "threat-modeling",
+                "vulnerability-analysis",
+                "exploitation",
+                "post-exploitation",
+                "reporting",
+            )
+        ],
+        "finding_severity": [
+            {"severity": severity, "count": 0}
+            for severity in ("informational", "low", "medium", "high", "critical")
+        ],
+        "scope_readiness": {"with_active_scope": 0, "without_active_scope": 0},
+    }
 
 
 @pytest.mark.asyncio
@@ -87,7 +107,7 @@ async def test_home_metrics_and_resume_only_include_member_engagements(async_cli
         "remembered-member",
         members=["techuser"],
         last_activity_at=now - timedelta(days=1),
-        status="completed",
+        phase="reporting",
         active_scope_version="scope-member",
     ))
     await fake_db.redmode_projects.insert_one(project_doc(
@@ -123,6 +143,12 @@ async def test_home_metrics_and_resume_only_include_member_engagements(async_cli
             "project_slug": project_slug,
             "severity": severity,
         })
+    await fake_db.redmode_finding_revisions.insert_one({
+        "_id": "revision-member-old",
+        "finding_id": "finding-member",
+        "project_slug": "recent-member",
+        "severity": "critical",
+    })
     await fake_db.users.update_one(
         {"username": "techuser"},
         {"$set": {"last_offensive_engagement": "remembered-member"}},
@@ -136,13 +162,33 @@ async def test_home_metrics_and_resume_only_include_member_engagements(async_cli
     assert response.status_code == 200
     data = response.json()
     assert data["metrics"] == {
-        "active_engagements": 1,
+        "active_engagements": 2,
         "scopes_needing_attention": 1,
         "high_critical_findings": 1,
         "activity_7d": 1,
     }
     assert data["resume"]["slug"] == "remembered-member"
     assert data["resume"]["active_scope"]["id"] == "scope-member"
+    assert data["charts"]["ptes_pipeline"] == [
+        {"phase": "pre-engagement", "count": 0},
+        {"phase": "reconnaissance", "count": 1},
+        {"phase": "threat-modeling", "count": 0},
+        {"phase": "vulnerability-analysis", "count": 0},
+        {"phase": "exploitation", "count": 0},
+        {"phase": "post-exploitation", "count": 0},
+        {"phase": "reporting", "count": 1},
+    ]
+    assert data["charts"]["finding_severity"] == [
+        {"severity": "informational", "count": 0},
+        {"severity": "low", "count": 0},
+        {"severity": "medium", "count": 0},
+        {"severity": "high", "count": 1},
+        {"severity": "critical", "count": 0},
+    ]
+    assert data["charts"]["scope_readiness"] == {
+        "with_active_scope": 1,
+        "without_active_scope": 1,
+    }
     assert "outsider-project" not in str(data)
 
     await fake_db.users.update_one(

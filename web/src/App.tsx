@@ -120,6 +120,7 @@ export default function App() {
                 <Route path="redmode" element={<RequirePathAccess path="/redmode">{suspense(<OffensiveModeHome />)}</RequirePathAccess>} />
                 <Route path="redmode/engagements" element={<RequirePathAccess path="/redmode">{suspense(<RedModeFeed />)}</RequirePathAccess>} />
                 <Route path="redmode/engagements/:slug" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
+                <Route path="redmode/engagements/:slug/:section" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
                 <Route path="redmode/:slug" element={<RequirePathAccess path="/redmode"><LegacyOffensiveEngagementRedirect /></RequirePathAccess>} />
                 <Route path="recon" element={suspense(<Recon />)} />
                 <Route path="watchlist" element={suspense(<Watchlist />)} />

@@ -451,7 +451,16 @@ export function resolveTopbarContext(
     return { section: offensiveSection, label: t("layout.nav.engagements", "Engagements") };
   }
   if (pathname.startsWith("/redmode/engagements/")) {
-    return { section: offensiveSection, label: t("layout.nav.engagement", "Engagement") };
+    const section = pathname.split("/")[4] || "overview";
+    const labels: Record<string, string> = {
+      overview: t("offensive.engagement.nav.overview", "Overview"),
+      scope: t("offensive.engagement.nav.scope", "Scope & Targets"),
+      evidence: t("offensive.engagement.nav.evidence", "Evidence"),
+      findings: t("offensive.engagement.nav.findings", "Findings"),
+      activity: t("offensive.engagement.nav.activity", "Activity"),
+      team: t("offensive.engagement.nav.team", "Team & Access"),
+    };
+    return { section: t("layout.nav.engagement", "Engagement"), label: labels[section] || labels.overview };
   }
   if (pathname === "/recon") {
     return { section: operationsSection, label: t("layout.nav.recon", "Recon") };

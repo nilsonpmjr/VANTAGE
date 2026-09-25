@@ -24,6 +24,8 @@ import {
   Search,
   Terminal,
   X,
+  Camera,
+  Users,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -107,6 +109,12 @@ export default function Layout() {
   const lastRootPathKey = "vantage.sidebar.last-root-path";
   const isSettingsContext = location.pathname.startsWith("/settings");
   const isProfileContext = location.pathname === "/profile";
+  const offensiveEngagementMatch = location.pathname.match(
+    /^\/redmode\/engagements\/([^/]+)(?:\/([^/]+))?$/,
+  );
+  const offensiveEngagementSlug = offensiveEngagementMatch?.[1] || null;
+  const offensiveEngagementSection = offensiveEngagementMatch?.[2] || "overview";
+  const isOffensiveEngagementContext = Boolean(offensiveEngagementSlug);
   const profileTab = useMemo(() => {
     const currentTab = new URLSearchParams(location.search).get("tab");
     if (
@@ -195,9 +203,57 @@ export default function Layout() {
     [profileTab, t],
   );
 
+  const offensiveEngagementNavItems = useMemo(() => {
+    if (!offensiveEngagementSlug) return [];
+    const basePath = `/redmode/engagements/${offensiveEngagementSlug}`;
+    return [
+      {
+        path: basePath,
+        label: t("offensive.engagement.nav.overview", "Overview"),
+        icon: LayoutDashboard,
+        active: offensiveEngagementSection === "overview",
+      },
+      {
+        path: `${basePath}/scope`,
+        label: t("offensive.engagement.nav.scope", "Scope & Targets"),
+        icon: Crosshair,
+        active: offensiveEngagementSection === "scope",
+      },
+      {
+        path: `${basePath}/evidence`,
+        label: t("offensive.engagement.nav.evidence", "Evidence"),
+        icon: Camera,
+        active: offensiveEngagementSection === "evidence",
+      },
+      {
+        path: `${basePath}/findings`,
+        label: t("offensive.engagement.nav.findings", "Findings"),
+        icon: ShieldAlert,
+        active: offensiveEngagementSection === "findings",
+      },
+      {
+        path: `${basePath}/activity`,
+        label: t("offensive.engagement.nav.activity", "Activity"),
+        icon: Activity,
+        active: offensiveEngagementSection === "activity",
+      },
+      {
+        path: `${basePath}/team`,
+        label: t("offensive.engagement.nav.team", "Team & Access"),
+        icon: Users,
+        active: offensiveEngagementSection === "team",
+      },
+    ];
+  }, [offensiveEngagementSection, offensiveEngagementSlug, t]);
+
+  const defaultContextualBackPath = sessionStorage.getItem(lastRootPathKey) || "/";
+  const defaultContextualBackLabel = t("layout.context.back", "Back to workspace");
+
   const contextualNav = isSettingsContext
     ? {
         title: t("layout.nav.settings", "Settings"),
+        backPath: defaultContextualBackPath,
+        backLabel: defaultContextualBackLabel,
         items: settingsNavItems.map((item) => ({
           ...item,
           active: location.pathname === item.path,
@@ -206,10 +262,18 @@ export default function Layout() {
     : isProfileContext
       ? {
           title: t("layout.topbar.profile", "Profile"),
+          backPath: defaultContextualBackPath,
+          backLabel: defaultContextualBackLabel,
           items: profileNavItems,
         }
+      : isOffensiveEngagementContext
+        ? {
+            title: t("offensive.engagement.nav.title", "Engagement workspace"),
+            backPath: "/redmode/engagements",
+            backLabel: t("offensive.engagement.nav.back", "All engagements"),
+            items: offensiveEngagementNavItems,
+          }
       : null;
-  const contextualBackPath = sessionStorage.getItem(lastRootPathKey) || "/";
   const profileAvatarSrc =
     user?.avatar_base64 ||
     `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(
@@ -524,8 +588,8 @@ export default function Layout() {
             <>
               <button
                 type="button"
-                title={isSidebarCollapsed ? t("layout.context.back", "Back to workspace") : undefined}
-                onClick={() => navigate(contextualBackPath)}
+                title={isSidebarCollapsed ? contextualNav.backLabel : undefined}
+                onClick={() => navigate(contextualNav.backPath)}
                 className={cn(
                   "flex w-full items-center gap-3 py-3 text-sm font-medium text-outline transition-colors rounded-sm hover:text-white hover:bg-white/5 border-l-4 border-transparent",
                   isSidebarCollapsed ? "justify-center px-0" : "px-4",
@@ -534,7 +598,7 @@ export default function Layout() {
                 <ChevronLeft className="w-4 h-4 shrink-0" />
                 {!isSidebarCollapsed && (
                   <span className="whitespace-nowrap">
-                    {t("layout.context.back", "Back to workspace")}
+                    {contextualNav.backLabel}
                   </span>
                 )}
               </button>
@@ -916,7 +980,7 @@ export default function Layout() {
               </button>
             </div>
           )}
-          {showApiKeyToast && !location.pathname.startsWith("/profile") && (
+          {showApiKeyToast && activeWorkspace === DEFAULT_WORKSPACE && !location.pathname.startsWith("/profile") && (
             <div className="mb-6 rounded-sm border border-primary/20 bg-primary/10 px-4 py-4 text-sm text-on-surface">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>

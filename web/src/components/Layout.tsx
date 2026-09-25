@@ -101,6 +101,7 @@ export default function Layout() {
     expiresAt: 0,
   });
   const canAccessSettings = canAccessPath(user, "/settings");
+  const canAccessOffensive = canAccessPath(user, "/redmode");
   const apiKeyToastDismissKey = `vantage.api-keys-toast.dismissed.${user?.username || "anon"}`;
   const languageLabel = language === "en" ? "EN" : language === "es" ? "ES" : "PT";
   const lastRootPathKey = "vantage.sidebar.last-root-path";
@@ -652,45 +653,6 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
-              <div
-                role="radiogroup"
-                aria-label={t("layout.topbar.workspaceLabel", "Active workspace")}
-                aria-busy={workspaceSwitching}
-                className="flex items-center rounded-sm border border-outline-variant/30 bg-surface-container-low p-0.5"
-              >
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={activeWorkspace === DEFAULT_WORKSPACE}
-                  disabled={workspaceSwitching}
-                  onClick={() => void handleWorkspaceSwitch(DEFAULT_WORKSPACE)}
-                  className={cn(
-                    "flex h-7 items-center gap-1.5 rounded-sm px-2 text-[9px] font-black uppercase tracking-wider transition-colors disabled:opacity-60",
-                    activeWorkspace === DEFAULT_WORKSPACE
-                      ? "bg-primary text-on-primary"
-                      : "text-on-surface-variant hover:text-on-surface",
-                  )}
-                >
-                  <ShieldCheck className="h-3.5 w-3.5" />
-                  SOC
-                </button>
-                <button
-                  type="button"
-                  role="radio"
-                  aria-checked={activeWorkspace === OFFENSIVE_WORKSPACE}
-                  disabled={workspaceSwitching}
-                  onClick={() => void handleWorkspaceSwitch(OFFENSIVE_WORKSPACE)}
-                  className={cn(
-                    "flex h-7 items-center gap-1.5 rounded-sm px-2 text-[9px] font-black uppercase tracking-wider transition-colors disabled:opacity-60",
-                    activeWorkspace === OFFENSIVE_WORKSPACE
-                      ? "bg-primary text-on-primary"
-                      : "text-on-surface-variant hover:text-on-surface",
-                  )}
-                >
-                  <Crosshair className="h-3.5 w-3.5" />
-                  Offensive Mode
-                </button>
-              </div>
               <div className="topbar-nav-search" ref={topbarSearchRef}>
                 <Search className="topbar-nav-search-icon" />
                 <input
@@ -815,7 +777,7 @@ export default function Layout() {
                 </button>
 
                 {isProfileOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-surface-container-high border border-outline-variant/20 rounded-md shadow-lg py-1 z-50">
+                  <div className="absolute right-0 mt-2 w-72 bg-surface-container-high border border-outline-variant/20 rounded-md shadow-lg py-1 z-50">
                     <div className="px-4 py-2 border-b border-outline-variant/20">
                       <p className="text-sm font-medium text-on-surface">
                         {user?.name || user?.username || "Operator"}
@@ -823,6 +785,71 @@ export default function Layout() {
                       <p className="text-xs text-on-surface-variant">
                         {(user?.role || "tech").toUpperCase()}
                       </p>
+                    </div>
+                    <div
+                      className="border-b border-outline-variant/20 px-2 py-2"
+                      aria-label={t("layout.topbar.workspaceLabel", "Active workspace")}
+                      aria-busy={workspaceSwitching}
+                    >
+                      <p className="px-2 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">
+                        {t("layout.topbar.workspaceMenu", "Workspace")}
+                      </p>
+                      <button
+                        type="button"
+                        disabled={workspaceSwitching}
+                        onClick={() => {
+                          setIsProfileOpen(false);
+                          void handleWorkspaceSwitch(DEFAULT_WORKSPACE);
+                        }}
+                        className={cn(
+                          "flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors disabled:opacity-60",
+                          activeWorkspace === DEFAULT_WORKSPACE
+                            ? "bg-primary/10 text-primary"
+                            : "text-on-surface hover:bg-surface-container-highest",
+                        )}
+                      >
+                        <ShieldCheck className="h-4 w-4 shrink-0" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-semibold">SOC</span>
+                          <span className="block text-[11px] text-on-surface-variant">
+                            {t("layout.topbar.workspaceSocDescription", "Security Operations Center")}
+                          </span>
+                        </span>
+                        {activeWorkspace === DEFAULT_WORKSPACE && (
+                          <span className="text-[9px] font-black uppercase tracking-wider">
+                            {t("layout.topbar.workspaceActive", "Active")}
+                          </span>
+                        )}
+                      </button>
+                      {canAccessOffensive && (
+                        <button
+                          type="button"
+                          disabled={workspaceSwitching}
+                          onClick={() => {
+                            setIsProfileOpen(false);
+                            void handleWorkspaceSwitch(OFFENSIVE_WORKSPACE);
+                          }}
+                          className={cn(
+                            "mt-1 flex w-full items-center gap-3 rounded-sm px-2 py-2 text-left transition-colors disabled:opacity-60",
+                            activeWorkspace === OFFENSIVE_WORKSPACE
+                              ? "bg-primary/10 text-primary"
+                              : "text-on-surface hover:bg-surface-container-highest",
+                          )}
+                        >
+                          <Crosshair className="h-4 w-4 shrink-0" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block text-sm font-semibold">Offensive Mode</span>
+                            <span className="block text-[11px] text-on-surface-variant">
+                              {t("layout.topbar.workspaceOffensiveDescription", "Red Team workspace")}
+                            </span>
+                          </span>
+                          {activeWorkspace === OFFENSIVE_WORKSPACE && (
+                            <span className="text-[9px] font-black uppercase tracking-wider">
+                              {t("layout.topbar.workspaceActive", "Active")}
+                            </span>
+                          )}
+                        </button>
+                      )}
                     </div>
                     <Link 
                       to="/profile" 

@@ -90,6 +90,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       topbar: {
         workspaceLabel: "Workspace ativo",
         workspaceSwitchFailed: "Não foi possível trocar de workspace. Tente novamente.",
+        workspaceMenu: "Workspace",
+        workspaceSocDescription: "Security Operations Center",
+        workspaceOffensiveDescription: "Workspace de Red Team",
+        workspaceActive: "Ativo",
         analyst: "Analista",
         documentation: "Documentação",
         keyboardShortcuts: "Atalhos de teclado",
@@ -1810,6 +1814,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       topbar: {
         workspaceLabel: "Active workspace",
         workspaceSwitchFailed: "Could not switch workspaces. Try again.",
+        workspaceMenu: "Workspace",
+        workspaceSocDescription: "Security Operations Center",
+        workspaceOffensiveDescription: "Red Team workspace",
+        workspaceActive: "Active",
         analyst: "Analyst",
         documentation: "Documentation",
         keyboardShortcuts: "Keyboard Shortcuts",
@@ -3514,6 +3522,10 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       topbar: {
         workspaceLabel: "Workspace activo",
         workspaceSwitchFailed: "No se pudo cambiar de workspace. Inténtelo de nuevo.",
+        workspaceMenu: "Workspace",
+        workspaceSocDescription: "Security Operations Center",
+        workspaceOffensiveDescription: "Workspace de Red Team",
+        workspaceActive: "Activo",
         analyst: "Analista",
         documentation: "Documentación",
         keyboardShortcuts: "Atajos de teclado",

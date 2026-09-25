@@ -396,6 +396,7 @@ class FakeDB:
         self.threat_items = FakeCollection()
         self.redmode_projects = FakeCollection()
         self.redmode_scope_versions = FakeCollection()
+        self.redmode_scope_sources = FakeCollection()
         self.redmode_evidence = FakeCollection()
         self.redmode_findings = FakeCollection()
         self.redmode_finding_revisions = FakeCollection()

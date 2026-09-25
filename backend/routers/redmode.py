@@ -19,7 +19,12 @@ from auth import get_current_user, has_permission
 from config import settings
 from db import db_manager
 from logging_config import get_logger
-from redmode_files import GridFSScopeStore, clean_filename, extract_scope_content
+from redmode_files import (
+    GridFSScopeSourceTextStore,
+    GridFSScopeStore,
+    clean_filename,
+    extract_scope_content,
+)
 from redmode_scope import compile_scope_text, merge_scope_rules
 
 
@@ -76,9 +81,19 @@ def scope_versions_collection():
     return db_manager.db.redmode_scope_versions
 
 
+def scope_sources_collection():
+    projects_collection()
+    return db_manager.db.redmode_scope_sources
+
+
 def file_store():
     projects_collection()
     return GridFSScopeStore(db_manager.db)
+
+
+def source_text_store():
+    projects_collection()
+    return GridFSScopeSourceTextStore(db_manager.db)
 
 
 def project_summary(doc: dict) -> dict:
@@ -515,7 +530,44 @@ def scope_version_detail(doc: dict) -> dict:
     }
 
 
-async def _publish_scope(project: dict, source: dict, rules: list[dict], current_user: dict) -> dict:
+def _source_rule_count(rules: list[dict], source_id: str) -> int:
+    return sum(
+        1
+        for rule in rules
+        if any(origin.get("source_id") == source_id for origin in rule.get("origins", []))
+    )
+
+
+async def _clean_source_publication(version_id: str, representation_ids: list[str]) -> None:
+    try:
+        await scope_sources_collection().delete_many({"version_id": version_id})
+    except Exception:
+        logger.warning("Failed to clean up unpublished RedMode scope source metadata")
+    try:
+        store = source_text_store()
+    except Exception:
+        store = None
+        logger.warning("Failed to open RedMode scope source storage during cleanup")
+    for representation_id in representation_ids:
+        if store is None:
+            break
+        try:
+            await store.delete(representation_id)
+        except Exception:
+            logger.warning("Failed to clean up unpublished RedMode scope source representation")
+    try:
+        await scope_versions_collection().delete_one({"_id": version_id})
+    except Exception:
+        logger.warning("Failed to clean up unpublished RedMode scope version")
+
+
+async def _publish_scope(
+    project: dict,
+    source: dict,
+    rules: list[dict],
+    current_user: dict,
+    source_materials: list[dict],
+) -> dict:
     slug = project["_id"]
     now = datetime.now(timezone.utc)
     version_id = uuid4().hex
@@ -526,11 +578,49 @@ async def _publish_scope(project: dict, source: dict, rules: list[dict], current
         "created_at": now,
         "source": source,
         "rules": rules,
+        "source_schema_version": 1,
     }
     versions = scope_versions_collection()
-    await versions.insert_one(version)
     event = {"type": "scope_published", "author": current_user["username"], "subject": version_id, "at": now}
+    representation_ids = []
     try:
+        representation_store = source_text_store()
+        for order, material in enumerate(source_materials):
+            source_id = material["source_id"]
+            representation_id = await representation_store.save(
+                f"{source_id}.txt",
+                material["extracted_text"].encode("utf-8"),
+                {
+                    "project_slug": slug,
+                    "version_id": version_id,
+                    "source_id": source_id,
+                    "author": current_user["username"],
+                },
+            )
+            representation_ids.append(representation_id)
+            rule_count = _source_rule_count(rules, source_id)
+            await scope_sources_collection().insert_one({
+                "_id": uuid4().hex,
+                "project_slug": slug,
+                "version_id": version_id,
+                "source_id": source_id,
+                "type": material["type"],
+                "name": material["name"],
+                "mime_type": material["mime_type"],
+                "size": material["size"],
+                "sha256": material["sha256"],
+                "author": current_user["username"],
+                "created_at": now,
+                "order": order,
+                "original_file_id": material.get("original_file_id"),
+                "representation_file_id": representation_id,
+                "extraction": {
+                    "status": "complete",
+                    "warnings": [] if rule_count else ["no_targets_detected"],
+                    "rule_count": rule_count,
+                },
+            })
+        await versions.insert_one(version)
         result = await projects_collection().update_one(
             {"_id": slug, "members": project["members"], "active_scope_version": project.get("active_scope_version")},
             {
@@ -538,12 +628,14 @@ async def _publish_scope(project: dict, source: dict, rules: list[dict], current
                 "$push": {"scope_history": version_id, "activity_events": event},
             },
         )
-    except Exception:
-        await versions.delete_one({"_id": version_id})
-        raise
-    if result.modified_count != 1:
-        await versions.delete_one({"_id": version_id})
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="project_changed_retry")
+        if result.modified_count != 1:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="project_changed_retry")
+    except Exception as exc:
+        await _clean_source_publication(version_id, representation_ids)
+        if isinstance(exc, HTTPException):
+            raise
+        logger.exception("RedMode scope sources could not be published")
+        raise HTTPException(status_code=503, detail="scope_storage_unavailable") from exc
     return scope_version_detail(version)
 
 
@@ -565,7 +657,16 @@ async def publish_text_scope(
         "sha256": sha256(payload.text.encode("utf-8")).hexdigest(),
         "files": [],
     }
-    return await _publish_scope(project, source, rules, current_user)
+    content = payload.text.encode("utf-8")
+    return await _publish_scope(project, source, rules, current_user, [{
+        "source_id": "text",
+        "type": "text",
+        "name": "Texto colado",
+        "mime_type": "text/plain; charset=utf-8",
+        "size": len(content),
+        "sha256": sha256(content).hexdigest(),
+        "extracted_text": payload.text,
+    }])
 
 
 @router.get("/scope/limits")
@@ -623,6 +724,8 @@ async def publish_scope_bundle(
             "source_id": source_id,
             "filename": filename,
             "content": content,
+            "extracted_text": extracted,
+            "mime_type": upload.content_type or guess_type(filename)[0] or "application/octet-stream",
             "sha256": sha256(content).hexdigest(),
         })
 
@@ -650,7 +753,29 @@ async def publish_scope_bundle(
             })
         fingerprint = sha256(text.encode("utf-8") + "".join(item["sha256"] for item in prepared).encode("ascii")).hexdigest()
         source = {"kind": "bundle", "text": text, "sha256": fingerprint, "files": file_metadata}
-        return await _publish_scope(project, source, rules, current_user)
+        source_materials = []
+        if text:
+            text_content = text.encode("utf-8")
+            source_materials.append({
+                "source_id": "text",
+                "type": "text",
+                "name": "Texto colado",
+                "mime_type": "text/plain; charset=utf-8",
+                "size": len(text_content),
+                "sha256": sha256(text_content).hexdigest(),
+                "extracted_text": text,
+            })
+        source_materials.extend({
+            "source_id": item["source_id"],
+            "type": "file",
+            "name": item["filename"],
+            "mime_type": item["mime_type"],
+            "size": len(item["content"]),
+            "sha256": item["sha256"],
+            "extracted_text": item["extracted_text"],
+            "original_file_id": metadata["id"],
+        } for item, metadata in zip(prepared, file_metadata))
+        return await _publish_scope(project, source, rules, current_user, source_materials)
     except Exception as exc:
         if store is not None:
             for file_id in saved_ids:
@@ -664,6 +789,170 @@ async def publish_scope_bundle(
         raise HTTPException(status_code=503, detail="scope_storage_unavailable") from exc
 
 
+async def _load_scope_version_for_member(slug: str, version_id: str, current_user: dict) -> dict:
+    project = await load_project_for_member(slug, current_user)
+    if version_id not in project.get("scope_history", []):
+        raise HTTPException(status_code=404, detail="scope_version_not_found")
+    version = await scope_versions_collection().find_one({"_id": version_id, "project_slug": slug})
+    if version is None:
+        raise HTTPException(status_code=503, detail="scope_version_unavailable")
+    return version
+
+
+def _legacy_scope_sources(version: dict) -> list[dict]:
+    source = version.get("source", {})
+    rules = version.get("rules", [])
+    items = []
+    text = source.get("text", "")
+    if text:
+        content = text.encode("utf-8")
+        rule_count = _source_rule_count(rules, "text")
+        items.append({
+            "project_slug": version["project_slug"],
+            "version_id": version["_id"],
+            "source_id": "text",
+            "type": "text",
+            "name": "Texto colado",
+            "mime_type": "text/plain; charset=utf-8",
+            "size": len(content),
+            "sha256": sha256(content).hexdigest(),
+            "author": version["author"],
+            "created_at": version["created_at"],
+            "order": 0,
+            "original_file_id": None,
+            "representation_file_id": None,
+            "legacy_representation": content,
+            "extraction": {
+                "status": "legacy",
+                "warnings": ["representation_not_materialized", *([] if rule_count else ["no_targets_detected"])],
+                "rule_count": rule_count,
+            },
+        })
+    for offset, file_info in enumerate(source.get("files", []), start=len(items)):
+        source_id = file_info.get("source_id") or f"legacy-file-{offset + 1}"
+        rule_count = _source_rule_count(rules, source_id)
+        filename = clean_filename(file_info.get("filename", "arquivo")) or "arquivo"
+        items.append({
+            "project_slug": version["project_slug"],
+            "version_id": version["_id"],
+            "source_id": source_id,
+            "type": "file",
+            "name": filename,
+            "mime_type": guess_type(filename)[0] or "application/octet-stream",
+            "size": file_info.get("size", 0),
+            "sha256": file_info.get("sha256", ""),
+            "author": version["author"],
+            "created_at": version["created_at"],
+            "order": offset,
+            "original_file_id": file_info.get("id"),
+            "representation_file_id": None,
+            "extraction": {
+                "status": "legacy",
+                "warnings": ["representation_not_materialized", *([] if rule_count else ["no_targets_detected"])],
+                "rule_count": rule_count,
+            },
+        })
+    return items
+
+
+async def _scope_sources_for_version(version: dict) -> list[dict]:
+    items = [
+        item
+        async for item in scope_sources_collection().find({
+            "project_slug": version["project_slug"],
+            "version_id": version["_id"],
+        }).sort("order", 1)
+    ]
+    if items:
+        return items
+    if version.get("source_schema_version") == 1:
+        raise HTTPException(status_code=503, detail="scope_sources_unavailable")
+    return _legacy_scope_sources(version)
+
+
+def _scope_source_detail(source: dict) -> dict:
+    representation_materialized = bool(source.get("representation_file_id"))
+    representation_available = representation_materialized or source.get("legacy_representation") is not None
+    original_file_id = source.get("original_file_id")
+    return {
+        "source_id": source["source_id"],
+        "project_slug": source["project_slug"],
+        "version_id": source["version_id"],
+        "type": source["type"],
+        "name": source["name"],
+        "mime_type": source["mime_type"],
+        "size": source["size"],
+        "sha256": source["sha256"],
+        "author": source["author"],
+        "created_at": source["created_at"],
+        "extraction": source["extraction"],
+        "original": {"available": bool(original_file_id), "file_id": original_file_id},
+        "representation": {
+            "available": representation_available,
+            "materialized": representation_materialized,
+        },
+    }
+
+
+@router.get("/projects/{slug}/scope/versions/{version_id}/sources")
+async def list_scope_sources(
+    slug: str,
+    version_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
+    sources = await _scope_sources_for_version(version)
+    return {"items": [_scope_source_detail(source) for source in sources]}
+
+
+@router.get("/projects/{slug}/scope/versions/{version_id}/sources/{source_id}")
+async def get_scope_source(
+    slug: str,
+    version_id: str,
+    source_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
+    sources = await _scope_sources_for_version(version)
+    source = next((item for item in sources if item["source_id"] == source_id), None)
+    if source is None:
+        raise HTTPException(status_code=404, detail="scope_source_not_found")
+    return _scope_source_detail(source)
+
+
+@router.get("/projects/{slug}/scope/versions/{version_id}/sources/{source_id}/representation")
+async def read_scope_source_representation(
+    slug: str,
+    version_id: str,
+    source_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
+    sources = await _scope_sources_for_version(version)
+    source = next((item for item in sources if item["source_id"] == source_id), None)
+    if source is None:
+        raise HTTPException(status_code=404, detail="scope_source_not_found")
+    content = source.get("legacy_representation")
+    representation_id = source.get("representation_file_id")
+    if content is None and representation_id:
+        try:
+            content = await source_text_store().read(representation_id)
+        except FileNotFoundError as exc:
+            raise HTTPException(status_code=503, detail="scope_source_representation_unavailable") from exc
+    if content is None:
+        raise HTTPException(status_code=404, detail="scope_source_representation_not_materialized")
+    filename = f"{clean_filename(source['name']) or source_id}.txt"
+    return Response(
+        content=content,
+        media_type="text/plain; charset=utf-8",
+        headers={
+            "Content-Disposition": f"inline; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "private, no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.get("/projects/{slug}/scope/versions/{version_id}/files/{file_id}")
 async def download_scope_file(
     slug: str,
@@ -671,12 +960,7 @@ async def download_scope_file(
     file_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
-    if version_id not in project.get("scope_history", []):
-        raise HTTPException(status_code=404, detail="scope_version_not_found")
-    version = await scope_versions_collection().find_one({"_id": version_id, "project_slug": slug})
-    if version is None:
-        raise HTTPException(status_code=404, detail="scope_version_not_found")
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
     file_info = next((item for item in version["source"].get("files", []) if item["id"] == file_id), None)
     if file_info is None:
         raise HTTPException(status_code=404, detail="scope_file_not_found")
@@ -737,10 +1021,5 @@ async def get_scope_version(
     version_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
-    if version_id not in project.get("scope_history", []):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="scope_version_not_found")
-    version = await scope_versions_collection().find_one({"_id": version_id, "project_slug": slug})
-    if version is None:
-        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="scope_version_unavailable")
+    version = await _load_scope_version_for_member(slug, version_id, current_user)
     return scope_version_detail(version)

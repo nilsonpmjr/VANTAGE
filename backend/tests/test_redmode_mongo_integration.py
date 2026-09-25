@@ -122,6 +122,22 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
             assert categories["203.0.113.20"] == "third_party"
             assert categories["198.51.100.20"] == "excluded"
             assert len(active["source"]["files"]) == len(uploads)
+            sources_response = await http.get(
+                f"{base}/scope/versions/{active['id']}/sources",
+                headers=member,
+            )
+            assert sources_response.status_code == 200, sources_response.text
+            sources = sources_response.json()["items"]
+            assert len(sources) == len(uploads) + 1
+            assert sources[0]["source_id"] == "text"
+            assert all(item["representation"]["materialized"] for item in sources)
+            extracted = await http.get(
+                f"{base}/scope/versions/{active['id']}/sources/"
+                f"{sources[1]['source_id']}/representation",
+                headers=member,
+            )
+            assert extracted.status_code == 200
+            assert extracted.content == b"192.0.2.20"
             file_id = active["source"]["files"][0]["id"]
             scope_file_url = f"{base}/scope/versions/{active['id']}/files/{file_id}"
             for metadata, (filename, content, _) in zip(active["source"]["files"], uploads):

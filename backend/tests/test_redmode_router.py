@@ -1,6 +1,7 @@
 """First RedMode slice: workspace permission, project feed, and creator access."""
 
 import io
+from datetime import datetime, timezone
 
 import pytest
 from docx import Document
@@ -12,9 +13,10 @@ class MemoryScopeFiles:
     def __init__(self):
         self.files = {}
         self.fail_save = False
+        self.fail_after = None
 
     async def save(self, filename, content, metadata):
-        if self.fail_save:
+        if self.fail_save or (self.fail_after is not None and len(self.files) >= self.fail_after):
             raise RuntimeError("storage unavailable")
         file_id = f"file-{len(self.files) + 1}"
         self.files[file_id] = content
@@ -34,6 +36,14 @@ def scope_files(monkeypatch):
     import routers.redmode as redmode
     store = MemoryScopeFiles()
     monkeypatch.setattr(redmode, "file_store", lambda: store)
+    return store
+
+
+@pytest.fixture(autouse=True)
+def scope_source_texts(monkeypatch):
+    import routers.redmode as redmode
+    store = MemoryScopeFiles()
+    monkeypatch.setattr(redmode, "source_text_store", lambda: store)
     return store
 
 
@@ -465,6 +475,167 @@ async def test_mixed_scope_upload_and_private_download(async_client, fake_db, sc
         headers=headers_for("techuser"),
     )
     assert denied_upload.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_scope_sources_are_materialized_and_private(
+    async_client,
+    fake_db,
+    scope_files,
+    scope_source_texts,
+):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    response = await async_client.post(
+        "/api/redmode/projects/cliente-demo/scope/submit",
+        data={"text": "192.0.2.10"},
+        files=[
+            ("files", ("scope.txt", b"198.51.100.10", "text/plain")),
+            ("files", ("scope.txt", b"notas sem alvos", "text/plain")),
+        ],
+        headers=headers_for("admin", "admin"),
+    )
+    assert response.status_code == 201
+    version = response.json()
+    path = f"/api/redmode/projects/cliente-demo/scope/versions/{version['id']}/sources"
+    listed = await async_client.get(path, headers=headers_for("admin", "admin"))
+    assert listed.status_code == 200
+    sources = listed.json()["items"]
+    assert [item["type"] for item in sources] == ["text", "file", "file"]
+    assert [item["name"] for item in sources] == ["Texto colado", "scope.txt", "scope.txt"]
+    assert len({item["source_id"] for item in sources}) == 3
+    assert [item["extraction"]["rule_count"] for item in sources] == [1, 1, 0]
+    assert sources[2]["extraction"]["warnings"] == ["no_targets_detected"]
+    assert all(item["representation"] == {"available": True, "materialized": True} for item in sources)
+    assert sources[0]["original"] == {"available": False, "file_id": None}
+    assert all(item["original"]["available"] for item in sources[1:])
+    assert len(scope_files.files) == 2
+    assert len(scope_source_texts.files) == 3
+
+    file_source = sources[1]
+    detail = await async_client.get(
+        f"{path}/{file_source['source_id']}",
+        headers=headers_for("admin", "admin"),
+    )
+    assert detail.status_code == 200
+    assert detail.json() == file_source
+    representation = await async_client.get(
+        f"{path}/{file_source['source_id']}/representation",
+        headers=headers_for("admin", "admin"),
+    )
+    assert representation.status_code == 200
+    assert representation.content == b"198.51.100.10"
+    assert representation.headers["cache-control"] == "private, no-store"
+    assert representation.headers["x-content-type-options"] == "nosniff"
+
+    stored = fake_db.redmode_scope_sources._data
+    assert len(stored) == 3
+    assert all("extracted_text" not in item for item in stored)
+    await grant_redmode(fake_db, "techuser")
+    denied = await async_client.get(path, headers=headers_for("techuser"))
+    assert denied.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_scope_source_failure_rolls_back_metadata_representations_and_originals(
+    async_client,
+    fake_db,
+    scope_files,
+    scope_source_texts,
+):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    scope_source_texts.fail_after = 1
+    response = await async_client.post(
+        "/api/redmode/projects/cliente-demo/scope/submit",
+        data={"text": "192.0.2.10"},
+        files=[("files", ("scope.txt", b"198.51.100.10", "text/plain"))],
+        headers=headers_for("admin", "admin"),
+    )
+    assert response.status_code == 503
+    assert scope_files.files == {}
+    assert scope_source_texts.files == {}
+    assert fake_db.redmode_scope_sources._data == []
+    assert fake_db.redmode_scope_versions._data == []
+    project = await fake_db.redmode_projects.find_one({"_id": "cliente-demo"})
+    assert project.get("active_scope_version") is None
+    assert project.get("scope_history", []) == []
+
+
+@pytest.mark.asyncio
+async def test_legacy_scope_sources_are_adapted_without_rewriting_history(
+    async_client,
+    fake_db,
+    scope_files,
+):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    created_at = datetime.now(timezone.utc)
+    version_id = "legacy-version"
+    await fake_db.redmode_scope_versions.insert_one({
+        "_id": version_id,
+        "project_slug": "cliente-demo",
+        "author": "admin",
+        "created_at": created_at,
+        "source": {
+            "kind": "bundle",
+            "text": "192.0.2.10",
+            "sha256": "legacy-fingerprint",
+            "files": [{
+                "id": "legacy-file",
+                "source_id": "legacy-source",
+                "filename": "scope.txt",
+                "size": 13,
+                "sha256": "legacy-hash",
+            }],
+        },
+        "rules": [{
+            "value": "192.0.2.10",
+            "category": "client",
+            "origins": [{"source_id": "text", "line": 1}],
+        }],
+    })
+    await fake_db.redmode_projects.update_one(
+        {"_id": "cliente-demo"},
+        {"$set": {"active_scope_version": version_id}, "$push": {"scope_history": version_id}},
+    )
+    scope_files.files["legacy-file"] = b"legacy source"
+    base = f"/api/redmode/projects/cliente-demo/scope/versions/{version_id}"
+    response = await async_client.get(f"{base}/sources", headers=headers_for("admin", "admin"))
+    assert response.status_code == 200
+    text_source, file_source = response.json()["items"]
+    assert text_source["representation"] == {"available": True, "materialized": False}
+    assert text_source["extraction"]["status"] == "legacy"
+    assert file_source["representation"] == {"available": False, "materialized": False}
+    assert "representation_not_materialized" in file_source["extraction"]["warnings"]
+
+    text_content = await async_client.get(
+        f"{base}/sources/text/representation",
+        headers=headers_for("admin", "admin"),
+    )
+    assert text_content.status_code == 200
+    assert text_content.content == b"192.0.2.10"
+    absent_content = await async_client.get(
+        f"{base}/sources/legacy-source/representation",
+        headers=headers_for("admin", "admin"),
+    )
+    assert absent_content.status_code == 404
+    original = await async_client.get(
+        f"{base}/files/legacy-file",
+        headers=headers_for("admin", "admin"),
+    )
+    assert original.status_code == 200
+    assert original.content == b"legacy source"
+    assert fake_db.redmode_scope_sources._data == []
 
 
 @pytest.mark.asyncio

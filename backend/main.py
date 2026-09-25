@@ -208,6 +208,15 @@ async def lifespan(app: FastAPI):
                 [("project_slug", 1), ("created_at", -1)],
                 name="redmode_scope_project_created",
             )
+            await db.redmode_scope_sources.create_index(
+                [("project_slug", 1), ("version_id", 1), ("order", 1)],
+                name="redmode_scope_sources_project_version_order",
+            )
+            await db.redmode_scope_sources.create_index(
+                [("project_slug", 1), ("version_id", 1), ("source_id", 1)],
+                unique=True,
+                name="redmode_scope_sources_version_source",
+            )
             await db.redmode_evidence.create_index(
                 [("project_slug", 1), ("created_at", -1)],
                 name="redmode_evidence_project_created",

@@ -159,6 +159,11 @@ class GridFSScopeStore(GridFSPrivateStore):
         super().__init__(db, "redmode_scope_files")
 
 
+class GridFSScopeSourceTextStore(GridFSPrivateStore):
+    def __init__(self, db):
+        super().__init__(db, "redmode_scope_source_text")
+
+
 class GridFSEvidenceStore(GridFSPrivateStore):
     def __init__(self, db):
         super().__init__(db, "redmode_evidence_files")

@@ -4,7 +4,7 @@
  */
 
 import { Component, Suspense, lazy, type ReactNode } from "react";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import Layout from "./components/Layout";
 import { AuthProvider, RequireAuth, RequirePathAccess } from "./context/AuthContext";
 import { LanguageProvider } from "./context/LanguageContext";
@@ -78,6 +78,11 @@ const ShortcutsPage = lazy(() => import("./pages/help/ShortcutsPage"));
 const ApiReferencePage = lazy(() => import("./pages/help/ApiReferencePage"));
 const ContactSupportPage = lazy(() => import("./pages/help/ContactSupportPage"));
 
+function LegacyOffensiveEngagementRedirect() {
+  const { slug } = useParams<{ slug: string }>();
+  return <Navigate to={`/redmode/engagements/${encodeURIComponent(slug || "")}`} replace />;
+}
+
 function RouteFallback() {
   return (
     <div className="page-frame">
@@ -111,8 +116,10 @@ export default function App() {
               >
                 <Route index element={suspense(<Home />)} />
                 <Route path="feed" element={suspense(<Feed />)} />
-                <Route path="redmode" element={<RequirePathAccess path="/redmode">{suspense(<RedModeFeed />)}</RequirePathAccess>} />
-                <Route path="redmode/:slug" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
+                <Route path="redmode" element={<RequirePathAccess path="/redmode"><Navigate to="/redmode/engagements" replace /></RequirePathAccess>} />
+                <Route path="redmode/engagements" element={<RequirePathAccess path="/redmode">{suspense(<RedModeFeed />)}</RequirePathAccess>} />
+                <Route path="redmode/engagements/:slug" element={<RequirePathAccess path="/redmode">{suspense(<RedModeProject />)}</RequirePathAccess>} />
+                <Route path="redmode/:slug" element={<RequirePathAccess path="/redmode"><LegacyOffensiveEngagementRedirect /></RequirePathAccess>} />
                 <Route path="recon" element={suspense(<Recon />)} />
                 <Route path="watchlist" element={suspense(<Watchlist />)} />
                 <Route path="dashboard" element={suspense(<Dashboard />)} />

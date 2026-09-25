@@ -71,7 +71,7 @@ export default function RedModeProject() {
     } catch (cause) {
       const reason = cause instanceof Error ? cause.message : "";
       setMemberError(reason === "member_not_eligible"
-        ? "O usuário precisa estar ativo e ter acesso ao RedMode."
+        ? "O usuário precisa estar ativo e ter acesso ao Offensive Mode."
         : reason === "member_already_added"
           ? "Esse usuário já é membro."
           : "Não foi possível alterar a equipe. Tente novamente.");
@@ -87,12 +87,12 @@ export default function RedModeProject() {
 
   return (
     <div className="page-frame">
-      <Link to="/redmode" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> Voltar aos projetos</Link>
+      <Link to="/redmode/engagements" className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline"><ArrowLeft className="h-4 w-4" /> Voltar aos engagements</Link>
       {loading ? <div className="card p-6 text-sm text-on-surface-variant">Carregando projeto...</div> : error ? (
         <div className="card p-6" role="alert"><p className="text-on-surface">{error}</p></div>
       ) : project ? (
         <>
-          <PageHeader eyebrow="Workspace RedMode" title={project.display_name} description={`${project.phase} · ${project.status}`} />
+          <PageHeader eyebrow="Offensive Mode" title={project.display_name} description={`${project.phase} · ${project.status}`} />
           <section className="card p-6">
             <div className="flex items-center gap-2 text-primary"><Users className="h-4 w-4" /><h2 className="text-sm font-bold uppercase tracking-wider">Equipe</h2></div>
             <p className="mt-3 text-sm text-on-surface">Responsável: {project.responsible}</p>
@@ -139,10 +139,6 @@ export default function RedModeProject() {
             setFindingRefresh((current) => current + 1);
             void listProjectActivity(project.slug).then((events) => setActivity(events.items)).catch(() => setActivityError("Não foi possível atualizar o histórico."));
           }} />
-          <section className="card p-6">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Próximas etapas deste workspace</h2>
-            <p className="mt-3 text-sm text-on-surface-variant">O copiloto, as automações e a avaliação por LLM ficam para as próximas frentes. Nenhuma ferramenta é executada nesta etapa.</p>
-          </section>
         </>
       ) : null}
     </div>

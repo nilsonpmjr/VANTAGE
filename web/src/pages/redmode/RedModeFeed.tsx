@@ -44,7 +44,7 @@ export default function RedModeFeed() {
     setError("");
     try {
       const project = await createProject(slug.trim(), displayName.trim());
-      navigate(`/redmode/${project.slug}`);
+      navigate(`/redmode/engagements/${project.slug}`);
     } catch (cause) {
       setError(cause instanceof Error && cause.message === "project_slug_exists"
         ? "Já existe um projeto com esse identificador."
@@ -57,16 +57,16 @@ export default function RedModeFeed() {
   return (
     <div className="page-frame">
       <PageHeader
-        eyebrow={<><ShieldAlert className="h-4 w-4" /> Workspace RedMode</>}
-        title="Projetos em andamento"
+        eyebrow={<><ShieldAlert className="h-4 w-4" /> Offensive Mode</>}
+        title="Engagements"
         description="Acompanhe os engagements da equipe. O conteúdo de cada projeto é reservado aos seus membros."
-        actions={<button type="button" className="btn btn-primary" onClick={() => setCreating((value) => !value)}><Plus className="h-4 w-4" /> Novo projeto</button>}
+        actions={<button type="button" className="btn btn-primary" onClick={() => setCreating((value) => !value)}><Plus className="h-4 w-4" /> Novo engagement</button>}
       />
 
       {creating && (
-        <form onSubmit={(event) => void handleCreate(event)} className="card p-6 space-y-4" aria-label="Criar projeto RedMode">
+        <form onSubmit={(event) => void handleCreate(event)} className="card p-6 space-y-4" aria-label="Criar engagement">
           <div>
-            <h2 className="text-base font-bold text-on-surface">Novo projeto</h2>
+            <h2 className="text-base font-bold text-on-surface">Novo engagement</h2>
             <p className="text-sm text-on-surface-variant">Você será o primeiro membro e responsável.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -80,7 +80,7 @@ export default function RedModeFeed() {
             </label>
           </div>
           <div className="flex gap-2">
-            <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? "Criando..." : "Criar projeto"}</button>
+            <button type="submit" className="btn btn-primary" disabled={submitting}>{submitting ? "Criando..." : "Criar engagement"}</button>
             <button type="button" className="btn btn-ghost" onClick={() => setCreating(false)}>Cancelar</button>
           </div>
         </form>
@@ -89,8 +89,8 @@ export default function RedModeFeed() {
       {error && <div className="rounded-sm border border-error/30 bg-error/10 px-4 py-3 text-sm text-error" role="alert">{error}</div>}
       {loading ? <div className="card p-6 text-sm text-on-surface-variant">Carregando projetos...</div> : projects.length === 0 ? (
         <div className="card p-8 text-center">
-          <h2 className="text-lg font-bold text-on-surface">Nenhum projeto ainda</h2>
-          <p className="mt-2 text-sm text-on-surface-variant">Crie o primeiro projeto para abrir o hub da equipe.</p>
+          <h2 className="text-lg font-bold text-on-surface">Nenhum engagement ainda</h2>
+          <p className="mt-2 text-sm text-on-surface-variant">Crie o primeiro engagement para abrir o hub da equipe.</p>
         </div>
       ) : (
         <><div className="grid gap-4 lg:grid-cols-2">
@@ -108,7 +108,7 @@ export default function RedModeFeed() {
                 <span>Responsável: {project.responsible}</span>
                 <span>Atividade: {formatActivity(project.last_activity_at)}</span>
               </div>
-              <Link to={`/redmode/${project.slug}`} className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline">Abrir projeto <ArrowRight className="h-4 w-4" /></Link>
+              <Link to={`/redmode/engagements/${project.slug}`} className="mt-5 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline">Abrir engagement <ArrowRight className="h-4 w-4" /></Link>
             </article>
           ))}
         </div>

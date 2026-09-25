@@ -54,15 +54,19 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-const rootNavItems = [
+const socNavItems = [
   { path: "/", labelKey: "layout.nav.home", fallback: "Home", icon: Home },
   { path: "/feed", labelKey: "layout.nav.feed", fallback: "Feed", icon: Rss },
-  { path: "/redmode", labelKey: "layout.nav.redmode", fallback: "RedMode", icon: ShieldAlert },
   { path: "/recon", labelKey: "layout.nav.recon", fallback: "Recon", icon: Radar },
   { path: "/watchlist", labelKey: "layout.nav.watchlist", fallback: "Watchlist", icon: Eye },
   { path: "/socc", labelKey: "socc.nav", fallback: "SOC Copilot", icon: Terminal },
   { path: "/shift-handoff", labelKey: "layout.nav.shiftHandoff", fallback: "Shift Handoff", icon: ClipboardList },
   { path: "/dashboard", labelKey: "layout.nav.dashboard", fallback: "Dashboard", icon: LayoutDashboard },
+];
+
+const offensiveNavItems = [
+  { path: "/redmode", labelKey: "layout.nav.offensiveHome", fallback: "Home", icon: Home, exact: true },
+  { path: "/redmode/engagements", labelKey: "layout.nav.engagements", fallback: "Engagements", icon: ShieldAlert },
 ];
 
 export default function Layout() {
@@ -119,8 +123,9 @@ export default function Layout() {
   // surface the user can't actually use.
   const { enabled: isSoccEnabled } = useExtensionEnabled("socc");
   const visibleNavItems = useMemo(
-    () => rootNavItems.filter((item) => (item.path !== "/socc" || isSoccEnabled) && canAccessPath(user, item.path)),
-    [isSoccEnabled, user],
+    () => (activeWorkspace === OFFENSIVE_WORKSPACE ? offensiveNavItems : socNavItems)
+      .filter((item) => (item.path !== "/socc" || isSoccEnabled) && canAccessPath(user, item.path)),
+    [activeWorkspace, isSoccEnabled, user],
   );
 
   const settingsNavItems = useMemo(
@@ -211,8 +216,8 @@ export default function Layout() {
     )}`;
   const profileAvatarObjectClass = user?.avatar_fit === "contain" ? "object-contain" : "object-cover";
   const navigationSearchEntries = useMemo(
-    () => buildNavigationSearchEntries(t, canAccessSettings),
-    [canAccessSettings, t],
+    () => buildNavigationSearchEntries(t, canAccessSettings, activeWorkspace),
+    [activeWorkspace, canAccessSettings, t],
   );
   const topbarContext = useMemo(
     () => resolveTopbarContext(location.pathname, location.search, t),
@@ -284,7 +289,10 @@ export default function Layout() {
 
       if (isModifier && lowerKey === "l") {
         e.preventDefault();
-        if (location.pathname !== "/") {
+        if (activeWorkspace === OFFENSIVE_WORKSPACE) {
+          setIsTopbarSearchOpen(true);
+          window.requestAnimationFrame(() => topbarSearchInputRef.current?.focus());
+        } else if (location.pathname !== "/") {
           setIsScanLauncherOpen(true);
         } else {
           sessionStorage.setItem("vantage.pending-focus-search", "true");
@@ -309,7 +317,7 @@ export default function Layout() {
       }
 
       const now = Date.now();
-      const sequenceMap = getShortcutSequenceMap(canAccessSettings);
+      const sequenceMap = getShortcutSequenceMap(canAccessSettings, activeWorkspace);
 
       if (shortcutSequenceRef.current.prefix === "g" && now <= shortcutSequenceRef.current.expiresAt) {
         const nextPath = sequenceMap[lowerKey];
@@ -330,7 +338,7 @@ export default function Layout() {
     }
     document.addEventListener("keydown", handleKeydown);
     return () => document.removeEventListener("keydown", handleKeydown);
-  }, [canAccessSettings, location.pathname, navigate]);
+  }, [activeWorkspace, canAccessSettings, location.pathname, navigate]);
 
   useEffect(() => {
     if (isSettingsContext || isProfileContext) {
@@ -561,7 +569,8 @@ export default function Layout() {
             <>
               {visibleNavItems.map((item) => {
                 const isActive =
-                  location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
+                  location.pathname === item.path
+                  || (!("exact" in item && item.exact) && location.pathname.startsWith(`${item.path}/`));
                 return (
                   <NavLink
                     key={item.path}
@@ -608,20 +617,22 @@ export default function Layout() {
           )}
         </nav>
 
-        <div className="p-4 border-t border-white/5 space-y-2">
-          <button
-            type="button"
-            onClick={() => setIsScanLauncherOpen(true)}
-            title={isSidebarCollapsed ? t("layout.topbar.startScan", "Start Scan") : undefined}
-            className={cn(
-              "btn btn-primary w-full",
-              isSidebarCollapsed && "px-0"
-            )}
-          >
-            <Zap className="w-4 h-4 shrink-0" />
-            {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.topbar.startScan", "Start Scan")}</span>}
-          </button>
-        </div>
+        {activeWorkspace === DEFAULT_WORKSPACE && (
+          <div className="p-4 border-t border-white/5 space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsScanLauncherOpen(true)}
+              title={isSidebarCollapsed ? t("layout.topbar.startScan", "Start Scan") : undefined}
+              className={cn(
+                "btn btn-primary w-full",
+                isSidebarCollapsed && "px-0"
+              )}
+            >
+              <Zap className="w-4 h-4 shrink-0" />
+              {!isSidebarCollapsed && <span className="whitespace-nowrap">{t("layout.topbar.startScan", "Start Scan")}</span>}
+            </button>
+          </div>
+        )}
       </aside>
 
       <div className={cn("flex-1 flex flex-col min-h-screen transition-all duration-300", isSidebarCollapsed ? "ml-20" : "ml-64")}>
@@ -677,7 +688,7 @@ export default function Layout() {
                   )}
                 >
                   <Crosshair className="h-3.5 w-3.5" />
-                  Red Team
+                  Offensive Mode
                 </button>
               </div>
               <div className="topbar-nav-search" ref={topbarSearchRef}>
@@ -742,9 +753,11 @@ export default function Layout() {
                 <Bell className="w-4 h-4" />
                 <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-error rounded-full border border-surface-container-high"></span>
               </Link>
-              <button onClick={handleHistoryClick} className="p-1.5 text-on-surface-variant hover:bg-surface-container-highest rounded transition-colors">
-                <History className="w-4 h-4" />
-              </button>
+              {activeWorkspace === DEFAULT_WORKSPACE && (
+                <button onClick={handleHistoryClick} className="p-1.5 text-on-surface-variant hover:bg-surface-container-highest rounded transition-colors">
+                  <History className="w-4 h-4" />
+                </button>
+              )}
               <div className="relative" ref={helpRef}>
                 <button 
                   onClick={() => setIsHelpOpen(!isHelpOpen)}
@@ -862,7 +875,7 @@ export default function Layout() {
                 {workspaceNotice === "permission_required:redmode:access"
                   ? t(
                       "auth.errors.redTeamAccessDenied",
-                      "Your account does not have Red Team access. The session was opened in the SOC.",
+                      "Your account does not have Offensive Mode access. The session was opened in the SOC.",
                     )
                   : workspaceNotice}
               </span>
@@ -916,6 +929,8 @@ export default function Layout() {
       <KeyboardShortcutsModal
         open={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+        workspace={activeWorkspace}
+        canAccessSettings={canAccessSettings}
       />
       <GlobalScanLauncher
         open={isScanLauncherOpen}

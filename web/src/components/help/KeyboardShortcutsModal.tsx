@@ -1,6 +1,7 @@
 import ModalShell from "../modal/ModalShell";
 import { useLanguage } from "../../context/LanguageContext";
 import { buildShortcutGroups, type ShortcutGroup } from "../../lib/shortcuts";
+import type { WorkspaceId } from "../../lib/workspaces";
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -17,11 +18,13 @@ function Kbd({ children }: { children: string }) {
 interface Props {
   open: boolean;
   onClose: () => void;
+  workspace: WorkspaceId;
+  canAccessSettings: boolean;
 }
 
-export default function KeyboardShortcutsModal({ open, onClose }: Props) {
+export default function KeyboardShortcutsModal({ open, onClose, workspace, canAccessSettings }: Props) {
   const { t } = useLanguage();
-  const groups: ShortcutGroup[] = buildShortcutGroups(t, mod, true);
+  const groups: ShortcutGroup[] = buildShortcutGroups(t, mod, canAccessSettings, workspace);
 
   if (!open) return null;
 

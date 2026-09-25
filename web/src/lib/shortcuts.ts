@@ -1,3 +1,5 @@
+import { OFFENSIVE_WORKSPACE, type WorkspaceId } from "./workspaces";
+
 export type ShortcutGroup = {
   title: string;
   shortcuts: Array<{
@@ -8,13 +10,15 @@ export type ShortcutGroup = {
 
 export const SHORTCUT_SEQUENCE_TIMEOUT_MS = 1000;
 
-export function getShortcutSequenceMap(canAccessSettings: boolean): Record<string, string> {
+export function getShortcutSequenceMap(
+  canAccessSettings: boolean,
+  workspace: WorkspaceId = "soc",
+): Record<string, string> {
+  const workspaceShortcuts = workspace === OFFENSIVE_WORKSPACE
+    ? { h: "/redmode", e: "/redmode/engagements" }
+    : { h: "/", f: "/feed", r: "/recon", w: "/watchlist", d: "/dashboard" };
   return {
-    h: "/",
-    f: "/feed",
-    r: "/recon",
-    w: "/watchlist",
-    d: "/dashboard",
+    ...workspaceShortcuts,
     p: "/profile",
     n: "/notifications",
     ...(canAccessSettings ? { s: "/settings/extensions" } : {}),
@@ -25,13 +29,18 @@ export function buildShortcutGroups(
   t: (key: string, fallback?: string) => string,
   mod: string,
   canAccessSettings: boolean,
+  workspace: WorkspaceId = "soc",
 ): ShortcutGroup[] {
   const navigationShortcuts = [
     { keys: ["G", "H"], description: t("help.shortcutGoHome", "Go to Home") },
-    { keys: ["G", "F"], description: t("help.shortcutGoFeed", "Go to Feed") },
-    { keys: ["G", "R"], description: t("help.shortcutGoRecon", "Go to Recon") },
-    { keys: ["G", "W"], description: t("help.shortcutGoWatchlist", "Go to Watchlist") },
-    { keys: ["G", "D"], description: t("help.shortcutGoDashboard", "Go to Dashboard") },
+    ...(workspace === OFFENSIVE_WORKSPACE
+      ? [{ keys: ["G", "E"], description: t("help.shortcutGoEngagements", "Go to Engagements") }]
+      : [
+          { keys: ["G", "F"], description: t("help.shortcutGoFeed", "Go to Feed") },
+          { keys: ["G", "R"], description: t("help.shortcutGoRecon", "Go to Recon") },
+          { keys: ["G", "W"], description: t("help.shortcutGoWatchlist", "Go to Watchlist") },
+          { keys: ["G", "D"], description: t("help.shortcutGoDashboard", "Go to Dashboard") },
+        ]),
     { keys: ["G", "P"], description: t("help.shortcutGoProfile", "Go to Profile") },
     { keys: ["G", "N"], description: t("help.shortcutGoNotifications", "Go to Notifications") },
   ];
@@ -58,7 +67,9 @@ export function buildShortcutGroups(
       ],
     },
     {
-      title: t("help.shortcutsGroupFeedTables", "Feed & Tables"),
+      title: workspace === OFFENSIVE_WORKSPACE
+        ? t("help.shortcutsGroupLists", "Lists & Tables")
+        : t("help.shortcutsGroupFeedTables", "Feed & Tables"),
       shortcuts: [
         { keys: ["J"], description: t("help.shortcutNextItem", "Next item") },
         { keys: ["K"], description: t("help.shortcutPreviousItem", "Previous item") },

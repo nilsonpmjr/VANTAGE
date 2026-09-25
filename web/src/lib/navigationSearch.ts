@@ -1,3 +1,5 @@
+import { OFFENSIVE_WORKSPACE, type WorkspaceId } from "./workspaces";
+
 type TranslateFn = (key: string, fallback?: string) => string;
 
 export type NavigationSearchGroup = "pages" | "settings" | "docs" | "support" | "actions";
@@ -112,6 +114,7 @@ function buildProfileEntries(t: TranslateFn): NavigationSearchEntry[] {
 export function buildNavigationSearchEntries(
   t: TranslateFn,
   canAccessSettings: boolean,
+  workspace: WorkspaceId = "soc",
 ): NavigationSearchEntry[] {
   const platformSection = t("layout.sections.platform", "Platform");
   const operationsSection = t("layout.sections.operations", "Operations");
@@ -119,66 +122,93 @@ export function buildNavigationSearchEntries(
   const supportSection = t("layout.sections.support", "Support");
   const actionsSection = t("layout.topbar.navSearchGroupActions", "Actions");
 
+  const workspaceEntries: NavigationSearchEntry[] = workspace === OFFENSIVE_WORKSPACE
+    ? [
+        {
+          id: "offensive.home",
+          kind: "route",
+          group: "pages",
+          href: "/redmode",
+          label: t("layout.nav.offensiveHome", "Home"),
+          section: t("layout.sections.offensiveMode", "Offensive Mode"),
+          aliases: ["offensive mode", "red team", "workspace"],
+          featured: true,
+        },
+        {
+          id: "offensive.engagements",
+          kind: "route",
+          group: "pages",
+          href: "/redmode/engagements",
+          label: t("layout.nav.engagements", "Engagements"),
+          section: t("layout.sections.offensiveMode", "Offensive Mode"),
+          aliases: ["projects", "operations", "assessments"],
+          featured: true,
+        },
+      ]
+    : [
+        {
+          id: "page.home",
+          kind: "route",
+          group: "pages",
+          href: "/",
+          label: t("layout.nav.home", "Home"),
+          section: platformSection,
+          aliases: ["workspace", "overview", "landing"],
+          featured: true,
+        },
+        {
+          id: "page.feed",
+          kind: "route",
+          group: "pages",
+          href: "/feed",
+          label: t("layout.nav.feed", "Feed"),
+          section: operationsSection,
+          aliases: ["threat feed", "intelligence feed", "stories"],
+          featured: true,
+        },
+        {
+          id: "page.recon",
+          kind: "route",
+          group: "pages",
+          href: "/recon",
+          label: t("layout.nav.recon", "Recon"),
+          section: operationsSection,
+          aliases: ["reconnaissance", "scan", "surface mapping"],
+          featured: true,
+        },
+        {
+          id: "page.watchlist",
+          kind: "route",
+          group: "pages",
+          href: "/watchlist",
+          label: t("layout.nav.watchlist", "Watchlist"),
+          section: operationsSection,
+          aliases: ["monitoring", "persistent monitoring", "tracked indicators"],
+          featured: true,
+        },
+        {
+          id: "page.shift_handoff",
+          kind: "route",
+          group: "pages",
+          href: "/shift-handoff",
+          label: t("layout.nav.shiftHandoff", "Shift Handoff"),
+          section: operationsSection,
+          aliases: ["handoff", "shift notes", "incidents", "operator turnover"],
+        },
+        {
+          id: "page.dashboard",
+          kind: "route",
+          group: "pages",
+          href: "/dashboard",
+          label: t("layout.nav.dashboard", "Dashboard"),
+          section: operationsSection,
+          aliases: ["metrics", "overview", "stats", "history"],
+          featured: true,
+        },
+      ];
+
   const entries: NavigationSearchEntry[] = [
-    {
-      id: "page.home",
-      kind: "route",
-      group: "pages",
-      href: "/",
-      label: t("layout.nav.home", "Home"),
-      section: platformSection,
-      aliases: ["workspace", "overview", "landing"],
-      featured: true,
-    },
-    {
-      id: "page.feed",
-      kind: "route",
-      group: "pages",
-      href: "/feed",
-      label: t("layout.nav.feed", "Feed"),
-      section: operationsSection,
-      aliases: ["threat feed", "intelligence feed", "stories"],
-      featured: true,
-    },
-    {
-      id: "page.recon",
-      kind: "route",
-      group: "pages",
-      href: "/recon",
-      label: t("layout.nav.recon", "Recon"),
-      section: operationsSection,
-      aliases: ["reconnaissance", "scan", "surface mapping"],
-      featured: true,
-    },
-    {
-      id: "page.watchlist",
-      kind: "route",
-      group: "pages",
-      href: "/watchlist",
-      label: t("layout.nav.watchlist", "Watchlist"),
-      section: operationsSection,
-      aliases: ["monitoring", "persistent monitoring", "tracked indicators"],
-      featured: true,
-    },
-    {
-      id: "page.shift_handoff",
-      kind: "route",
-      group: "pages",
-      href: "/shift-handoff",
-      label: t("layout.nav.shiftHandoff", "Shift Handoff"),
-      section: operationsSection,
-      aliases: ["handoff", "shift notes", "incidents", "operator turnover"],
-    },
-    {
-      id: "page.dashboard",
-      kind: "route",
-      group: "pages",
-      href: "/dashboard",
-      label: t("layout.nav.dashboard", "Dashboard"),
-      section: operationsSection,
-      aliases: ["metrics", "overview", "stats", "history"],
-      featured: true,
-    },
+    ...workspaceEntries,
     {
       id: "page.notifications",
       kind: "route",
@@ -360,6 +390,7 @@ export function resolveTopbarContext(
   const accountSection = t("layout.sections.account", "Account");
   const analysisSection = t("layout.sections.analysis", "Analysis");
   const platformSection = t("layout.sections.platform", "Platform");
+  const offensiveSection = t("layout.sections.offensiveMode", "Offensive Mode");
 
   if (pathname.startsWith("/settings/extensions")) {
     return { section: administrationSection, label: t("settings.extensions", "Extensions Catalog") };
@@ -413,8 +444,14 @@ export function resolveTopbarContext(
   if (pathname === "/feed") {
     return { section: operationsSection, label: t("layout.nav.feed", "Feed") };
   }
-  if (pathname === "/redmode" || pathname.startsWith("/redmode/")) {
-    return { section: operationsSection, label: t("layout.nav.redmode", "RedMode") };
+  if (pathname === "/redmode") {
+    return { section: offensiveSection, label: t("layout.nav.offensiveHome", "Home") };
+  }
+  if (pathname === "/redmode/engagements") {
+    return { section: offensiveSection, label: t("layout.nav.engagements", "Engagements") };
+  }
+  if (pathname.startsWith("/redmode/engagements/")) {
+    return { section: offensiveSection, label: t("layout.nav.engagement", "Engagement") };
   }
   if (pathname === "/recon") {
     return { section: operationsSection, label: t("layout.nav.recon", "Recon") };

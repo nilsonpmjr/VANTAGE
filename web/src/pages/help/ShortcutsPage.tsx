@@ -1,6 +1,8 @@
 import { Command } from "lucide-react";
 import { useLanguage } from "../../context/LanguageContext";
 import { buildShortcutGroups } from "../../lib/shortcuts";
+import { useAuth } from "../../context/AuthContext";
+import { canAccessPath } from "../../lib/access";
 
 const isMac =
   typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.userAgent);
@@ -17,7 +19,8 @@ function Kbd({ children }: { children: string }) {
 
 export default function ShortcutsPage() {
   const { t } = useLanguage();
-  const groups = buildShortcutGroups(t, mod, true);
+  const { user, activeWorkspace } = useAuth();
+  const groups = buildShortcutGroups(t, mod, canAccessPath(user, "/settings"), activeWorkspace);
 
   return (
     <div className="mt-6 space-y-6">

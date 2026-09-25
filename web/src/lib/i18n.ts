@@ -67,6 +67,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     layout: {
       nav: {
         home: "Home",
+        offensiveHome: "Home",
+        engagements: "Engagements",
+        engagement: "Engagement",
         feed: "Feed",
         recon: "Recon",
         watchlist: "Watchlist",
@@ -75,6 +78,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         settings: "Configurações",
       },
       sections: {
+        offensiveMode: "Offensive Mode",
         administration: "Administração",
         platform: "Plataforma",
         operations: "Operações",
@@ -165,7 +169,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       shortcutsGroupNavigation: "Navegação",
       shortcutsGroupActions: "Ações",
       shortcutsGroupFeedTables: "Feed e tabelas",
+      shortcutsGroupLists: "Listas e tabelas",
       shortcutGoHome: "Ir para Home",
+      shortcutGoEngagements: "Ir para Engagements",
       shortcutGoFeed: "Ir para Feed",
       shortcutGoRecon: "Ir para Recon",
       shortcutGoWatchlist: "Ir para Watchlist",
@@ -1261,7 +1267,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Conta temporariamente bloqueada até {time}.",
         lockoutFallback: "novo aviso",
         invalidOtp: "Código MFA inválido. Revise o OTP e tente novamente.",
-        redTeamAccessDenied: "Sua conta não possui acesso ao Red Team. A sessão foi aberta no SOC.",
+        redTeamAccessDenied: "Sua conta não possui acesso ao Offensive Mode. A sessão foi aberta no SOC.",
         dismissNotice: "Dispensar aviso",
       },
       mfa: {
@@ -1686,6 +1692,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     layout: {
       nav: {
         home: "Home",
+        offensiveHome: "Home",
+        engagements: "Engagements",
+        engagement: "Engagement",
         feed: "Feed",
         recon: "Recon",
         watchlist: "Watchlist",
@@ -1694,6 +1703,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         settings: "Settings",
       },
       sections: {
+        offensiveMode: "Offensive Mode",
         administration: "Administration",
         platform: "Platform",
         operations: "Operations",
@@ -1772,7 +1782,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       shortcutsGroupNavigation: "Navigation",
       shortcutsGroupActions: "Actions",
       shortcutsGroupFeedTables: "Feed & Tables",
+      shortcutsGroupLists: "Lists & Tables",
       shortcutGoHome: "Go to Home",
+      shortcutGoEngagements: "Go to Engagements",
       shortcutGoFeed: "Go to Feed",
       shortcutGoRecon: "Go to Recon",
       shortcutGoWatchlist: "Go to Watchlist",
@@ -2864,7 +2876,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Account temporarily locked until {time}.",
         lockoutFallback: "further notice",
         invalidOtp: "Invalid MFA code. Review the OTP and try again.",
-        redTeamAccessDenied: "Your account does not have Red Team access. The session was opened in the SOC.",
+        redTeamAccessDenied: "Your account does not have Offensive Mode access. The session was opened in the SOC.",
         dismissNotice: "Dismiss notice",
       },
       mfa: {
@@ -3289,6 +3301,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     layout: {
       nav: {
         home: "Inicio",
+        offensiveHome: "Inicio",
+        engagements: "Engagements",
+        engagement: "Engagement",
         feed: "Feed",
         recon: "Recon",
         watchlist: "Vigilancia",
@@ -3297,6 +3312,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         settings: "Configuración",
       },
       sections: {
+        offensiveMode: "Offensive Mode",
         administration: "Administración",
         platform: "Plataforma",
         operations: "Operaciones",
@@ -3387,7 +3403,9 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
       shortcutsGroupNavigation: "Navegación",
       shortcutsGroupActions: "Acciones",
       shortcutsGroupFeedTables: "Feed y tablas",
+      shortcutsGroupLists: "Listas y tablas",
       shortcutGoHome: "Ir a Home",
+      shortcutGoEngagements: "Ir a Engagements",
       shortcutGoFeed: "Ir a Feed",
       shortcutGoRecon: "Ir a Recon",
       shortcutGoWatchlist: "Ir a Watchlist",
@@ -4483,7 +4501,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Cuenta bloqueada temporalmente hasta {time}.",
         lockoutFallback: "nuevo aviso",
         invalidOtp: "Código MFA inválido. Revise el OTP e intente de nuevo.",
-        redTeamAccessDenied: "Su cuenta no tiene acceso a Red Team. La sesión se abrió en el SOC.",
+        redTeamAccessDenied: "Su cuenta no tiene acceso a Offensive Mode. La sesión se abrió en el SOC.",
         dismissNotice: "Descartar aviso",
       },
       mfa: {

@@ -6,14 +6,18 @@ data for a future authorization service, not permission to execute a tool.
 
 from __future__ import annotations
 
-import ipaddress
+from copy import deepcopy
 import re
 import unicodedata
-from urllib.parse import urlsplit
+
+from redmode_scope_normalizer import (
+    ScopeNormalizationError,
+    derive_scope_relations,
+    parse_declared_target,
+)
 
 
-TOKEN_RE = re.compile(r"https?://[^\s<>\"']+|[A-Za-z0-9_.:@/\-\[\]]+", re.IGNORECASE)
-DOMAIN_RE = re.compile(r"^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.IGNORECASE)
+TOKEN_RE = re.compile(r"https?://[^\s<>\"']+|[\w_.:@/\-\[\]]+", re.IGNORECASE)
 PRIORITY = {"client": 1, "third_party": 2, "excluded": 3}
 
 
@@ -35,45 +39,49 @@ def _category_for_line(line: str, current: str) -> str:
     return current
 
 
-def _target_from_token(token: str) -> tuple[str, str] | None:
-    token = token.strip(".,;()<>\"'")
-    if not token or "@" in token:
+def _target_from_token(token: str) -> dict | None:
+    try:
+        return parse_declared_target(token)
+    except ScopeNormalizationError:
         return None
 
-    if token.lower().startswith(("http://", "https://")):
-        token = token.rstrip(".,;)")
-        parsed = urlsplit(token)
-        try:
-            host, _port = parsed.hostname, parsed.port
-        except ValueError:
-            return None
-        if not host:
-            return None
-        try:
-            ipaddress.ip_address(host)
-        except ValueError:
-            if not DOMAIN_RE.fullmatch(host):
-                return None
-        return "url", token
 
-    candidate = token.strip("[]")
-    try:
-        if "/" in candidate:
-            return "cidr", str(ipaddress.ip_network(candidate, strict=True))
-        return "ip", str(ipaddress.ip_address(candidate))
-    except ValueError:
-        pass
-    if DOMAIN_RE.fullmatch(candidate):
-        return "domain", candidate.lower()
-    return None
+def _add_item(items: dict, normalized: dict, category: str, source_id: str, line_number: int) -> None:
+    key = (normalized["kind"], normalized["canonical"])
+    original = normalized["original"]
+    if key not in items:
+        items[key] = {
+            "kind": normalized["kind"],
+            "value": normalized["canonical"],
+            "original_value": original,
+            "original_values": [original],
+            "category": category,
+            "classification": "declared",
+            "executable": normalized["kind"] != "asn",
+            "origin_lines": [line_number],
+            "origins": [{"source_id": source_id, "line": line_number}],
+            "normalized": normalized,
+        }
+        return
+    item = items[key]
+    if PRIORITY[category] > PRIORITY[item["category"]]:
+        item["category"] = category
+    if original not in item["original_values"]:
+        item["original_values"].append(original)
+    if line_number not in item["origin_lines"]:
+        item["origin_lines"].append(line_number)
+    origin = {"source_id": source_id, "line": line_number}
+    if origin not in item["origins"]:
+        item["origins"].append(origin)
 
 
-def compile_scope_text(text: str, source_id: str = "text") -> list[dict]:
-    """Return deduplicated explicit targets; exclusions take precedence."""
+def compile_scope_document(text: str, source_id: str = "text") -> dict[str, list[dict]]:
+    """Return executable declarations and explicit non-executable context."""
     if not text.strip():
         raise ValueError("scope_has_no_targets")
 
     rules: dict[tuple[str, str], dict] = {}
+    context_assets: dict[tuple[str, str], dict] = {}
     category = "client"
     for line_number, line in enumerate(text.splitlines(), start=1):
         new_category = _category_for_line(line, category)
@@ -81,48 +89,51 @@ def compile_scope_text(text: str, source_id: str = "text") -> list[dict]:
         if not targets and new_category != category:
             category = new_category
         line_category = new_category
-        for parsed in targets:
-            kind, value = parsed
-            key = (kind, value)
-            if key not in rules:
-                rules[key] = {
-                    "kind": kind,
-                    "value": value,
-                    "category": line_category,
-                    "origin_lines": [line_number],
-                    "origins": [{"source_id": source_id, "line": line_number}],
-                }
-                continue
-            rule = rules[key]
-            if PRIORITY[line_category] > PRIORITY[rule["category"]]:
-                rule["category"] = line_category
-            if line_number not in rule["origin_lines"]:
-                rule["origin_lines"].append(line_number)
-            origin = {"source_id": source_id, "line": line_number}
-            if origin not in rule["origins"]:
-                rule["origins"].append(origin)
+        for normalized in targets:
+            destination = context_assets if normalized["kind"] == "asn" else rules
+            _add_item(destination, normalized, line_category, source_id, line_number)
 
-    if not rules:
+    if not rules and not context_assets:
         raise ValueError("scope_has_no_targets")
-    return list(rules.values())
+    return {"rules": list(rules.values()), "context_assets": list(context_assets.values())}
+
+
+def compile_scope_text(text: str, source_id: str = "text") -> list[dict]:
+    """Return deduplicated executable targets; exclusions take precedence."""
+    document = compile_scope_document(text, source_id)
+    if not document["rules"]:
+        raise ValueError("scope_has_no_targets")
+    return derive_scope_relations(document["rules"])
+
+
+def _merge_scope_items(groups: list[list[dict]]) -> list[dict]:
+    merged: dict[tuple[str, str], dict] = {}
+    for group in groups:
+        for item in group:
+            key = (item["kind"], item["value"])
+            if key not in merged:
+                merged[key] = deepcopy(item)
+                continue
+            current = merged[key]
+            if PRIORITY[item["category"]] > PRIORITY[current["category"]]:
+                current["category"] = item["category"]
+            for origin in item["origins"]:
+                if origin not in current["origins"]:
+                    current["origins"].append(origin)
+            for line in item["origin_lines"]:
+                if line not in current["origin_lines"]:
+                    current["origin_lines"].append(line)
+            for original in item.get("original_values", [item.get("original_value", item["value"])]):
+                if original not in current["original_values"]:
+                    current["original_values"].append(original)
+    return list(merged.values())
 
 
 def merge_scope_rules(groups: list[list[dict]]) -> list[dict]:
     """Combine rules from text/files, retaining every origin and strongest category."""
-    merged: dict[tuple[str, str], dict] = {}
-    for group in groups:
-        for rule in group:
-            key = (rule["kind"], rule["value"])
-            if key not in merged:
-                merged[key] = {**rule, "origin_lines": list(rule["origin_lines"]), "origins": list(rule["origins"])}
-                continue
-            current = merged[key]
-            if PRIORITY[rule["category"]] > PRIORITY[current["category"]]:
-                current["category"] = rule["category"]
-            for origin in rule["origins"]:
-                if origin not in current["origins"]:
-                    current["origins"].append(origin)
-            for line in rule["origin_lines"]:
-                if line not in current["origin_lines"]:
-                    current["origin_lines"].append(line)
-    return list(merged.values())
+    return derive_scope_relations(_merge_scope_items(groups))
+
+
+def merge_scope_context_assets(groups: list[list[dict]]) -> list[dict]:
+    """Combine explicit non-executable context such as ASNs."""
+    return _merge_scope_items(groups)

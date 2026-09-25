@@ -363,6 +363,56 @@ async def test_text_scope_publishes_version_without_review(async_client, fake_db
 
 
 @pytest.mark.asyncio
+async def test_scope_persists_offline_normalization_without_expanding_authorization(
+    async_client,
+):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    response = await async_client.post(
+        "/api/redmode/projects/cliente-demo/scope/text",
+        json={
+            "text": (
+                "192.0.2.10\n"
+                "192.0.2.0/24\n"
+                "HTTPS://Portal.Exämple.CO.UK:8443/login\n"
+                "AS64512"
+            ),
+        },
+        headers=headers_for("admin", "admin"),
+    )
+    assert response.status_code == 201
+    version = response.json()
+    assert version["normalization"]["mode"] == "offline"
+    assert version["normalization"]["psl_version"]
+    assert {rule["value"] for rule in version["rules"]} == {
+        "192.0.2.10",
+        "192.0.2.0/24",
+        "https://portal.xn--exmple-cua.co.uk:8443/login",
+    }
+    ip_rule = next(rule for rule in version["rules"] if rule["kind"] == "ip")
+    assert ip_rule["normalized"]["relations"][0]["canonical"] == "192.0.2.0/24"
+    url_rule = next(rule for rule in version["rules"] if rule["kind"] == "url")
+    assert url_rule["original_value"] == "HTTPS://Portal.Exämple.CO.UK:8443/login"
+    assert url_rule["normalized"]["attributes"]["registrable_domain"] == (
+        "xn--exmple-cua.co.uk"
+    )
+    assert [asset["value"] for asset in version["context_assets"]] == ["AS64512"]
+    assert version["context_assets"][0]["executable"] is False
+    assert not any(rule["kind"] == "asn" for rule in version["rules"])
+
+    sources = await async_client.get(
+        f"/api/redmode/projects/cliente-demo/scope/versions/{version['id']}/sources",
+        headers=headers_for("admin", "admin"),
+    )
+    extraction = sources.json()["items"][0]["extraction"]
+    assert extraction["rule_count"] == 3
+    assert extraction["context_count"] == 1
+
+
+@pytest.mark.asyncio
 async def test_invalid_text_scope_keeps_previous_version(async_client):
     await async_client.post(
         "/api/redmode/projects",

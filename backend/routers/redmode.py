@@ -25,7 +25,8 @@ from redmode_files import (
     clean_filename,
     extract_scope_content,
 )
-from redmode_scope import compile_scope_text, merge_scope_rules
+from redmode_scope import compile_scope_document, merge_scope_context_assets, merge_scope_rules
+from redmode_scope_normalizer import public_suffix_list_version
 
 
 router = APIRouter(prefix="/redmode", tags=["redmode"])
@@ -527,6 +528,8 @@ def scope_version_detail(doc: dict) -> dict:
         "created_at": doc["created_at"],
         "source": doc["source"],
         "rules": doc["rules"],
+        "context_assets": doc.get("context_assets", []),
+        "normalization": doc.get("normalization"),
     }
 
 
@@ -535,6 +538,14 @@ def _source_rule_count(rules: list[dict], source_id: str) -> int:
         1
         for rule in rules
         if any(origin.get("source_id") == source_id for origin in rule.get("origins", []))
+    )
+
+
+def _source_context_count(context_assets: list[dict], source_id: str) -> int:
+    return sum(
+        1
+        for asset in context_assets
+        if any(origin.get("source_id") == source_id for origin in asset.get("origins", []))
     )
 
 
@@ -567,10 +578,12 @@ async def _publish_scope(
     rules: list[dict],
     current_user: dict,
     source_materials: list[dict],
+    context_assets: list[dict] | None = None,
 ) -> dict:
     slug = project["_id"]
     now = datetime.now(timezone.utc)
     version_id = uuid4().hex
+    context_assets = context_assets or []
     version = {
         "_id": version_id,
         "project_slug": slug,
@@ -578,6 +591,13 @@ async def _publish_scope(
         "created_at": now,
         "source": source,
         "rules": rules,
+        "context_assets": context_assets,
+        "normalization": {
+            "schema_version": 1,
+            "mode": "offline",
+            "psl_version": public_suffix_list_version(),
+            "classifications": ["declared", "derived", "enriched"],
+        },
         "source_schema_version": 1,
     }
     versions = scope_versions_collection()
@@ -599,6 +619,13 @@ async def _publish_scope(
             )
             representation_ids.append(representation_id)
             rule_count = _source_rule_count(rules, source_id)
+            context_count = _source_context_count(context_assets, source_id)
+            if rule_count:
+                warnings = []
+            elif context_count:
+                warnings = ["context_only"]
+            else:
+                warnings = ["no_targets_detected"]
             await scope_sources_collection().insert_one({
                 "_id": uuid4().hex,
                 "project_slug": slug,
@@ -616,8 +643,9 @@ async def _publish_scope(
                 "representation_file_id": representation_id,
                 "extraction": {
                     "status": "complete",
-                    "warnings": [] if rule_count else ["no_targets_detected"],
+                    "warnings": warnings,
                     "rule_count": rule_count,
+                    "context_count": context_count,
                 },
             })
         await versions.insert_one(version)
@@ -647,7 +675,11 @@ async def publish_text_scope(
 ):
     project = await load_project_for_member(slug, current_user)
     try:
-        rules = compile_scope_text(payload.text)
+        document = compile_scope_document(payload.text)
+        rules = merge_scope_rules([document["rules"]])
+        context_assets = merge_scope_context_assets([document["context_assets"]])
+        if not rules:
+            raise ValueError("scope_has_no_targets")
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
@@ -666,7 +698,7 @@ async def publish_text_scope(
         "size": len(content),
         "sha256": sha256(content).hexdigest(),
         "extracted_text": payload.text,
-    }])
+    }], context_assets)
 
 
 @router.get("/scope/limits")
@@ -694,9 +726,12 @@ async def publish_scope_bundle(
         raise HTTPException(status_code=413, detail="scope_too_many_files")
 
     groups = []
+    context_groups = []
     if text.strip():
         try:
-            groups.append(compile_scope_text(text, source_id="text"))
+            document = compile_scope_document(text, source_id="text")
+            groups.append(document["rules"])
+            context_groups.append(document["context_assets"])
         except ValueError:
             pass  # Keep operator text as a source if files provide valid targets.
 
@@ -712,12 +747,15 @@ async def publish_scope_bundle(
             raise HTTPException(status_code=422, detail=str(exc)) from exc
         source_id = uuid4().hex
         try:
-            file_rules = compile_scope_text(extracted, source_id=source_id)
-            for rule in file_rules:
-                for origin in rule["origins"]:
+            document = compile_scope_document(extracted, source_id=source_id)
+            file_rules = document["rules"]
+            file_context = document["context_assets"]
+            for item in [*file_rules, *file_context]:
+                for origin in item["origins"]:
                     if origin["line"] in positions:
                         origin["position"] = positions[origin["line"]]
             groups.append(file_rules)
+            context_groups.append(file_context)
         except ValueError:
             pass  # A readable file without targets remains a source, not authorization.
         prepared.append({
@@ -730,6 +768,7 @@ async def publish_scope_bundle(
         })
 
     rules = merge_scope_rules(groups)
+    context_assets = merge_scope_context_assets(context_groups)
     if not rules:
         raise HTTPException(status_code=422, detail="scope_has_no_targets")
 
@@ -775,7 +814,14 @@ async def publish_scope_bundle(
             "extracted_text": item["extracted_text"],
             "original_file_id": metadata["id"],
         } for item, metadata in zip(prepared, file_metadata))
-        return await _publish_scope(project, source, rules, current_user, source_materials)
+        return await _publish_scope(
+            project,
+            source,
+            rules,
+            current_user,
+            source_materials,
+            context_assets,
+        )
     except Exception as exc:
         if store is not None:
             for file_id in saved_ids:
@@ -826,6 +872,7 @@ def _legacy_scope_sources(version: dict) -> list[dict]:
                 "status": "legacy",
                 "warnings": ["representation_not_materialized", *([] if rule_count else ["no_targets_detected"])],
                 "rule_count": rule_count,
+                "context_count": 0,
             },
         })
     for offset, file_info in enumerate(source.get("files", []), start=len(items)):
@@ -850,6 +897,7 @@ def _legacy_scope_sources(version: dict) -> list[dict]:
                 "status": "legacy",
                 "warnings": ["representation_not_materialized", *([] if rule_count else ["no_targets_detected"])],
                 "rule_count": rule_count,
+                "context_count": 0,
             },
         })
     return items

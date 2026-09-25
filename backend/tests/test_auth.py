@@ -61,6 +61,22 @@ async def test_login_invalid_credentials_do_not_reveal_workspace_access(async_cl
 
 
 @pytest.mark.asyncio
+async def test_invalid_offensive_login_does_not_change_workspace_preference(async_client, fake_db):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={
+            "username": "techuser",
+            "password": "wrongpass",
+            "workspace": "offensive",
+        },
+    )
+
+    assert response.status_code == 401
+    stored_user = await fake_db.users.find_one({"username": "techuser"})
+    assert stored_user.get("preferred_workspace", "soc") == "soc"
+
+
+@pytest.mark.asyncio
 async def test_login_rejects_invalid_workspace(async_client):
     response = await async_client.post(
         "/api/auth/login",
@@ -89,10 +105,13 @@ async def test_login_enters_offensive_workspace_when_authorized(async_client, fa
     assert response.status_code == 200
     assert response.json()["workspace"] == "offensive"
     assert "workspace_notice" not in response.json()
+    assert response.json()["user"]["preferred_workspace"] == "offensive"
+    stored_user = await fake_db.users.find_one({"username": "techuser"})
+    assert stored_user["preferred_workspace"] == "offensive"
 
 
 @pytest.mark.asyncio
-async def test_login_falls_back_to_soc_when_offensive_access_is_missing(async_client):
+async def test_login_falls_back_to_soc_when_offensive_access_is_missing(async_client, fake_db):
     response = await async_client.post(
         "/api/auth/login",
         data={
@@ -105,6 +124,9 @@ async def test_login_falls_back_to_soc_when_offensive_access_is_missing(async_cl
     assert response.status_code == 200
     assert response.json()["workspace"] == "soc"
     assert response.json()["workspace_notice"] == "permission_required:redmode:access"
+    assert response.json()["user"]["preferred_workspace"] == "soc"
+    stored_user = await fake_db.users.find_one({"username": "techuser"})
+    assert stored_user["preferred_workspace"] == "soc"
 
     redmode_response = await async_client.get("/api/redmode/projects")
     assert redmode_response.status_code == 403

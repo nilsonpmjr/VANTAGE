@@ -5,6 +5,8 @@ import {
   Rss,
   Radar,
   Eye,
+  Crosshair,
+  ShieldCheck,
   ShieldAlert,
   ClipboardList,
   LayoutDashboard,
@@ -40,6 +42,13 @@ import {
 } from "../lib/navigationSearch";
 import KeyboardShortcutsModal from "./help/KeyboardShortcutsModal";
 import GlobalScanLauncher from "./scan/GlobalScanLauncher";
+import {
+  DEFAULT_WORKSPACE,
+  OFFENSIVE_WORKSPACE,
+  workspaceForOperationalPath,
+  workspaceHome,
+  type WorkspaceId,
+} from "../lib/workspaces";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -59,7 +68,14 @@ const rootNavItems = [
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout, workspaceNotice, clearWorkspaceNotice } = useAuth();
+  const {
+    user,
+    logout,
+    activeWorkspace,
+    switchWorkspace,
+    workspaceNotice,
+    clearWorkspaceNotice,
+  } = useAuth();
   const { language, t } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -67,6 +83,8 @@ export default function Layout() {
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isScanLauncherOpen, setIsScanLauncherOpen] = useState(false);
   const [showApiKeyToast, setShowApiKeyToast] = useState(false);
+  const [workspaceSwitching, setWorkspaceSwitching] = useState(false);
+  const [workspaceSwitchFailed, setWorkspaceSwitchFailed] = useState(false);
   const [topbarSearchQuery, setTopbarSearchQuery] = useState("");
   const [isTopbarSearchOpen, setIsTopbarSearchOpen] = useState(false);
   const [highlightedSearchIndex, setHighlightedSearchIndex] = useState(0);
@@ -84,7 +102,6 @@ export default function Layout() {
   const lastRootPathKey = "vantage.sidebar.last-root-path";
   const isSettingsContext = location.pathname.startsWith("/settings");
   const isProfileContext = location.pathname === "/profile";
-  const isRedModeContext = location.pathname === "/redmode" || location.pathname.startsWith("/redmode/");
   const profileTab = useMemo(() => {
     const currentTab = new URLSearchParams(location.search).get("tab");
     if (
@@ -323,6 +340,39 @@ export default function Layout() {
   }, [isProfileContext, isSettingsContext, lastRootPathKey, location.pathname, location.search]);
 
   useEffect(() => {
+    if (!user) return undefined;
+    const routeWorkspace = workspaceForOperationalPath(location.pathname);
+    if (!routeWorkspace || routeWorkspace === activeWorkspace) return undefined;
+    if (
+      routeWorkspace === OFFENSIVE_WORKSPACE
+      && !canAccessPath(user, "/redmode")
+    ) {
+      navigate(workspaceHome(DEFAULT_WORKSPACE), { replace: true });
+      return undefined;
+    }
+
+    let cancelled = false;
+    setWorkspaceSwitching(true);
+    setWorkspaceSwitchFailed(false);
+    void switchWorkspace(routeWorkspace)
+      .then((switched) => {
+        if (!cancelled && !switched && routeWorkspace === OFFENSIVE_WORKSPACE) {
+          navigate(workspaceHome(DEFAULT_WORKSPACE), { replace: true });
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setWorkspaceSwitchFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setWorkspaceSwitching(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeWorkspace, location.pathname, navigate, switchWorkspace, user]);
+
+  useEffect(() => {
     if (!user) return;
     if (sessionStorage.getItem(apiKeyToastDismissKey) === "true") return;
 
@@ -415,8 +465,31 @@ export default function Layout() {
     }
   };
 
+  const handleWorkspaceSwitch = async (workspace: WorkspaceId) => {
+    if (workspace === activeWorkspace) {
+      navigate(workspaceHome(workspace));
+      return;
+    }
+
+    setWorkspaceSwitching(true);
+    setWorkspaceSwitchFailed(false);
+    try {
+      const switched = await switchWorkspace(workspace);
+      if (switched) {
+        navigate(workspaceHome(workspace));
+      }
+    } catch {
+      setWorkspaceSwitchFailed(true);
+    } finally {
+      setWorkspaceSwitching(false);
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-background flex" data-workspace={isRedModeContext ? "redmode" : undefined}>
+    <div
+      className="min-h-screen bg-background flex"
+      data-workspace={activeWorkspace === OFFENSIVE_WORKSPACE ? "redmode" : undefined}
+    >
       <aside className={cn("fixed left-0 top-0 h-screen bg-inverse-surface flex flex-col z-50 transition-all duration-300", isSidebarCollapsed ? "w-20" : "w-64")}>
         <div className={cn("py-8 flex items-center", isSidebarCollapsed ? "px-0 justify-center" : "px-6")}>
           <div className={cn("flex items-center", isSidebarCollapsed ? "justify-center" : "w-full")}>
@@ -568,6 +641,45 @@ export default function Layout() {
           </div>
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
+              <div
+                role="radiogroup"
+                aria-label={t("layout.topbar.workspaceLabel", "Active workspace")}
+                aria-busy={workspaceSwitching}
+                className="flex items-center rounded-sm border border-outline-variant/30 bg-surface-container-low p-0.5"
+              >
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={activeWorkspace === DEFAULT_WORKSPACE}
+                  disabled={workspaceSwitching}
+                  onClick={() => void handleWorkspaceSwitch(DEFAULT_WORKSPACE)}
+                  className={cn(
+                    "flex h-7 items-center gap-1.5 rounded-sm px-2 text-[9px] font-black uppercase tracking-wider transition-colors disabled:opacity-60",
+                    activeWorkspace === DEFAULT_WORKSPACE
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:text-on-surface",
+                  )}
+                >
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  SOC
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={activeWorkspace === OFFENSIVE_WORKSPACE}
+                  disabled={workspaceSwitching}
+                  onClick={() => void handleWorkspaceSwitch(OFFENSIVE_WORKSPACE)}
+                  className={cn(
+                    "flex h-7 items-center gap-1.5 rounded-sm px-2 text-[9px] font-black uppercase tracking-wider transition-colors disabled:opacity-60",
+                    activeWorkspace === OFFENSIVE_WORKSPACE
+                      ? "bg-primary text-on-primary"
+                      : "text-on-surface-variant hover:text-on-surface",
+                  )}
+                >
+                  <Crosshair className="h-3.5 w-3.5" />
+                  Red Team
+                </button>
+              </div>
               <div className="topbar-nav-search" ref={topbarSearchRef}>
                 <Search className="topbar-nav-search-icon" />
                 <input
@@ -736,6 +848,11 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 p-8 overflow-x-hidden">
+          {workspaceSwitchFailed && (
+            <div role="alert" className="mb-6 rounded-sm border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
+              {t("layout.topbar.workspaceSwitchFailed", "Could not switch workspaces. Try again.")}
+            </div>
+          )}
           {workspaceNotice && (
             <div
               role="status"

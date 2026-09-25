@@ -84,6 +84,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         iam: "IAM",
       },
       topbar: {
+        workspaceLabel: "Workspace ativo",
+        workspaceSwitchFailed: "Não foi possível trocar de workspace. Tente novamente.",
         analyst: "Analista",
         documentation: "Documentação",
         keyboardShortcuts: "Atalhos de teclado",
@@ -1701,6 +1703,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         iam: "IAM",
       },
       topbar: {
+        workspaceLabel: "Active workspace",
+        workspaceSwitchFailed: "Could not switch workspaces. Try again.",
         analyst: "Analyst",
         documentation: "Documentation",
         keyboardShortcuts: "Keyboard Shortcuts",
@@ -3302,6 +3306,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         iam: "IAM",
       },
       topbar: {
+        workspaceLabel: "Workspace activo",
+        workspaceSwitchFailed: "No se pudo cambiar de workspace. Inténtelo de nuevo.",
         analyst: "Analista",
         documentation: "Documentación",
         keyboardShortcuts: "Atajos de teclado",

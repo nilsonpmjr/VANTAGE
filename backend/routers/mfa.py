@@ -281,8 +281,14 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
     policy = await get_password_policy(db)
     days_left = compute_expiry_days_left(user_doc, policy)
 
-    user_payload = _build_user_dict(user_doc, days_left)
     effective_workspace, workspace_notice = resolve_effective_workspace(user_doc, requested_workspace)
+    if user_doc.get("preferred_workspace") != effective_workspace:
+        await db.users.update_one(
+            {"username": user_doc["username"]},
+            {"$set": {"preferred_workspace": effective_workspace}},
+        )
+    user_doc["preferred_workspace"] = effective_workspace
+    user_payload = _build_user_dict(user_doc, days_left)
 
     content = {
         "user": user_payload,

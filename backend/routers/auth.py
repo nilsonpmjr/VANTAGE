@@ -247,6 +247,14 @@ async def login(request: Request):
         "revoked": False,
     })
 
+    effective_workspace, workspace_notice = resolve_effective_workspace(user, requested_workspace)
+    if user.get("preferred_workspace") != effective_workspace:
+        await db.users.update_one(
+            {"username": user["username"]},
+            {"$set": {"preferred_workspace": effective_workspace}},
+        )
+    user["preferred_workspace"] = effective_workspace
+
     policy = await get_password_policy(db)
     days_left = compute_expiry_days_left(user, policy)
     user_payload = _build_user_dict(
@@ -254,7 +262,6 @@ async def login(request: Request):
         days_left,
         mfa_setup_required=force_mfa_setup,
     )
-    effective_workspace, workspace_notice = resolve_effective_workspace(user, requested_workspace)
 
     content = {
         "user": user_payload,

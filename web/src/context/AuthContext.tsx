@@ -14,8 +14,10 @@ import LoginGate from "../components/auth/LoginGate";
 import { canAccessPath } from "../lib/access";
 import {
   DEFAULT_WORKSPACE,
+  LAST_WORKSPACE_STORAGE_KEY,
   MFA_PENDING_STORAGE_KEY,
   MFA_WORKSPACE_STORAGE_KEY,
+  OFFENSIVE_WORKSPACE,
   isWorkspaceId,
   type WorkspaceId,
 } from "../lib/workspaces";
@@ -59,11 +61,13 @@ interface AuthContextValue {
   loading: boolean;
   mfaPending: boolean;
   pendingWorkspace: WorkspaceId;
+  activeWorkspace: WorkspaceId;
   workspaceNotice: string | null;
   login: (username: string, password: string, workspace: WorkspaceId) => Promise<LoginResult>;
   logout: () => Promise<void>;
   completeMfaLogin: (user: AuthUser, workspace: WorkspaceId, notice?: string) => void;
   cancelMfa: () => void;
+  switchWorkspace: (workspace: WorkspaceId) => Promise<boolean>;
   clearWorkspaceNotice: () => void;
   updateUserContext: (user: AuthUser) => void;
   refreshUser: () => Promise<AuthUser | null>;
@@ -74,6 +78,11 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 
 function readPendingWorkspace(): WorkspaceId {
   const stored = window.sessionStorage.getItem(MFA_WORKSPACE_STORAGE_KEY);
+  return isWorkspaceId(stored) ? stored : DEFAULT_WORKSPACE;
+}
+
+function readLastWorkspace(): WorkspaceId {
+  const stored = window.localStorage.getItem(LAST_WORKSPACE_STORAGE_KEY);
   return isWorkspaceId(stored) ? stored : DEFAULT_WORKSPACE;
 }
 
@@ -108,20 +117,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     () => window.sessionStorage.getItem(MFA_PENDING_STORAGE_KEY) === "true",
   );
   const [pendingWorkspace, setPendingWorkspace] = useState<WorkspaceId>(readPendingWorkspace);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceId>(readLastWorkspace);
   const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const nativeFetchRef = useRef<typeof window.fetch | null>(null);
   const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
+
+  const reconcileActiveWorkspace = useCallback((nextUser: AuthUser | null) => {
+    if (!nextUser) return;
+    const storedWorkspace = readLastWorkspace();
+    if (
+      storedWorkspace === OFFENSIVE_WORKSPACE
+      && !canAccessPath(nextUser, "/redmode")
+    ) {
+      window.localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, DEFAULT_WORKSPACE);
+      setActiveWorkspace(DEFAULT_WORKSPACE);
+      setWorkspaceNotice("permission_required:redmode:access");
+      return;
+    }
+    setActiveWorkspace(storedWorkspace);
+  }, []);
 
   const refreshUser = useCallback(async () => {
     try {
       const nextUser = await fetchCurrentUser();
       setUser(nextUser);
+      reconcileActiveWorkspace(nextUser);
       return nextUser;
     } catch {
       setUser(null);
       return null;
     }
-  }, []);
+  }, [reconcileActiveWorkspace]);
 
   const refreshSession = useCallback(async () => {
     if (refreshInFlightRef.current) {
@@ -146,6 +172,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         const nextUser = meRes.ok ? ((await meRes.json()) as AuthUser) : null;
         setUser(nextUser);
+        reconcileActiveWorkspace(nextUser);
         return Boolean(nextUser);
       } catch {
         setUser(null);
@@ -157,7 +184,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     })();
 
     return refreshInFlightRef.current;
-  }, []);
+  }, [reconcileActiveWorkspace]);
 
   useEffect(() => {
     refreshUser().finally(() => setLoading(false));
@@ -308,6 +335,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const effectiveWorkspace = isWorkspaceId(data.workspace) ? data.workspace : DEFAULT_WORKSPACE;
     clearPendingMfa();
+    window.localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, effectiveWorkspace);
+    setActiveWorkspace(effectiveWorkspace);
     setWorkspaceNotice(typeof data.workspace_notice === "string" ? data.workspace_notice : null);
     setUser(data.user as AuthUser);
     return {
@@ -334,6 +363,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const completeMfaLogin = useCallback((nextUser: AuthUser, workspace: WorkspaceId, notice?: string) => {
     clearPendingMfa();
     setPendingWorkspace(workspace);
+    window.localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, workspace);
+    setActiveWorkspace(workspace);
     setWorkspaceNotice(notice || null);
     setUser(nextUser);
   }, [clearPendingMfa]);
@@ -341,6 +372,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const cancelMfa = useCallback(() => {
     window.sessionStorage.removeItem(MFA_PENDING_STORAGE_KEY);
     setMfaPending(false);
+  }, []);
+
+  const switchWorkspace = useCallback(async (workspace: WorkspaceId) => {
+    const response = await fetch(`${API_URL}/api/users/me/workspace`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workspace }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const detail = typeof errorData?.detail === "string" ? errorData.detail : "";
+      if (response.status === 403 && detail === "permission_required:redmode:access") {
+        window.localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, DEFAULT_WORKSPACE);
+        setActiveWorkspace(DEFAULT_WORKSPACE);
+        setWorkspaceNotice(detail);
+        setUser((current) => current ? { ...current, preferred_workspace: DEFAULT_WORKSPACE } : current);
+        return false;
+      }
+      throw new Error(detail || "workspace_switch_failed");
+    }
+
+    const data = await response.json();
+    const effectiveWorkspace = isWorkspaceId(data.workspace) ? data.workspace : DEFAULT_WORKSPACE;
+    window.localStorage.setItem(LAST_WORKSPACE_STORAGE_KEY, effectiveWorkspace);
+    setActiveWorkspace(effectiveWorkspace);
+    setWorkspaceNotice(null);
+    setUser((current) => {
+      if (data.user && typeof data.user === "object") {
+        return data.user as AuthUser;
+      }
+      return current ? { ...current, preferred_workspace: effectiveWorkspace } : current;
+    });
+    return true;
   }, []);
 
   const clearWorkspaceNotice = useCallback(() => {
@@ -357,11 +423,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       mfaPending,
       pendingWorkspace,
+      activeWorkspace,
       workspaceNotice,
       login,
       logout,
       completeMfaLogin,
       cancelMfa,
+      switchWorkspace,
       clearWorkspaceNotice,
       updateUserContext,
       refreshUser,
@@ -372,11 +440,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       mfaPending,
       pendingWorkspace,
+      activeWorkspace,
       workspaceNotice,
       login,
       logout,
       completeMfaLogin,
       cancelMfa,
+      switchWorkspace,
       clearWorkspaceNotice,
       updateUserContext,
       refreshUser,

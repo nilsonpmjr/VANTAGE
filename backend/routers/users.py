@@ -7,12 +7,16 @@ from typing import Optional
 
 from db import db_manager
 from auth import (
+    REDMODE_ACCESS_PERMISSION,
+    VALID_WORKSPACES,
+    WORKSPACE_OFFENSIVE,
     WORKSPACE_SOC,
     get_password_hash,
     verify_password,
     get_current_user,
     get_current_user_allow_expired,
     require_role,
+    has_permission,
 )
 from policies import get_password_policy, validate_password
 from audit import log_action
@@ -61,6 +65,10 @@ class UserPreferencesUpdate(BaseModel):
     bio: Optional[str] = None
     recovery_email: Optional[str] = None
     notification_center: Optional[dict] = None
+
+
+class WorkspacePreferenceUpdate(BaseModel):
+    workspace: str
 
 
 class ThirdPartyKeysUpdate(BaseModel):
@@ -239,6 +247,45 @@ async def update_my_preferences(
                          detail=f"revoked_sessions={revoked_count}")
 
     return {"status": "success", "message": "Preferences updated successfully"}
+
+
+@router.put("/me/workspace")
+async def update_my_workspace(
+    request: Request,
+    body: WorkspacePreferenceUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    """Switch the authenticated session's preferred operational workspace."""
+    db = db_manager.db
+    if db is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if body.workspace not in VALID_WORKSPACES:
+        raise HTTPException(status_code=422, detail="Invalid workspace")
+    if (
+        body.workspace == WORKSPACE_OFFENSIVE
+        and not has_permission(current_user, REDMODE_ACCESS_PERMISSION)
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail=f"permission_required:{REDMODE_ACCESS_PERMISSION}",
+        )
+
+    await db.users.update_one(
+        {"username": current_user["username"]},
+        {"$set": {"preferred_workspace": body.workspace}},
+    )
+    updated_user = {**current_user, "preferred_workspace": body.workspace}
+    ip = request.client.host if request.client else ""
+    await log_action(
+        db,
+        user=current_user["username"],
+        action="workspace_changed",
+        target=body.workspace,
+        ip=ip,
+        result="success",
+    )
+    return {"workspace": body.workspace, "user": updated_user}
 
 
 @router.get("/me/audit-logs")

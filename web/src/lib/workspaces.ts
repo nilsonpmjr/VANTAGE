@@ -11,9 +11,32 @@ export function isWorkspaceId(value: unknown): value is WorkspaceId {
 }
 
 export function workspaceForPath(pathname: string): WorkspaceId | null {
-  return pathname === "/redmode" || pathname.startsWith("/redmode/")
-    ? OFFENSIVE_WORKSPACE
-    : null;
+  if (pathname === "/redmode" || pathname.startsWith("/redmode/")) {
+    return OFFENSIVE_WORKSPACE;
+  }
+
+  return null;
+}
+
+export function workspaceForOperationalPath(pathname: string): WorkspaceId | null {
+  const offensiveWorkspace = workspaceForPath(pathname);
+  if (offensiveWorkspace) return offensiveWorkspace;
+
+  const socPrefixes = [
+    "/feed",
+    "/recon",
+    "/watchlist",
+    "/socc",
+    "/shift-handoff",
+    "/dashboard",
+    "/analyze",
+    "/batch",
+  ];
+  if (pathname === "/" || socPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
+    return DEFAULT_WORKSPACE;
+  }
+
+  return null;
 }
 
 export function workspaceHome(workspace: WorkspaceId): string {

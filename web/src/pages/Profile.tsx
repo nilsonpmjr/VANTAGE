@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import Cropper, { type Area } from "react-easy-crop";
 import "react-easy-crop/react-easy-crop.css";
 import {
@@ -33,6 +33,7 @@ import { useTheme } from "../context/ThemeContext";
 import { RowActionsMenu, RowPrimaryAction, type RowActionItem } from "../components/RowActions";
 import EnrollMfaModal from "../components/mfa/EnrollMfaModal";
 import DisableMfaModal from "../components/mfa/DisableMfaModal";
+import { workspaceHome } from "../lib/workspaces";
 
 const MFA_REQUIRED_ROLES = new Set(["admin", "manager"]);
 
@@ -155,7 +156,8 @@ async function getCroppedAvatar(src: string, crop: Area) {
 const LOCALE_MAP: Record<string, string> = { pt: "pt-BR", en: "en-US", es: "es-ES" };
 
 export default function Profile() {
-  const { user, updateUserContext, refreshUser } = useAuth();
+  const { user, activeWorkspace, updateUserContext, refreshUser } = useAuth();
+  const navigate = useNavigate();
   const [mfaEnrollOpen, setMfaEnrollOpen] = useState(false);
   const [mfaDisableOpen, setMfaDisableOpen] = useState(false);
   const mfaEnabled = Boolean(user?.mfa_enabled);
@@ -587,6 +589,9 @@ export default function Profile() {
     setSavingPassword(true);
     setPageError("");
     setNotice("");
+    const shouldResumeWorkspace = Boolean(
+      user?.force_password_reset || user?.password_expires_in_days === 0,
+    );
     try {
       const response = await fetch(`${API_URL}/api/users/me`, {
         method: "PUT",
@@ -602,6 +607,10 @@ export default function Profile() {
       setConfirmPassword("");
       setNotice(t("profile.notices.passwordUpdated"));
       await refreshRuntime();
+      const refreshedUser = await refreshUser();
+      if (shouldResumeWorkspace && refreshedUser) {
+        navigate(workspaceHome(activeWorkspace), { replace: true });
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "";
       setPageError(
@@ -2155,8 +2164,12 @@ export default function Profile() {
         open={mfaEnrollOpen}
         onClose={() => setMfaEnrollOpen(false)}
         onEnrolled={async () => {
+          const shouldResumeWorkspace = Boolean(user?.mfa_setup_required);
           setNotice(t("profile.security.mfa.notices.enabled"));
-          await refreshUser();
+          const refreshedUser = await refreshUser();
+          if (shouldResumeWorkspace && refreshedUser) {
+            navigate(workspaceHome(activeWorkspace), { replace: true });
+          }
         }}
       />
 

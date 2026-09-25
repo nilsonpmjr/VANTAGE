@@ -283,6 +283,7 @@ async def get_current_user(
     db = db_manager.db
     policy = await get_password_policy(db)
     days_left = compute_expiry_days_left(user, policy)
+    await reconcile_workspace_preference(db, user)
 
     if user.get("force_password_reset", False):
         raise HTTPException(
@@ -312,6 +313,7 @@ async def get_current_user_allow_expired(
     db = db_manager.db
     policy = await get_password_policy(db)
     days_left = compute_expiry_days_left(user, policy)
+    await reconcile_workspace_preference(db, user)
     return _build_user_dict(user, days_left)
 
 
@@ -362,6 +364,22 @@ def resolve_effective_workspace(user: dict, requested_workspace: str) -> tuple[s
             return WORKSPACE_OFFENSIVE, None
         return WORKSPACE_SOC, f"permission_required:{REDMODE_ACCESS_PERMISSION}"
     return WORKSPACE_SOC, None
+
+
+async def reconcile_workspace_preference(db, user: dict) -> str:
+    """Fall back to SOC when a stored offensive preference is no longer authorized."""
+    preferred_workspace = normalize_preferred_workspace(user.get("preferred_workspace"))
+    if (
+        preferred_workspace == WORKSPACE_OFFENSIVE
+        and not has_permission(user, REDMODE_ACCESS_PERMISSION)
+    ):
+        preferred_workspace = WORKSPACE_SOC
+        await db.users.update_one(
+            {"username": user["username"]},
+            {"$set": {"preferred_workspace": preferred_workspace}},
+        )
+    user["preferred_workspace"] = preferred_workspace
+    return preferred_workspace
 
 
 def require_permission(permission: str):

@@ -192,6 +192,8 @@ async def test_verify_mfa_uses_standard_user_contract(async_client, fake_db):
     assert user["extra_permissions"] == ["redmode:access"]
     assert user["preferred_workspace"] == "offensive"
     assert user["team"] == "red-team"
+    stored_user = await fake_db.users.find_one({"username": "techuser"})
+    assert stored_user["preferred_workspace"] == "offensive"
 
     me_resp = await async_client.get("/api/auth/me")
     assert me_resp.status_code == 200
@@ -222,6 +224,9 @@ async def test_verify_mfa_falls_back_to_soc_when_offensive_access_is_missing(asy
     data = verify_resp.json()
     assert data["workspace"] == "soc"
     assert data["workspace_notice"] == "permission_required:redmode:access"
+    assert data["user"]["preferred_workspace"] == "soc"
+    stored_user = await fake_db.users.find_one({"username": "techuser"})
+    assert stored_user["preferred_workspace"] == "soc"
 
 
 @pytest.mark.asyncio

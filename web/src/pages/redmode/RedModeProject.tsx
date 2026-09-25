@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ArrowLeft, Users } from "lucide-react";
 import { PageHeader } from "../../components/page/PageChrome";
 import { useAuth } from "../../context/AuthContext";
@@ -20,6 +20,8 @@ const activityLabels: Record<ProjectActivity["type"], string> = {
 
 export default function RedModeProject() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams] = useSearchParams();
+  const requestedScopeVersion = searchParams.get("scope") || undefined;
   const { user } = useAuth();
   const [project, setProject] = useState<ProjectDetail | null>(null);
   const [activity, setActivity] = useState<ProjectActivity[]>([]);
@@ -129,7 +131,7 @@ export default function RedModeProject() {
               ))}
             </ul>
           </section>
-          <ScopePanel slug={project.slug} onPublished={() => {
+          <ScopePanel slug={project.slug} initialVersionId={requestedScopeVersion} onPublished={() => {
             void listProjectActivity(project.slug).then((events) => setActivity(events.items)).catch(() => setActivityError("Não foi possível atualizar o histórico."));
           }} />
           <EvidencePanel slug={project.slug} findingRefresh={findingRefresh} onAdded={() => {

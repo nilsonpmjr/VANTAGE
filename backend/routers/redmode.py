@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
+from mimetypes import guess_type
 from uuid import uuid4
 from urllib.parse import quote
 
@@ -93,6 +94,8 @@ PTES_PHASE_ORDER = (
     "reporting",
 )
 FINDING_SEVERITY_ORDER = ("informational", "low", "medium", "high", "critical")
+HOME_ATTENTION_LIMIT = 8
+HOME_RECENT_SOURCE_LIMIT = 8
 
 
 async def _current_revisions_for_projects(project_slugs: list[str]) -> list[dict]:
@@ -109,8 +112,125 @@ async def _current_revisions_for_projects(project_slugs: list[str]) -> list[dict
         return []
     return [
         item
-        async for item in db.redmode_finding_revisions.find({"_id": {"$in": revision_ids}})
+        async for item in db.redmode_finding_revisions.find({
+            "_id": {"$in": revision_ids},
+            "project_slug": {"$in": project_slugs},
+        })
     ]
+
+
+async def _scope_versions_for_projects(projects: list[dict]) -> list[dict]:
+    version_ids = [
+        version_id
+        for project in projects
+        for version_id in project.get("scope_history", [])
+    ]
+    if not version_ids:
+        return []
+    return [
+        item
+        async for item in db_manager.db.redmode_scope_versions.find({
+            "_id": {"$in": version_ids},
+            "project_slug": {"$in": [project["_id"] for project in projects]},
+        })
+    ]
+
+
+def _activity_series(projects: list[dict], now: datetime) -> list[dict]:
+    today = now.astimezone(timezone.utc).date()
+    days = [today - timedelta(days=offset) for offset in range(29, -1, -1)]
+    buckets = {
+        day.isoformat(): {"evidence": 0, "findings": 0, "scope_publications": 0}
+        for day in days
+    }
+    event_fields = {
+        "evidence_added": "evidence",
+        "finding_created": "findings",
+        "finding_updated": "findings",
+        "scope_published": "scope_publications",
+    }
+    for project in projects:
+        for event in project.get("activity_events", []):
+            event_at = event.get("at")
+            field = event_fields.get(event.get("type"))
+            if field is None or not isinstance(event_at, datetime):
+                continue
+            day_key = event_at.astimezone(timezone.utc).date().isoformat()
+            if day_key in buckets:
+                buckets[day_key][field] += 1
+    return [
+        {"date": day, **counts, "total": sum(counts.values())}
+        for day, counts in buckets.items()
+    ]
+
+
+def _attention_queue(projects: list[dict], current_revisions: list[dict]) -> list[dict]:
+    findings_by_project: dict[str, Counter] = {}
+    for revision in current_revisions:
+        slug = revision.get("project_slug")
+        if slug:
+            findings_by_project.setdefault(slug, Counter())[revision.get("severity")] += 1
+
+    items = []
+    for project in projects:
+        severities = findings_by_project.get(project["_id"], Counter())
+        critical_count = severities["critical"]
+        high_count = severities["high"]
+        missing_scope = not project.get("active_scope_version")
+        if not (critical_count or high_count or missing_scope):
+            continue
+        reasons = []
+        if critical_count:
+            reasons.append({"kind": "critical_findings", "count": critical_count})
+        if missing_scope:
+            reasons.append({"kind": "missing_scope", "count": 1})
+        if high_count:
+            reasons.append({"kind": "high_findings", "count": high_count})
+        items.append({
+            **project_summary(project),
+            "reasons": reasons,
+            "_sort": (
+                0 if critical_count else 1,
+                0 if missing_scope else 1,
+                0 if high_count else 1,
+                -project["last_activity_at"].timestamp(),
+                project["_id"],
+            ),
+        })
+    items.sort(key=lambda item: item["_sort"])
+    return [
+        {key: value for key, value in item.items() if key != "_sort"}
+        for item in items[:HOME_ATTENTION_LIMIT]
+    ]
+
+
+def _recent_sources(projects: list[dict], scope_versions: list[dict]) -> list[dict]:
+    projects_by_slug = {project["_id"]: project for project in projects}
+    sources = []
+    for version in scope_versions:
+        project = projects_by_slug.get(version.get("project_slug"))
+        if project is None:
+            continue
+        for file_info in version.get("source", {}).get("files", []):
+            filename = file_info.get("filename", "")
+            sources.append({
+                "project_slug": project["_id"],
+                "project_display_name": project["display_name"],
+                "version_id": version["_id"],
+                "file_id": file_info.get("id"),
+                "filename": filename,
+                "content_type": guess_type(filename)[0] or "application/octet-stream",
+                "size": file_info.get("size", 0),
+                "author": version["author"],
+                "published_at": version["created_at"],
+            })
+    sources.sort(key=lambda item: (
+        -item["published_at"].timestamp(),
+        item["project_slug"],
+        item["version_id"],
+        item["filename"],
+    ))
+    return sources[:HOME_RECENT_SOURCE_LIMIT]
 
 
 @router.get("/home")
@@ -126,6 +246,7 @@ async def get_offensive_home(current_user: dict = Depends(require_redmode_access
     project_slugs = [item["_id"] for item in projects]
     active_projects = [item for item in projects if item.get("status") == "active"]
     current_revisions = await _current_revisions_for_projects(project_slugs)
+    scope_versions = await _scope_versions_for_projects(projects)
     phase_counts = Counter(item.get("phase") for item in projects)
     severity_counts = Counter(item.get("severity") for item in current_revisions)
     active_with_scope = sum(1 for item in active_projects if item.get("active_scope_version"))
@@ -188,7 +309,10 @@ async def get_offensive_home(current_user: dict = Depends(require_redmode_access
                 "with_active_scope": active_with_scope,
                 "without_active_scope": len(active_projects) - active_with_scope,
             },
+            "activity_30d": _activity_series(projects, now),
         },
+        "attention": _attention_queue(projects, current_revisions),
+        "recent_sources": _recent_sources(projects, scope_versions),
     }
 
 

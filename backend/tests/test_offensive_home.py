@@ -27,6 +27,7 @@ def project_doc(
     status: str = "active",
     phase: str = "reconnaissance",
     active_scope_version: str | None = None,
+    scope_history: list[str] | None = None,
     activity_events: list[dict] | None = None,
 ) -> dict:
     return {
@@ -39,6 +40,7 @@ def project_doc(
         "created_at": last_activity_at - timedelta(days=10),
         "last_activity_at": last_activity_at,
         "active_scope_version": active_scope_version,
+        "scope_history": scope_history or [],
         "activity_events": activity_events or [],
     }
 
@@ -69,7 +71,9 @@ async def test_home_returns_zero_values_without_member_engagements(async_client,
         "high_critical_findings": 0,
         "activity_7d": 0,
     }
-    assert response.json()["charts"] == {
+    charts = response.json()["charts"]
+    activity_30d = charts.pop("activity_30d")
+    assert charts == {
         "ptes_pipeline": [
             {"phase": phase, "count": 0}
             for phase in (
@@ -88,6 +92,10 @@ async def test_home_returns_zero_values_without_member_engagements(async_client,
         ],
         "scope_readiness": {"with_active_scope": 0, "without_active_scope": 0},
     }
+    assert len(activity_30d) == 30
+    assert all(item["total"] == 0 for item in activity_30d)
+    assert response.json()["attention"] == []
+    assert response.json()["recent_sources"] == []
 
 
 @pytest.mark.asyncio
@@ -189,6 +197,13 @@ async def test_home_metrics_and_resume_only_include_member_engagements(async_cli
         "with_active_scope": 1,
         "without_active_scope": 1,
     }
+    assert sum(item["total"] for item in data["charts"]["activity_30d"]) == 2
+    assert [item["slug"] for item in data["attention"]] == ["recent-member"]
+    assert data["attention"][0]["reasons"] == [
+        {"kind": "missing_scope", "count": 1},
+        {"kind": "high_findings", "count": 1},
+    ]
+    assert data["recent_sources"] == []
     assert "outsider-project" not in str(data)
 
     await fake_db.users.update_one(
@@ -234,3 +249,158 @@ async def test_opened_engagement_is_remembered_only_for_members(async_client, fa
     assert denied.status_code == 403
     user = await fake_db.users.find_one({"username": "techuser"})
     assert user["last_offensive_engagement"] == "member-project"
+
+
+@pytest.mark.asyncio
+async def test_home_activity_attention_and_sources_are_ordered_and_isolated(
+    async_client,
+    fake_db,
+):
+    await grant_offensive_access(fake_db, "techuser")
+    now = datetime.now(timezone.utc)
+    source_ids = [f"scope-{index}" for index in range(10)]
+    projects = [
+        project_doc(
+            "critical-project",
+            members=["techuser"],
+            last_activity_at=now - timedelta(days=4),
+            active_scope_version="critical-scope",
+            activity_events=[
+                {"type": "scope_published", "author": "techuser", "subject": "boundary", "at": now - timedelta(days=29)},
+                {"type": "evidence_added", "author": "techuser", "subject": "old", "at": now - timedelta(days=30)},
+            ],
+        ),
+        project_doc(
+            "missing-project",
+            members=["techuser"],
+            last_activity_at=now,
+            activity_events=[
+                {"type": "evidence_added", "author": "techuser", "subject": "recent", "at": now - timedelta(days=2)},
+            ],
+        ),
+        project_doc(
+            "high-project",
+            members=["techuser"],
+            last_activity_at=now - timedelta(minutes=10),
+            active_scope_version=source_ids[0],
+            scope_history=source_ids,
+            activity_events=[
+                {"type": "finding_created", "author": "techuser", "subject": "high", "at": now - timedelta(days=1)},
+            ],
+        ),
+        project_doc(
+            "outsider-project",
+            members=["admin"],
+            last_activity_at=now + timedelta(minutes=1),
+            scope_history=["outsider-scope"],
+            activity_events=[
+                {"type": "evidence_added", "author": "admin", "subject": "private", "at": now},
+            ],
+        ),
+    ]
+    for project in projects:
+        await fake_db.redmode_projects.insert_one(project)
+
+    for finding_id, project_slug, revision_id, severity in (
+        ("critical-finding", "critical-project", "critical-revision", "critical"),
+        ("high-finding", "high-project", "high-revision", "high"),
+        ("outsider-finding", "outsider-project", "outsider-revision", "critical"),
+    ):
+        await fake_db.redmode_findings.insert_one({
+            "_id": finding_id,
+            "project_slug": project_slug,
+            "current_revision_id": revision_id,
+        })
+        await fake_db.redmode_finding_revisions.insert_one({
+            "_id": revision_id,
+            "finding_id": finding_id,
+            "project_slug": project_slug,
+            "severity": severity,
+        })
+
+    for index, version_id in enumerate(source_ids):
+        await fake_db.redmode_scope_versions.insert_one({
+            "_id": version_id,
+            "project_slug": "high-project",
+            "author": "techuser",
+            "created_at": now - timedelta(hours=index),
+            "source": {"files": [{
+                "id": f"file-{index}",
+                "filename": f"scope-{index}.csv",
+                "size": index + 1,
+            }]},
+        })
+    await fake_db.redmode_scope_versions.insert_one({
+        "_id": "outsider-scope",
+        "project_slug": "outsider-project",
+        "author": "admin",
+        "created_at": now + timedelta(hours=1),
+        "source": {"files": [{
+            "id": "outsider-file",
+            "filename": "private.pdf",
+            "size": 999,
+        }]},
+    })
+
+    response = await async_client.get(
+        "/api/redmode/home",
+        headers=headers_for("techuser"),
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    activity = {item["date"]: item for item in data["charts"]["activity_30d"]}
+    assert len(activity) == 30
+    assert sum(item["total"] for item in activity.values()) == 3
+    assert activity[(now - timedelta(days=29)).date().isoformat()]["scope_publications"] == 1
+    assert activity[(now - timedelta(days=2)).date().isoformat()]["evidence"] == 1
+    assert activity[(now - timedelta(days=1)).date().isoformat()]["findings"] == 1
+
+    assert [item["slug"] for item in data["attention"]] == [
+        "critical-project",
+        "missing-project",
+        "high-project",
+    ]
+    assert data["attention"][0]["reasons"] == [
+        {"kind": "critical_findings", "count": 1},
+    ]
+    assert data["attention"][1]["reasons"] == [
+        {"kind": "missing_scope", "count": 1},
+    ]
+    assert data["attention"][2]["reasons"] == [
+        {"kind": "high_findings", "count": 1},
+    ]
+
+    assert len(data["recent_sources"]) == 8
+    assert [item["filename"] for item in data["recent_sources"]] == [
+        f"scope-{index}.csv" for index in range(8)
+    ]
+    assert all(item["project_slug"] == "high-project" for item in data["recent_sources"])
+    assert data["recent_sources"][0]["content_type"] == "text/csv"
+    assert "download_url" not in data["recent_sources"][0]
+    assert "outsider-project" not in str(data)
+
+
+@pytest.mark.asyncio
+async def test_home_attention_is_limited_with_a_deterministic_tiebreaker(
+    async_client,
+    fake_db,
+):
+    await grant_offensive_access(fake_db, "techuser")
+    now = datetime.now(timezone.utc)
+    for index in range(10):
+        await fake_db.redmode_projects.insert_one(project_doc(
+            f"project-{index:02d}",
+            members=["techuser"],
+            last_activity_at=now,
+        ))
+
+    response = await async_client.get(
+        "/api/redmode/home",
+        headers=headers_for("techuser"),
+    )
+
+    assert response.status_code == 200
+    assert [item["slug"] for item in response.json()["attention"]] == [
+        f"project-{index:02d}" for index in range(8)
+    ]

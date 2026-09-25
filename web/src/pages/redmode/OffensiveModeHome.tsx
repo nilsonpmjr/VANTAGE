@@ -13,6 +13,7 @@ import { PageHeader } from "../../components/page/PageChrome";
 import { useLanguage } from "../../context/LanguageContext";
 import { getOffensiveHome, type OffensiveHomeSummary } from "./api";
 import OffensiveHomeCharts from "./OffensiveHomeCharts";
+import OffensiveHomeDetails from "./OffensiveHomeDetails";
 
 function MetricCard({ icon, label, value, detail }: {
   icon: ReactNode;
@@ -112,33 +113,6 @@ export default function OffensiveModeHome() {
         </section>
       ) : summary ? (
         <>
-          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <MetricCard
-              icon={<BriefcaseBusiness className="h-5 w-5" />}
-              label={t("offensive.home.metrics.activeEngagements", "Active engagements")}
-              value={summary.metrics.active_engagements}
-              detail={t("offensive.home.metrics.activeEngagementsDetail", "Member engagements currently marked active.")}
-            />
-            <MetricCard
-              icon={<FileWarning className="h-5 w-5" />}
-              label={t("offensive.home.metrics.scopeAttention", "Scopes needing attention")}
-              value={summary.metrics.scopes_needing_attention}
-              detail={t("offensive.home.metrics.scopeAttentionDetail", "Active engagements without a published scope.")}
-            />
-            <MetricCard
-              icon={<ShieldAlert className="h-5 w-5" />}
-              label={t("offensive.home.metrics.severeFindings", "Critical or high findings")}
-              value={summary.metrics.high_critical_findings}
-              detail={t("offensive.home.metrics.severeFindingsDetail", "Current finding revisions classified critical or high.")}
-            />
-            <MetricCard
-              icon={<Activity className="h-5 w-5" />}
-              label={t("offensive.home.metrics.activity7d", "Activity in 7 days")}
-              value={summary.metrics.activity_7d}
-              detail={t("offensive.home.metrics.activity7dDetail", "Scope, evidence, and finding events in accessible engagements.")}
-            />
-          </section>
-
           {summary.resume ? (
             <section className="card overflow-hidden">
               <div className="grid gap-0 lg:grid-cols-[minmax(0,1fr)_18rem]">
@@ -209,7 +183,35 @@ export default function OffensiveModeHome() {
             </section>
           )}
 
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <MetricCard
+              icon={<BriefcaseBusiness className="h-5 w-5" />}
+              label={t("offensive.home.metrics.activeEngagements", "Active engagements")}
+              value={summary.metrics.active_engagements}
+              detail={t("offensive.home.metrics.activeEngagementsDetail", "Member engagements currently marked active.")}
+            />
+            <MetricCard
+              icon={<FileWarning className="h-5 w-5" />}
+              label={t("offensive.home.metrics.scopeAttention", "Scopes needing attention")}
+              value={summary.metrics.scopes_needing_attention}
+              detail={t("offensive.home.metrics.scopeAttentionDetail", "Active engagements without a published scope.")}
+            />
+            <MetricCard
+              icon={<ShieldAlert className="h-5 w-5" />}
+              label={t("offensive.home.metrics.severeFindings", "Critical or high findings")}
+              value={summary.metrics.high_critical_findings}
+              detail={t("offensive.home.metrics.severeFindingsDetail", "Current finding revisions classified critical or high.")}
+            />
+            <MetricCard
+              icon={<Activity className="h-5 w-5" />}
+              label={t("offensive.home.metrics.activity7d", "Activity in 7 days")}
+              value={summary.metrics.activity_7d}
+              detail={t("offensive.home.metrics.activity7dDetail", "Scope, evidence, and finding events in accessible engagements.")}
+            />
+          </section>
+
           <OffensiveHomeCharts charts={summary.charts} />
+          <OffensiveHomeDetails attention={summary.attention} recentSources={summary.recent_sources} />
         </>
       ) : null}
     </div>

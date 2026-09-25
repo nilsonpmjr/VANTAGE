@@ -24,7 +24,15 @@ const categoryClasses: Record<ScopeRule["category"], string> = {
   excluded: "badge-error",
 };
 
-export default function ScopePanel({ slug, onPublished }: { slug: string; onPublished?: () => void }) {
+export default function ScopePanel({
+  slug,
+  initialVersionId,
+  onPublished,
+}: {
+  slug: string;
+  initialVersionId?: string;
+  onPublished?: () => void;
+}) {
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
   const [limits, setLimits] = useState<ScopeLimits | null>(null);
@@ -40,17 +48,21 @@ export default function ScopePanel({ slug, onPublished }: { slug: string; onPubl
     let mounted = true;
     async function load() {
       try {
-        const [scope, history] = await Promise.all([
+        const [scope, history, requestedScope] = await Promise.all([
           getActiveScope(slug).catch((cause: unknown) => {
             if (cause instanceof Error && cause.message === "scope_not_published") return null;
             throw cause;
           }),
           listScopeVersions(slug),
+          initialVersionId ? getScopeVersion(slug, initialVersionId).catch(() => null) : Promise.resolve(null),
         ]);
         if (!mounted) return;
         setActiveScope(scope);
-        setSelectedScope(scope);
+        setSelectedScope(requestedScope || scope);
         setVersions(history.items);
+        if (requestedScope) {
+          window.requestAnimationFrame(() => document.getElementById("scope")?.scrollIntoView({ block: "start" }));
+        }
       } catch {
         if (mounted) setError("Não foi possível carregar o escopo deste projeto.");
       } finally {
@@ -59,7 +71,7 @@ export default function ScopePanel({ slug, onPublished }: { slug: string; onPubl
     }
     void load();
     return () => { mounted = false; };
-  }, [slug]);
+  }, [initialVersionId, slug]);
 
   useEffect(() => {
     let mounted = true;
@@ -124,7 +136,7 @@ export default function ScopePanel({ slug, onPublished }: { slug: string; onPubl
   }
 
   return (
-    <section className="card p-6 space-y-5">
+    <section id="scope" className="card scroll-mt-24 space-y-5 p-6">
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Escopo do projeto</h2>
         <p className="mt-2 text-sm text-on-surface-variant">Cole o material recebido e/ou anexe arquivos. Alvos explícitos entram como ativos do cliente, salvo exclusões e terceiros identificados nas fontes. A publicação é imediata, sem revisão intermediária.</p>

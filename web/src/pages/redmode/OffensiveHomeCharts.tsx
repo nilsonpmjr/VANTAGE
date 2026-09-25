@@ -1,4 +1,6 @@
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   Cell,
@@ -61,7 +63,7 @@ function EmptyChart({ message }: { message: string }) {
 }
 
 export default function OffensiveHomeCharts({ charts }: { charts: HomeCharts }) {
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const phaseData = charts.ptes_pipeline.map((item) => ({
     ...item,
     label: t(
@@ -77,6 +79,19 @@ export default function OffensiveHomeCharts({ charts }: { charts: HomeCharts }) 
   const engagementTotal = phaseData.reduce((total, item) => total + item.count, 0);
   const findingTotal = severityData.reduce((total, item) => total + item.count, 0);
   const scopeTotal = charts.scope_readiness.with_active_scope + charts.scope_readiness.without_active_scope;
+  const activityTotals = charts.activity_30d.reduce(
+    (totals, item) => ({
+      evidence: totals.evidence + item.evidence,
+      findings: totals.findings + item.findings,
+      scope: totals.scope + item.scope_publications,
+      total: totals.total + item.total,
+    }),
+    { evidence: 0, findings: 0, scope: 0, total: 0 },
+  );
+  const formatActivityDate = (value: string) => new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "short",
+  }).format(new Date(`${value}T00:00:00Z`));
   const withScopeWidth = scopeTotal
     ? `${(charts.scope_readiness.with_active_scope / scopeTotal) * 100}%`
     : "0%";
@@ -185,6 +200,78 @@ export default function OffensiveHomeCharts({ charts }: { charts: HomeCharts }) 
           {findingTotal} {findingTotal === 1
             ? t("offensive.home.findingsSummaryOne", "current finding revision represented.")
             : t("offensive.home.findingsSummaryMany", "current finding revisions represented.")}
+        </p>
+      </article>
+
+      <article className="card overflow-hidden lg:col-span-7">
+        <header className="card-header block">
+          <h2 className="card-title">{t("offensive.home.activityTitle", "30-day operational activity")}</h2>
+          <p className="mt-1 text-xs text-on-surface-variant">
+            {t("offensive.home.activityDescription", "Daily UTC buckets displayed in your browser's time zone.")}
+          </p>
+        </header>
+        {activityTotals.total === 0 ? (
+          <EmptyChart message={t("offensive.home.noActivityData", "No evidence, finding, or scope publication was recorded in this period.")} />
+        ) : (
+          <div className="p-5">
+            <div className="flex flex-wrap gap-x-5 gap-y-2 pb-4 text-xs text-on-surface-variant">
+              <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-primary" />{t("offensive.home.activityEvidence", "Evidence")} · {activityTotals.evidence}</span>
+              <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-amber-500" />{t("offensive.home.activityFindings", "Findings")} · {activityTotals.findings}</span>
+              <span className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />{t("offensive.home.activityScopes", "Scope publications")} · {activityTotals.scope}</span>
+            </div>
+            <div className="h-64" aria-label={t("offensive.home.activityChartLabel", "Daily operational activity over 30 days")}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={charts.activity_30d} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="offensiveEvidence" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="offensiveFindings" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="offensiveScopes" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="date"
+                    axisLine={false}
+                    tickLine={false}
+                    minTickGap={28}
+                    tickFormatter={formatActivityDate}
+                    tick={{ fill: "var(--color-on-surface-variant)", fontSize: 10 }}
+                  />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fill: "var(--color-on-surface-variant)", fontSize: 10 }} />
+                  <Tooltip
+                    labelFormatter={(value) => formatActivityDate(String(value))}
+                    contentStyle={{
+                      background: "var(--color-surface-container-lowest)",
+                      border: "1px solid var(--color-outline-variant)",
+                      color: "var(--color-on-surface)",
+                    }}
+                  />
+                  <Area type="monotone" dataKey="evidence" name={t("offensive.home.activityEvidence", "Evidence")} stroke="var(--color-primary)" fill="url(#offensiveEvidence)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="findings" name={t("offensive.home.activityFindings", "Findings")} stroke="#f59e0b" fill="url(#offensiveFindings)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="scope_publications" name={t("offensive.home.activityScopes", "Scope publications")} stroke="#10b981" fill="url(#offensiveScopes)" strokeWidth={2} />
+                </AreaChart>
+              </ResponsiveContainer>
+              <ul className="sr-only">
+                {charts.activity_30d.map((item) => (
+                  <li key={item.date}>
+                    {formatActivityDate(item.date)}: {item.evidence} {t("offensive.home.activityEvidence", "Evidence")}, {item.findings} {t("offensive.home.activityFindings", "Findings")}, {item.scope_publications} {t("offensive.home.activityScopes", "Scope publications")}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        )}
+        <p className="border-t border-outline-variant/20 px-6 py-3 text-xs text-on-surface-variant">
+          {activityTotals.total} {activityTotals.total === 1
+            ? t("offensive.home.activitySummaryOne", "operational event in the last 30 days.")
+            : t("offensive.home.activitySummaryMany", "operational events in the last 30 days.")}
         </p>
       </article>
 

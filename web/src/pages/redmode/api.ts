@@ -32,7 +32,31 @@ export interface OffensiveHomeSummary {
       with_active_scope: number;
       without_active_scope: number;
     };
+    activity_30d: Array<{
+      date: string;
+      evidence: number;
+      findings: number;
+      scope_publications: number;
+      total: number;
+    }>;
   };
+  attention: Array<ProjectSummary & {
+    reasons: Array<{
+      kind: "critical_findings" | "missing_scope" | "high_findings";
+      count: number;
+    }>;
+  }>;
+  recent_sources: Array<{
+    project_slug: string;
+    project_display_name: string;
+    version_id: string;
+    file_id: string;
+    filename: string;
+    content_type: string;
+    size: number;
+    author: string;
+    published_at: string;
+  }>;
 }
 
 export interface ProjectActivity {

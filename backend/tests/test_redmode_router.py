@@ -237,6 +237,66 @@ async def test_only_responsible_can_change_members(async_client, fake_db):
 
 
 @pytest.mark.asyncio
+async def test_responsible_can_change_project_phase_and_audit_it(async_client):
+    created = await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    assert created.status_code == 201
+
+    changed = await async_client.put(
+        "/api/redmode/projects/cliente-demo/phase",
+        json={"phase": "reconnaissance"},
+        headers=headers_for("admin", "admin"),
+    )
+    assert changed.status_code == 200
+    assert changed.json()["phase"] == "reconnaissance"
+
+    activity = await async_client.get(
+        "/api/redmode/projects/cliente-demo/activity",
+        headers=headers_for("admin", "admin"),
+    )
+    assert activity.status_code == 200
+    assert activity.json()["items"][-1]["type"] == "phase_changed"
+    assert activity.json()["items"][-1]["subject"] == "pre-engagement -> reconnaissance"
+
+
+@pytest.mark.asyncio
+async def test_project_phase_change_requires_responsible_and_valid_phase(async_client, fake_db):
+    await grant_redmode(fake_db, "techuser")
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    await async_client.put(
+        "/api/redmode/projects/cliente-demo/members/techuser",
+        headers=headers_for("admin", "admin"),
+    )
+
+    denied = await async_client.put(
+        "/api/redmode/projects/cliente-demo/phase",
+        json={"phase": "reconnaissance"},
+        headers=headers_for("techuser"),
+    )
+    assert denied.status_code == 403
+
+    invalid = await async_client.put(
+        "/api/redmode/projects/cliente-demo/phase",
+        json={"phase": "unknown"},
+        headers=headers_for("admin", "admin"),
+    )
+    assert invalid.status_code == 422
+
+    detail = await async_client.get(
+        "/api/redmode/projects/cliente-demo",
+        headers=headers_for("admin", "admin"),
+    )
+    assert detail.json()["phase"] == "pre-engagement"
+
+
+@pytest.mark.asyncio
 async def test_cannot_add_disabled_or_unenabled_user(async_client, fake_db):
     created = await async_client.post(
         "/api/redmode/projects",

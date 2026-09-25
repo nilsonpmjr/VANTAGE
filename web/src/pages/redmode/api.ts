@@ -188,6 +188,15 @@ export async function rememberEngagement(slug: string): Promise<void> {
   }));
 }
 
+export async function changeProjectPhase(slug: string, phase: string): Promise<ProjectDetail> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/phase`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phase }),
+  }));
+}
+
 export async function changeProjectMember(slug: string, username: string, add: boolean): Promise<ProjectDetail> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/members/${encodeURIComponent(username)}`, {
     method: add ? "PUT" : "DELETE",

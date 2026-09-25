@@ -14,6 +14,7 @@ import {
 import { PageHeader, PageMetricPill } from "../../components/page/PageChrome";
 import { useAuth } from "../../context/AuthContext";
 import {
+  changeProjectPhase,
   changeProjectMember,
   getProject,
   listProjectActivity,
@@ -44,6 +45,7 @@ const activityLabels: Record<string, string> = {
   evidence_added: "Evidência registrada",
   finding_created: "Finding criado",
   finding_updated: "Finding revisado",
+  phase_changed: "Fase alterada",
 };
 
 function ActivityList({ activity, emptyCopy }: { activity: ProjectActivity[]; emptyCopy: string }) {
@@ -155,10 +157,18 @@ function ProjectOverview({
   project,
   activity,
   activityError,
+  currentUsername,
+  savingPhase,
+  phaseError,
+  onPhaseChange,
 }: {
   project: ProjectDetail;
   activity: ProjectActivity[];
   activityError: string;
+  currentUsername?: string;
+  savingPhase: boolean;
+  phaseError: string;
+  onPhaseChange: (phase: string) => void;
 }) {
   const basePath = `/redmode/engagements/${encodeURIComponent(project.slug)}`;
   const currentPhaseIndex = Math.max(
@@ -205,6 +215,28 @@ function ProjectOverview({
           <LayoutDashboard className="h-5 w-5 text-primary" />
         </div>
         <div className="card-body">
+          {currentUsername === project.responsible && (
+            <div className="mb-5 flex flex-col gap-3 rounded-sm border border-outline-variant/20 bg-surface-container-low p-4 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-on-surface">Fase operacional atual</p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  Alterações ficam registradas no histórico do engagement.
+                </p>
+              </div>
+              <label className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                Fase PTES
+                <select
+                  className="mt-2 block min-w-64 rounded-sm border border-outline-variant/30 bg-surface-container-lowest px-3 py-2 text-sm font-medium normal-case tracking-normal text-on-surface"
+                  value={project.phase}
+                  disabled={savingPhase}
+                  onChange={(event) => onPhaseChange(event.target.value)}
+                >
+                  {ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+            </div>
+          )}
+          {phaseError && <p className="mb-4 text-sm text-error" role="alert">{phaseError}</p>}
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {ptesPhases.map(([key, label], index) => {
               const current = index === currentPhaseIndex;
@@ -283,6 +315,8 @@ export default function RedModeProject() {
   const [username, setUsername] = useState("");
   const [memberError, setMemberError] = useState("");
   const [savingMember, setSavingMember] = useState(false);
+  const [savingPhase, setSavingPhase] = useState(false);
+  const [phaseError, setPhaseError] = useState("");
   const [activityError, setActivityError] = useState("");
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const [findingRefresh, setFindingRefresh] = useState(0);
@@ -353,6 +387,24 @@ export default function RedModeProject() {
     void updateMember(username, true);
   }
 
+  async function updatePhase(phase: string) {
+    if (!project || phase === project.phase) return;
+    setSavingPhase(true);
+    setPhaseError("");
+    try {
+      const updated = await changeProjectPhase(project.slug, phase);
+      setProject(updated);
+      await refreshActivity();
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      setPhaseError(reason === "project_changed_retry"
+        ? "A fase mudou em outra sessão. Recarregue o engagement e tente novamente."
+        : "Não foi possível alterar a fase do engagement.");
+    } finally {
+      setSavingPhase(false);
+    }
+  }
+
   const sectionLabel = useMemo(() => ({
     overview: "Overview",
     scope: "Escopo e alvos",
@@ -398,7 +450,15 @@ export default function RedModeProject() {
               </Link>
             </section>
           ) : activeSection === "overview" ? (
-            <ProjectOverview project={project} activity={activity} activityError={activityError} />
+            <ProjectOverview
+              project={project}
+              activity={activity}
+              activityError={activityError}
+              currentUsername={user?.username}
+              savingPhase={savingPhase}
+              phaseError={phaseError}
+              onPhaseChange={(phase) => void updatePhase(phase)}
+            />
           ) : activeSection === "scope" ? (
             <ScopePanel
               slug={project.slug}

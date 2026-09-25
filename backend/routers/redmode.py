@@ -6,6 +6,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from mimetypes import guess_type
+from typing import Literal
 from uuid import uuid4
 from urllib.parse import quote
 
@@ -31,6 +32,23 @@ class ProjectCreate(BaseModel):
 
     slug: str = Field(min_length=3, max_length=64, pattern=r"^[a-z0-9][a-z0-9-]*[a-z0-9]$")
     display_name: str = Field(min_length=2, max_length=120)
+
+
+ProjectPhase = Literal[
+    "pre-engagement",
+    "reconnaissance",
+    "threat-modeling",
+    "vulnerability-analysis",
+    "exploitation",
+    "post-exploitation",
+    "reporting",
+]
+
+
+class ProjectPhaseUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    phase: ProjectPhase
 
 
 class ScopeTextCreate(BaseModel):
@@ -395,6 +413,44 @@ async def list_project_activity(
 ):
     doc = await load_project_for_member(slug, current_user)
     return {"items": doc.get("activity_events", [])}
+
+
+@router.put("/projects/{slug}/phase")
+async def update_project_phase(
+    slug: str,
+    payload: ProjectPhaseUpdate,
+    current_user: dict = Depends(require_redmode_access),
+):
+    doc = await load_project_for_member(slug, current_user)
+    if current_user["username"] != doc["responsible"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="project_responsible_required",
+        )
+    if payload.phase == doc["phase"]:
+        return project_detail(doc)
+
+    now = datetime.now(timezone.utc)
+    event = {
+        "type": "phase_changed",
+        "author": current_user["username"],
+        "subject": f'{doc["phase"]} -> {payload.phase}',
+        "at": now,
+    }
+    result = await projects_collection().update_one(
+        {"_id": slug, "phase": doc["phase"]},
+        {
+            "$set": {"phase": payload.phase, "last_activity_at": now},
+            "$push": {"activity_events": event},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="project_changed_retry",
+        )
+    updated_doc = await projects_collection().find_one({"_id": slug})
+    return project_detail(updated_doc)
 
 
 async def change_members(slug: str, username: str, current_user: dict, *, add: bool) -> dict:

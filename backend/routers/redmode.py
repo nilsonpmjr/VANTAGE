@@ -1098,7 +1098,7 @@ def _scope_asset_detail(asset: dict) -> dict:
     }
 
 
-async def _source_rules(version: dict, source_id: str) -> list[dict]:
+async def _source_assets(version: dict, source_id: str) -> list[dict]:
     if version.get("asset_schema_version") == 1:
         return [
             _scope_asset_detail(item)
@@ -1106,13 +1106,12 @@ async def _source_rules(version: dict, source_id: str) -> list[dict]:
                 "project_slug": version["project_slug"],
                 "version_id": version["_id"],
                 "source_ids": {"$in": [source_id]},
-                "executable": True,
             }).sort([("order", 1), ("asset_id", 1)])
         ]
     return [
         _scope_asset_detail(item)
         for item in _legacy_asset_documents(version)
-        if item["executable"] and source_id in item["source_ids"]
+        if source_id in item["source_ids"]
     ]
 
 
@@ -1151,7 +1150,8 @@ async def get_scope_source(
     if source is None:
         raise HTTPException(status_code=404, detail="scope_source_not_found")
     content = await _read_scope_source_content(source)
-    rules = await _source_rules(version, source_id)
+    assets = await _source_assets(version, source_id)
+    rules = [asset for asset in assets if asset["executable"]]
     detail = _scope_source_detail(source)
     detail["representation"] = {
         **detail["representation"],
@@ -1160,6 +1160,12 @@ async def get_scope_source(
     detail["rules"] = {
         "items": rules[rule_offset:rule_offset + rule_limit],
         "total": len(rules),
+        "limit": rule_limit,
+        "offset": rule_offset,
+    }
+    detail["assets"] = {
+        "items": assets[rule_offset:rule_offset + rule_limit],
+        "total": len(assets),
         "limit": rule_limit,
         "offset": rule_offset,
     }

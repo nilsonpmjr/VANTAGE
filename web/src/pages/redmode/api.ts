@@ -69,9 +69,94 @@ export interface ProjectActivity {
 export interface ScopeRule {
   kind: "ip" | "cidr" | "domain" | "url";
   value: string;
+  original_value?: string;
+  original_values?: string[];
   category: "client" | "third_party" | "excluded";
+  classification?: "declared" | "derived" | "enriched";
+  executable?: boolean;
   origin_lines: number[];
   origins: Array<{ source_id: string; line: number; position?: string }>;
+  normalized?: ScopeNormalization | null;
+}
+
+export interface ScopeNormalization {
+  classification: "declared" | "derived" | "enriched";
+  kind: "ip" | "cidr" | "domain" | "url" | "asn";
+  original: string;
+  canonical: string;
+  attributes: Record<string, string | number | null>;
+  relations: Array<{
+    classification: "derived";
+    type: string;
+    kind: string;
+    canonical: string;
+    category: ScopeRule["category"];
+  }>;
+  enrichments: unknown[];
+}
+
+export interface ScopeAsset {
+  asset_id: string;
+  project_slug: string;
+  version_id: string;
+  kind: "ip" | "cidr" | "domain" | "url" | "asn";
+  value: string;
+  original_value: string;
+  original_values: string[];
+  category: ScopeRule["category"];
+  classification: "declared" | "derived" | "enriched";
+  executable: boolean;
+  origins: Array<{ source_id: string; line: number; position?: string }>;
+  source_ids: string[];
+  normalized: ScopeNormalization | null;
+}
+
+export interface ScopeSource {
+  source_id: string;
+  project_slug: string;
+  version_id: string;
+  type: "text" | "file";
+  name: string;
+  mime_type: string;
+  size: number;
+  sha256: string;
+  author: string;
+  created_at: string;
+  extraction: {
+    status: "complete" | "legacy";
+    warnings: string[];
+    rule_count: number;
+    context_count: number;
+  };
+  original: { available: boolean; file_id: string | null };
+  representation: {
+    available: boolean;
+    materialized: boolean;
+    content?: string | null;
+    offset?: number;
+    limit?: number;
+    total_characters?: number | null;
+    truncated?: boolean;
+  };
+}
+
+export interface ScopeSourceDetail extends ScopeSource {
+  representation: ScopeSource["representation"] & {
+    content: string | null;
+    offset: number;
+    limit: number;
+    total_characters: number | null;
+    truncated: boolean;
+  };
+  rules: PaginatedResponse<ScopeAsset>;
+  assets: PaginatedResponse<ScopeAsset>;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ScopeFile {
@@ -89,6 +174,13 @@ export interface ScopeVersion {
   created_at: string;
   source: { kind: "text" | "bundle"; text: string; sha256: string; files: ScopeFile[] };
   rules: ScopeRule[];
+  context_assets?: ScopeAsset[];
+  normalization?: {
+    schema_version: number;
+    mode: "offline";
+    psl_version: string;
+    classifications: Array<"declared" | "derived" | "enriched">;
+  } | null;
 }
 
 export interface ScopeVersionSummary {
@@ -236,6 +328,66 @@ export async function getScopeLimits(): Promise<ScopeLimits> {
 
 export function scopeFileDownloadUrl(slug: string, versionId: string, fileId: string): string {
   return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/scope/versions/${encodeURIComponent(versionId)}/files/${encodeURIComponent(fileId)}`;
+}
+
+export async function listScopeSources(
+  slug: string,
+  versionId: string,
+  offset = 0,
+  limit = 50,
+): Promise<PaginatedResponse<ScopeSource>> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/scope/versions/${encodeURIComponent(versionId)}/sources?offset=${offset}&limit=${limit}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getScopeSource(
+  slug: string,
+  versionId: string,
+  sourceId: string,
+  options: { contentOffset?: number; contentLimit?: number; assetOffset?: number; assetLimit?: number } = {},
+): Promise<ScopeSourceDetail> {
+  const query = new URLSearchParams({
+    content_offset: String(options.contentOffset || 0),
+    content_limit: String(options.contentLimit || 20000),
+    rule_offset: String(options.assetOffset || 0),
+    rule_limit: String(options.assetLimit || 50),
+  });
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/scope/versions/${encodeURIComponent(versionId)}/sources/${encodeURIComponent(sourceId)}`;
+  return readResponse(await fetch(`${path}?${query}`, { credentials: "include" }));
+}
+
+export interface ScopeAssetQuery {
+  q?: string;
+  kind?: ScopeAsset["kind"];
+  category?: ScopeRule["category"];
+  source_id?: string;
+  sort_by?: "canonical" | "kind" | "category";
+  direction?: "asc" | "desc";
+  offset?: number;
+  limit?: number;
+}
+
+export interface ScopeAssetPage extends PaginatedResponse<ScopeAsset> {
+  totals: {
+    by_kind: Record<ScopeAsset["kind"], number>;
+    by_category: Record<ScopeRule["category"], number>;
+  };
+}
+
+export async function listScopeAssets(
+  slug: string,
+  versionId: string,
+  options: ScopeAssetQuery = {},
+): Promise<ScopeAssetPage> {
+  const query = new URLSearchParams();
+  for (const [key, value] of Object.entries(options)) {
+    if (value !== undefined && value !== "") query.set(key, String(value));
+  }
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/scope/versions/${encodeURIComponent(versionId)}/assets`;
+  return readResponse(await fetch(`${path}?${query}`, { credentials: "include" }));
 }
 
 export async function getActiveScope(slug: string): Promise<ScopeVersion> {

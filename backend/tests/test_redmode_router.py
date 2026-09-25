@@ -576,6 +576,7 @@ async def test_scope_sources_are_materialized_and_private(
     assert detail_body["representation"]["content"] == "198.51.100.10"
     assert detail_body["representation"]["total_characters"] == 13
     assert detail_body["rules"]["total"] == 1
+    assert detail_body["assets"]["total"] == 1
     representation = await async_client.get(
         f"{path}/{file_source['source_id']}/representation",
         headers=headers_for("admin", "admin"),
@@ -833,6 +834,7 @@ async def test_scope_sources_and_assets_support_server_pagination_and_filters(
     assert text_detail.json()["representation"]["content"] == "192.0"
     assert text_detail.json()["representation"]["truncated"] is True
     assert text_detail.json()["rules"]["total"] == 2
+    assert text_detail.json()["assets"]["total"] == 3
     assert len(text_detail.json()["rules"]["items"]) == 1
     text_page = await async_client.get(
         f"{base}/sources/text/representation?offset=6&limit=8",

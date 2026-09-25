@@ -306,7 +306,7 @@ function ProjectOverview({
 export default function RedModeProject() {
   const { slug, section: sectionParam } = useParams<{ slug: string; section?: string }>();
   const [searchParams] = useSearchParams();
-  const requestedScopeVersion = searchParams.get("scope") || undefined;
+  const requestedScopeVersion = searchParams.get("version") || searchParams.get("scope") || undefined;
   const activeSection = (sectionParam || (requestedScopeVersion ? "scope" : "overview")) as ProjectSection;
   const validSection = projectSections.has(activeSection);
   const { user } = useAuth();

@@ -12,6 +12,19 @@ import { Link, useLocation } from "react-router-dom";
 import API_URL from "../config";
 import LoginGate from "../components/auth/LoginGate";
 import { canAccessPath } from "../lib/access";
+import {
+  DEFAULT_WORKSPACE,
+  MFA_PENDING_STORAGE_KEY,
+  MFA_WORKSPACE_STORAGE_KEY,
+  isWorkspaceId,
+  type WorkspaceId,
+} from "../lib/workspaces";
+
+export interface LoginResult {
+  authenticated: boolean;
+  workspace: WorkspaceId;
+  notice?: string;
+}
 
 export interface AuthUser {
   username: string;
@@ -19,7 +32,7 @@ export interface AuthUser {
   name?: string;
   email?: string | null;
   preferred_lang?: string;
-  preferred_workspace?: "soc" | "offensive";
+  preferred_workspace?: WorkspaceId;
   is_active?: boolean;
   force_password_reset?: boolean;
   mfa_enabled?: boolean;
@@ -45,16 +58,24 @@ interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
   mfaPending: boolean;
-  login: (username: string, password: string) => Promise<boolean>;
+  pendingWorkspace: WorkspaceId;
+  workspaceNotice: string | null;
+  login: (username: string, password: string, workspace: WorkspaceId) => Promise<LoginResult>;
   logout: () => Promise<void>;
-  completeMfaLogin: (user: AuthUser) => void;
+  completeMfaLogin: (user: AuthUser, workspace: WorkspaceId, notice?: string) => void;
   cancelMfa: () => void;
+  clearWorkspaceNotice: () => void;
   updateUserContext: (user: AuthUser) => void;
   refreshUser: () => Promise<AuthUser | null>;
   refreshSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+function readPendingWorkspace(): WorkspaceId {
+  const stored = window.sessionStorage.getItem(MFA_WORKSPACE_STORAGE_KEY);
+  return isWorkspaceId(stored) ? stored : DEFAULT_WORKSPACE;
+}
 
 async function fetchCurrentUser() {
   const meRes = await fetch(`${API_URL}/api/auth/me`, { credentials: "include" });
@@ -83,7 +104,11 @@ async function fetchCurrentUser() {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [mfaPending, setMfaPending] = useState(false);
+  const [mfaPending, setMfaPending] = useState(
+    () => window.sessionStorage.getItem(MFA_PENDING_STORAGE_KEY) === "true",
+  );
+  const [pendingWorkspace, setPendingWorkspace] = useState<WorkspaceId>(readPendingWorkspace);
+  const [workspaceNotice, setWorkspaceNotice] = useState<string | null>(null);
   const nativeFetchRef = useRef<typeof window.fetch | null>(null);
   const refreshInFlightRef = useRef<Promise<boolean> | null>(null);
 
@@ -238,10 +263,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [refreshSession]);
 
-  const login = useCallback(async (username: string, password: string) => {
+  const clearPendingMfa = useCallback(() => {
+    window.sessionStorage.removeItem(MFA_PENDING_STORAGE_KEY);
+    window.sessionStorage.removeItem(MFA_WORKSPACE_STORAGE_KEY);
+    setMfaPending(false);
+  }, []);
+
+  const login = useCallback(async (username: string, password: string, workspace: WorkspaceId) => {
     const formData = new URLSearchParams();
     formData.append("username", username);
     formData.append("password", password);
+    formData.append("workspace", workspace);
 
     const response = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
@@ -266,13 +298,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const data = await response.json();
     if (data.mfa_required) {
+      const nextWorkspace = isWorkspaceId(data.workspace) ? data.workspace : workspace;
+      setPendingWorkspace(nextWorkspace);
       setMfaPending(true);
-      return false;
+      window.sessionStorage.setItem(MFA_PENDING_STORAGE_KEY, "true");
+      window.sessionStorage.setItem(MFA_WORKSPACE_STORAGE_KEY, nextWorkspace);
+      return { authenticated: false, workspace: nextWorkspace };
     }
 
+    const effectiveWorkspace = isWorkspaceId(data.workspace) ? data.workspace : DEFAULT_WORKSPACE;
+    clearPendingMfa();
+    setWorkspaceNotice(typeof data.workspace_notice === "string" ? data.workspace_notice : null);
     setUser(data.user as AuthUser);
-    return true;
-  }, []);
+    return {
+      authenticated: true,
+      workspace: effectiveWorkspace,
+      notice: typeof data.workspace_notice === "string" ? data.workspace_notice : undefined,
+    };
+  }, [clearPendingMfa]);
 
   const logout = useCallback(async () => {
     try {
@@ -284,16 +327,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Session cleanup should not block local logout state.
     }
     setUser(null);
-    setMfaPending(false);
-  }, []);
+    clearPendingMfa();
+    setWorkspaceNotice(null);
+  }, [clearPendingMfa]);
 
-  const completeMfaLogin = useCallback((nextUser: AuthUser) => {
-    setMfaPending(false);
+  const completeMfaLogin = useCallback((nextUser: AuthUser, workspace: WorkspaceId, notice?: string) => {
+    clearPendingMfa();
+    setPendingWorkspace(workspace);
+    setWorkspaceNotice(notice || null);
     setUser(nextUser);
-  }, []);
+  }, [clearPendingMfa]);
 
   const cancelMfa = useCallback(() => {
+    window.sessionStorage.removeItem(MFA_PENDING_STORAGE_KEY);
     setMfaPending(false);
+  }, []);
+
+  const clearWorkspaceNotice = useCallback(() => {
+    setWorkspaceNotice(null);
   }, []);
 
   const updateUserContext = useCallback((nextUser: AuthUser) => {
@@ -305,15 +356,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       user,
       loading,
       mfaPending,
+      pendingWorkspace,
+      workspaceNotice,
       login,
       logout,
       completeMfaLogin,
       cancelMfa,
+      clearWorkspaceNotice,
       updateUserContext,
       refreshUser,
       refreshSession,
     }),
-    [user, loading, mfaPending, login, logout, completeMfaLogin, cancelMfa, updateUserContext, refreshUser, refreshSession],
+    [
+      user,
+      loading,
+      mfaPending,
+      pendingWorkspace,
+      workspaceNotice,
+      login,
+      logout,
+      completeMfaLogin,
+      cancelMfa,
+      clearWorkspaceNotice,
+      updateUserContext,
+      refreshUser,
+      refreshSession,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

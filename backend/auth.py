@@ -21,6 +21,7 @@ ACCESS_TOKEN_EXPIRE_MINUTES = settings.access_token_expire_minutes
 WORKSPACE_SOC = "soc"
 WORKSPACE_OFFENSIVE = "offensive"
 VALID_WORKSPACES = frozenset({WORKSPACE_SOC, WORKSPACE_OFFENSIVE})
+REDMODE_ACCESS_PERMISSION = "redmode:access"
 
 pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 logger = get_logger("Auth")
@@ -352,6 +353,15 @@ def has_permission(user: dict, permission: str) -> bool:
     if user.get("role") == "admin":
         return True
     return permission in user.get("extra_permissions", [])
+
+
+def resolve_effective_workspace(user: dict, requested_workspace: str) -> tuple[str, Optional[str]]:
+    """Resolve a requested workspace after authentication and authorization."""
+    if requested_workspace == WORKSPACE_OFFENSIVE:
+        if has_permission(user, REDMODE_ACCESS_PERMISSION):
+            return WORKSPACE_OFFENSIVE, None
+        return WORKSPACE_SOC, f"permission_required:{REDMODE_ACCESS_PERMISSION}"
+    return WORKSPACE_SOC, None
 
 
 def require_permission(permission: str):

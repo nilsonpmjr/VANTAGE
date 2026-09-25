@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from db import db_manager
 from config import settings
 from auth import (
+    VALID_WORKSPACES,
+    WORKSPACE_SOC,
     verify_password,
     get_password_hash,
     create_access_token,
@@ -21,6 +23,7 @@ from auth import (
     _set_pre_auth_cookie,
     _clear_pre_auth_cookie,
     _build_user_dict,
+    resolve_effective_workspace,
 )
 from limiters import limiter
 from audit import log_action
@@ -37,7 +40,7 @@ AUTH_TOKEN_TYPE = "bearer"  # nosec B105
 PASSWORD_RESET_NOT_REQUIRED = False
 
 
-async def _parse_login_credentials(request: Request) -> tuple[str, str]:
+async def _parse_login_credentials(request: Request) -> tuple[str, str, str]:
     """
     Parse login credentials without relying on FastAPI's form dependency.
 
@@ -63,10 +66,12 @@ async def _parse_login_credentials(request: Request) -> tuple[str, str]:
             )
         username = str(payload.get("username", "")).strip()
         password = str(payload.get("password", ""))
+        workspace = str(payload.get("workspace", WORKSPACE_SOC)).strip()
     else:
         parsed = parse_qs(raw_body.decode("utf-8"), keep_blank_values=True)
         username = parsed.get("username", [""])[0].strip()
         password = parsed.get("password", [""])[0]
+        workspace = parsed.get("workspace", [WORKSPACE_SOC])[0].strip()
 
     if not username or not password:
         raise HTTPException(
@@ -74,7 +79,13 @@ async def _parse_login_credentials(request: Request) -> tuple[str, str]:
             detail="Username and password are required",
         )
 
-    return username, password
+    if workspace not in VALID_WORKSPACES:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Invalid workspace",
+        )
+
+    return username, password, workspace
 
 
 @router.post("/login")
@@ -84,7 +95,7 @@ async def login(request: Request):
     if db is None:
         raise HTTPException(status_code=500, detail="Database not connected")
 
-    username, password = await _parse_login_credentials(request)
+    username, password, requested_workspace = await _parse_login_credentials(request)
 
     # Fetch lockout policy (defaults: 5 attempts / 15 min)
     lockout_cfg = await db.lockout_policy.find_one({"_id": "singleton"})
@@ -167,12 +178,17 @@ async def login(request: Request):
         # Issue a short-lived pre-auth token (5 min) to proceed to OTP verification
         _preauth_secret = settings.mfa_preauth_secret or None
         pre_auth_token = create_access_token(
-            data={"sub": user["username"], "role": role, "scope": "mfa_pending"},
+            data={
+                "sub": user["username"],
+                "role": role,
+                "scope": "mfa_pending",
+                "workspace": requested_workspace,
+            },
             expires_delta=timedelta(minutes=5),
             secret=_preauth_secret,
         )
         await log_action(db, user=user["username"], action="login_mfa_pending", ip=ip)
-        response = JSONResponse(content={"mfa_required": True})
+        response = JSONResponse(content={"mfa_required": True, "workspace": requested_workspace})
         _set_pre_auth_cookie(response, pre_auth_token)
         return response
 
@@ -238,8 +254,16 @@ async def login(request: Request):
         days_left,
         mfa_setup_required=force_mfa_setup,
     )
+    effective_workspace, workspace_notice = resolve_effective_workspace(user, requested_workspace)
 
-    response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
+    content = {
+        "user": user_payload,
+        "token_type": AUTH_TOKEN_TYPE,
+        "workspace": effective_workspace,
+    }
+    if workspace_notice:
+        content["workspace_notice"] = workspace_notice
+    response = JSONResponse(content=content)
     _set_auth_cookies(response, access_token, refresh_token)
     _clear_pre_auth_cookie(response)
     logger.info(f"Login successful: {user['username']}")

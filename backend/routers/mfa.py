@@ -33,6 +33,8 @@ from auth import (
     _set_auth_cookies,
     _clear_pre_auth_cookie,
     _build_user_dict,
+    normalize_preferred_workspace,
+    resolve_effective_workspace,
 )
 from config import settings
 from crypto import encrypt_secret, decrypt_secret
@@ -206,6 +208,7 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
         if payload.get("scope") != "mfa_pending":
             raise HTTPException(status_code=401, detail="invalid_pre_auth_token")
         username = payload.get("sub")
+        requested_workspace = normalize_preferred_workspace(payload.get("workspace"))
     except pyjwt.PyJWTError:
         raise HTTPException(status_code=401, detail="invalid_pre_auth_token")
 
@@ -279,8 +282,16 @@ async def verify_mfa(request: Request, body: MFAVerifyRequest):
     days_left = compute_expiry_days_left(user_doc, policy)
 
     user_payload = _build_user_dict(user_doc, days_left)
+    effective_workspace, workspace_notice = resolve_effective_workspace(user_doc, requested_workspace)
 
-    response = JSONResponse(content={"user": user_payload, "token_type": AUTH_TOKEN_TYPE})
+    content = {
+        "user": user_payload,
+        "token_type": AUTH_TOKEN_TYPE,
+        "workspace": effective_workspace,
+    }
+    if workspace_notice:
+        content["workspace_notice"] = workspace_notice
+    response = JSONResponse(content=content)
     _set_auth_cookies(response, access_token, refresh_token)
     _clear_pre_auth_cookie(response)
 

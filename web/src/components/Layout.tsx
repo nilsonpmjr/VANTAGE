@@ -21,6 +21,7 @@ import {
   Key,
   Search,
   Terminal,
+  X,
 } from "lucide-react";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -58,7 +59,7 @@ const rootNavItems = [
 export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, workspaceNotice, clearWorkspaceNotice } = useAuth();
   const { language, t } = useLanguage();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -735,6 +736,29 @@ export default function Layout() {
         </header>
 
         <main className="flex-1 p-8 overflow-x-hidden">
+          {workspaceNotice && (
+            <div
+              role="status"
+              className="mb-6 flex items-start justify-between gap-4 rounded-sm border border-warning/30 bg-warning/10 px-4 py-3 text-sm text-on-surface"
+            >
+              <span>
+                {workspaceNotice === "permission_required:redmode:access"
+                  ? t(
+                      "auth.errors.redTeamAccessDenied",
+                      "Your account does not have Red Team access. The session was opened in the SOC.",
+                    )
+                  : workspaceNotice}
+              </span>
+              <button
+                type="button"
+                onClick={clearWorkspaceNotice}
+                className="shrink-0 text-on-surface-variant transition-colors hover:text-on-surface"
+                aria-label={t("auth.errors.dismissNotice", "Dismiss notice")}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {showApiKeyToast && !location.pathname.startsWith("/profile") && (
             <div className="mb-6 rounded-sm border border-primary/20 bg-primary/10 px-4 py-4 text-sm text-on-surface">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

@@ -1244,8 +1244,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     },
     auth: {
       login: {
+        workspaceLabel: "Escolha o workspace",
         title: "Centro de Operações de Segurança",
         subtitle: "Inicialize uma sessão autenticada para usar o motor real de inteligência e análise do VANTAGE.",
+        offensiveTitle: "Red Team",
+        offensiveSubtitle: "Inicie uma sessão autenticada para acessar engagements, escopos, evidências e findings no Offensive Mode.",
         username: "Usuário",
         password: "Senha",
         submit: "Entrar",
@@ -1256,6 +1259,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Conta temporariamente bloqueada até {time}.",
         lockoutFallback: "novo aviso",
         invalidOtp: "Código MFA inválido. Revise o OTP e tente novamente.",
+        redTeamAccessDenied: "Sua conta não possui acesso ao Red Team. A sessão foi aberta no SOC.",
+        dismissNotice: "Dispensar aviso",
       },
       mfa: {
         title: "Verificação MFA",
@@ -2840,8 +2845,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     },
     auth: {
       login: {
+        workspaceLabel: "Choose a workspace",
         title: "Security Operations Center",
         subtitle: "Initialize an authenticated session to use VANTAGE's real intelligence and analysis engine.",
+        offensiveTitle: "Red Team",
+        offensiveSubtitle: "Start an authenticated session to access engagements, scopes, evidence, and findings in Offensive Mode.",
         username: "Username",
         password: "Password",
         submit: "Sign In",
@@ -2852,6 +2860,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Account temporarily locked until {time}.",
         lockoutFallback: "further notice",
         invalidOtp: "Invalid MFA code. Review the OTP and try again.",
+        redTeamAccessDenied: "Your account does not have Red Team access. The session was opened in the SOC.",
+        dismissNotice: "Dismiss notice",
       },
       mfa: {
         title: "MFA Verification",
@@ -4452,8 +4462,11 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
     },
     auth: {
       login: {
+        workspaceLabel: "Elige el workspace",
         title: "Centro de Operaciones de Seguridad",
         subtitle: "Inicie una sesión autenticada para usar el motor real de inteligencia y análisis de VANTAGE.",
+        offensiveTitle: "Red Team",
+        offensiveSubtitle: "Inicie una sesión autenticada para acceder a engagements, alcances, evidencias y findings en Offensive Mode.",
         username: "Usuario",
         password: "Contraseña",
         submit: "Ingresar",
@@ -4464,6 +4477,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationTree> = {
         accountLocked: "Cuenta bloqueada temporalmente hasta {time}.",
         lockoutFallback: "nuevo aviso",
         invalidOtp: "Código MFA inválido. Revise el OTP e intente de nuevo.",
+        redTeamAccessDenied: "Su cuenta no tiene acceso a Red Team. La sesión se abrió en el SOC.",
+        dismissNotice: "Descartar aviso",
       },
       mfa: {
         title: "Verificación MFA",

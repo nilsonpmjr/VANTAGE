@@ -170,17 +170,25 @@ async def test_verify_mfa_uses_standard_user_contract(async_client, fake_db):
 
     login_resp = await async_client.post(
         "/api/auth/login",
-        data={"username": "techuser", "password": "TestTech@9876"},
+        data={
+            "username": "techuser",
+            "password": "TestTech@9876",
+            "workspace": "offensive",
+        },
     )
     assert login_resp.status_code == 200
     assert login_resp.json()["mfa_required"] is True
+    assert login_resp.json()["workspace"] == "offensive"
 
     verify_resp = await async_client.post(
         "/api/mfa/verify",
         json={"otp": pyotp.TOTP(secret).now()},
     )
     assert verify_resp.status_code == 200
-    user = verify_resp.json()["user"]
+    data = verify_resp.json()
+    assert data["workspace"] == "offensive"
+    assert "workspace_notice" not in data
+    user = data["user"]
     assert user["extra_permissions"] == ["redmode:access"]
     assert user["preferred_workspace"] == "offensive"
     assert user["team"] == "red-team"
@@ -188,6 +196,32 @@ async def test_verify_mfa_uses_standard_user_contract(async_client, fake_db):
     me_resp = await async_client.get("/api/auth/me")
     assert me_resp.status_code == 200
     assert me_resp.json() == user
+
+
+@pytest.mark.asyncio
+async def test_verify_mfa_falls_back_to_soc_when_offensive_access_is_missing(async_client, fake_db):
+    secret = _enable_mfa_for(fake_db, "techuser")
+
+    login_resp = await async_client.post(
+        "/api/auth/login",
+        data={
+            "username": "techuser",
+            "password": "TestTech@9876",
+            "workspace": "offensive",
+        },
+    )
+    assert login_resp.status_code == 200
+    assert login_resp.json() == {"mfa_required": True, "workspace": "offensive"}
+
+    verify_resp = await async_client.post(
+        "/api/mfa/verify",
+        json={"otp": pyotp.TOTP(secret).now()},
+    )
+
+    assert verify_resp.status_code == 200
+    data = verify_resp.json()
+    assert data["workspace"] == "soc"
+    assert data["workspace_notice"] == "permission_required:redmode:access"
 
 
 @pytest.mark.asyncio

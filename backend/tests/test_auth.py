@@ -20,6 +20,7 @@ async def test_login_success(async_client):
     assert body["user"]["extra_permissions"] == []
     assert body["user"]["preferred_workspace"] == "soc"
     assert body["token_type"] == "bearer"
+    assert body["workspace"] == "soc"
     # HttpOnly cookies must be set
     assert "access_token" in response.cookies
     assert "refresh_token" in response.cookies
@@ -46,6 +47,67 @@ async def test_login_wrong_password(async_client):
         data={"username": "admin", "password": "wrongpass"},
     )
     assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("workspace", ["soc", "offensive"])
+async def test_login_invalid_credentials_do_not_reveal_workspace_access(async_client, workspace):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "nobody", "password": "wrongpass", "workspace": workspace},
+    )
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Incorrect username or password"
+
+
+@pytest.mark.asyncio
+async def test_login_rejects_invalid_workspace(async_client):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={"username": "techuser", "password": "TestTech@9876", "workspace": "unknown"},
+    )
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Invalid workspace"
+
+
+@pytest.mark.asyncio
+async def test_login_enters_offensive_workspace_when_authorized(async_client, fake_db):
+    await fake_db.users.update_one(
+        {"username": "techuser"},
+        {"$set": {"extra_permissions": ["redmode:access"]}},
+    )
+
+    response = await async_client.post(
+        "/api/auth/login",
+        data={
+            "username": "techuser",
+            "password": "TestTech@9876",
+            "workspace": "offensive",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["workspace"] == "offensive"
+    assert "workspace_notice" not in response.json()
+
+
+@pytest.mark.asyncio
+async def test_login_falls_back_to_soc_when_offensive_access_is_missing(async_client):
+    response = await async_client.post(
+        "/api/auth/login",
+        data={
+            "username": "techuser",
+            "password": "TestTech@9876",
+            "workspace": "offensive",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["workspace"] == "soc"
+    assert response.json()["workspace_notice"] == "permission_required:redmode:access"
+
+    redmode_response = await async_client.get("/api/redmode/projects")
+    assert redmode_response.status_code == 403
 
 
 @pytest.mark.asyncio

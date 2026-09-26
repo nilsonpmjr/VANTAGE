@@ -78,6 +78,9 @@ const DocsPage = lazy(() => import("./pages/help/DocsPage"));
 const ShortcutsPage = lazy(() => import("./pages/help/ShortcutsPage"));
 const ApiReferencePage = lazy(() => import("./pages/help/ApiReferencePage"));
 const ContactSupportPage = lazy(() => import("./pages/help/ContactSupportPage"));
+const MarkdownVisualHarness = import.meta.env.DEV
+  ? lazy(() => import("./test/MarkdownVisualHarness"))
+  : null;
 
 function LegacyOffensiveEngagementRedirect() {
   const { slug } = useParams<{ slug: string }>();
@@ -107,6 +110,9 @@ export default function App() {
         <LanguageProvider>
           <BrowserRouter>
             <Routes>
+              {MarkdownVisualHarness && (
+                <Route path="__dev/markdown" element={suspense(<MarkdownVisualHarness />)} />
+              )}
               <Route
                 path="/"
                 element={

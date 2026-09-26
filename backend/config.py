@@ -47,6 +47,15 @@ class Settings(BaseSettings):
     redmode_scope_max_file_bytes: int = 5 * 1024 * 1024
     redmode_evidence_max_file_bytes: int = 10 * 1024 * 1024
 
+    # RedMode scope enrichment. External traffic is opt-in twice: here and
+    # in each engagement's policy.
+    redmode_enrichment_external_enabled: bool = False
+    redmode_enrichment_rdap_url: str = ""
+    redmode_enrichment_cache_ttl_hours: int = 24
+    redmode_enrichment_max_concurrent: int = 2
+    redmode_enrichment_rate_limit_per_minute: int = 30
+    redmode_enrichment_timeout_seconds: float = 10.0
+
     # Rate limiting
     rate_limit_analyze: str = "30/minute"
     rate_limit_batch: str = "5/minute"

@@ -142,6 +142,45 @@ export interface ScopeAsset {
   origins: Array<{ source_id: string; line: number; position?: string }>;
   source_ids: string[];
   normalized: ScopeNormalization | null;
+  enrichment: ScopeEnrichment;
+}
+
+export type ScopeEnrichmentState =
+  | "not_configured"
+  | "not_queried"
+  | "available"
+  | "not_found"
+  | "expired"
+  | "failed";
+
+export interface ScopeEnrichment {
+  state: ScopeEnrichmentState;
+  provider?: string | null;
+  provider_mode?: "local" | "external" | null;
+  queried_at?: string | null;
+  expires_at?: string | null;
+  asn?: string | null;
+  organization?: string | null;
+  prefix?: string | null;
+  source?: string | null;
+  error_code?: string | null;
+}
+
+export type EnrichmentPolicyMode = "disabled" | "local_only" | "external_allowed";
+
+export interface EnrichmentPolicy {
+  mode: EnrichmentPolicyMode;
+  revision: number;
+  updated_by: string | null;
+  updated_at: string | null;
+  installation: { external_enabled: boolean };
+  providers: Array<{
+    key: string;
+    mode: "local" | "external";
+    supported_kinds: ScopeAsset["kind"][];
+    compatible: boolean;
+  }>;
+  configured: boolean;
 }
 
 export interface ScopeSource {
@@ -458,6 +497,40 @@ export async function listScopeAssets(
   const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
     + `/scope/versions/${encodeURIComponent(versionId)}/assets`;
   return readResponse(await fetch(`${path}?${query}`, { credentials: "include" }));
+}
+
+export async function getEnrichmentPolicy(slug: string): Promise<EnrichmentPolicy> {
+  return readResponse(await fetch(
+    `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/enrichment/policy`,
+    { credentials: "include" },
+  ));
+}
+
+export async function updateEnrichmentPolicy(
+  slug: string,
+  mode: EnrichmentPolicyMode,
+  expectedRevision: number,
+): Promise<EnrichmentPolicy> {
+  return readResponse(await fetch(
+    `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/enrichment/policy`,
+    {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode, expected_revision: expectedRevision }),
+    },
+  ));
+}
+
+export async function enrichScopeAsset(
+  slug: string,
+  versionId: string,
+  assetId: string,
+): Promise<ScopeAsset> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/scope/versions/${encodeURIComponent(versionId)}`
+    + `/assets/${encodeURIComponent(assetId)}/enrichment`;
+  return readResponse(await fetch(path, { method: "POST", credentials: "include" }));
 }
 
 export async function getActiveScope(slug: string): Promise<ScopeVersion> {

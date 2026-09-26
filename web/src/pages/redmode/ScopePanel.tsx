@@ -18,12 +18,15 @@ import {
   File,
   FileText,
   Layers3,
+  RefreshCw,
   Search,
   ShieldCheck,
   X,
 } from "lucide-react";
 import {
+  enrichScopeAsset,
   getActiveScope,
+  getEnrichmentPolicy,
   getScopeLimits,
   getScopeSource,
   getScopeVersion,
@@ -32,6 +35,9 @@ import {
   listScopeVersions,
   scopeFileDownloadUrl,
   submitScope,
+  updateEnrichmentPolicy,
+  type EnrichmentPolicy,
+  type EnrichmentPolicyMode,
   type ScopeAsset,
   type ScopeAssetPage,
   type ScopeLimits,
@@ -70,6 +76,21 @@ const warningLabels: Record<string, string> = {
   representation_not_materialized: "Representação não materializada",
 };
 
+const enrichmentStateLabels: Record<ScopeAsset["enrichment"]["state"], string> = {
+  not_configured: "Não configurado",
+  not_queried: "Não consultado",
+  available: "Disponível",
+  not_found: "Não encontrado",
+  expired: "Expirado",
+  failed: "Falhou",
+};
+
+const enrichmentPolicyLabels: Record<EnrichmentPolicyMode, string> = {
+  disabled: "Desabilitado",
+  local_only: "Somente provedores locais",
+  external_allowed: "Provedores externos permitidos",
+};
+
 const SOURCE_CONTENT_PAGE = 20_000;
 const SOURCE_ASSET_PAGE = 50;
 const INVENTORY_PAGE = 50;
@@ -105,20 +126,85 @@ function AssetMetadata({ asset }: { asset: ScopeAsset }) {
   return <p className="mt-1 break-words text-xs text-on-surface-variant">{details.join(" · ")}</p>;
 }
 
+function AssetEnrichment({
+  asset,
+  canQuery,
+  querying,
+  onQuery,
+}: {
+  asset: ScopeAsset;
+  canQuery: boolean;
+  querying: boolean;
+  onQuery: () => void;
+}) {
+  if (!(["ip", "cidr", "asn"] as ScopeAsset["kind"][]).includes(asset.kind)) return null;
+  const enrichment = asset.enrichment;
+  const canRetry = canQuery && ["not_queried", "expired", "failed"].includes(enrichment.state);
+  const showResult = enrichment.state === "available" || enrichment.state === "expired";
+  const badgeClass = enrichment.state === "available"
+    ? "badge-primary"
+    : enrichment.state === "failed" || enrichment.state === "expired"
+      ? "badge-warning"
+      : "";
+  return (
+    <div className="mt-3 rounded-sm border border-outline-variant/20 bg-surface px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Enriquecimento</span>
+          <span className={`badge ${badgeClass}`}>{enrichmentStateLabels[enrichment.state]}</span>
+          {enrichment.provider && <span className="text-xs text-on-surface-variant">via {enrichment.provider}</span>}
+        </div>
+        {canRetry && (
+          <button type="button" className="btn btn-outline" disabled={querying} onClick={onQuery}>
+            <RefreshCw className={`h-3.5 w-3.5 ${querying ? "animate-spin" : ""}`} />
+            {querying ? "Consultando" : enrichment.state === "not_queried" ? "Consultar" : "Tentar novamente"}
+          </button>
+        )}
+      </div>
+      {showResult && (
+        <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2 xl:grid-cols-4">
+          <div><dt className="text-on-surface-variant">ASN</dt><dd className="font-semibold text-on-surface">{enrichment.asn || "—"}</dd></div>
+          <div><dt className="text-on-surface-variant">Organização</dt><dd className="font-semibold text-on-surface">{enrichment.organization || "—"}</dd></div>
+          <div><dt className="text-on-surface-variant">Prefixo anunciado</dt><dd className="font-mono font-semibold text-on-surface">{enrichment.prefix || "—"}</dd></div>
+          <div><dt className="text-on-surface-variant">Consultado em</dt><dd className="font-semibold text-on-surface">{enrichment.queried_at ? new Date(enrichment.queried_at).toLocaleString("pt-BR") : "—"}</dd></div>
+        </dl>
+      )}
+      {showResult && enrichment.source && (
+        <p className="mt-2 break-all text-[11px] text-on-surface-variant">Fonte informada: {enrichment.source}</p>
+      )}
+      {enrichment.state === "not_found" && (
+        <p className="mt-2 text-xs text-on-surface-variant">O provedor não encontrou dados para este valor canônico.</p>
+      )}
+      {enrichment.state === "failed" && (
+        <p className="mt-2 text-xs text-on-surface-variant">A consulta falhou sem alterar o valor declarado ou o escopo efetivo.</p>
+      )}
+      {!showResult && enrichment.queried_at && (
+        <p className="mt-2 text-[11px] text-on-surface-variant">
+          Última tentativa: {new Date(enrichment.queried_at).toLocaleString("pt-BR")}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function ScopePanel({
   slug,
   initialVersionId,
   identity,
   identityLoading = false,
   identityError = "",
+  canManageEnrichment = false,
   onPublished,
+  onEnriched,
 }: {
   slug: string;
   initialVersionId?: string;
   identity?: ProjectIdentity | null;
   identityLoading?: boolean;
   identityError?: string;
+  canManageEnrichment?: boolean;
   onPublished?: () => void;
+  onEnriched?: () => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSourceRef = useRef(searchParams.get("source"));
@@ -155,6 +241,12 @@ export default function ScopePanel({
   const [assetPage, setAssetPage] = useState<ScopeAssetPage | null>(null);
   const [assetsLoading, setAssetsLoading] = useState(false);
   const [assetsError, setAssetsError] = useState("");
+  const [assetReload, setAssetReload] = useState(0);
+  const [enrichmentPolicy, setEnrichmentPolicy] = useState<EnrichmentPolicy | null>(null);
+  const [enrichmentPolicyLoading, setEnrichmentPolicyLoading] = useState(true);
+  const [enrichmentPolicySaving, setEnrichmentPolicySaving] = useState(false);
+  const [enrichmentPolicyError, setEnrichmentPolicyError] = useState("");
+  const [enrichingAssets, setEnrichingAssets] = useState<Set<string>>(new Set());
 
   const libraryRef = useRef<HTMLDivElement>(null);
   const resizeRef = useRef<{
@@ -238,6 +330,19 @@ export default function ScopePanel({
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+    setEnrichmentPolicyLoading(true);
+    setEnrichmentPolicyError("");
+    getEnrichmentPolicy(slug)
+      .then((policy) => { if (mounted) setEnrichmentPolicy(policy); })
+      .catch(() => {
+        if (mounted) setEnrichmentPolicyError("Não foi possível carregar a política de enriquecimento.");
+      })
+      .finally(() => { if (mounted) setEnrichmentPolicyLoading(false); });
+    return () => { mounted = false; };
+  }, [slug]);
+
+  useEffect(() => {
     if (!selectedScope) {
       setSources([]);
       return;
@@ -314,11 +419,54 @@ export default function ScopePanel({
       })
       .finally(() => { if (mounted) setAssetsLoading(false); });
     return () => { mounted = false; };
-  }, [assetCategory, assetKind, assetOffset, deferredAssetQuery, selectedScope, slug, view]);
+  }, [assetCategory, assetKind, assetOffset, assetReload, deferredAssetQuery, selectedScope, slug, view]);
 
   useEffect(() => {
     setAssetOffset(0);
   }, [assetCategory, assetKind, deferredAssetQuery, selectedScope?.id]);
+
+  async function changeEnrichmentPolicy(mode: EnrichmentPolicyMode) {
+    if (!enrichmentPolicy || !canManageEnrichment) return;
+    setEnrichmentPolicySaving(true);
+    setEnrichmentPolicyError("");
+    try {
+      const updated = await updateEnrichmentPolicy(slug, mode, enrichmentPolicy.revision);
+      setEnrichmentPolicy(updated);
+      setAssetReload((current) => current + 1);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      setEnrichmentPolicyError(reason === "enrichment_policy_changed_retry"
+        ? "A política mudou em outra sessão. Recarregue a página antes de tentar novamente."
+        : "Não foi possível alterar a política de enriquecimento.");
+    } finally {
+      setEnrichmentPolicySaving(false);
+    }
+  }
+
+  async function queryAssetEnrichment(asset: ScopeAsset) {
+    if (!selectedScope || enrichingAssets.has(asset.asset_id)) return;
+    setEnrichingAssets((current) => new Set(current).add(asset.asset_id));
+    setAssetsError("");
+    try {
+      const updated = await enrichScopeAsset(slug, selectedScope.id, asset.asset_id);
+      setAssetPage((current) => current ? {
+        ...current,
+        items: current.items.map((item) => item.asset_id === updated.asset_id ? updated : item),
+      } : current);
+      onEnriched?.();
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      setAssetsError(reason === "enrichment_policy_disabled"
+        ? "A política deste engagement não permite consultas."
+        : "Não foi possível consultar o provedor para este ativo.");
+    } finally {
+      setEnrichingAssets((current) => {
+        const next = new Set(current);
+        next.delete(asset.asset_id);
+        return next;
+      });
+    }
+  }
 
   async function handlePublish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -795,6 +943,48 @@ export default function ScopePanel({
                 </div>
               ) : (
                 <div className="space-y-4">
+                  <div className="rounded-sm border border-outline-variant/20 bg-surface-container-low px-4 py-3">
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <ShieldCheck className="h-4 w-4 text-primary" />
+                          <h3 className="text-sm font-bold text-on-surface">Política de enriquecimento</h3>
+                        </div>
+                        <p className="mt-1 text-xs text-on-surface-variant">
+                          Consultas são manuais e os resultados permanecem informativos; nunca ampliam a autorização do escopo.
+                        </p>
+                      </div>
+                      {enrichmentPolicyLoading ? (
+                        <span className="text-xs text-on-surface-variant">Carregando política...</span>
+                      ) : enrichmentPolicy && canManageEnrichment ? (
+                        <select
+                          value={enrichmentPolicy.mode}
+                          disabled={enrichmentPolicySaving}
+                          onChange={(event) => void changeEnrichmentPolicy(event.target.value as EnrichmentPolicyMode)}
+                          className="rounded-sm border border-outline-variant/30 bg-surface px-3 py-2 text-sm text-on-surface"
+                          aria-label="Política de enriquecimento"
+                        >
+                          {Object.entries(enrichmentPolicyLabels).map(([mode, label]) => (
+                            <option key={mode} value={mode}>{label}</option>
+                          ))}
+                        </select>
+                      ) : enrichmentPolicy ? (
+                        <span className="badge">{enrichmentPolicyLabels[enrichmentPolicy.mode]}</span>
+                      ) : null}
+                    </div>
+                    {enrichmentPolicy && enrichmentPolicy.mode !== "disabled" && !enrichmentPolicy.configured && (
+                      <p className="mt-2 text-xs text-on-surface-variant">
+                        Nenhum provedor compatível está configurado para esta política. A normalização offline continua disponível.
+                      </p>
+                    )}
+                    {enrichmentPolicy?.mode === "external_allowed" && !enrichmentPolicy.installation.external_enabled && (
+                      <p className="mt-2 text-xs text-on-surface-variant">
+                        O engagement permite provedores externos, mas a instalação ainda mantém o tráfego externo desabilitado.
+                      </p>
+                    )}
+                    {enrichmentPolicyError && <p className="mt-2 text-xs text-error" role="alert">{enrichmentPolicyError}</p>}
+                  </div>
+
                   <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
                     <div>
                       <h3 className="text-sm font-bold text-on-surface">Inventário consolidado</h3>
@@ -879,6 +1069,12 @@ export default function ScopePanel({
                             </div>
                             <span className={`badge ${categoryClasses[asset.category]}`}>{categoryLabels[asset.category]}</span>
                           </div>
+                          <AssetEnrichment
+                            asset={asset}
+                            canQuery={Boolean(enrichmentPolicy?.configured)}
+                            querying={enrichingAssets.has(asset.asset_id)}
+                            onQuery={() => void queryAssetEnrichment(asset)}
+                          />
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-on-surface-variant">
                             {asset.source_ids.map((sourceId) => (
                               <button

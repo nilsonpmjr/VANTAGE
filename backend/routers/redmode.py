@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 from mimetypes import guess_type
@@ -32,6 +33,12 @@ from redmode_scope_normalizer import (
     normalize_declared_target,
     parse_declared_target,
     public_suffix_list_version,
+)
+from redmode_enrichment import (
+    ProviderQueryError,
+    SUPPORTED_ENRICHMENT_KINDS,
+    enrichment_runtime,
+    get_scope_enrichment_providers,
 )
 
 
@@ -77,6 +84,13 @@ class IdentityConfirmationUpdate(BaseModel):
     expected_revision: int = Field(ge=0)
 
 
+class EnrichmentPolicyUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["disabled", "local_only", "external_allowed"]
+    expected_revision: int = Field(ge=0)
+
+
 async def require_redmode_access(current_user: dict = Depends(get_current_user)) -> dict:
     # API keys have no RedMode scope yet. Keep this workspace session-only.
     if current_user.get("_api_key_scopes") is not None or not has_permission(current_user, "redmode:access"):
@@ -104,6 +118,11 @@ def scope_sources_collection():
 def scope_assets_collection():
     projects_collection()
     return db_manager.db.redmode_scope_assets
+
+
+def enrichment_cache_collection():
+    projects_collection()
+    return db_manager.db.redmode_enrichment_cache
 
 
 def file_store():
@@ -409,6 +428,12 @@ async def create_project(
         "created_at": now,
         "last_activity_at": now,
         "technical_identity": {"revision": 0, "confirmed": []},
+        "enrichment_policy": {
+            "mode": "disabled",
+            "revision": 0,
+            "updated_by": username,
+            "updated_at": now,
+        },
         "activity_events": [{"type": "project_created", "author": username, "subject": payload.slug, "at": now}],
     }
     if len(doc["display_name"]) < 2:
@@ -538,6 +563,122 @@ async def remove_member(
     current_user: dict = Depends(require_redmode_access),
 ):
     return await change_members(slug, username, current_user, add=False)
+
+
+def _enrichment_policy_state(project: dict) -> dict:
+    state = project.get("enrichment_policy") or {}
+    mode = state.get("mode", "disabled")
+    if mode not in {"disabled", "local_only", "external_allowed"}:
+        mode = "disabled"
+    return {
+        "mode": mode,
+        "revision": int(state.get("revision", 0)),
+        "updated_by": state.get("updated_by"),
+        "updated_at": state.get("updated_at"),
+    }
+
+
+def _configured_enrichment_providers() -> list:
+    try:
+        return list(get_scope_enrichment_providers())
+    except Exception:
+        logger.warning("RedMode enrichment provider configuration is unavailable")
+        return []
+
+
+def _compatible_enrichment_providers(policy: dict, kind: str | None = None) -> list:
+    if policy["mode"] == "disabled":
+        return []
+    compatible = []
+    for provider in _configured_enrichment_providers():
+        if kind is not None and kind not in provider.supported_kinds:
+            continue
+        if provider.mode == "local":
+            compatible.append(provider)
+        elif (
+            policy["mode"] == "external_allowed"
+            and settings.redmode_enrichment_external_enabled
+        ):
+            compatible.append(provider)
+    return compatible
+
+
+def _enrichment_policy_response(project: dict) -> dict:
+    policy = _enrichment_policy_state(project)
+    providers = _configured_enrichment_providers()
+    compatible = _compatible_enrichment_providers(policy)
+    return {
+        **policy,
+        "installation": {
+            "external_enabled": settings.redmode_enrichment_external_enabled,
+        },
+        "providers": [{
+            "key": provider.key,
+            "mode": provider.mode,
+            "supported_kinds": sorted(provider.supported_kinds),
+            "compatible": any(item.key == provider.key for item in compatible),
+        } for provider in providers],
+        "configured": bool(compatible),
+    }
+
+
+@router.get("/projects/{slug}/enrichment/policy")
+async def get_enrichment_policy(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    return _enrichment_policy_response(project)
+
+
+@router.put("/projects/{slug}/enrichment/policy")
+async def update_enrichment_policy(
+    slug: str,
+    payload: EnrichmentPolicyUpdate,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    if current_user["username"] != project["responsible"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="project_responsible_required",
+        )
+    policy = _enrichment_policy_state(project)
+    if payload.expected_revision != policy["revision"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="enrichment_policy_changed_retry",
+        )
+    if payload.mode == policy["mode"]:
+        return _enrichment_policy_response(project)
+
+    now = datetime.now(timezone.utc)
+    next_policy = {
+        "mode": payload.mode,
+        "revision": policy["revision"] + 1,
+        "updated_by": current_user["username"],
+        "updated_at": now,
+    }
+    event = {
+        "type": "enrichment_policy_changed",
+        "author": current_user["username"],
+        "subject": f'{policy["mode"]} -> {payload.mode}',
+        "at": now,
+    }
+    result = await projects_collection().update_one(
+        {"_id": slug, "enrichment_policy": project.get("enrichment_policy")},
+        {
+            "$set": {"enrichment_policy": next_policy, "last_activity_at": now},
+            "$push": {"activity_events": event},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="enrichment_policy_changed_retry",
+        )
+    updated = await projects_collection().find_one({"_id": slug})
+    return _enrichment_policy_response(updated)
 
 
 def _identity_value(kind: str, value: str) -> str:
@@ -1361,7 +1502,35 @@ def _legacy_asset_documents(version: dict) -> list[dict]:
     return documents
 
 
-def _scope_asset_detail(asset: dict) -> dict:
+def _enrichment_view(
+    snapshot: dict | None,
+    policy: dict | None = None,
+    kind: str | None = None,
+) -> dict:
+    if not snapshot:
+        compatible_kinds = policy.get("_compatible_kinds") if policy else None
+        configured = (
+            kind in compatible_kinds
+            if compatible_kinds is not None
+            else bool(
+                policy
+                and kind in SUPPORTED_ENRICHMENT_KINDS
+                and _compatible_enrichment_providers(policy, kind)
+            )
+        )
+        return {"state": "not_queried" if configured else "not_configured"}
+    view = deepcopy(snapshot)
+    expires_at = view.get("expires_at")
+    if (
+        view.get("state") in {"available", "not_found"}
+        and isinstance(expires_at, datetime)
+        and expires_at <= datetime.now(timezone.utc)
+    ):
+        view["state"] = "expired"
+    return view
+
+
+def _scope_asset_detail(asset: dict, policy: dict | None = None) -> dict:
     return {
         "asset_id": asset["asset_id"],
         "project_slug": asset["project_slug"],
@@ -1376,7 +1545,181 @@ def _scope_asset_detail(asset: dict) -> dict:
         "origins": asset["origins"],
         "source_ids": asset["source_ids"],
         "normalized": asset["normalized"],
+        "enrichment": _enrichment_view(asset.get("enrichment"), policy, asset["kind"]),
     }
+
+
+def _cache_key(provider_key: str, kind: str, value: str) -> str:
+    return sha256(f"{provider_key}\0{kind}\0{value}".encode("utf-8")).hexdigest()
+
+
+def _cache_is_fresh(cache: dict, now: datetime) -> bool:
+    return (
+        cache.get("state") in {"available", "not_found"}
+        and isinstance(cache.get("expires_at"), datetime)
+        and cache["expires_at"] > now
+    )
+
+
+def _cache_snapshot(cache: dict) -> dict:
+    result = cache.get("result") or {}
+    return {
+        "state": cache["state"],
+        "provider": cache["provider"],
+        "provider_mode": cache["provider_mode"],
+        "queried_at": cache["queried_at"],
+        "expires_at": cache["expires_at"],
+        "asn": result.get("asn"),
+        "organization": result.get("organization"),
+        "prefix": result.get("prefix"),
+        "source": result.get("source"),
+        "error_code": cache.get("error_code"),
+    }
+
+
+def _bounded_provider_value(value, maximum: int = 500) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text[:maximum] if text else None
+
+
+def _normalized_provider_result(result: dict | None) -> dict | None:
+    if result is None:
+        return None
+    return {
+        "asn": _bounded_provider_value(result.get("asn"), 32),
+        "organization": _bounded_provider_value(result.get("organization"), 300),
+        "prefix": _bounded_provider_value(result.get("prefix"), 128),
+        "source": _bounded_provider_value(result.get("source"), 500),
+    }
+
+
+async def _attach_enrichment(asset: dict, snapshot: dict) -> dict:
+    normalized = deepcopy(asset.get("normalized"))
+    if normalized is not None:
+        enrichments = [
+            item
+            for item in normalized.get("enrichments", [])
+            if not isinstance(item, dict) or item.get("provider") != snapshot.get("provider")
+        ]
+        if snapshot.get("state") == "available" and snapshot.get("asn"):
+            enrichments.append({
+                "kind": "asn",
+                "canonical": snapshot["asn"],
+                "asn": snapshot["asn"],
+                "organization": snapshot.get("organization"),
+                "prefix": snapshot.get("prefix"),
+                "provider": snapshot.get("provider"),
+                "source": snapshot.get("source"),
+                "observed_at": snapshot.get("queried_at"),
+                "classification": "enriched",
+            })
+        normalized["enrichments"] = enrichments
+    await scope_assets_collection().update_one(
+        {
+            "project_slug": asset["project_slug"],
+            "version_id": asset["version_id"],
+            "asset_id": asset["asset_id"],
+        },
+        {"$set": {"enrichment": snapshot, "normalized": normalized}},
+    )
+    attached = {**asset, "enrichment": snapshot, "normalized": normalized}
+    return _scope_asset_detail(attached)
+
+
+@router.post(
+    "/projects/{slug}/scope/versions/{version_id}/assets/{asset_id}/enrichment"
+)
+async def enrich_scope_asset(
+    slug: str,
+    version_id: str,
+    asset_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    version = await scope_versions_collection().find_one({
+        "_id": version_id,
+        "project_slug": slug,
+    })
+    if version is None:
+        raise HTTPException(status_code=404, detail="scope_version_not_found")
+    asset = await scope_assets_collection().find_one({
+        "project_slug": slug,
+        "version_id": version_id,
+        "asset_id": asset_id,
+    })
+    if asset is None:
+        raise HTTPException(status_code=404, detail="scope_asset_not_found")
+    if asset.get("kind") not in SUPPORTED_ENRICHMENT_KINDS:
+        raise HTTPException(status_code=422, detail="scope_asset_enrichment_unsupported")
+
+    policy = _enrichment_policy_state(project)
+    if policy["mode"] == "disabled":
+        raise HTTPException(status_code=403, detail="enrichment_policy_disabled")
+    providers = _compatible_enrichment_providers(policy, asset["kind"])
+    if not providers:
+        return {
+            **_scope_asset_detail(asset, policy),
+            "enrichment": {"state": "not_configured"},
+        }
+    provider = sorted(providers, key=lambda item: (item.mode != "local", item.key))[0]
+    now = datetime.now(timezone.utc)
+    cache_id = _cache_key(provider.key, asset["kind"], asset["value"])
+    cache = await enrichment_cache_collection().find_one({"_id": cache_id})
+    if cache and _cache_is_fresh(cache, now):
+        return await _attach_enrichment(asset, _cache_snapshot(cache))
+
+    try:
+        provider_result = await enrichment_runtime.query(
+            provider,
+            asset["kind"],
+            asset["value"],
+        )
+        normalized_result = _normalized_provider_result(provider_result)
+        cache_state = "available" if normalized_result is not None else "not_found"
+        error_code = None
+        expires_at = now + timedelta(
+            hours=max(1, settings.redmode_enrichment_cache_ttl_hours)
+        )
+    except ProviderQueryError as exc:
+        normalized_result = None
+        cache_state = "failed"
+        error_code = exc.code
+        expires_at = now
+    except Exception:
+        normalized_result = None
+        cache_state = "failed"
+        error_code = "provider_unavailable"
+        expires_at = now
+
+    cache = {
+        "_id": cache_id,
+        "provider": provider.key,
+        "provider_mode": provider.mode,
+        "kind": asset["kind"],
+        "value": asset["value"],
+        "state": cache_state,
+        "result": normalized_result,
+        "queried_at": now,
+        "expires_at": expires_at,
+        "error_code": error_code,
+        "attempts": int((cache or {}).get("attempts", 0)) + 1,
+    }
+    await enrichment_cache_collection().replace_one(
+        {"_id": cache_id},
+        cache,
+        upsert=True,
+    )
+    logger.info(
+        "RedMode asset enrichment slug=%s version_id=%s asset_id=%s provider=%s state=%s",
+        slug,
+        version_id,
+        asset_id,
+        provider.key,
+        cache_state,
+    )
+    return await _attach_enrichment(asset, _cache_snapshot(cache))
 
 
 async def _source_assets(version: dict, source_id: str) -> list[dict]:
@@ -1532,6 +1875,13 @@ async def list_scope_assets(
     current_user: dict = Depends(require_redmode_access),
 ):
     version = await _load_scope_version_for_member(slug, version_id, current_user)
+    project = await projects_collection().find_one({"_id": slug})
+    policy = _enrichment_policy_state(project)
+    policy["_compatible_kinds"] = {
+        supported_kind
+        for provider in _compatible_enrichment_providers(policy)
+        for supported_kind in provider.supported_kinds
+    }
     search = q.strip() if q and q.strip() else None
     if version.get("asset_schema_version") != 1:
         assets = [
@@ -1542,7 +1892,10 @@ async def list_scope_assets(
         assets.sort(key=lambda item: _asset_sort_key(item, sort_by), reverse=direction == "desc")
         total = len(assets)
         return {
-            "items": [_scope_asset_detail(item) for item in assets[offset:offset + limit]],
+            "items": [
+                _scope_asset_detail(item, policy)
+                for item in assets[offset:offset + limit]
+            ],
             "total": total,
             "totals": {
                 "by_kind": {
@@ -1609,7 +1962,7 @@ async def list_scope_assets(
         .skip(offset)
         .limit(limit)
     )
-    items = [_scope_asset_detail(item) async for item in cursor]
+    items = [_scope_asset_detail(item, policy) async for item in cursor]
     return {
         "items": items,
         "total": total,

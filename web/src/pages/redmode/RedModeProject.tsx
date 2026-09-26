@@ -54,6 +54,7 @@ const activityLabels: Record<string, string> = {
   phase_changed: "Fase alterada",
   client_identity_confirmed: "Identidade do cliente confirmada",
   client_identity_removed: "Confirmação de identidade removida",
+  enrichment_policy_changed: "Política de enriquecimento alterada",
 };
 
 function ActivityList({ activity, emptyCopy }: { activity: ProjectActivity[]; emptyCopy: string }) {
@@ -575,10 +576,12 @@ export default function RedModeProject() {
               identity={identity}
               identityLoading={identityLoading}
               identityError={identityError}
+              canManageEnrichment={user?.username === project.responsible}
               onPublished={() => {
                 void refreshActivity();
                 void refreshIdentity();
               }}
+              onEnriched={() => void refreshIdentity()}
             />
           ) : activeSection === "evidence" ? (
             <EvidencePanel

@@ -372,6 +372,7 @@ class FakeDB:
         self.redmode_scope_versions = FakeCollection()
         self.redmode_scope_sources = FakeCollection()
         self.redmode_scope_assets = FakeCollection()
+        self.redmode_enrichment_cache = FakeCollection()
         self.redmode_evidence = FakeCollection()
         self.redmode_findings = FakeCollection()
         self.redmode_finding_revisions = FakeCollection()

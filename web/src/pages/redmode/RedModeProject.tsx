@@ -14,17 +14,23 @@ import {
 import { PageHeader, PageMetricPill } from "../../components/page/PageChrome";
 import { useAuth } from "../../context/AuthContext";
 import {
-  changeProjectPhase,
   changeProjectMember,
+  changeProjectPhase,
+  confirmProjectIdentity,
   getProject,
+  getProjectIdentity,
   listProjectActivity,
   rememberEngagement,
+  removeProjectIdentity,
+  type ClientIdentityKind,
   type ProjectActivity,
   type ProjectDetail,
+  type ProjectIdentity,
 } from "./api";
 import ScopePanel from "./ScopePanel";
 import EvidencePanel, { phaseLabel, ptesPhases } from "./EvidencePanel";
 import FindingsPanel from "./FindingsPanel";
+import IdentityPanel from "./IdentityPanel";
 
 type ProjectSection = "overview" | "scope" | "evidence" | "findings" | "activity" | "team";
 
@@ -46,6 +52,8 @@ const activityLabels: Record<string, string> = {
   finding_created: "Finding criado",
   finding_updated: "Finding revisado",
   phase_changed: "Fase alterada",
+  client_identity_confirmed: "Identidade do cliente confirmada",
+  client_identity_removed: "Confirmação de identidade removida",
 };
 
 function ActivityList({ activity, emptyCopy }: { activity: ProjectActivity[]; emptyCopy: string }) {
@@ -160,7 +168,13 @@ function ProjectOverview({
   currentUsername,
   savingPhase,
   phaseError,
+  identity,
+  identityLoading,
+  identityError,
+  identitySaving,
   onPhaseChange,
+  onConfirmIdentity,
+  onRemoveIdentity,
 }: {
   project: ProjectDetail;
   activity: ProjectActivity[];
@@ -168,7 +182,13 @@ function ProjectOverview({
   currentUsername?: string;
   savingPhase: boolean;
   phaseError: string;
+  identity: ProjectIdentity | null;
+  identityLoading: boolean;
+  identityError: string;
+  identitySaving: boolean;
   onPhaseChange: (phase: string) => void;
+  onConfirmIdentity: (kind: ClientIdentityKind, value: string) => void;
+  onRemoveIdentity: (kind: ClientIdentityKind, value: string) => void;
 }) {
   const basePath = `/redmode/engagements/${encodeURIComponent(project.slug)}`;
   const currentPhaseIndex = Math.max(
@@ -266,6 +286,16 @@ function ProjectOverview({
         </div>
       </section>
 
+      <IdentityPanel
+        identity={identity}
+        loading={identityLoading}
+        error={identityError}
+        canManage={currentUsername === project.responsible}
+        saving={identitySaving}
+        onConfirm={onConfirmIdentity}
+        onRemove={onRemoveIdentity}
+      />
+
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {areas.map((area) => (
           <Link key={area.path} to={area.path} className="card card-hover group p-5">
@@ -318,6 +348,10 @@ export default function RedModeProject() {
   const [savingPhase, setSavingPhase] = useState(false);
   const [phaseError, setPhaseError] = useState("");
   const [activityError, setActivityError] = useState("");
+  const [identity, setIdentity] = useState<ProjectIdentity | null>(null);
+  const [identityLoading, setIdentityLoading] = useState(true);
+  const [identitySaving, setIdentitySaving] = useState(false);
+  const [identityError, setIdentityError] = useState("");
   const [evidenceRefresh, setEvidenceRefresh] = useState(0);
   const [findingRefresh, setFindingRefresh] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -328,6 +362,9 @@ export default function RedModeProject() {
     let active = true;
     setLoading(true);
     setError("");
+    setIdentity(null);
+    setIdentityLoading(true);
+    setIdentityError("");
     getProject(slug)
       .then((data) => {
         if (!active) return;
@@ -354,6 +391,23 @@ export default function RedModeProject() {
       setActivityError("Não foi possível carregar o histórico.");
     }
   }, [slug]);
+
+  const refreshIdentity = useCallback(async () => {
+    if (!slug) return;
+    setIdentityLoading(true);
+    try {
+      setIdentity(await getProjectIdentity(slug));
+      setIdentityError("");
+    } catch {
+      setIdentityError("Não foi possível carregar a identidade técnica do cliente.");
+    } finally {
+      setIdentityLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    if (project?.slug === slug) void refreshIdentity();
+  }, [project?.slug, refreshIdentity, slug]);
 
   useEffect(() => {
     if (activeSection === "overview" || activeSection === "activity") {
@@ -402,6 +456,55 @@ export default function RedModeProject() {
         : "Não foi possível alterar a fase do engagement.");
     } finally {
       setSavingPhase(false);
+    }
+  }
+
+  function identityFailureMessage(reason: string): string {
+    if (reason === "identity_value_invalid") return "Informe um domínio registrável ou ASN válido.";
+    if (reason === "identity_item_already_confirmed") return "Esse domínio ou ASN já está confirmado.";
+    if (reason === "identity_changed_retry") {
+      return "A identidade mudou em outra sessão. Os dados foram recarregados; tente novamente.";
+    }
+    return "Não foi possível alterar a identidade técnica do cliente.";
+  }
+
+  async function confirmIdentity(kind: ClientIdentityKind, value: string) {
+    if (!project || !identity) return;
+    setIdentitySaving(true);
+    setIdentityError("");
+    try {
+      setIdentity(await confirmProjectIdentity(project.slug, kind, value, identity.revision));
+      const [updatedProject] = await Promise.all([
+        getProject(project.slug),
+        refreshActivity(),
+      ]);
+      setProject(updatedProject);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      setIdentityError(identityFailureMessage(reason));
+      if (reason === "identity_changed_retry") await refreshIdentity();
+    } finally {
+      setIdentitySaving(false);
+    }
+  }
+
+  async function removeIdentity(kind: ClientIdentityKind, value: string) {
+    if (!project || !identity) return;
+    setIdentitySaving(true);
+    setIdentityError("");
+    try {
+      setIdentity(await removeProjectIdentity(project.slug, kind, value, identity.revision));
+      const [updatedProject] = await Promise.all([
+        getProject(project.slug),
+        refreshActivity(),
+      ]);
+      setProject(updatedProject);
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      setIdentityError(identityFailureMessage(reason));
+      if (reason === "identity_changed_retry") await refreshIdentity();
+    } finally {
+      setIdentitySaving(false);
     }
   }
 
@@ -457,13 +560,25 @@ export default function RedModeProject() {
               currentUsername={user?.username}
               savingPhase={savingPhase}
               phaseError={phaseError}
+              identity={identity}
+              identityLoading={identityLoading}
+              identityError={identityError}
+              identitySaving={identitySaving}
               onPhaseChange={(phase) => void updatePhase(phase)}
+              onConfirmIdentity={(kind, value) => void confirmIdentity(kind, value)}
+              onRemoveIdentity={(kind, value) => void removeIdentity(kind, value)}
             />
           ) : activeSection === "scope" ? (
             <ScopePanel
               slug={project.slug}
               initialVersionId={requestedScopeVersion}
-              onPublished={() => void refreshActivity()}
+              identity={identity}
+              identityLoading={identityLoading}
+              identityError={identityError}
+              onPublished={() => {
+                void refreshActivity();
+                void refreshIdentity();
+              }}
             />
           ) : activeSection === "evidence" ? (
             <EvidencePanel

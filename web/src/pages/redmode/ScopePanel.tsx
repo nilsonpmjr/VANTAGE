@@ -35,12 +35,14 @@ import {
   type ScopeAsset,
   type ScopeAssetPage,
   type ScopeLimits,
+  type ProjectIdentity,
   type ScopeRule,
   type ScopeSource,
   type ScopeSourceDetail,
   type ScopeVersion,
   type ScopeVersionSummary,
 } from "./api";
+import { IdentitySummary } from "./IdentityPanel";
 
 const categoryLabels: Record<ScopeRule["category"], string> = {
   client: "Cliente",
@@ -106,10 +108,16 @@ function AssetMetadata({ asset }: { asset: ScopeAsset }) {
 export default function ScopePanel({
   slug,
   initialVersionId,
+  identity,
+  identityLoading = false,
+  identityError = "",
   onPublished,
 }: {
   slug: string;
   initialVersionId?: string;
+  identity?: ProjectIdentity | null;
+  identityLoading?: boolean;
+  identityError?: string;
   onPublished?: () => void;
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -616,6 +624,13 @@ export default function ScopePanel({
           {publisherOpen ? "Fechar publicação" : "Publicar nova versão"}
         </button>
       </div>
+
+      <IdentitySummary
+        identity={identity || null}
+        loading={identityLoading}
+        error={identityError}
+        compact
+      />
 
       {publisherOpen && (
         <form onSubmit={(event) => void handlePublish(event)} className="space-y-3 rounded-sm border border-outline-variant/20 bg-surface-container-low/40 p-4">

@@ -109,8 +109,12 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
             first_version = text_scope.json()["id"]
 
             uploads = _scope_uploads()
-            bundle = await http.post(f"{base}/scope/submit", data={"text": "https://app.example.test"},
-                                     files=[("files", item) for item in uploads], headers=member)
+            bundle = await http.post(
+                f"{base}/scope/submit",
+                data={"text": "https://app.example.test\nAS64512"},
+                files=[("files", item) for item in uploads],
+                headers=member,
+            )
             assert bundle.status_code == 201, bundle.text
             active = bundle.json()
             assert active["id"] != first_version
@@ -143,8 +147,56 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
                 headers=member,
             )
             assert inventory.status_code == 200, inventory.text
-            assert inventory.json()["total"] == 7
+            assert inventory.json()["total"] == 8
             assert len(inventory.json()["items"]) == 2
+            full_inventory = await http.get(
+                f"{base}/scope/versions/{active['id']}/assets?limit=100",
+                headers=owner,
+            )
+            executable_before_identity = [
+                (item["kind"], item["value"], item["category"])
+                for item in full_inventory.json()["items"]
+                if item["executable"]
+            ]
+            identity = await http.get(f"{base}/identity", headers=member)
+            assert identity.status_code == 200, identity.text
+            suggestions = {
+                (item["kind"], item["value"])
+                for item in identity.json()["suggestions"]
+            }
+            assert ("domain", "example.test") in suggestions
+            assert ("asn", "AS64512") in suggestions
+            confirmed_domain = await http.put(
+                f"{base}/identity/confirmations",
+                json={
+                    "kind": "domain",
+                    "value": "example.test",
+                    "expected_revision": 0,
+                },
+                headers=owner,
+            )
+            assert confirmed_domain.status_code == 200, confirmed_domain.text
+            confirmed_asn = await http.put(
+                f"{base}/identity/confirmations",
+                json={
+                    "kind": "asn",
+                    "value": "AS64512",
+                    "expected_revision": 1,
+                },
+                headers=owner,
+            )
+            assert confirmed_asn.status_code == 200, confirmed_asn.text
+            assert len(confirmed_asn.json()["confirmed"]) == 2
+            inventory_after_identity = await http.get(
+                f"{base}/scope/versions/{active['id']}/assets?limit=100",
+                headers=owner,
+            )
+            executable_after_identity = [
+                (item["kind"], item["value"], item["category"])
+                for item in inventory_after_identity.json()["items"]
+                if item["executable"]
+            ]
+            assert executable_after_identity == executable_before_identity
             file_id = active["source"]["files"][0]["id"]
             scope_file_url = f"{base}/scope/versions/{active['id']}/files/{file_id}"
             for metadata, (filename, content, _) in zip(active["source"]["files"], uploads):

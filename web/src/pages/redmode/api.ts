@@ -66,6 +66,39 @@ export interface ProjectActivity {
   at: string;
 }
 
+export type ClientIdentityKind = "domain" | "asn";
+
+export interface ClientIdentityConfirmation {
+  kind: ClientIdentityKind;
+  value: string;
+  confirmed_by: string;
+  confirmed_at: string;
+}
+
+export interface ClientIdentitySuggestionOrigin {
+  asset_id: string;
+  source_ids: string[];
+  classification: "declared" | "derived" | "enriched";
+  categories: Array<"client" | "third_party" | "excluded">;
+  method: "registrable_domain" | "declared" | "derived_relation" | "enrichment";
+  provider?: string | null;
+  observed_at?: string | null;
+}
+
+export interface ClientIdentitySuggestion {
+  kind: ClientIdentityKind;
+  value: string;
+  confirmed: boolean;
+  origins: ClientIdentitySuggestionOrigin[];
+}
+
+export interface ProjectIdentity {
+  revision: number;
+  active_scope_version: string | null;
+  confirmed: ClientIdentityConfirmation[];
+  suggestions: ClientIdentitySuggestion[];
+}
+
 export interface ScopeRule {
   kind: "ip" | "cidr" | "domain" | "url";
   value: string;
@@ -300,6 +333,43 @@ export async function listProjectActivity(slug: string): Promise<{ items: Projec
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/activity`, {
     credentials: "include",
   }));
+}
+
+export async function getProjectIdentity(slug: string): Promise<ProjectIdentity> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/identity`, {
+    credentials: "include",
+  }));
+}
+
+export async function confirmProjectIdentity(
+  slug: string,
+  kind: ClientIdentityKind,
+  value: string,
+  expectedRevision: number,
+): Promise<ProjectIdentity> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/identity/confirmations`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ kind, value, expected_revision: expectedRevision }),
+  }));
+}
+
+export async function removeProjectIdentity(
+  slug: string,
+  kind: ClientIdentityKind,
+  value: string,
+  expectedRevision: number,
+): Promise<ProjectIdentity> {
+  const query = new URLSearchParams({
+    kind,
+    value,
+    expected_revision: String(expectedRevision),
+  });
+  return readResponse(await fetch(
+    `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/identity/confirmations?${query}`,
+    { method: "DELETE", credentials: "include" },
+  ));
 }
 
 export async function publishTextScope(slug: string, text: string): Promise<ScopeVersion> {

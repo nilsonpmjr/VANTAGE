@@ -69,6 +69,14 @@ class ScopeTextCreate(BaseModel):
     text: str = Field(min_length=1, max_length=500_000)
 
 
+class IdentityConfirmationUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["domain", "asn"]
+    value: str = Field(min_length=1, max_length=253)
+    expected_revision: int = Field(ge=0)
+
+
 async def require_redmode_access(current_user: dict = Depends(get_current_user)) -> dict:
     # API keys have no RedMode scope yet. Keep this workspace session-only.
     if current_user.get("_api_key_scopes") is not None or not has_permission(current_user, "redmode:access"):
@@ -400,6 +408,7 @@ async def create_project(
         "members": [username],
         "created_at": now,
         "last_activity_at": now,
+        "technical_identity": {"revision": 0, "confirmed": []},
         "activity_events": [{"type": "project_created", "author": username, "subject": payload.slug, "at": now}],
     }
     if len(doc["display_name"]) < 2:
@@ -529,6 +538,278 @@ async def remove_member(
     current_user: dict = Depends(require_redmode_access),
 ):
     return await change_members(slug, username, current_user, add=False)
+
+
+def _identity_value(kind: str, value: str) -> str:
+    try:
+        normalized = normalize_declared_target(kind, value.strip())
+    except ScopeNormalizationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="identity_value_invalid",
+        ) from exc
+    if kind == "domain" and normalized["attributes"].get("registrable_domain") is None:
+        raise HTTPException(
+            status_code=422,
+            detail="identity_value_invalid",
+        )
+    return normalized["canonical"]
+
+
+def _identity_state(project: dict) -> dict:
+    state = project.get("technical_identity") or {}
+    return {
+        "revision": int(state.get("revision", 0)),
+        "confirmed": list(state.get("confirmed", [])),
+    }
+
+
+async def _active_identity_assets(project: dict) -> list[dict]:
+    version_id = project.get("active_scope_version")
+    if not version_id:
+        return []
+    version = await scope_versions_collection().find_one({
+        "_id": version_id,
+        "project_slug": project["_id"],
+    })
+    if version is None:
+        return []
+    if version.get("asset_schema_version") == 1:
+        assets = [
+            item
+            async for item in scope_assets_collection().find({
+                "project_slug": project["_id"],
+                "version_id": version_id,
+            }).sort([("order", 1), ("asset_id", 1)])
+        ]
+        if assets or not (version.get("rules") or version.get("context_assets")):
+            return assets
+    return _legacy_asset_documents(version)
+
+
+def _identity_suggestion_origin(
+    asset: dict,
+    method: str,
+    enrichment: dict | None = None,
+) -> dict:
+    classification = {
+        "derived_relation": "derived",
+        "enrichment": "enriched",
+    }.get(method, asset.get("classification", "declared"))
+    origin = {
+        "asset_id": asset["asset_id"],
+        "source_ids": asset.get("source_ids", []),
+        "classification": classification,
+        "categories": [asset.get("category", "client")],
+        "method": method,
+    }
+    if enrichment:
+        origin["provider"] = enrichment.get("provider")
+        origin["observed_at"] = enrichment.get("observed_at") or enrichment.get("obtained_at")
+    return origin
+
+
+def _identity_suggestions(assets: list[dict], confirmed: list[dict]) -> list[dict]:
+    candidates: dict[tuple[str, str], dict] = {}
+
+    def add(kind: str, raw_value: str, asset: dict, method: str, enrichment=None) -> None:
+        try:
+            value = _identity_value(kind, raw_value)
+        except HTTPException:
+            return
+        key = kind, value
+        candidate = candidates.setdefault(key, {
+            "kind": kind,
+            "value": value,
+            "confirmed": False,
+            "origins": [],
+        })
+        origin = _identity_suggestion_origin(asset, method, enrichment)
+        origin_key = (origin["asset_id"], origin["method"], origin.get("provider"))
+        existing_keys = {
+            (item["asset_id"], item["method"], item.get("provider"))
+            for item in candidate["origins"]
+        }
+        if origin_key not in existing_keys:
+            candidate["origins"].append(origin)
+
+    for asset in assets:
+        normalized = asset.get("normalized") or {}
+        attributes = normalized.get("attributes") or {}
+        if asset.get("kind") in {"domain", "url"}:
+            registrable = attributes.get("registrable_domain")
+            if registrable:
+                add("domain", registrable, asset, "registrable_domain")
+        if asset.get("kind") == "asn":
+            add("asn", asset["value"], asset, "declared")
+        for relation in normalized.get("relations", []):
+            if relation.get("kind") == "asn" and relation.get("canonical"):
+                add("asn", relation["canonical"], asset, "derived_relation")
+        for enrichment in normalized.get("enrichments", []):
+            if not isinstance(enrichment, dict):
+                continue
+            raw_asn = enrichment.get("asn")
+            if enrichment.get("kind") == "asn":
+                raw_asn = enrichment.get("canonical") or enrichment.get("value") or raw_asn
+            if raw_asn:
+                raw_asn = str(raw_asn)
+                add(
+                    "asn",
+                    raw_asn if raw_asn.upper().startswith("AS") else f"AS{raw_asn}",
+                    asset,
+                    "enrichment",
+                    enrichment,
+                )
+
+    confirmed_keys = {(item["kind"], item["value"]) for item in confirmed}
+    for key, candidate in candidates.items():
+        candidate["confirmed"] = key in confirmed_keys
+        candidate["origins"].sort(key=lambda item: (
+            item["asset_id"], item["method"], item.get("provider") or "",
+        ))
+    return sorted(candidates.values(), key=lambda item: (item["kind"], item["value"]))
+
+
+async def _identity_response(project: dict) -> dict:
+    identity = _identity_state(project)
+    return {
+        "revision": identity["revision"],
+        "active_scope_version": project.get("active_scope_version"),
+        "confirmed": sorted(
+            identity["confirmed"],
+            key=lambda item: (item["kind"], item["value"]),
+        ),
+        "suggestions": _identity_suggestions(
+            await _active_identity_assets(project),
+            identity["confirmed"],
+        ),
+    }
+
+
+@router.get("/projects/{slug}/identity")
+async def get_project_identity(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    return await _identity_response(project)
+
+
+@router.put("/projects/{slug}/identity/confirmations")
+async def confirm_project_identity(
+    slug: str,
+    payload: IdentityConfirmationUpdate,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    if current_user["username"] != project["responsible"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="project_responsible_required",
+        )
+    identity = _identity_state(project)
+    if payload.expected_revision != identity["revision"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="identity_changed_retry",
+        )
+    value = _identity_value(payload.kind, payload.value)
+    if any(
+        item["kind"] == payload.kind and item["value"] == value
+        for item in identity["confirmed"]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="identity_item_already_confirmed",
+        )
+
+    now = datetime.now(timezone.utc)
+    confirmed = [*identity["confirmed"], {
+        "kind": payload.kind,
+        "value": value,
+        "confirmed_by": current_user["username"],
+        "confirmed_at": now,
+    }]
+    next_identity = {"revision": identity["revision"] + 1, "confirmed": confirmed}
+    event = {
+        "type": "client_identity_confirmed",
+        "author": current_user["username"],
+        "subject": f"{payload.kind}:{value}",
+        "at": now,
+    }
+    result = await projects_collection().update_one(
+        {"_id": slug, "technical_identity": project.get("technical_identity")},
+        {
+            "$set": {"technical_identity": next_identity, "last_activity_at": now},
+            "$push": {"activity_events": event},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="identity_changed_retry",
+        )
+    updated = await projects_collection().find_one({"_id": slug})
+    return await _identity_response(updated)
+
+
+@router.delete("/projects/{slug}/identity/confirmations")
+async def remove_project_identity(
+    slug: str,
+    kind: Literal["domain", "asn"] = Query(...),
+    value: str = Query(..., min_length=1, max_length=253),
+    expected_revision: int = Query(..., ge=0),
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    if current_user["username"] != project["responsible"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="project_responsible_required",
+        )
+    identity = _identity_state(project)
+    if expected_revision != identity["revision"]:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="identity_changed_retry",
+        )
+    canonical = _identity_value(kind, value)
+    if not any(
+        item["kind"] == kind and item["value"] == canonical
+        for item in identity["confirmed"]
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="identity_item_not_found",
+        )
+
+    now = datetime.now(timezone.utc)
+    confirmed = [
+        item
+        for item in identity["confirmed"]
+        if not (item["kind"] == kind and item["value"] == canonical)
+    ]
+    next_identity = {"revision": identity["revision"] + 1, "confirmed": confirmed}
+    event = {
+        "type": "client_identity_removed",
+        "author": current_user["username"],
+        "subject": f"{kind}:{canonical}",
+        "at": now,
+    }
+    result = await projects_collection().update_one(
+        {"_id": slug, "technical_identity": project.get("technical_identity")},
+        {
+            "$set": {"technical_identity": next_identity, "last_activity_at": now},
+            "$push": {"activity_events": event},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="identity_changed_retry",
+        )
+    updated = await projects_collection().find_one({"_id": slug})
+    return await _identity_response(updated)
 
 
 def scope_version_detail(doc: dict) -> dict:

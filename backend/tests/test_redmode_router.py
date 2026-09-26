@@ -1,5 +1,6 @@
 """First RedMode slice: workspace permission, project feed, and creator access."""
 
+import asyncio
 import io
 from datetime import datetime, timezone
 
@@ -948,3 +949,189 @@ async def test_document_scope_has_position_and_preserves_previous_on_no_text(asy
         "/api/redmode/projects/cliente-demo/scope/active", headers=headers_for("admin", "admin")
     )
     assert active.json()["id"] == published.json()["id"]
+
+
+@pytest.mark.asyncio
+async def test_client_identity_is_suggested_confirmed_and_removed_without_scope_change(
+    async_client,
+    fake_db,
+):
+    base = "/api/redmode/projects/cliente-demo"
+    owner = headers_for("admin", "admin")
+    member = headers_for("techuser")
+    outsider = headers_for("identity-outsider")
+    await grant_redmode(fake_db, "techuser")
+    await fake_db.users.insert_one({
+        "username": "identity-outsider",
+        "role": "tech",
+        "is_active": True,
+        "extra_permissions": ["redmode:access"],
+    })
+    assert (await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=owner,
+    )).status_code == 201
+    assert (await async_client.put(f"{base}/members/techuser", headers=owner)).status_code == 200
+    published = await async_client.post(
+        f"{base}/scope/text",
+        json={
+            "text": (
+                "Portal.Exämple.CO.UK\n"
+                "https://app.example.com/login\n"
+                "AS64512"
+            ),
+        },
+        headers=member,
+    )
+    assert published.status_code == 201
+    version_id = published.json()["id"]
+
+    domain_asset = next(
+        item
+        for item in fake_db.redmode_scope_assets._data
+        if item["version_id"] == version_id and item["kind"] == "domain"
+    )
+    domain_asset["normalized"]["enrichments"].append({
+        "kind": "asn",
+        "canonical": "AS64496",
+        "provider": "test-rdap",
+        "observed_at": "2026-09-25T12:00:00Z",
+    })
+
+    identity = await async_client.get(f"{base}/identity", headers=owner)
+    assert identity.status_code == 200
+    body = identity.json()
+    assert body["revision"] == 0
+    assert body["confirmed"] == []
+    suggestions = {(item["kind"], item["value"]): item for item in body["suggestions"]}
+    assert ("domain", "xn--exmple-cua.co.uk") in suggestions
+    assert ("domain", "example.com") in suggestions
+    assert ("asn", "AS64512") in suggestions
+    assert suggestions[("asn", "AS64496")]["origins"][0]["provider"] == "test-rdap"
+    assert suggestions[("asn", "AS64496")]["origins"][0]["source_ids"] == ["text"]
+    assert suggestions[("asn", "AS64496")]["origins"][0]["classification"] == "enriched"
+
+    assert (await async_client.get(f"{base}/identity", headers=member)).status_code == 200
+    assert (await async_client.get(f"{base}/identity", headers=outsider)).status_code == 403
+    forbidden = await async_client.put(
+        f"{base}/identity/confirmations",
+        json={"kind": "domain", "value": "example.com", "expected_revision": 0},
+        headers=member,
+    )
+    assert forbidden.status_code == 403
+
+    inventory_path = f"{base}/scope/versions/{version_id}/assets?limit=100"
+    inventory_before = (await async_client.get(inventory_path, headers=owner)).json()["items"]
+    executable_before = [
+        (item["kind"], item["value"], item["category"])
+        for item in inventory_before
+        if item["executable"]
+    ]
+
+    confirmed_domain = await async_client.put(
+        f"{base}/identity/confirmations",
+        json={"kind": "domain", "value": "EXAMPLE.COM.", "expected_revision": 0},
+        headers=owner,
+    )
+    assert confirmed_domain.status_code == 200
+    assert confirmed_domain.json()["revision"] == 1
+    assert confirmed_domain.json()["confirmed"][0]["value"] == "example.com"
+    assert confirmed_domain.json()["confirmed"][0]["confirmed_by"] == "admin"
+    assert suggestions[("domain", "example.com")]["confirmed"] is False
+    forbidden_removal = await async_client.delete(
+        f"{base}/identity/confirmations",
+        params={"kind": "domain", "value": "example.com", "expected_revision": 1},
+        headers=member,
+    )
+    assert forbidden_removal.status_code == 403
+
+    duplicate = await async_client.put(
+        f"{base}/identity/confirmations",
+        json={"kind": "domain", "value": "example.com", "expected_revision": 1},
+        headers=owner,
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.json()["detail"] == "identity_item_already_confirmed"
+    invalid = await async_client.put(
+        f"{base}/identity/confirmations",
+        json={"kind": "asn", "value": "AS4294967296", "expected_revision": 1},
+        headers=owner,
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["detail"] == "identity_value_invalid"
+
+    confirmed_asn = await async_client.put(
+        f"{base}/identity/confirmations",
+        json={"kind": "asn", "value": "as64512", "expected_revision": 1},
+        headers=owner,
+    )
+    assert confirmed_asn.status_code == 200
+    assert confirmed_asn.json()["revision"] == 2
+    inventory_after = (await async_client.get(inventory_path, headers=owner)).json()["items"]
+    executable_after = [
+        (item["kind"], item["value"], item["category"])
+        for item in inventory_after
+        if item["executable"]
+    ]
+    assert executable_after == executable_before
+
+    removed = await async_client.delete(
+        f"{base}/identity/confirmations",
+        params={"kind": "domain", "value": "Example.COM", "expected_revision": 2},
+        headers=owner,
+    )
+    assert removed.status_code == 200
+    assert removed.json()["revision"] == 3
+    assert [(item["kind"], item["value"]) for item in removed.json()["confirmed"]] == [
+        ("asn", "AS64512"),
+    ]
+    example_suggestion = next(
+        item
+        for item in removed.json()["suggestions"]
+        if item["kind"] == "domain" and item["value"] == "example.com"
+    )
+    assert example_suggestion["confirmed"] is False
+    assert len(fake_db.redmode_scope_sources._data) == 1
+
+    activity = (await async_client.get(f"{base}/activity", headers=owner)).json()["items"]
+    assert [item["type"] for item in activity[-3:]] == [
+        "client_identity_confirmed",
+        "client_identity_confirmed",
+        "client_identity_removed",
+    ]
+    assert activity[-1]["subject"] == "domain:example.com"
+
+
+@pytest.mark.asyncio
+async def test_client_identity_uses_revision_as_concurrency_guard(async_client, fake_db):
+    base = "/api/redmode/projects/cliente-demo"
+    owner = headers_for("admin", "admin")
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=owner,
+    )
+    project = await async_client.get(base, headers=owner)
+    assert project.status_code == 200
+    stored_project = await fake_db.redmode_projects.find_one({"_id": "cliente-demo"})
+    stored_project.pop("technical_identity")
+
+    responses = await asyncio.gather(
+        async_client.put(
+            f"{base}/identity/confirmations",
+            json={"kind": "domain", "value": "example.com", "expected_revision": 0},
+            headers=owner,
+        ),
+        async_client.put(
+            f"{base}/identity/confirmations",
+            json={"kind": "asn", "value": "AS64512", "expected_revision": 0},
+            headers=owner,
+        ),
+    )
+    assert sorted(response.status_code for response in responses) == [200, 409]
+    conflict = next(response for response in responses if response.status_code == 409)
+    assert conflict.json()["detail"] == "identity_changed_retry"
+    identity = (await async_client.get(f"{base}/identity", headers=owner)).json()
+    assert identity["revision"] == 1
+    assert len(identity["confirmed"]) == 1

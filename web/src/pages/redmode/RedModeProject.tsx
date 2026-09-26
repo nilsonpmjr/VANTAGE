@@ -49,6 +49,8 @@ const activityLabels: Record<string, string> = {
   member_removed: "Membro removido",
   scope_published: "Escopo publicado",
   evidence_added: "Evidência registrada",
+  evidence_created: "Evidência criada",
+  evidence_updated: "Evidência atualizada",
   finding_created: "Finding criado",
   finding_updated: "Finding revisado",
   phase_changed: "Fase alterada",

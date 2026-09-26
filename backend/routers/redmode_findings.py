@@ -12,7 +12,11 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from db import db_manager
 from logging_config import get_logger
 from routers.redmode import load_project_for_member, projects_collection, require_redmode_access
-from routers.redmode_evidence import PTES_PHASES, evidence_collection
+from routers.redmode_evidence import (
+    PTES_PHASES,
+    evidence_collection,
+    evidence_revisions_collection,
+)
 
 
 router = APIRouter(prefix="/redmode", tags=["redmode-findings"])
@@ -98,6 +102,21 @@ async def finding_detail(doc: dict) -> dict:
     async for evidence in linked:
         if evidence["_id"] not in evidence_ids:
             evidence_ids.append(evidence["_id"])
+    revision_notes = {
+        note["current_revision_id"]: note["_id"]
+        async for note in evidence_collection().find({"project_slug": doc["project_slug"]})
+        if note.get("current_revision_id")
+    }
+    if revision_notes:
+        linked_revisions = evidence_revisions_collection().find({
+            "_id": {"$in": list(revision_notes)},
+            "project_slug": doc["project_slug"],
+            "finding_ids": doc["_id"],
+        })
+        async for evidence_revision in linked_revisions:
+            note_id = revision_notes[evidence_revision["_id"]]
+            if note_id not in evidence_ids:
+                evidence_ids.append(note_id)
     return {
         "id": doc["_id"], "project_slug": doc["project_slug"], "origin": "human",
         "created_at": doc["created_at"], "updated_at": doc["updated_at"],

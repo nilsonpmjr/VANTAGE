@@ -288,6 +288,65 @@ export interface EvidenceLimits {
   max_file_bytes: number;
 }
 
+export interface EvidenceAttachment {
+  id: string;
+  filename: string;
+  size: number;
+  sha256: string;
+}
+
+export interface EvidenceNoteInput {
+  title: string;
+  markdown: string;
+  phase: string;
+  tags: string[];
+  targets: string[];
+  finding_ids: string[];
+  attachment_ids: string[];
+}
+
+export interface EvidenceRevision extends EvidenceNoteInput {
+  id: string;
+  note_id: string;
+  project_slug: string;
+  number: number;
+  previous_revision_id: string | null;
+  author: string;
+  created_at: string;
+  attachments: EvidenceAttachment[];
+}
+
+export interface EvidenceNote extends EvidenceNoteInput {
+  id: string;
+  project_slug: string;
+  origin: "human";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  attachments: EvidenceAttachment[];
+  revision: Pick<
+    EvidenceRevision,
+    "id" | "number" | "previous_revision_id" | "author" | "created_at"
+  >;
+}
+
+export interface EvidenceNoteSummary {
+  id: string;
+  project_slug: string;
+  origin: "human";
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  title: string;
+  excerpt: string;
+  phase: string;
+  tags: string[];
+  target_count: number;
+  finding_count: number;
+  attachment_count: number;
+  revision: EvidenceNote["revision"];
+}
+
 export interface FindingInput {
   title: string;
   description: string;
@@ -557,6 +616,81 @@ export async function getEvidenceLimits(): Promise<EvidenceLimits> {
 
 export async function listEvidence(slug: string, offset = 0, limit = 50): Promise<{ items: Evidence[]; total: number }> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence?offset=${offset}&limit=${limit}`, { credentials: "include" }));
+}
+
+export async function listEvidenceNotes(
+  slug: string,
+  offset = 0,
+  limit = 50,
+): Promise<{ items: EvidenceNoteSummary[]; total: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes?offset=${offset}&limit=${limit}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getEvidenceNote(slug: string, noteId: string): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function createEvidenceNote(
+  slug: string,
+  payload: EvidenceNoteInput,
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes`;
+  return readResponse(await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }));
+}
+
+export async function updateEvidenceNote(
+  slug: string,
+  noteId: string,
+  expectedRevisionId: string,
+  payload: EvidenceNoteInput,
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}`;
+  return readResponse(await fetch(path, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, expected_revision_id: expectedRevisionId }),
+  }));
+}
+
+export async function listEvidenceRevisions(
+  slug: string,
+  noteId: string,
+): Promise<{ items: EvidenceRevision[] }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}/revisions`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getEvidenceRevision(
+  slug: string,
+  noteId: string,
+  revisionId: string,
+): Promise<EvidenceRevision> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}`
+    + `/revisions/${encodeURIComponent(revisionId)}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export function evidenceAttachmentDownloadUrl(
+  slug: string,
+  noteId: string,
+  attachmentId: string,
+): string {
+  return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}`
+    + `/attachments/${encodeURIComponent(attachmentId)}`;
 }
 
 export async function addEvidence(slug: string, fields: { text: string; phase: string; target: string; finding_id: string; file: File | null }): Promise<Evidence> {

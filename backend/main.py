@@ -250,8 +250,40 @@ async def lifespan(app: FastAPI):
                 name="redmode_evidence_project_created",
             )
             await db.redmode_evidence.create_index(
+                [("project_slug", 1), ("updated_at", -1)],
+                name="redmode_evidence_project_updated",
+            )
+            await db.redmode_evidence.create_index(
                 [("project_slug", 1), ("finding_id", 1)],
                 name="redmode_evidence_finding",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("note_id", 1), ("number", -1)],
+                name="redmode_evidence_revisions_history",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("phase", 1), ("created_at", -1)],
+                name="redmode_evidence_revisions_phase",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("tags", 1)],
+                name="redmode_evidence_revisions_tags",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("targets", 1)],
+                name="redmode_evidence_revisions_targets",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("finding_ids", 1)],
+                name="redmode_evidence_revisions_findings",
+            )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("attachment_ids", 1)],
+                name="redmode_evidence_revisions_attachments",
+            )
+            await db.redmode_evidence_attachments.create_index(
+                [("project_slug", 1), ("note_id", 1), ("created_at", -1)],
+                name="redmode_evidence_attachments_note",
             )
             await db.redmode_findings.create_index(
                 [("project_slug", 1), ("updated_at", -1)],

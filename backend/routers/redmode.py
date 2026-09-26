@@ -153,6 +153,8 @@ def project_detail(doc: dict) -> dict:
 HOME_ACTIVITY_TYPES = frozenset({
     "scope_published",
     "evidence_added",
+    "evidence_created",
+    "evidence_updated",
     "finding_created",
     "finding_updated",
 })
@@ -217,6 +219,7 @@ def _activity_series(projects: list[dict], now: datetime) -> list[dict]:
     }
     event_fields = {
         "evidence_added": "evidence",
+        "evidence_created": "evidence",
         "finding_created": "findings",
         "finding_updated": "findings",
         "scope_published": "scope_publications",

@@ -81,6 +81,9 @@ const ContactSupportPage = lazy(() => import("./pages/help/ContactSupportPage"))
 const MarkdownVisualHarness = import.meta.env.DEV
   ? lazy(() => import("./test/MarkdownVisualHarness"))
   : null;
+const EvidenceNotebookVisualHarness = import.meta.env.DEV
+  ? lazy(() => import("./test/EvidenceNotebookVisualHarness"))
+  : null;
 
 function LegacyOffensiveEngagementRedirect() {
   const { slug } = useParams<{ slug: string }>();
@@ -112,6 +115,9 @@ export default function App() {
             <Routes>
               {MarkdownVisualHarness && (
                 <Route path="__dev/markdown" element={suspense(<MarkdownVisualHarness />)} />
+              )}
+              {EvidenceNotebookVisualHarness && (
+                <Route path="__dev/evidence-notebook" element={suspense(<EvidenceNotebookVisualHarness />)} />
               )}
               <Route
                 path="/"

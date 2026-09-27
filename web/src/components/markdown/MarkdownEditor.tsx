@@ -33,12 +33,14 @@ export interface MarkdownEditorProps {
   value: string;
   onChange: (value: string) => void;
   persistedValue?: string;
+  additionalDirty?: boolean;
   onPersist?: (value: string) => void | Promise<void>;
   onDirtyChange?: (dirty: boolean) => void;
   onError?: (error: Error | null) => void;
   error?: string | null;
   label?: string;
   placeholder?: string;
+  maxLength?: number;
   initialMode?: MarkdownEditorMode;
   onModeChange?: (mode: MarkdownEditorMode) => void;
   disabled?: boolean;
@@ -85,12 +87,14 @@ export function MarkdownEditor({
   value,
   onChange,
   persistedValue,
+  additionalDirty = false,
   onPersist,
   onDirtyChange,
   onError,
   error,
   label = "Documento Markdown",
   placeholder = "Escreva em Markdown...",
+  maxLength,
   initialMode = "split",
   onModeChange,
   disabled = false,
@@ -106,7 +110,7 @@ export function MarkdownEditor({
   const [persistedSnapshot, setPersistedSnapshot] = useState(persistedValue ?? value);
   const [saving, setSaving] = useState(false);
   const [persistError, setPersistError] = useState("");
-  const dirty = value !== persistedSnapshot;
+  const dirty = value !== persistedSnapshot || additionalDirty;
   const visibleError = error || persistError;
 
   useEffect(() => {
@@ -298,6 +302,7 @@ export function MarkdownEditor({
             value={value}
             disabled={disabled}
             placeholder={placeholder}
+            maxLength={maxLength}
             spellCheck
             className="markdown-editor-textarea"
             onChange={(event) => onChange(event.target.value)}

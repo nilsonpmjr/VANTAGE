@@ -90,6 +90,21 @@ describe("MarkdownEditor", () => {
     expect(screen.getByText("Alterações não salvas")).toBeInTheDocument();
   });
 
+  it("allows surrounding structured fields to mark the document dirty", async () => {
+    const user = userEvent.setup();
+    const onPersist = vi.fn().mockResolvedValue(undefined);
+    renderEditor({
+      value: "texto inicial",
+      persistedValue: "texto inicial",
+      additionalDirty: true,
+      onPersist,
+    });
+
+    expect(screen.getByText("Alterações não salvas")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    expect(onPersist).toHaveBeenCalledWith("texto inicial");
+  });
+
   it("reports persistence errors without discarding the document", async () => {
     const user = userEvent.setup();
     const onError = vi.fn();

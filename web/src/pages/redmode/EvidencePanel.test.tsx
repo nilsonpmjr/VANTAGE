@@ -5,17 +5,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import EvidencePanel from "./EvidencePanel";
 
 const apiMocks = vi.hoisted(() => ({
-  createEvidenceNote: vi.fn(),
+  createEvidenceDraft: vi.fn(),
+  deleteEvidenceDraftAttachment: vi.fn(),
+  discardEvidenceDraft: vi.fn(),
+  getEvidenceDraft: vi.fn(),
   getEvidenceNote: vi.fn(),
+  listEvidenceDrafts: vi.fn(),
   listEvidenceNotes: vi.fn(),
+  listEvidenceRevisions: vi.fn(),
   listFindings: vi.fn(),
-  updateEvidenceNote: vi.fn(),
+  publishEvidenceDraft: vi.fn(),
+  rebaseEvidenceDraft: vi.fn(),
+  saveEvidenceDraft: vi.fn(),
+  uploadEvidenceDraftAttachments: vi.fn(),
 }));
 
 vi.mock("./api", () => ({
   ...apiMocks,
-  evidenceAttachmentDownloadUrl: (slug: string, noteId: string, attachmentId: string) => (
-    `/api/redmode/projects/${slug}/evidence/notes/${noteId}/attachments/${attachmentId}`
+  evidenceAttachmentDownloadUrl: (slug: string, noteId: string, attachmentId: string, inline = false) => (
+    `/api/redmode/projects/${slug}/evidence/notes/${noteId}/attachments/${attachmentId}${inline ? "?inline=true" : ""}`
   ),
 }));
 
@@ -60,6 +68,25 @@ const detail = {
   revision: summary.revision,
 };
 
+const privateDraft = {
+  id: "demo:note-draft:alice",
+  note_id: "note-draft",
+  project_slug: "demo",
+  author: "alice",
+  version: 1,
+  base_revision_id: null,
+  created_at: "2026-09-26T14:00:00Z",
+  updated_at: "2026-09-26T14:00:00Z",
+  title: "",
+  markdown: "",
+  phase: "pre-engagement",
+  tags: [],
+  targets: [],
+  finding_ids: [],
+  attachment_ids: [],
+  attachments: [],
+};
+
 function LocationProbe() {
   const location = useLocation();
   return <output aria-label="location">{`${location.pathname}${location.search}`}</output>;
@@ -80,18 +107,49 @@ function renderPanel(initialEntry = "/redmode/engagements/demo/evidence", onAdde
 describe("EvidencePanel notebook", () => {
   beforeEach(() => {
     apiMocks.listEvidenceNotes.mockResolvedValue({ items: [summary], total: 1 });
+    apiMocks.listEvidenceDrafts.mockResolvedValue({ items: [] });
     apiMocks.listFindings.mockResolvedValue({ items: [], total: 0 });
-    apiMocks.getEvidenceNote.mockResolvedValue(detail);
-    apiMocks.createEvidenceNote.mockResolvedValue({ ...detail, id: "note-created" });
-    apiMocks.updateEvidenceNote.mockResolvedValue({
+    apiMocks.listEvidenceRevisions.mockResolvedValue({ items: [{
       ...detail,
-      revision: {
-        ...detail.revision,
-        id: "revision-2",
-        number: 2,
-        previous_revision_id: detail.revision.id,
-      },
+      id: detail.revision.id,
+      note_id: detail.id,
+      number: detail.revision.number,
+      previous_revision_id: detail.revision.previous_revision_id,
+      author: detail.revision.author,
+      created_at: detail.revision.created_at,
+    }] });
+    apiMocks.getEvidenceNote.mockImplementation(async (_slug: string, noteId: string) => {
+      if (noteId === privateDraft.note_id) throw new Error("evidence_not_found");
+      return detail;
     });
+    apiMocks.getEvidenceDraft.mockImplementation(async (_slug: string, noteId: string) => {
+      if (noteId === privateDraft.note_id) return privateDraft;
+      throw new Error("evidence_draft_not_found");
+    });
+    apiMocks.createEvidenceDraft.mockResolvedValue(privateDraft);
+    apiMocks.saveEvidenceDraft.mockImplementation(async (
+      _slug: string,
+      noteId: string,
+      baseRevisionId: string | null,
+      expectedVersion: number,
+      payload: typeof privateDraft,
+    ) => ({
+      ...privateDraft,
+      ...payload,
+      id: `demo:${noteId}:alice`,
+      note_id: noteId,
+      base_revision_id: baseRevisionId,
+      version: expectedVersion + 1,
+      updated_at: "2026-09-26T14:01:00Z",
+      attachments: [],
+    }));
+    apiMocks.publishEvidenceDraft.mockResolvedValue({
+      ...detail,
+      id: privateDraft.note_id,
+      title: "Nota de validação",
+      markdown: "Resultado **confirmado**.",
+    });
+    apiMocks.discardEvidenceDraft.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -115,44 +173,64 @@ describe("EvidencePanel notebook", () => {
     expect(screen.getByDisplayValue("portal.example.test")).toBeInTheDocument();
   });
 
-  it("keeps a new note local until the operator explicitly saves it", async () => {
+  it("autosaves a private draft and only publishes after the explicit action", async () => {
     const user = userEvent.setup();
     const onAdded = vi.fn();
     renderPanel(undefined, onAdded);
     await screen.findByRole("button", { name: /Validação do portal/ });
 
     await user.click(screen.getByRole("button", { name: "Nova" }));
-    expect(screen.getByLabelText("location")).toHaveTextContent("?note=new");
-    expect(screen.getAllByText("Rascunho local").length).toBeGreaterThan(0);
-    expect(apiMocks.createEvidenceNote).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-draft"));
+    expect(screen.getAllByText(/Rascunho/).length).toBeGreaterThan(0);
+    expect(apiMocks.publishEvidenceDraft).not.toHaveBeenCalled();
 
     await user.type(screen.getByPlaceholderText("Título da evidência"), "Nota de validação");
     await user.type(screen.getByLabelText("Nota de evidência: texto Markdown"), "Resultado **confirmado**.");
-    await user.click(screen.getByRole("button", { name: "Salvar" }));
-
-    await waitFor(() => expect(apiMocks.createEvidenceNote).toHaveBeenCalledWith("demo", expect.objectContaining({
+    await waitFor(() => expect(apiMocks.saveEvidenceDraft).toHaveBeenCalledWith(
+      "demo",
+      "note-draft",
+      null,
+      1,
+      expect.objectContaining({
       title: "Nota de validação",
       markdown: "Resultado **confirmado**.",
       phase: "pre-engagement",
-    })));
+      }),
+    ), { timeout: 2500 });
+    expect(onAdded).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Publicar" }));
+    await waitFor(() => expect(apiMocks.publishEvidenceDraft).toHaveBeenCalledWith("demo", "note-draft", 2));
     expect(onAdded).toHaveBeenCalledTimes(1);
-    expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-created");
+    expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-draft");
   });
 
   it("preserves local edits and marks the note when optimistic locking detects a conflict", async () => {
     const user = userEvent.setup();
-    apiMocks.updateEvidenceNote.mockRejectedValue(new Error("evidence_changed_retry"));
+    apiMocks.getEvidenceDraft.mockResolvedValue({
+      ...privateDraft,
+      id: "demo:note-1:alice",
+      note_id: "note-1",
+      base_revision_id: detail.revision.id,
+      title: detail.title,
+      markdown: detail.markdown,
+      phase: detail.phase,
+      tags: detail.tags,
+      targets: detail.targets,
+    });
+    apiMocks.saveEvidenceDraft.mockRejectedValue(new Error("evidence_draft_conflict"));
     renderPanel("/redmode/engagements/demo/evidence?note=note-1");
 
     const title = await screen.findByDisplayValue("Validação do portal");
     await user.clear(title);
     await user.type(title, "Validação atualizada localmente");
-    await user.click(screen.getByRole("button", { name: "Salvar" }));
+    await user.click(screen.getByRole("button", { name: "Salvar rascunho" }));
 
-    expect(await screen.findByText(/Esta nota mudou em outra sessão/)).toBeInTheDocument();
+    expect(await screen.findByText(/A revisão publicada mudou/)).toBeInTheDocument();
     expect(screen.getByDisplayValue("Validação atualizada localmente")).toBeInTheDocument();
     expect(screen.getAllByText(/Conflito/).length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /Recarregar versão remota/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Reaplicar manualmente/ })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Descartar rascunho/ }).length).toBeGreaterThan(0);
   });
 
   it("loads additional note summaries progressively", async () => {
@@ -170,6 +248,96 @@ describe("EvidencePanel notebook", () => {
     expect(apiMocks.listEvidenceNotes).toHaveBeenLastCalledWith("demo", 1, 30);
   });
 
+  it("recovers the last server-confirmed private draft on reload", async () => {
+    apiMocks.getEvidenceDraft.mockResolvedValue({
+      ...privateDraft,
+      id: "demo:note-1:alice",
+      note_id: "note-1",
+      base_revision_id: detail.revision.id,
+      title: "Rascunho recuperado",
+      markdown: "Conteúdo confirmado pelo autosave.",
+      phase: detail.phase,
+      tags: detail.tags,
+      targets: detail.targets,
+    });
+    renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+
+    expect(await screen.findByDisplayValue("Rascunho recuperado")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nota de evidência: texto Markdown")).toHaveValue("Conteúdo confirmado pelo autosave.");
+    expect(screen.getAllByText("Rascunho salvo").length).toBeGreaterThan(0);
+  });
+
+  it("opens immutable history without mixing it with the private draft", async () => {
+    const user = userEvent.setup();
+    apiMocks.getEvidenceDraft.mockResolvedValue({
+      ...privateDraft,
+      id: "demo:note-1:alice",
+      note_id: "note-1",
+      base_revision_id: detail.revision.id,
+      title: "Meu rascunho",
+      markdown: "Texto privado",
+      phase: detail.phase,
+      tags: detail.tags,
+      targets: detail.targets,
+    });
+    renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+
+    await screen.findByDisplayValue("Meu rascunho");
+    await user.click(await screen.findByRole("button", { name: /Revisão 1/ }));
+    expect(screen.getByLabelText("Revisão 1")).toHaveTextContent("A rota administrativa respondeu.");
+    expect(screen.getByDisplayValue("Validação do portal")).toBeDisabled();
+    expect(screen.getByText(/Seu rascunho privado não aparece neste histórico/)).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Voltar ao rascunho/ }));
+    expect(screen.getByDisplayValue("Meu rascunho")).toBeInTheDocument();
+  });
+
+  it("uploads an image privately and inserts its authenticated stable reference", async () => {
+    const user = userEvent.setup();
+    const attachment = {
+      id: "attachment-1",
+      filename: "captura.png",
+      size: 8,
+      sha256: "0".repeat(64),
+      content_type: "image/png",
+    };
+    apiMocks.uploadEvidenceDraftAttachments.mockImplementation(async (
+      _slug: string,
+      noteId: string,
+      expectedVersion: number,
+    ) => ({
+      ...privateDraft,
+      id: `demo:${noteId}:alice`,
+      note_id: noteId,
+      base_revision_id: detail.revision.id,
+      version: expectedVersion + 1,
+      title: detail.title,
+      markdown: detail.markdown,
+      phase: detail.phase,
+      tags: detail.tags,
+      targets: detail.targets,
+      attachment_ids: [attachment.id],
+      attachments: [attachment],
+    }));
+    renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+    await screen.findByDisplayValue("Validação do portal");
+
+    await user.upload(
+      screen.getByLabelText("Selecionar anexos"),
+      new File(["fake-png"], "captura.png", { type: "image/png" }),
+    );
+    await waitFor(() => expect(apiMocks.uploadEvidenceDraftAttachments).toHaveBeenCalledWith(
+      "demo",
+      "note-1",
+      1,
+      [expect.objectContaining({ name: "captura.png" })],
+    ));
+    await user.click(await screen.findByRole("button", { name: /Incorporar imagem/ }));
+    expect((screen.getByLabelText("Nota de evidência: texto Markdown") as HTMLTextAreaElement).value).toContain(
+      "![captura.png](/api/redmode/projects/demo/evidence/notes/note-1/attachments/attachment-1?inline=true)",
+    );
+  });
+
   it("supports shortcuts for saving, search, properties, and note creation", async () => {
     const user = userEvent.setup();
     renderPanel("/redmode/engagements/demo/evidence?note=note-1");
@@ -177,7 +345,7 @@ describe("EvidencePanel notebook", () => {
     const title = await screen.findByDisplayValue("Validação do portal");
     await user.type(title, " revisada");
     fireEvent.keyDown(window, { key: "s", ctrlKey: true });
-    await waitFor(() => expect(apiMocks.updateEvidenceNote).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiMocks.saveEvidenceDraft).toHaveBeenCalledTimes(1));
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
     await waitFor(() => expect(screen.getByPlaceholderText("Buscar título, tag ou autor")).toHaveFocus());
@@ -186,6 +354,6 @@ describe("EvidencePanel notebook", () => {
     expect(screen.getAllByRole("button", { name: "Abrir propriedades" }).length).toBeGreaterThan(0);
 
     fireEvent.keyDown(window, { key: "n", ctrlKey: true });
-    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("?note=new"));
+    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-draft"));
   });
 });

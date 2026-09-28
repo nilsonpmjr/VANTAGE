@@ -1,4 +1,4 @@
-"""Visual smoke check for the development-only OM3 evidence notebook harness."""
+"""Visual smoke check for the development-only OM3 draft notebook harness."""
 
 from __future__ import annotations
 
@@ -49,6 +49,19 @@ def main() -> None:
         sleep(0.3)
         driver.save_screenshot(str(output / "desktop-dark.png"))
 
+        revision_button = driver.find_element(
+            By.XPATH,
+            "//button[contains(normalize-space(), 'Revisão 2')]",
+        )
+        driver.execute_script(
+            "arguments[0].scrollIntoView({block: 'center'})",
+            revision_button,
+        )
+        revision_button.click()
+        wait_for_text(driver, "Revisão imutável 2")
+        driver.save_screenshot(str(output / "desktop-history.png"))
+        driver.find_element(By.XPATH, "//button[contains(normalize-space(), 'Voltar ao rascunho')]").click()
+
         driver.set_window_size(390, 844)
         for label, filename in (
             ("1. Notas", "mobile-notes.png"),
@@ -59,6 +72,20 @@ def main() -> None:
             driver.save_screenshot(str(output / filename))
 
         driver.set_window_size(1536, 1050)
+        driver.get(f"{args.url}?note=note-long&scenario=conflict")
+        conflict = WebDriverWait(driver, 10).until(
+            lambda current: current.find_element(
+                By.CSS_SELECTOR,
+                "section[aria-label='Comparação do conflito']",
+            )
+        )
+        driver.execute_script(
+            "arguments[0].scrollIntoView({block: 'center'})",
+            conflict,
+        )
+        sleep(0.3)
+        driver.save_screenshot(str(output / "desktop-conflict.png"))
+
         driver.get(f"{args.url}?note=missing")
         wait_for_text(driver, "Não foi possível abrir esta nota.")
         driver.save_screenshot(str(output / "network-error.png"))

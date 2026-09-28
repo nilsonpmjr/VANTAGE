@@ -35,6 +35,7 @@ export interface MarkdownEditorProps {
   persistedValue?: string;
   additionalDirty?: boolean;
   onPersist?: (value: string) => void | Promise<void>;
+  persistLabel?: string;
   onDirtyChange?: (dirty: boolean) => void;
   onError?: (error: Error | null) => void;
   error?: string | null;
@@ -89,6 +90,7 @@ export function MarkdownEditor({
   persistedValue,
   additionalDirty = false,
   onPersist,
+  persistLabel = "Salvar",
   onDirtyChange,
   onError,
   error,
@@ -272,7 +274,7 @@ export function MarkdownEditor({
               onClick={() => void persist()}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-              Salvar
+              {persistLabel}
             </button>
           )}
         </div>

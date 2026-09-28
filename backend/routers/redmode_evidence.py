@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import re
 from urllib.parse import quote
@@ -10,7 +10,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from pymongo.errors import DuplicateKeyError
 
 from config import settings
@@ -99,6 +99,74 @@ class EvidenceNoteEdit(EvidenceNoteInput):
     expected_revision_id: str = Field(min_length=1, max_length=128)
 
 
+class EvidenceDraftWrite(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(default="", max_length=MAX_NOTE_TITLE)
+    markdown: str = Field(default="", max_length=MAX_NOTE_MARKDOWN)
+    phase: str
+    tags: list[str] = Field(default_factory=list, max_length=MAX_NOTE_TAGS)
+    targets: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
+    finding_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
+    attachment_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
+    base_revision_id: str | None = Field(default=None, max_length=128)
+    expected_version: int = Field(ge=0)
+
+    @field_validator("title")
+    @classmethod
+    def valid_draft_title(cls, value: str) -> str:
+        return value.strip()
+
+    @field_validator("phase")
+    @classmethod
+    def valid_draft_phase(cls, value: str) -> str:
+        if value not in PTES_PHASES:
+            raise ValueError("invalid_ptes_phase")
+        return value
+
+    @field_validator("tags")
+    @classmethod
+    def valid_draft_tags(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        folded = [value.casefold() for value in normalized]
+        if (
+            any(not value or len(value) > 64 for value in normalized)
+            or len(set(folded)) != len(folded)
+        ):
+            raise ValueError("invalid_evidence_tags")
+        return normalized
+
+    @field_validator("targets")
+    @classmethod
+    def valid_draft_targets(cls, values: list[str]) -> list[str]:
+        normalized = [value.strip() for value in values]
+        if (
+            any(not value or len(value) > 2_048 for value in normalized)
+            or len(set(normalized)) != len(normalized)
+        ):
+            raise ValueError("invalid_evidence_targets")
+        return normalized
+
+    @field_validator("finding_ids", "attachment_ids")
+    @classmethod
+    def valid_draft_relation_ids(cls, values: list[str]) -> list[str]:
+        if (
+            any(not value or len(value) > 128 for value in values)
+            or len(set(values)) != len(values)
+        ):
+            raise ValueError("invalid_evidence_relation_ids")
+        return values
+
+
+class EvidenceDraftPublish(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    expected_version: int = Field(ge=1)
+
+
+class EvidenceDraftRebase(EvidenceDraftPublish):
+    current_revision_id: str = Field(min_length=1, max_length=128)
+
+
 def evidence_collection():
     projects_collection()
     return db_manager.db.redmode_evidence
@@ -107,6 +175,11 @@ def evidence_collection():
 def evidence_revisions_collection():
     projects_collection()
     return db_manager.db.redmode_evidence_revisions
+
+
+def evidence_drafts_collection():
+    projects_collection()
+    return db_manager.db.redmode_evidence_drafts
 
 
 def evidence_attachments_collection():
@@ -134,6 +207,9 @@ def _attachment_view(info: dict) -> dict:
         "filename": info["filename"],
         "size": info["size"],
         "sha256": info["sha256"],
+        "content_type": info.get("content_type", "application/octet-stream"),
+        "created_by": info.get("created_by"),
+        "created_at": info.get("created_at"),
     }
 
 
@@ -276,6 +352,47 @@ async def evidence_note_summary(doc: dict) -> dict:
     }
 
 
+def _draft_id(slug: str, note_id: str, author: str) -> str:
+    return f"{slug}:{note_id}:{author}"
+
+
+def evidence_draft_detail(doc: dict) -> dict:
+    return {
+        "id": doc["_id"],
+        "note_id": doc["note_id"],
+        "project_slug": doc["project_slug"],
+        "author": doc["author"],
+        "version": doc["version"],
+        "base_revision_id": doc.get("base_revision_id"),
+        "created_at": doc["created_at"],
+        "updated_at": doc["updated_at"],
+        "title": doc.get("title", ""),
+        "markdown": doc.get("markdown", ""),
+        "phase": doc.get("phase", "pre-engagement"),
+        "tags": doc.get("tags", []),
+        "targets": doc.get("targets", []),
+        "finding_ids": doc.get("finding_ids", []),
+        "attachment_ids": doc.get("attachment_ids", []),
+        "attachments": doc.get("attachments", []),
+    }
+
+
+def evidence_draft_summary(doc: dict) -> dict:
+    return {
+        "note_id": doc["note_id"],
+        "project_slug": doc["project_slug"],
+        "version": doc["version"],
+        "base_revision_id": doc.get("base_revision_id"),
+        "updated_at": doc["updated_at"],
+        "title": doc.get("title", ""),
+        "excerpt": _markdown_excerpt(doc.get("markdown", "")),
+        "phase": doc.get("phase", "pre-engagement"),
+        "tags": doc.get("tags", []),
+        "attachment_count": len(doc.get("attachment_ids", [])),
+        "is_new": doc.get("base_revision_id") is None,
+    }
+
+
 async def evidence_detail(doc: dict) -> dict:
     """Serialize a revisioned note through the temporary legacy contract."""
     detail = await evidence_note_detail(doc)
@@ -331,6 +448,121 @@ async def _resolve_attachments(
     return attachments
 
 
+async def _resolve_draft_attachments(
+    slug: str,
+    note_id: str,
+    author: str,
+    attachment_ids: list[str],
+    published_attachments: list[dict] | None = None,
+) -> list[dict]:
+    published_by_id = {
+        str(item["id"]): _attachment_view(item)
+        for item in (published_attachments or [])
+    }
+    attachments = []
+    for attachment_id in attachment_ids:
+        if attachment_id in published_by_id:
+            attachments.append(published_by_id[attachment_id])
+            continue
+        attachment = await evidence_attachments_collection().find_one({
+            "_id": attachment_id,
+            "project_slug": slug,
+        })
+        if attachment is None or attachment.get("note_id") not in (None, note_id):
+            raise HTTPException(status_code=422, detail="attachment_not_in_draft")
+        if attachment.get("state") == "draft" and attachment.get("created_by") != author:
+            raise HTTPException(status_code=422, detail="attachment_not_in_draft")
+        if attachment.get("state") not in ("draft", "published"):
+            raise HTTPException(status_code=422, detail="attachment_not_in_draft")
+        attachments.append(_attachment_view(attachment))
+    return attachments
+
+
+async def _private_draft(slug: str, note_id: str, author: str) -> dict | None:
+    return await evidence_drafts_collection().find_one({
+        "_id": _draft_id(slug, note_id, author),
+        "project_slug": slug,
+        "note_id": note_id,
+        "author": author,
+    })
+
+
+async def _delete_draft_attachments(draft: dict) -> int:
+    deleted = 0
+    for attachment_id in draft.get("attachment_ids", []):
+        attachment = await evidence_attachments_collection().find_one({
+            "_id": attachment_id,
+            "project_slug": draft["project_slug"],
+            "note_id": draft["note_id"],
+            "state": "draft",
+            "created_by": draft["author"],
+        })
+        if attachment is None:
+            continue
+        await evidence_attachments_collection().delete_one({"_id": attachment_id})
+        try:
+            await evidence_file_store().delete(attachment["storage_id"])
+        except Exception:
+            logger.warning("Failed to remove a RedMode draft attachment binary")
+        deleted += 1
+    return deleted
+
+
+async def cleanup_abandoned_evidence_drafts(now: datetime | None = None) -> dict:
+    """Remove expired private drafts and orphan draft uploads, never publications."""
+    if db_manager.db is None:
+        return {"drafts": 0, "attachments": 0}
+    moment = now or datetime.now(timezone.utc)
+    cutoff = moment - timedelta(
+        hours=max(1, settings.redmode_evidence_draft_retention_hours)
+    )
+    removed_drafts = 0
+    removed_attachments = 0
+    cursor = evidence_drafts_collection().find({"updated_at": {"$lt": cutoff}})
+    async for draft in cursor:
+        result = await evidence_drafts_collection().delete_one({
+            "_id": draft["_id"],
+            "updated_at": draft["updated_at"],
+        })
+        if result.deleted_count != 1:
+            continue
+        removed_drafts += 1
+        removed_attachments += await _delete_draft_attachments(draft)
+
+    orphan_cursor = evidence_attachments_collection().find({
+        "state": "draft",
+        "created_at": {"$lt": cutoff},
+    })
+    async for attachment in orphan_cursor:
+        draft = await _private_draft(
+            attachment["project_slug"],
+            attachment["note_id"],
+            attachment["created_by"],
+        )
+        if draft is not None:
+            continue
+        result = await evidence_attachments_collection().delete_one({
+            "_id": attachment["_id"],
+            "state": "draft",
+        })
+        if result.deleted_count != 1:
+            continue
+        try:
+            await evidence_file_store().delete(attachment["storage_id"])
+        except Exception:
+            logger.warning("Failed to remove an orphan RedMode draft upload")
+        removed_attachments += 1
+    if removed_drafts or removed_attachments:
+        logger.info(
+            "Cleaned abandoned RedMode evidence drafts",
+            extra={
+                "drafts": removed_drafts,
+                "attachments": removed_attachments,
+            },
+        )
+    return {"drafts": removed_drafts, "attachments": removed_attachments}
+
+
 async def _record_activity(
     project: dict,
     event_type: str,
@@ -371,6 +603,554 @@ async def get_evidence_limits(current_user: dict = Depends(require_redmode_acces
         "max_text_characters": MAX_NOTE_MARKDOWN,
         "max_file_bytes": settings.redmode_evidence_max_file_bytes,
     }
+
+
+@router.post(
+    "/projects/{slug}/evidence/drafts",
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_evidence_draft(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    note_id = uuid4().hex
+    now = datetime.now(timezone.utc)
+    draft = {
+        "_id": _draft_id(slug, note_id, current_user["username"]),
+        "note_id": note_id,
+        "project_slug": slug,
+        "author": current_user["username"],
+        "version": 1,
+        "base_revision_id": None,
+        "created_at": now,
+        "updated_at": now,
+        "title": "",
+        "markdown": "",
+        "phase": "pre-engagement",
+        "tags": [],
+        "targets": [],
+        "finding_ids": [],
+        "attachment_ids": [],
+        "attachments": [],
+    }
+    await evidence_drafts_collection().insert_one(draft)
+    return evidence_draft_detail(draft)
+
+
+@router.get("/projects/{slug}/evidence/drafts")
+async def list_evidence_drafts(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    cursor = evidence_drafts_collection().find({
+        "project_slug": slug,
+        "author": current_user["username"],
+    }).sort("updated_at", -1)
+    return {"items": [evidence_draft_summary(item) async for item in cursor]}
+
+
+@router.get("/projects/{slug}/evidence/drafts/{note_id}")
+async def get_evidence_draft(
+    slug: str,
+    note_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    draft = await _private_draft(slug, note_id, current_user["username"])
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    return evidence_draft_detail(draft)
+
+
+@router.put("/projects/{slug}/evidence/drafts/{note_id}")
+async def save_evidence_draft(
+    slug: str,
+    note_id: str,
+    payload: EvidenceDraftWrite,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    note = await evidence_collection().find_one({
+        "_id": note_id,
+        "project_slug": slug,
+    })
+    current_revision = await _current_revision(note) if note is not None else None
+    current_revision_id = current_revision["_id"] if current_revision else None
+    if payload.base_revision_id != current_revision_id:
+        raise HTTPException(status_code=409, detail="evidence_draft_conflict")
+
+    author = current_user["username"]
+    draft = await _private_draft(slug, note_id, author)
+    if draft is not None and draft.get("base_revision_id") != payload.base_revision_id:
+        raise HTTPException(status_code=409, detail="evidence_draft_conflict")
+    if draft is None and payload.expected_version != 0:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    if draft is not None and draft["version"] != payload.expected_version:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+
+    await _validate_finding_ids(slug, payload.finding_ids)
+    attachments = await _resolve_draft_attachments(
+        slug,
+        note_id,
+        author,
+        payload.attachment_ids,
+        current_revision.get("attachments", []) if current_revision else [],
+    )
+    fields = payload.model_dump(exclude={"base_revision_id", "expected_version"})
+    now = datetime.now(timezone.utc)
+    if draft is None:
+        draft = {
+            "_id": _draft_id(slug, note_id, author),
+            "note_id": note_id,
+            "project_slug": slug,
+            "author": author,
+            "version": 1,
+            "base_revision_id": payload.base_revision_id,
+            "created_at": now,
+            "updated_at": now,
+            **fields,
+            "attachments": attachments,
+        }
+        try:
+            await evidence_drafts_collection().insert_one(draft)
+        except DuplicateKeyError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="evidence_draft_changed_retry",
+            ) from exc
+        return evidence_draft_detail(draft)
+
+    result = await evidence_drafts_collection().update_one(
+        {"_id": draft["_id"], "version": payload.expected_version},
+        {
+            "$set": {
+                **fields,
+                "attachments": attachments,
+                "updated_at": now,
+            },
+            "$inc": {"version": 1},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    updated = await _private_draft(slug, note_id, author)
+    return evidence_draft_detail(updated)
+
+
+@router.delete(
+    "/projects/{slug}/evidence/drafts/{note_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def discard_evidence_draft(
+    slug: str,
+    note_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    draft = await _private_draft(slug, note_id, current_user["username"])
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    result = await evidence_drafts_collection().delete_one({
+        "_id": draft["_id"],
+        "version": draft["version"],
+    })
+    if result.deleted_count != 1:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    await _delete_draft_attachments(draft)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/projects/{slug}/evidence/drafts/{note_id}/rebase")
+async def rebase_evidence_draft(
+    slug: str,
+    note_id: str,
+    payload: EvidenceDraftRebase,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    note = await evidence_collection().find_one({
+        "_id": note_id,
+        "project_slug": slug,
+    })
+    if note is None:
+        raise HTTPException(status_code=404, detail="evidence_not_found")
+    current_revision = await _current_revision(note)
+    if current_revision["_id"] != payload.current_revision_id:
+        raise HTTPException(status_code=409, detail="evidence_draft_conflict")
+    draft = await _private_draft(slug, note_id, current_user["username"])
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    result = await evidence_drafts_collection().update_one(
+        {"_id": draft["_id"], "version": payload.expected_version},
+        {
+            "$set": {
+                "base_revision_id": current_revision["_id"],
+                "updated_at": datetime.now(timezone.utc),
+            },
+            "$inc": {"version": 1},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    updated = await _private_draft(slug, note_id, current_user["username"])
+    return evidence_draft_detail(updated)
+
+
+@router.post("/projects/{slug}/evidence/drafts/{note_id}/attachments")
+async def upload_evidence_draft_attachments(
+    slug: str,
+    note_id: str,
+    expected_version: int = Form(...),
+    files: list[UploadFile] = File(...),
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    author = current_user["username"]
+    draft = await _private_draft(slug, note_id, author)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    if draft["version"] != expected_version:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    if not files:
+        raise HTTPException(status_code=422, detail="evidence_files_required")
+    if len(draft.get("attachment_ids", [])) + len(files) > MAX_NOTE_RELATIONS:
+        raise HTTPException(status_code=422, detail="too_many_evidence_attachments")
+
+    now = datetime.now(timezone.utc)
+    created = []
+    store = evidence_file_store()
+    try:
+        for upload in files:
+            filename = clean_filename(upload.filename or "")
+            if not filename:
+                raise HTTPException(
+                    status_code=422,
+                    detail="evidence_filename_required",
+                )
+            content = await upload.read(settings.redmode_evidence_max_file_bytes + 1)
+            if len(content) > settings.redmode_evidence_max_file_bytes:
+                raise HTTPException(status_code=413, detail="evidence_file_too_large")
+            if not content:
+                raise HTTPException(status_code=422, detail="evidence_file_empty")
+            attachment_id = uuid4().hex
+            digest = sha256(content).hexdigest()
+            content_type = (upload.content_type or "application/octet-stream")[:255]
+            storage_id = await store.save(filename, content, {
+                "project_slug": slug,
+                "note_id": note_id,
+                "attachment_id": attachment_id,
+                "author": author,
+                "sha256": digest,
+                "state": "draft",
+            })
+            attachment = {
+                "_id": attachment_id,
+                "id": attachment_id,
+                "project_slug": slug,
+                "note_id": note_id,
+                "storage_id": storage_id,
+                "filename": filename,
+                "content_type": content_type,
+                "size": len(content),
+                "sha256": digest,
+                "state": "draft",
+                "created_by": author,
+                "created_at": now,
+            }
+            await evidence_attachments_collection().insert_one(attachment)
+            created.append(attachment)
+
+        attachment_ids = [
+            *draft.get("attachment_ids", []),
+            *[item["id"] for item in created],
+        ]
+        attachments = [
+            *draft.get("attachments", []),
+            *[_attachment_view(item) for item in created],
+        ]
+        result = await evidence_drafts_collection().update_one(
+            {"_id": draft["_id"], "version": expected_version},
+            {
+                "$set": {
+                    "attachment_ids": attachment_ids,
+                    "attachments": attachments,
+                    "updated_at": now,
+                },
+                "$inc": {"version": 1},
+            },
+        )
+        if result.modified_count != 1:
+            raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    except Exception:
+        for attachment in created:
+            await evidence_attachments_collection().delete_one({
+                "_id": attachment["_id"],
+            })
+            try:
+                await store.delete(attachment["storage_id"])
+            except Exception:
+                logger.warning("Failed to roll back a RedMode draft attachment")
+        raise
+    updated = await _private_draft(slug, note_id, author)
+    return evidence_draft_detail(updated)
+
+
+@router.delete(
+    "/projects/{slug}/evidence/drafts/{note_id}/attachments/{attachment_id}"
+)
+async def delete_evidence_draft_attachment(
+    slug: str,
+    note_id: str,
+    attachment_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    author = current_user["username"]
+    draft = await _private_draft(slug, note_id, author)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    attachment = await evidence_attachments_collection().find_one({
+        "_id": attachment_id,
+        "project_slug": slug,
+        "note_id": note_id,
+        "state": "draft",
+        "created_by": author,
+    })
+    if attachment is None or attachment_id not in draft.get("attachment_ids", []):
+        raise HTTPException(status_code=404, detail="evidence_file_not_found")
+    next_ids = [item for item in draft["attachment_ids"] if item != attachment_id]
+    next_attachments = [
+        item for item in draft.get("attachments", [])
+        if str(item["id"]) != attachment_id
+    ]
+    result = await evidence_drafts_collection().update_one(
+        {"_id": draft["_id"], "version": draft["version"]},
+        {
+            "$set": {
+                "attachment_ids": next_ids,
+                "attachments": next_attachments,
+                "updated_at": datetime.now(timezone.utc),
+            },
+            "$inc": {"version": 1},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    await evidence_attachments_collection().delete_one({"_id": attachment_id})
+    try:
+        await evidence_file_store().delete(attachment["storage_id"])
+    except Exception:
+        logger.warning("Failed to remove a RedMode draft attachment binary")
+    updated = await _private_draft(slug, note_id, author)
+    return evidence_draft_detail(updated)
+
+
+@router.post("/projects/{slug}/evidence/drafts/{note_id}/publish")
+async def publish_evidence_draft(
+    slug: str,
+    note_id: str,
+    payload: EvidenceDraftPublish,
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    author = current_user["username"]
+    draft = await _private_draft(slug, note_id, author)
+    if draft is None:
+        raise HTTPException(status_code=404, detail="evidence_draft_not_found")
+    if draft["version"] != payload.expected_version:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+
+    note = await evidence_collection().find_one({
+        "_id": note_id,
+        "project_slug": slug,
+    })
+    previous = await _current_revision(note) if note is not None else None
+    current_revision_id = previous["_id"] if previous else None
+    if draft.get("base_revision_id") != current_revision_id:
+        raise HTTPException(status_code=409, detail="evidence_draft_conflict")
+
+    try:
+        document = EvidenceNoteInput(**{
+            key: draft.get(
+                key,
+                [] if key.endswith("s") or key.endswith("_ids") else "",
+            )
+            for key in (
+                "title",
+                "markdown",
+                "phase",
+                "tags",
+                "targets",
+                "finding_ids",
+                "attachment_ids",
+            )
+        })
+    except ValidationError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="evidence_draft_not_publishable",
+        ) from exc
+    await _validate_finding_ids(slug, document.finding_ids)
+    attachments = await _resolve_draft_attachments(
+        slug,
+        note_id,
+        author,
+        document.attachment_ids,
+        previous.get("attachments", []) if previous else [],
+    )
+
+    claim = await evidence_drafts_collection().update_one(
+        {"_id": draft["_id"], "version": payload.expected_version},
+        {
+            "$set": {"publishing_at": datetime.now(timezone.utc)},
+            "$inc": {"version": 1},
+        },
+    )
+    if claim.modified_count != 1:
+        raise HTTPException(status_code=409, detail="evidence_draft_changed_retry")
+    claimed_version = payload.expected_version + 1
+
+    materialized_legacy = False
+    note_inserted = False
+    note_updated = False
+    revision_inserted = False
+    attachments_published = False
+    previous_updated_at = note.get("updated_at", note["created_at"]) if note else None
+    now = datetime.now(timezone.utc)
+    revision_id = uuid4().hex
+    revision = {
+        "_id": revision_id,
+        "note_id": note_id,
+        "project_slug": slug,
+        "number": previous["number"] + 1 if previous else 1,
+        "previous_revision_id": previous["_id"] if previous else None,
+        "author": author,
+        "created_at": now,
+        **document.model_dump(),
+        "attachments": attachments,
+    }
+    draft_attachment_ids = []
+    for attachment_id in document.attachment_ids:
+        attachment = await evidence_attachments_collection().find_one({
+            "_id": attachment_id,
+            "project_slug": slug,
+            "note_id": note_id,
+            "state": "draft",
+            "created_by": author,
+        })
+        if attachment is not None:
+            draft_attachment_ids.append(attachment_id)
+
+    try:
+        if note is not None and not note.get("current_revision_id"):
+            try:
+                await evidence_revisions_collection().insert_one(previous)
+            except DuplicateKeyError as exc:
+                raise HTTPException(
+                    status_code=409,
+                    detail="evidence_draft_conflict",
+                ) from exc
+            materialized_legacy = True
+
+        await evidence_revisions_collection().insert_one(revision)
+        revision_inserted = True
+        if note is None:
+            note = {
+                "_id": note_id,
+                "project_slug": slug,
+                "current_revision_id": revision_id,
+                "created_by": author,
+                "created_at": now,
+                "updated_at": now,
+                "origin": "human",
+            }
+            await evidence_collection().insert_one(note)
+            note_inserted = True
+        else:
+            result = await evidence_collection().update_one(
+                {
+                    "_id": note_id,
+                    "project_slug": slug,
+                    "current_revision_id": note.get("current_revision_id"),
+                },
+                {"$set": {"current_revision_id": revision_id, "updated_at": now}},
+            )
+            if result.modified_count != 1:
+                raise HTTPException(status_code=409, detail="evidence_draft_conflict")
+            note_updated = True
+
+        if draft_attachment_ids:
+            await evidence_attachments_collection().update_many(
+                {
+                    "_id": {"$in": draft_attachment_ids},
+                    "project_slug": slug,
+                    "note_id": note_id,
+                    "state": "draft",
+                    "created_by": author,
+                },
+                {"$set": {
+                    "state": "published",
+                    "published_revision_id": revision_id,
+                }},
+            )
+            attachments_published = True
+
+        await _record_activity(
+            project,
+            "evidence_updated" if previous else "evidence_created",
+            note_id,
+            now,
+            author,
+        )
+        await evidence_drafts_collection().delete_one({
+            "_id": draft["_id"],
+            "version": claimed_version,
+        })
+    except Exception as exc:
+        if note_inserted:
+            await evidence_collection().delete_one({
+                "_id": note_id,
+                "current_revision_id": revision_id,
+            })
+        elif note_updated:
+            await evidence_collection().update_one(
+                {"_id": note_id, "current_revision_id": revision_id},
+                {"$set": {
+                    "current_revision_id": note.get("current_revision_id"),
+                    "updated_at": previous_updated_at,
+                }},
+            )
+        if revision_inserted:
+            await evidence_revisions_collection().delete_one({"_id": revision_id})
+        if materialized_legacy:
+            await evidence_revisions_collection().delete_one({"_id": previous["_id"]})
+        if attachments_published:
+            await evidence_attachments_collection().update_many(
+                {"_id": {"$in": draft_attachment_ids}},
+                {"$set": {"state": "draft", "published_revision_id": None}},
+            )
+        await evidence_drafts_collection().update_one(
+            {"_id": draft["_id"], "version": claimed_version},
+            {
+                "$set": {"publishing_at": None},
+                "$inc": {"version": -1},
+            },
+        )
+        if isinstance(exc, HTTPException):
+            raise
+        logger.exception("RedMode evidence draft could not be published")
+        raise HTTPException(
+            status_code=503,
+            detail="evidence_storage_unavailable",
+        ) from exc
+
+    published = await evidence_collection().find_one({
+        "_id": note_id,
+        "project_slug": slug,
+    })
+    return await evidence_note_detail(published)
 
 
 @router.post(
@@ -618,18 +1398,27 @@ async def download_evidence_attachment(
     slug: str,
     note_id: str,
     attachment_id: str,
+    inline: bool = Query(False),
     current_user: dict = Depends(require_redmode_access),
 ):
-    note = await load_evidence(slug, note_id, current_user)
-    revisions = evidence_revisions_collection().find({
+    await load_project_for_member(slug, current_user)
+    note = await evidence_collection().find_one({
+        "_id": note_id,
         "project_slug": slug,
-        "note_id": note_id,
     })
     candidates = []
-    async for revision in revisions:
-        candidates.extend(revision.get("attachments", []))
-    if not note.get("current_revision_id"):
+    if note is not None:
+        revisions = evidence_revisions_collection().find({
+            "project_slug": slug,
+            "note_id": note_id,
+        })
+        async for revision in revisions:
+            candidates.extend(revision.get("attachments", []))
+    if note is not None and not note.get("current_revision_id"):
         candidates.extend(_legacy_revision(note)["attachments"])
+    draft = await _private_draft(slug, note_id, current_user["username"])
+    if draft is not None:
+        candidates.extend(draft.get("attachments", []))
     info = next(
         (item for item in candidates if str(item["id"]) == attachment_id),
         None,
@@ -637,7 +1426,7 @@ async def download_evidence_attachment(
     if info is None:
         raise HTTPException(status_code=404, detail="evidence_file_not_found")
     storage_id = await _attachment_storage_id(slug, note_id, info)
-    return await _evidence_file_response(storage_id, info)
+    return await _evidence_file_response(storage_id, info, inline=inline)
 
 
 @router.post("/projects/{slug}/evidence", status_code=status.HTTP_201_CREATED)
@@ -794,17 +1583,22 @@ async def get_evidence(
     return await evidence_detail(await load_evidence(slug, evidence_id, current_user))
 
 
-async def _evidence_file_response(storage_id: str, info: dict) -> Response:
+async def _evidence_file_response(
+    storage_id: str,
+    info: dict,
+    inline: bool = False,
+) -> Response:
     try:
         content = await evidence_file_store().read(storage_id)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail="evidence_file_unavailable") from exc
     return Response(
         content=content,
-        media_type="application/octet-stream",
+        media_type=info.get("content_type", "application/octet-stream"),
         headers={
             "Content-Disposition": (
-                f"attachment; filename*=UTF-8''{quote(clean_filename(info['filename']))}"
+                f"{'inline' if inline else 'attachment'}; "
+                f"filename*=UTF-8''{quote(clean_filename(info['filename']))}"
             ),
             "Cache-Control": "private, no-store",
         },

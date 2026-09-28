@@ -351,3 +351,319 @@ async def test_note_relations_are_multiple_and_engagement_scoped(async_client, f
     assert (
         await async_client.get(path, headers=headers_for("techuser"))
     ).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_private_drafts_autosave_per_author_without_activity(async_client, fake_db):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    await grant_redmode(fake_db, "techuser")
+    await async_client.put(
+        "/api/redmode/projects/cliente-demo/members/techuser",
+        headers=headers_for("admin", "admin"),
+    )
+    notes_path = "/api/redmode/projects/cliente-demo/evidence/notes"
+    published = await async_client.post(
+        notes_path,
+        json=note_payload(),
+        headers=headers_for("admin", "admin"),
+    )
+    note = published.json()
+    activity_before = (
+        await async_client.get(
+            "/api/redmode/projects/cliente-demo/activity",
+            headers=headers_for("admin", "admin"),
+        )
+    ).json()["items"]
+
+    draft_payload = note_payload(markdown="rascunho privado de admin")
+    draft_payload.update({
+        "base_revision_id": note["revision"]["id"],
+        "expected_version": 0,
+    })
+    admin_saved = await async_client.put(
+        f"/api/redmode/projects/cliente-demo/evidence/drafts/{note['id']}",
+        json=draft_payload,
+        headers=headers_for("admin", "admin"),
+    )
+    assert admin_saved.status_code == 200, admin_saved.text
+    assert admin_saved.json()["version"] == 1
+
+    assert (
+        await async_client.get(
+            f"/api/redmode/projects/cliente-demo/evidence/drafts/{note['id']}",
+            headers=headers_for("techuser"),
+        )
+    ).status_code == 404
+    tech_payload = note_payload(markdown="rascunho privado de tech")
+    tech_payload.update({
+        "base_revision_id": note["revision"]["id"],
+        "expected_version": 0,
+    })
+    tech_saved = await async_client.put(
+        f"/api/redmode/projects/cliente-demo/evidence/drafts/{note['id']}",
+        json=tech_payload,
+        headers=headers_for("techuser"),
+    )
+    assert tech_saved.status_code == 200, tech_saved.text
+    admin_reloaded = await async_client.get(
+        f"/api/redmode/projects/cliente-demo/evidence/drafts/{note['id']}",
+        headers=headers_for("admin", "admin"),
+    )
+    assert admin_reloaded.json()["markdown"] == "rascunho privado de admin"
+    listed = await async_client.get(
+        "/api/redmode/projects/cliente-demo/evidence/drafts",
+        headers=headers_for("techuser"),
+    )
+    assert [item["note_id"] for item in listed.json()["items"]] == [note["id"]]
+
+    activity_after = (
+        await async_client.get(
+            "/api/redmode/projects/cliente-demo/activity",
+            headers=headers_for("admin", "admin"),
+        )
+    ).json()["items"]
+    assert activity_after == activity_before
+
+
+@pytest.mark.asyncio
+async def test_draft_publish_conflict_and_explicit_rebase_preserve_text(async_client, fake_db):
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    await grant_redmode(fake_db, "techuser")
+    await async_client.put(
+        "/api/redmode/projects/cliente-demo/members/techuser",
+        headers=headers_for("admin", "admin"),
+    )
+    notes_path = "/api/redmode/projects/cliente-demo/evidence/notes"
+    note = (
+        await async_client.post(
+            notes_path,
+            json=note_payload(),
+            headers=headers_for("admin", "admin"),
+        )
+    ).json()
+    draft_path = f"/api/redmode/projects/cliente-demo/evidence/drafts/{note['id']}"
+    for username, markdown in (("admin", "texto local intacto"), ("techuser", "texto remoto")):
+        payload = note_payload(markdown=markdown)
+        payload.update({
+            "base_revision_id": note["revision"]["id"],
+            "expected_version": 0,
+        })
+        saved = await async_client.put(
+            draft_path,
+            json=payload,
+            headers=headers_for(username, "admin" if username == "admin" else "tech"),
+        )
+        assert saved.status_code == 200, saved.text
+
+    remote_publish = await async_client.post(
+        f"{draft_path}/publish",
+        json={"expected_version": 1},
+        headers=headers_for("techuser"),
+    )
+    assert remote_publish.status_code == 200, remote_publish.text
+    current = remote_publish.json()
+    assert current["markdown"] == "texto remoto"
+
+    stale_payload = note_payload(markdown="texto local ainda mais recente")
+    stale_payload.update({
+        "base_revision_id": note["revision"]["id"],
+        "expected_version": 1,
+    })
+    conflict = await async_client.put(
+        draft_path,
+        json=stale_payload,
+        headers=headers_for("admin", "admin"),
+    )
+    assert conflict.status_code == 409
+    assert conflict.json()["detail"] == "evidence_draft_conflict"
+    preserved = await async_client.get(
+        draft_path,
+        headers=headers_for("admin", "admin"),
+    )
+    assert preserved.json()["markdown"] == "texto local intacto"
+
+    rebased = await async_client.post(
+        f"{draft_path}/rebase",
+        json={
+            "expected_version": preserved.json()["version"],
+            "current_revision_id": current["revision"]["id"],
+        },
+        headers=headers_for("admin", "admin"),
+    )
+    assert rebased.status_code == 200, rebased.text
+    assert rebased.json()["markdown"] == "texto local intacto"
+    published = await async_client.post(
+        f"{draft_path}/publish",
+        json={"expected_version": rebased.json()["version"]},
+        headers=headers_for("admin", "admin"),
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["markdown"] == "texto local intacto"
+    assert published.json()["revision"]["number"] == 3
+
+
+@pytest.mark.asyncio
+async def test_draft_attachments_are_private_embeddable_and_immutable_after_publish(
+    async_client,
+    fake_db,
+    monkeypatch,
+):
+    import routers.redmode_evidence as module
+
+    class MemoryStore:
+        def __init__(self):
+            self.files = {}
+
+        async def save(self, filename, content, metadata):
+            file_id = f"stored-{metadata['attachment_id']}"
+            self.files[file_id] = content
+            return file_id
+
+        async def read(self, file_id):
+            if file_id not in self.files:
+                raise FileNotFoundError(file_id)
+            return self.files[file_id]
+
+        async def delete(self, file_id):
+            self.files.pop(file_id, None)
+
+    store = MemoryStore()
+    monkeypatch.setattr(module, "evidence_file_store", lambda: store)
+    await async_client.post(
+        "/api/redmode/projects",
+        json={"slug": "cliente-demo", "display_name": "Cliente Demo"},
+        headers=headers_for("admin", "admin"),
+    )
+    await grant_redmode(fake_db, "techuser")
+    draft = (
+        await async_client.post(
+            "/api/redmode/projects/cliente-demo/evidence/drafts",
+            headers=headers_for("admin", "admin"),
+        )
+    ).json()
+    draft_path = f"/api/redmode/projects/cliente-demo/evidence/drafts/{draft['note_id']}"
+    saved_payload = note_payload(title="Provas com anexos", markdown="provas")
+    saved_payload.update({"base_revision_id": None, "expected_version": draft["version"]})
+    saved = await async_client.put(
+        draft_path,
+        json=saved_payload,
+        headers=headers_for("admin", "admin"),
+    )
+    uploaded = await async_client.post(
+        f"{draft_path}/attachments",
+        data={"expected_version": str(saved.json()["version"])},
+        files=[
+            ("files", ("captura.png", b"fake-png", "image/png")),
+            ("files", ("saida.txt", b"secret output", "text/plain")),
+        ],
+        headers=headers_for("admin", "admin"),
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    attachments = uploaded.json()["attachments"]
+    assert len(attachments) == 2
+    assert attachments[0]["content_type"] == "image/png"
+    assert len(attachments[0]["sha256"]) == 64
+    image_id, text_id = [item["id"] for item in attachments]
+    download_path = (
+        f"/api/redmode/projects/cliente-demo/evidence/notes/{draft['note_id']}"
+        f"/attachments/{image_id}?inline=true"
+    )
+    image = await async_client.get(download_path, headers=headers_for("admin", "admin"))
+    assert image.status_code == 200
+    assert image.headers["content-type"] == "image/png"
+    assert image.headers["content-disposition"].startswith("inline;")
+    assert (
+        await async_client.get(download_path, headers=headers_for("techuser"))
+    ).status_code == 403
+
+    removed = await async_client.delete(
+        f"{draft_path}/attachments/{text_id}",
+        headers=headers_for("admin", "admin"),
+    )
+    assert removed.status_code == 200
+    assert text_id not in removed.json()["attachment_ids"]
+    assert all(b"secret output" != content for content in store.files.values())
+
+    published = await async_client.post(
+        f"{draft_path}/publish",
+        json={"expected_version": removed.json()["version"]},
+        headers=headers_for("admin", "admin"),
+    )
+    assert published.status_code == 200, published.text
+    assert published.json()["attachment_ids"] == [image_id]
+    stored = await fake_db.redmode_evidence_attachments.find_one({"_id": image_id})
+    assert stored["state"] == "published"
+    assert (
+        await async_client.delete(
+            f"{draft_path}/attachments/{image_id}",
+            headers=headers_for("admin", "admin"),
+        )
+    ).status_code == 404
+    assert (
+        await async_client.get(
+            download_path,
+            headers=headers_for("admin", "admin"),
+        )
+    ).content == b"fake-png"
+
+
+@pytest.mark.asyncio
+async def test_abandoned_draft_cleanup_never_removes_published_files(
+    async_client,
+    fake_db,
+    monkeypatch,
+):
+    from datetime import datetime, timedelta, timezone
+    import routers.redmode_evidence as module
+
+    class MemoryStore:
+        def __init__(self):
+            self.files = {"draft-storage": b"draft", "published-storage": b"published"}
+
+        async def delete(self, file_id):
+            self.files.pop(file_id, None)
+
+    store = MemoryStore()
+    monkeypatch.setattr(module, "evidence_file_store", lambda: store)
+    now = datetime.now(timezone.utc)
+    old = now - timedelta(days=10)
+    await fake_db.redmode_evidence_drafts.insert_one({
+        "_id": "cliente-demo:note-old:admin",
+        "note_id": "note-old",
+        "project_slug": "cliente-demo",
+        "author": "admin",
+        "version": 2,
+        "base_revision_id": None,
+        "created_at": old,
+        "updated_at": old,
+        "attachment_ids": ["draft-file"],
+    })
+    for attachment_id, state, storage_id in (
+        ("draft-file", "draft", "draft-storage"),
+        ("published-file", "published", "published-storage"),
+    ):
+        await fake_db.redmode_evidence_attachments.insert_one({
+            "_id": attachment_id,
+            "id": attachment_id,
+            "project_slug": "cliente-demo",
+            "note_id": "note-old",
+            "state": state,
+            "created_by": "admin",
+            "created_at": old,
+            "storage_id": storage_id,
+        })
+
+    result = await module.cleanup_abandoned_evidence_drafts(now=now)
+    assert result == {"drafts": 1, "attachments": 1}
+    assert await fake_db.redmode_evidence_drafts.find_one({"_id": "cliente-demo:note-old:admin"}) is None
+    assert await fake_db.redmode_evidence_attachments.find_one({"_id": "draft-file"}) is None
+    assert await fake_db.redmode_evidence_attachments.find_one({"_id": "published-file"}) is not None
+    assert store.files == {"published-storage": b"published"}

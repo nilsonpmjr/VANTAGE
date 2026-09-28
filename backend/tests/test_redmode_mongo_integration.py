@@ -65,8 +65,12 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
     uri = os.environ.get("REDMODE_TEST_MONGO_URI")
     if not uri:
         pytest.skip("Set REDMODE_TEST_MONGO_URI for an isolated local MongoDB")
-    if uri != "mongodb://127.0.0.1:27019":
-        pytest.fail("Integration test accepts only mongodb://127.0.0.1:27019")
+    allowed_uris = {
+        "mongodb://127.0.0.1:27019",
+        "mongodb://vantage_redmode_test_mongo:27017",
+    }
+    if uri not in allowed_uris:
+        pytest.fail("Integration test accepts only the isolated RedMode test MongoDB")
 
     client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000, tz_aware=True)
     db_name = f"redmode_h0_test_{uuid4().hex}"
@@ -224,6 +228,47 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
             assert downloaded.status_code == 200 and downloaded.content == b"synthetic evidence"
             assert (await http.get(evidence_file_url, headers=outsider)).status_code == 403
 
+            draft = await http.post(f"{base}/evidence/drafts", headers=member)
+            assert draft.status_code == 201, draft.text
+            draft_note_id = draft.json()["note_id"]
+            draft_path = f"{base}/evidence/drafts/{draft_note_id}"
+            saved_draft = await http.put(draft_path, json={
+                "title": "Nota privada sintética",
+                "markdown": "## Rascunho\n\nConteúdo privado.",
+                "phase": "reporting",
+                "tags": ["sintético"],
+                "targets": ["192.0.2.20"],
+                "finding_ids": [],
+                "attachment_ids": [],
+                "base_revision_id": None,
+                "expected_version": draft.json()["version"],
+            }, headers=member)
+            assert saved_draft.status_code == 200, saved_draft.text
+            draft_upload = await http.post(
+                f"{draft_path}/attachments",
+                data={"expected_version": saved_draft.json()["version"]},
+                files=[("files", ("private.png", b"synthetic image", "image/png"))],
+                headers=member,
+            )
+            assert draft_upload.status_code == 200, draft_upload.text
+            draft_attachment_id = draft_upload.json()["attachment_ids"][0]
+            draft_file_url = (
+                f"{base}/evidence/notes/{draft_note_id}"
+                f"/attachments/{draft_attachment_id}?inline=true"
+            )
+            assert (await http.get(draft_file_url, headers=member)).content == b"synthetic image"
+            assert (await http.get(draft_file_url, headers=owner)).status_code == 404
+            draft_publication = await http.post(
+                f"{draft_path}/publish",
+                json={"expected_version": draft_upload.json()["version"]},
+                headers=member,
+            )
+            assert draft_publication.status_code == 200, draft_publication.text
+            assert draft_publication.json()["revision"]["number"] == 1
+            published_draft_file = await http.get(draft_file_url, headers=owner)
+            assert published_draft_file.content == b"synthetic image"
+            assert published_draft_file.headers["content-type"] == "image/png"
+
             payload = {"title": "Achado sintético", "description": "Teste de persistência",
                        "severity": "low", "phase": "reconnaissance", "targets": ["192.0.2.20"],
                        "evidence_ids": [evidence_id]}
@@ -253,12 +298,14 @@ async def test_redmode_persists_private_project_data_in_mongo(monkeypatch):
             assert (await http.get(f"{base}/scope/active", headers=member)).json()["id"] == active["id"]
             assert (await http.get(scope_file_url, headers=owner)).content == b"192.0.2.20"
             assert (await http.get(evidence_file_url, headers=member)).content == b"synthetic evidence"
+            assert (await http.get(draft_file_url, headers=member)).content == b"synthetic image"
             assert (await http.get(f"{base}/findings/{finding_id}", headers=owner)).json()["revision"]["number"] == 2
 
             removed = await http.delete(f"{base}/members/h0-member", headers=owner)
             assert removed.status_code == 200, removed.text
             for url in (base, f"{base}/scope/active", scope_file_url, f"{base}/evidence",
-                        evidence_file_url, f"{base}/findings", f"{base}/findings/{finding_id}"):
+                        evidence_file_url, draft_file_url,
+                        f"{base}/findings", f"{base}/findings/{finding_id}"):
                 assert (await http.get(url, headers=member)).status_code == 403, url
     finally:
         await client.drop_database(db_name)

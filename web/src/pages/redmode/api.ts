@@ -293,6 +293,9 @@ export interface EvidenceAttachment {
   filename: string;
   size: number;
   sha256: string;
+  content_type: string;
+  created_by?: string | null;
+  created_at?: string | null;
 }
 
 export interface EvidenceNoteInput {
@@ -345,6 +348,32 @@ export interface EvidenceNoteSummary {
   finding_count: number;
   attachment_count: number;
   revision: EvidenceNote["revision"];
+}
+
+export interface EvidenceDraft extends EvidenceNoteInput {
+  id: string;
+  note_id: string;
+  project_slug: string;
+  author: string;
+  version: number;
+  base_revision_id: string | null;
+  created_at: string;
+  updated_at: string;
+  attachments: EvidenceAttachment[];
+}
+
+export interface EvidenceDraftSummary {
+  note_id: string;
+  project_slug: string;
+  version: number;
+  base_revision_id: string | null;
+  updated_at: string;
+  title: string;
+  excerpt: string;
+  phase: string;
+  tags: string[];
+  attachment_count: number;
+  is_new: boolean;
 }
 
 export interface FindingInput {
@@ -634,6 +663,113 @@ export async function getEvidenceNote(slug: string, noteId: string): Promise<Evi
   return readResponse(await fetch(path, { credentials: "include" }));
 }
 
+export async function createEvidenceDraft(slug: string): Promise<EvidenceDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/drafts`;
+  return readResponse(await fetch(path, { method: "POST", credentials: "include" }));
+}
+
+export async function listEvidenceDrafts(slug: string): Promise<{ items: EvidenceDraftSummary[] }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/drafts`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getEvidenceDraft(slug: string, noteId: string): Promise<EvidenceDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function saveEvidenceDraft(
+  slug: string,
+  noteId: string,
+  baseRevisionId: string | null,
+  expectedVersion: number,
+  payload: EvidenceNoteInput,
+): Promise<EvidenceDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}`;
+  return readResponse(await fetch(path, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...payload,
+      base_revision_id: baseRevisionId,
+      expected_version: expectedVersion,
+    }),
+  }));
+}
+
+export async function discardEvidenceDraft(slug: string, noteId: string): Promise<void> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}`;
+  const response = await fetch(path, { method: "DELETE", credentials: "include" });
+  if (!response.ok) await readResponse(response);
+}
+
+export async function publishEvidenceDraft(
+  slug: string,
+  noteId: string,
+  expectedVersion: number,
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}/publish`;
+  return readResponse(await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expected_version: expectedVersion }),
+  }));
+}
+
+export async function rebaseEvidenceDraft(
+  slug: string,
+  noteId: string,
+  expectedVersion: number,
+  currentRevisionId: string,
+): Promise<EvidenceDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}/rebase`;
+  return readResponse(await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expected_version: expectedVersion,
+      current_revision_id: currentRevisionId,
+    }),
+  }));
+}
+
+export async function uploadEvidenceDraftAttachments(
+  slug: string,
+  noteId: string,
+  expectedVersion: number,
+  files: File[],
+): Promise<EvidenceDraft> {
+  const body = new FormData();
+  body.set("expected_version", String(expectedVersion));
+  files.forEach((file) => body.append("files", file));
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}/attachments`;
+  return readResponse(await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    body,
+  }));
+}
+
+export async function deleteEvidenceDraftAttachment(
+  slug: string,
+  noteId: string,
+  attachmentId: string,
+): Promise<EvidenceDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/drafts/${encodeURIComponent(noteId)}`
+    + `/attachments/${encodeURIComponent(attachmentId)}`;
+  return readResponse(await fetch(path, { method: "DELETE", credentials: "include" }));
+}
+
 export async function createEvidenceNote(
   slug: string,
   payload: EvidenceNoteInput,
@@ -687,10 +823,12 @@ export function evidenceAttachmentDownloadUrl(
   slug: string,
   noteId: string,
   attachmentId: string,
+  inline = false,
 ): string {
-  return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
     + `/evidence/notes/${encodeURIComponent(noteId)}`
     + `/attachments/${encodeURIComponent(attachmentId)}`;
+  return inline ? `${path}?inline=true` : path;
 }
 
 export async function addEvidence(slug: string, fields: { text: string; phase: string; target: string; finding_id: string; file: File | null }): Promise<Evidence> {

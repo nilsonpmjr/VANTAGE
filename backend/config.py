@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     redmode_scope_max_files: int = 10
     redmode_scope_max_file_bytes: int = 5 * 1024 * 1024
     redmode_evidence_max_file_bytes: int = 10 * 1024 * 1024
+    redmode_evidence_draft_retention_hours: int = 7 * 24
 
     # RedMode scope enrichment. External traffic is opt-in twice: here and
     # in each engagement's policy.

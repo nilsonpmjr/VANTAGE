@@ -281,6 +281,15 @@ async def lifespan(app: FastAPI):
                 [("project_slug", 1), ("attachment_ids", 1)],
                 name="redmode_evidence_revisions_attachments",
             )
+            await db.redmode_evidence_drafts.create_index(
+                [("project_slug", 1), ("note_id", 1), ("author", 1)],
+                unique=True,
+                name="redmode_evidence_drafts_author_note",
+            )
+            await db.redmode_evidence_drafts.create_index(
+                [("updated_at", 1)],
+                name="redmode_evidence_drafts_cleanup",
+            )
             await db.redmode_evidence_attachments.create_index(
                 [("project_slug", 1), ("note_id", 1), ("created_at", -1)],
                 name="redmode_evidence_attachments_note",
@@ -428,6 +437,13 @@ async def lifespan(app: FastAPI):
         trigger="interval",
         hours=24,
         id="scan_safe_targets_daily",
+        next_run_time=datetime.now(timezone.utc),
+    )
+    scheduler.add_job(
+        redmode_evidence.cleanup_abandoned_evidence_drafts,
+        trigger="interval",
+        hours=24,
+        id="redmode_evidence_draft_cleanup",
         next_run_time=datetime.now(timezone.utc),
     )
     scheduler.start()

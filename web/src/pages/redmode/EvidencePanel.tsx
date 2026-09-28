@@ -242,10 +242,12 @@ function ShortcutHint({ children }: { children: ReactNode }) {
 export default function EvidencePanel({
   slug,
   findingRefresh,
+  readOnly = false,
   onAdded,
 }: {
   slug: string;
   findingRefresh: number;
+  readOnly?: boolean;
   onAdded?: () => void;
 }) {
   const navigate = useNavigate();
@@ -359,6 +361,7 @@ export default function EvidencePanel({
   }
 
   async function startNewNote() {
+    if (readOnly) return;
     if (selectedToken === NEW_NOTE_TOKEN) {
       setMobilePane("document");
       titleRef.current?.focus();
@@ -624,7 +627,7 @@ export default function EvidencePanel({
   }
 
   const saveDraftNow = useCallback(async (force = false): Promise<EvidenceDraft | null> => {
-    if (!selectedToken || selectedToken === NEW_NOTE_TOKEN || saving || (publishing && !force)) return draft;
+    if (readOnly || !selectedToken || selectedToken === NEW_NOTE_TOKEN || saving || (publishing && !force)) return draft;
     if (!dirty && !force) return draft;
     const submitted = form;
     const payload = formPayload(submitted);
@@ -678,18 +681,18 @@ export default function EvidencePanel({
     } finally {
       setSaving(false);
     }
-  }, [dirty, draft, form, publishing, saving, selected, selectedToken, slug]);
+  }, [dirty, draft, form, publishing, readOnly, saving, selected, selectedToken, slug]);
 
   useEffect(() => {
-    if (!dirty || saving || publishing || uploading || conflicts.has(selectedToken) || viewedRevision) return;
+    if (readOnly || !dirty || saving || publishing || uploading || conflicts.has(selectedToken) || viewedRevision) return;
     const timer = window.setTimeout(() => {
       void saveDraftNow().catch(() => undefined);
     }, 900);
     return () => window.clearTimeout(timer);
-  }, [conflicts, dirty, publishing, saveDraftNow, saving, selectedToken, uploading, viewedRevision]);
+  }, [conflicts, dirty, publishing, readOnly, saveDraftNow, saving, selectedToken, uploading, viewedRevision]);
 
   async function publishDraft() {
-    if (!selectedToken || publishing || saving) return;
+    if (readOnly || !selectedToken || publishing || saving) return;
     if (!form.title.trim()) {
       setSaveError("Informe um título antes de publicar a nota.");
       titleRef.current?.focus();
@@ -750,6 +753,7 @@ export default function EvidencePanel({
   }
 
   async function discardDraftAndReload() {
+    if (readOnly) return;
     if (!draft || !window.confirm("Descartar este rascunho privado? Anexos ainda não publicados também serão removidos.")) return;
     setDetailLoading(true);
     try {
@@ -783,7 +787,7 @@ export default function EvidencePanel({
   }
 
   async function reapplyDraft() {
-    if (!draft || !remoteConflict) return;
+    if (readOnly || !draft || !remoteConflict) return;
     setSaving(true);
     try {
       const rebased = await rebaseEvidenceDraft(
@@ -820,7 +824,7 @@ export default function EvidencePanel({
   }
 
   async function uploadAttachments(files: File[]) {
-    if (!selectedToken || !files.length || uploading) return;
+    if (readOnly || !selectedToken || !files.length || uploading) return;
     setUploading(true);
     setSaveError("");
     try {
@@ -850,7 +854,7 @@ export default function EvidencePanel({
   }
 
   async function removeDraftAttachment(attachmentId: string) {
-    if (!draft || uploading) return;
+    if (readOnly || !draft || uploading) return;
     setUploading(true);
     try {
       const ready = dirty ? await saveDraftNow(true) : draft;
@@ -885,7 +889,7 @@ export default function EvidencePanel({
     function handleShortcut(event: KeyboardEvent) {
       if (event.defaultPrevented || !(event.metaKey || event.ctrlKey)) return;
       const key = event.key.toLocaleLowerCase("pt-BR");
-      if (key === "n") {
+      if (key === "n" && !readOnly) {
         event.preventDefault();
         void startNewNote();
       } else if (key === "k") {
@@ -900,14 +904,14 @@ export default function EvidencePanel({
           else focusDocument();
           return next;
         });
-      } else if (key === "s" && selectedToken && dirty) {
+      } else if (key === "s" && !readOnly && selectedToken && dirty) {
         event.preventDefault();
         void saveDraftNow().catch(() => undefined);
       }
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
-  }, [dirty, saveDraftNow, selectedToken]);
+  }, [dirty, readOnly, saveDraftNow, selectedToken]);
 
   function openSearchResult(result: NotebookSearchResult) {
     if (result.type === "evidence" || result.type === "draft") {
@@ -944,9 +948,11 @@ export default function EvidencePanel({
               {total} publicada{total === 1 ? "" : "s"} · {drafts.length} rascunho{drafts.length === 1 ? "" : "s"} privado{drafts.length === 1 ? "" : "s"}
             </p>
           </div>
-          <button type="button" className="btn btn-primary px-3" disabled={creating} onClick={() => void startNewNote()} title="Nova nota (Ctrl+N)">
-            {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova
-          </button>
+          {!readOnly && (
+            <button type="button" className="btn btn-primary px-3" disabled={creating} onClick={() => void startNewNote()} title="Nova nota (Ctrl+N)">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova
+            </button>
+          )}
         </div>
         <label className="relative block">
           <span className="sr-only">Buscar notas</span>
@@ -1172,21 +1178,23 @@ export default function EvidencePanel({
                   value={viewedRevision?.title ?? form.title}
                   maxLength={200}
                   onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  disabled={Boolean(viewedRevision)}
+                  disabled={readOnly || Boolean(viewedRevision)}
                   placeholder="Título da evidência"
                   className="w-full border-0 bg-transparent text-xl font-bold tracking-tight text-on-surface outline-none placeholder:text-on-surface-variant/50 focus-visible:ring-2 focus-visible:ring-primary"
                 />
               </label>
               <div className="flex shrink-0 items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={publishing || saving || Boolean(viewedRevision) || conflicts.has(selectedToken) || !form.title.trim()}
-                  onClick={() => void publishDraft()}
-                >
-                  {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                  Publicar
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={publishing || saving || Boolean(viewedRevision) || conflicts.has(selectedToken) || !form.title.trim()}
+                    onClick={() => void publishDraft()}
+                  >
+                    {publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Publicar
+                  </button>
+                )}
                 <button
                   type="button"
                   className="btn btn-ghost hidden px-2 lg:inline-flex"
@@ -1243,7 +1251,7 @@ export default function EvidencePanel({
                 onPersist={async () => { await saveDraftNow(); }}
                 persistLabel="Salvar rascunho"
                 error={saveError}
-                disabled={publishing}
+                disabled={readOnly || publishing}
                 label="Nota de evidência"
                 placeholder="Registre observações, comandos, saídas, tabelas e próximos passos em Markdown..."
                 maxLength={100_000}
@@ -1301,7 +1309,7 @@ export default function EvidencePanel({
             Fase PTES
             <select
               value={form.phase}
-              disabled={Boolean(viewedRevision) || publishing}
+              disabled={readOnly || Boolean(viewedRevision) || publishing}
               onChange={(event) => setForm((current) => ({ ...current, phase: event.target.value }))}
               className="mt-2 w-full rounded-sm border border-outline-variant/30 bg-surface px-3 py-2 text-sm font-medium normal-case tracking-normal text-on-surface"
             >
@@ -1313,7 +1321,7 @@ export default function EvidencePanel({
             <span className="flex items-center gap-2"><Tag className="h-3.5 w-3.5" /> Tags</span>
             <input
               value={form.tags}
-              disabled={Boolean(viewedRevision) || publishing}
+              disabled={readOnly || Boolean(viewedRevision) || publishing}
               onChange={(event) => setForm((current) => ({ ...current, tags: event.target.value }))}
               placeholder="recon, web, validação"
               className="mt-2 w-full rounded-sm border border-outline-variant/30 bg-surface px-3 py-2 text-sm font-normal normal-case tracking-normal text-on-surface"
@@ -1325,14 +1333,14 @@ export default function EvidencePanel({
             Alvos relacionados
             <textarea
               value={form.targets}
-              disabled={Boolean(viewedRevision) || publishing}
+              disabled={readOnly || Boolean(viewedRevision) || publishing}
               onChange={(event) => setForm((current) => ({ ...current, targets: event.target.value }))}
               placeholder="Um alvo por linha"
               className="mt-2 min-h-24 w-full rounded-sm border border-outline-variant/30 bg-surface px-3 py-2 font-mono text-sm font-normal normal-case tracking-normal text-on-surface"
             />
           </label>
 
-          <fieldset>
+          <fieldset disabled={readOnly}>
             <legend className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Findings relacionados</legend>
             {findingsError ? (
               <p className="mt-2 text-xs text-error" role="alert">{findingsError}</p>
@@ -1344,7 +1352,7 @@ export default function EvidencePanel({
                   <label key={finding.id} className="flex items-start gap-2 rounded-sm px-2 py-1.5 text-sm text-on-surface hover:bg-surface-container-low">
                     <input
                       type="checkbox"
-                      disabled={Boolean(viewedRevision) || publishing}
+                      disabled={readOnly || Boolean(viewedRevision) || publishing}
                       className="mt-0.5 accent-primary"
                       checked={form.findingIds.includes(finding.id)}
                       onChange={(event) => setForm((current) => ({
@@ -1412,14 +1420,16 @@ export default function EvidencePanel({
           <section className="border-t border-outline-variant/20 pt-4">
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant"><Paperclip className="h-3.5 w-3.5" /> Anexos</p>
-              <button
-                type="button"
-                className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
-                disabled={uploading || Boolean(viewedRevision)}
-                onClick={() => uploadRef.current?.click()}
-              >
-                {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Enviar
-              </button>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                  disabled={uploading || Boolean(viewedRevision)}
+                  onClick={() => uploadRef.current?.click()}
+                >
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Enviar
+                </button>
+              )}
               <input
                 ref={uploadRef}
                 type="file"
@@ -1447,7 +1457,7 @@ export default function EvidencePanel({
                         </a>
                         <span className={`badge shrink-0 ${publishedAttachment ? "badge-neutral" : "badge-warning"}`}>{publishedAttachment ? "Publicado" : "Privado"}</span>
                       </div>
-                      {!viewedRevision && (
+                      {!readOnly && !viewedRevision && (
                         <div className="mt-2 flex flex-wrap gap-2">
                           <button type="button" className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" onClick={() => insertAttachmentReference(attachment, false)}><Link2 className="h-3 w-3" /> Inserir link</button>
                           {imageAttachment && <button type="button" className="inline-flex items-center gap-1 text-[11px] font-bold text-primary hover:underline" onClick={() => insertAttachmentReference(attachment, true)}><Image className="h-3 w-3" /> Incorporar imagem</button>}
@@ -1486,7 +1496,7 @@ export default function EvidencePanel({
             </section>
           )}
 
-          {draft && !viewedRevision && (
+          {draft && !readOnly && !viewedRevision && (
             <button type="button" className="inline-flex items-center gap-2 text-xs font-bold text-error hover:underline" onClick={() => void discardDraftAndReload()}>
               <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho privado
             </button>

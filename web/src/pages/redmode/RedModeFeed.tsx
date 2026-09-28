@@ -4,6 +4,12 @@ import { ArrowRight, Plus, ShieldAlert } from "lucide-react";
 import { PageHeader } from "../../components/page/PageChrome";
 import { createProject, listProjects, type ProjectSummary } from "./api";
 
+const statusLabels = {
+  active: "Ativo",
+  completed: "Concluído",
+  archived: "Arquivado",
+};
+
 function formatActivity(value: string) {
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("pt-BR", {
@@ -103,7 +109,9 @@ export default function RedModeFeed() {
                   <h2 className="mt-2 text-lg font-bold text-on-surface">{project.display_name}</h2>
                   <p className="text-xs text-on-surface-variant">{project.slug}</p>
                 </div>
-                <span className="badge badge-primary">{project.status}</span>
+                <span className={`badge ${project.status === "active" ? "badge-primary" : "badge-neutral"}`}>
+                  {statusLabels[project.status]}
+                </span>
               </div>
               <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-outline-variant/20 pt-4 text-xs text-on-surface-variant">
                 <span>Responsável: {project.responsible}</span>

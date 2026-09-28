@@ -1,12 +1,16 @@
 import API_URL from "../../config";
 
+export type ProjectStatus = "active" | "completed" | "archived";
+
 export interface ProjectSummary {
   slug: string;
   display_name: string;
   phase: string;
-  status: string;
+  status: ProjectStatus;
   responsible: string;
   last_activity_at: string;
+  completed_at?: string;
+  archived_at?: string;
 }
 
 export interface ProjectDetail extends ProjectSummary {
@@ -64,6 +68,8 @@ export interface ProjectActivity {
   author: string;
   subject: string;
   at: string;
+  previous_status?: ProjectStatus;
+  new_status?: ProjectStatus;
 }
 
 export type ClientIdentityKind = "domain" | "asn";
@@ -534,6 +540,19 @@ export async function changeProjectPhase(slug: string, phase: string): Promise<P
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ phase }),
+  }));
+}
+
+export async function changeProjectStatus(
+  slug: string,
+  status: ProjectStatus,
+  expectedStatus: ProjectStatus,
+): Promise<ProjectDetail> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/status`, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status, expected_status: expectedStatus }),
   }));
 }
 

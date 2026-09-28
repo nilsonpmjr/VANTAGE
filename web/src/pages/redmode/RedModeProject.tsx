@@ -2,12 +2,15 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity,
+  Archive,
   ArrowLeft,
   CalendarDays,
   Camera,
+  CheckCircle2,
   ChevronRight,
   Crosshair,
   LayoutDashboard,
+  RotateCcw,
   ShieldAlert,
   Users,
 } from "lucide-react";
@@ -16,6 +19,7 @@ import { useAuth } from "../../context/AuthContext";
 import {
   changeProjectMember,
   changeProjectPhase,
+  changeProjectStatus,
   confirmProjectIdentity,
   getProject,
   getProjectIdentity,
@@ -26,6 +30,7 @@ import {
   type ProjectActivity,
   type ProjectDetail,
   type ProjectIdentity,
+  type ProjectStatus,
 } from "./api";
 import ScopePanel from "./ScopePanel";
 import EvidencePanel, { phaseLabel, ptesPhases } from "./EvidencePanel";
@@ -43,6 +48,12 @@ const projectSections = new Set<ProjectSection>([
   "team",
 ]);
 
+const statusLabels: Record<ProjectStatus, string> = {
+  active: "Ativo",
+  completed: "Concluído",
+  archived: "Arquivado",
+};
+
 const activityLabels: Record<string, string> = {
   project_created: "Projeto criado",
   member_added: "Membro adicionado",
@@ -57,7 +68,23 @@ const activityLabels: Record<string, string> = {
   client_identity_confirmed: "Identidade do cliente confirmada",
   client_identity_removed: "Confirmação de identidade removida",
   enrichment_policy_changed: "Política de enriquecimento alterada",
+  status_changed: "Estado do engagement alterado",
 };
+
+function activityLabel(event: ProjectActivity): string {
+  if (event.type !== "status_changed") return activityLabels[event.type] || event.type;
+  if (event.new_status === "active") return "Engagement reativado";
+  if (event.new_status === "completed") return "Engagement concluído";
+  if (event.new_status === "archived") return "Engagement arquivado";
+  return activityLabels.status_changed;
+}
+
+function activitySubject(event: ProjectActivity): string {
+  if (event.previous_status && event.new_status) {
+    return `${statusLabels[event.previous_status]} → ${statusLabels[event.new_status]}`;
+  }
+  return event.subject;
+}
 
 function ActivityList({ activity, emptyCopy }: { activity: ProjectActivity[]; emptyCopy: string }) {
   if (!activity.length) {
@@ -72,8 +99,8 @@ function ActivityList({ activity, emptyCopy }: { activity: ProjectActivity[]; em
           className="relative border-l-2 border-primary/40 py-1 pl-4 text-sm text-on-surface"
         >
           <span className="absolute -left-[5px] top-2 h-2 w-2 rounded-full bg-primary" />
-          <span className="font-semibold">{activityLabels[event.type] || event.type}</span>
-          <span className="text-on-surface-variant"> · {event.subject}</span>
+          <span className="font-semibold">{activityLabel(event)}</span>
+          <span className="text-on-surface-variant"> · {activitySubject(event)}</span>
           <p className="mt-1 text-xs text-on-surface-variant">
             por {event.author} · {new Date(event.at).toLocaleString("pt-BR")}
           </p>
@@ -102,7 +129,7 @@ function TeamSection({
   onAdd: (event: FormEvent<HTMLFormElement>) => void;
   onRemove: (username: string) => void;
 }) {
-  const canManage = currentUsername === project.responsible;
+  const canManage = currentUsername === project.responsible && project.status !== "archived";
 
   return (
     <section className="card overflow-hidden">
@@ -238,7 +265,7 @@ function ProjectOverview({
           <LayoutDashboard className="h-5 w-5 text-primary" />
         </div>
         <div className="card-body">
-          {currentUsername === project.responsible && (
+          {currentUsername === project.responsible && project.status !== "archived" && (
             <div className="mb-5 flex flex-col gap-3 rounded-sm border border-outline-variant/20 bg-surface-container-low p-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="text-sm font-semibold text-on-surface">Fase operacional atual</p>
@@ -293,7 +320,7 @@ function ProjectOverview({
         identity={identity}
         loading={identityLoading}
         error={identityError}
-        canManage={currentUsername === project.responsible}
+        canManage={currentUsername === project.responsible && project.status !== "archived"}
         saving={identitySaving}
         onConfirm={onConfirmIdentity}
         onRemove={onRemoveIdentity}
@@ -350,6 +377,8 @@ export default function RedModeProject() {
   const [savingMember, setSavingMember] = useState(false);
   const [savingPhase, setSavingPhase] = useState(false);
   const [phaseError, setPhaseError] = useState("");
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState("");
   const [activityError, setActivityError] = useState("");
   const [identity, setIdentity] = useState<ProjectIdentity | null>(null);
   const [identityLoading, setIdentityLoading] = useState(true);
@@ -462,6 +491,27 @@ export default function RedModeProject() {
     }
   }
 
+  async function updateStatus(nextStatus: ProjectStatus) {
+    if (!project || nextStatus === project.status) return;
+    setStatusSaving(true);
+    setStatusError("");
+    try {
+      const updated = await changeProjectStatus(project.slug, nextStatus, project.status);
+      setProject(updated);
+      await refreshActivity();
+    } catch (cause) {
+      const reason = cause instanceof Error ? cause.message : "";
+      if (reason === "project_status_changed_retry") {
+        try { setProject(await getProject(project.slug)); } catch { /* Keep the current view. */ }
+        setStatusError("O estado mudou em outra sessão. Os dados foram recarregados; tente novamente.");
+      } else {
+        setStatusError("Não foi possível alterar o estado do engagement.");
+      }
+    } finally {
+      setStatusSaving(false);
+    }
+  }
+
   function identityFailureMessage(reason: string): string {
     if (reason === "identity_value_invalid") return "Informe um domínio registrável ou ASN válido.";
     if (reason === "identity_item_already_confirmed") return "Esse domínio ou ASN já está confirmado.";
@@ -541,12 +591,72 @@ export default function RedModeProject() {
             description={`${sectionLabel || "Área desconhecida"} · ${phaseLabel(project.phase)}`}
             metrics={(
               <>
-                <PageMetricPill label={project.status} tone={project.status === "active" ? "primary" : "muted"} />
+                <PageMetricPill label={statusLabels[project.status]} tone={project.status === "active" ? "primary" : "muted"} />
                 <PageMetricPill label={`${project.members.length} membro${project.members.length === 1 ? "" : "s"}`} icon={<Users className="h-3.5 w-3.5" />} />
                 <PageMetricPill label={new Date(project.last_activity_at).toLocaleDateString("pt-BR")} icon={<CalendarDays className="h-3.5 w-3.5" />} />
               </>
             )}
           />
+
+          <section
+            className={`mb-6 flex flex-col gap-4 rounded-sm border p-4 sm:flex-row sm:items-center sm:justify-between ${
+              project.status === "archived"
+                ? "border-warning/40 bg-warning/10"
+                : project.status === "completed"
+                  ? "border-primary/30 bg-primary/5"
+                  : "border-outline-variant/20 bg-surface-container-low"
+            }`}
+            aria-label="Ciclo de vida do engagement"
+          >
+            <div className="flex items-start gap-3">
+              {project.status === "active"
+                ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-primary" />
+                : project.status === "completed"
+                  ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-primary" />
+                  : <Archive className="mt-0.5 h-5 w-5 text-warning" />}
+              <div>
+                <p className="text-sm font-bold text-on-surface">
+                  {project.status === "active"
+                    ? "Engagement ativo"
+                    : project.status === "completed"
+                      ? "Engagement concluído"
+                      : "Engagement arquivado · somente leitura"}
+                </p>
+                <p className="mt-1 text-xs text-on-surface-variant">
+                  {project.status === "active"
+                    ? "A operação está em andamento e aceita alterações."
+                    : project.status === "completed"
+                      ? "A operação terminou, mas a equipe ainda pode fazer correções finais."
+                      : "Histórico, revisões e downloads permanecem disponíveis. Reative para voltar a editar."}
+                </p>
+              </div>
+            </div>
+            {user?.username === project.responsible && (
+              <div className="flex shrink-0 flex-wrap gap-2">
+                {project.status === "active" && (
+                  <button type="button" className="btn btn-primary" disabled={statusSaving} onClick={() => void updateStatus("completed")}>
+                    <CheckCircle2 className="h-4 w-4" /> Concluir
+                  </button>
+                )}
+                {project.status === "completed" && (
+                  <>
+                    <button type="button" className="btn btn-outline" disabled={statusSaving} onClick={() => void updateStatus("active")}>
+                      <RotateCcw className="h-4 w-4" /> Reativar
+                    </button>
+                    <button type="button" className="btn btn-primary" disabled={statusSaving} onClick={() => void updateStatus("archived")}>
+                      <Archive className="h-4 w-4" /> Arquivar
+                    </button>
+                  </>
+                )}
+                {project.status === "archived" && (
+                  <button type="button" className="btn btn-primary" disabled={statusSaving} onClick={() => void updateStatus("active")}>
+                    <RotateCcw className="h-4 w-4" /> Reativar engagement
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+          {statusError && <p className="mb-6 text-sm text-error" role="alert">{statusError}</p>}
 
           {!validSection ? (
             <section className="card p-6" role="alert">
@@ -579,6 +689,7 @@ export default function RedModeProject() {
               identityLoading={identityLoading}
               identityError={identityError}
               canManageEnrichment={user?.username === project.responsible}
+              readOnly={project.status === "archived"}
               onPublished={() => {
                 void refreshActivity();
                 void refreshIdentity();
@@ -589,6 +700,7 @@ export default function RedModeProject() {
             <EvidencePanel
               slug={project.slug}
               findingRefresh={findingRefresh}
+              readOnly={project.status === "archived"}
               onAdded={() => {
                 setEvidenceRefresh((current) => current + 1);
                 void refreshActivity();
@@ -598,6 +710,7 @@ export default function RedModeProject() {
             <FindingsPanel
               slug={project.slug}
               evidenceRefresh={evidenceRefresh}
+              readOnly={project.status === "archived"}
               onSaved={() => {
                 setFindingRefresh((current) => current + 1);
                 void refreshActivity();

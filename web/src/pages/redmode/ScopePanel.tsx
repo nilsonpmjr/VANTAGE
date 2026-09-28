@@ -192,6 +192,7 @@ function AssetEnrichment({
 export default function ScopePanel({
   slug,
   initialVersionId,
+  readOnly = false,
   identity,
   identityLoading = false,
   identityError = "",
@@ -201,6 +202,7 @@ export default function ScopePanel({
 }: {
   slug: string;
   initialVersionId?: string;
+  readOnly?: boolean;
   identity?: ProjectIdentity | null;
   identityLoading?: boolean;
   identityError?: string;
@@ -454,7 +456,7 @@ export default function ScopePanel({
   }, [assetCategory, assetKind, deferredAssetQuery, selectedScope?.id]);
 
   async function changeEnrichmentPolicy(mode: EnrichmentPolicyMode) {
-    if (!enrichmentPolicy || !canManageEnrichment) return;
+    if (readOnly || !enrichmentPolicy || !canManageEnrichment) return;
     setEnrichmentPolicySaving(true);
     setEnrichmentPolicyError("");
     try {
@@ -472,7 +474,7 @@ export default function ScopePanel({
   }
 
   async function queryAssetEnrichment(asset: ScopeAsset) {
-    if (!selectedScope || enrichingAssets.has(asset.asset_id)) return;
+    if (readOnly || !selectedScope || enrichingAssets.has(asset.asset_id)) return;
     setEnrichingAssets((current) => new Set(current).add(asset.asset_id));
     setAssetsError("");
     try {
@@ -809,9 +811,11 @@ export default function ScopePanel({
             Fontes preservam o material recebido. Escopo efetivo consolida somente as declarações que alimentam a autorização; relações derivadas e ASN não ampliam esse limite.
           </p>
         </div>
-        <button type="button" className="btn btn-outline" onClick={() => setPublisherOpen((current) => !current)}>
-          {publisherOpen ? "Fechar publicação" : "Publicar nova versão"}
-        </button>
+        {!readOnly && (
+          <button type="button" className="btn btn-outline" onClick={() => setPublisherOpen((current) => !current)}>
+            {publisherOpen ? "Fechar publicação" : "Publicar nova versão"}
+          </button>
+        )}
       </div>
 
       <IdentitySummary
@@ -821,7 +825,7 @@ export default function ScopePanel({
         compact
       />
 
-      {publisherOpen && (
+      {!readOnly && publisherOpen && (
         <form onSubmit={(event) => void handlePublish(event)} className="space-y-3 rounded-sm border border-outline-variant/20 bg-surface-container-low/40 p-4">
           <label htmlFor="redmode-scope-text" className="block text-sm font-medium text-on-surface">Texto do escopo</label>
           <textarea
@@ -997,7 +1001,7 @@ export default function ScopePanel({
                       </div>
                       {enrichmentPolicyLoading ? (
                         <span className="text-xs text-on-surface-variant">Carregando política...</span>
-                      ) : enrichmentPolicy && canManageEnrichment ? (
+                      ) : enrichmentPolicy && canManageEnrichment && !readOnly ? (
                         <select
                           value={enrichmentPolicy.mode}
                           disabled={enrichmentPolicySaving}
@@ -1112,7 +1116,7 @@ export default function ScopePanel({
                           </div>
                           <AssetEnrichment
                             asset={asset}
-                            canQuery={Boolean(enrichmentPolicy?.configured)}
+                            canQuery={!readOnly && Boolean(enrichmentPolicy?.configured)}
                             querying={enrichingAssets.has(asset.asset_id)}
                             onQuery={() => void queryAssetEnrichment(asset)}
                           />

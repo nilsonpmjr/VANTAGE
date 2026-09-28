@@ -70,6 +70,16 @@ class ProjectPhaseUpdate(BaseModel):
     phase: ProjectPhase
 
 
+ProjectStatus = Literal["active", "completed", "archived"]
+
+
+class ProjectStatusUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: ProjectStatus
+    expected_status: ProjectStatus
+
+
 class ScopeTextCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -135,15 +145,27 @@ def source_text_store():
     return GridFSScopeSourceTextStore(db_manager.db)
 
 
+def project_status(doc: dict) -> ProjectStatus:
+    value = doc.get("status")
+    if value in {"active", "completed", "archived"}:
+        return value
+    return "active"
+
+
 def project_summary(doc: dict) -> dict:
-    return {
+    summary = {
         "slug": doc["_id"],
         "display_name": doc["display_name"],
         "phase": doc["phase"],
-        "status": doc["status"],
+        "status": project_status(doc),
         "responsible": doc["responsible"],
         "last_activity_at": doc["last_activity_at"],
     }
+    if doc.get("completed_at") is not None:
+        summary["completed_at"] = doc["completed_at"]
+    if doc.get("archived_at") is not None:
+        summary["archived_at"] = doc["archived_at"]
+    return summary
 
 
 def project_detail(doc: dict) -> dict:
@@ -319,7 +341,7 @@ async def get_offensive_home(current_user: dict = Depends(require_redmode_access
         async for item in projects_collection().find({"members": username}).sort("last_activity_at", -1)
     ]
     project_slugs = [item["_id"] for item in projects]
-    active_projects = [item for item in projects if item.get("status") == "active"]
+    active_projects = [item for item in projects if project_status(item) == "active"]
     current_revisions = await _current_revisions_for_projects(project_slugs)
     scope_versions = await _scope_versions_for_projects(projects)
     phase_counts = Counter(item.get("phase") for item in projects)
@@ -398,6 +420,19 @@ async def load_project_for_member(slug: str, current_user: dict) -> dict:
     if current_user["username"] not in doc["members"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="project_membership_required")
     return doc
+
+
+def require_project_writable(project: dict) -> dict:
+    if project_status(project) == "archived":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="project_archived_read_only",
+        )
+    return project
+
+
+async def load_project_for_write(slug: str, current_user: dict) -> dict:
+    return require_project_writable(await load_project_for_member(slug, current_user))
 
 
 @router.get("/projects")
@@ -479,13 +514,82 @@ async def list_project_activity(
     return {"items": doc.get("activity_events", [])}
 
 
+@router.put("/projects/{slug}/status")
+async def update_project_status(
+    slug: str,
+    payload: ProjectStatusUpdate,
+    current_user: dict = Depends(require_redmode_access),
+):
+    doc = await load_project_for_member(slug, current_user)
+    if current_user["username"] != doc["responsible"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="project_responsible_required",
+        )
+
+    current_status = project_status(doc)
+    if payload.expected_status != current_status:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="project_status_changed_retry",
+        )
+    allowed_transitions = {
+        ("active", "completed"),
+        ("completed", "active"),
+        ("completed", "archived"),
+        ("archived", "active"),
+    }
+    if (current_status, payload.status) not in allowed_transitions:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="project_status_transition_invalid",
+        )
+
+    now = datetime.now(timezone.utc)
+    event = {
+        "type": "status_changed",
+        "author": current_user["username"],
+        "subject": f"{current_status} -> {payload.status}",
+        "previous_status": current_status,
+        "new_status": payload.status,
+        "at": now,
+    }
+    next_dates = {
+        "completed_at": now if payload.status == "completed" else None,
+        "archived_at": now if payload.status == "archived" else None,
+    }
+    update_filter = {"_id": slug}
+    if "status" in doc:
+        update_filter["status"] = doc["status"]
+    else:
+        update_filter["$or"] = [{"status": {"$exists": False}}]
+    result = await projects_collection().update_one(
+        update_filter,
+        {
+            "$set": {
+                "status": payload.status,
+                **next_dates,
+                "last_activity_at": now,
+            },
+            "$push": {"activity_events": event},
+        },
+    )
+    if result.modified_count != 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="project_status_changed_retry",
+        )
+    updated_doc = await projects_collection().find_one({"_id": slug})
+    return project_detail(updated_doc)
+
+
 @router.put("/projects/{slug}/phase")
 async def update_project_phase(
     slug: str,
     payload: ProjectPhaseUpdate,
     current_user: dict = Depends(require_redmode_access),
 ):
-    doc = await load_project_for_member(slug, current_user)
+    doc = await load_project_for_write(slug, current_user)
     if current_user["username"] != doc["responsible"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -518,7 +622,7 @@ async def update_project_phase(
 
 
 async def change_members(slug: str, username: str, current_user: dict, *, add: bool) -> dict:
-    doc = await load_project_for_member(slug, current_user)
+    doc = await load_project_for_write(slug, current_user)
     if current_user["username"] != doc["responsible"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="project_responsible_required")
     members = list(doc["members"])
@@ -640,7 +744,7 @@ async def update_enrichment_policy(
     payload: EnrichmentPolicyUpdate,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     if current_user["username"] != project["responsible"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -845,7 +949,7 @@ async def confirm_project_identity(
     payload: IdentityConfirmationUpdate,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     if current_user["username"] != project["responsible"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -905,7 +1009,7 @@ async def remove_project_identity(
     expected_revision: int = Query(..., ge=0),
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     if current_user["username"] != project["responsible"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -1148,7 +1252,7 @@ async def publish_text_scope(
     payload: ScopeTextCreate,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     try:
         document = compile_scope_document(payload.text)
         rules = merge_scope_rules([document["rules"]])
@@ -1193,7 +1297,7 @@ async def publish_scope_bundle(
     files: list[UploadFile] | None = File(None),
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     uploads = files or []
     if len(text) > 500_000:
         raise HTTPException(status_code=413, detail="scope_text_too_large")
@@ -1640,7 +1744,7 @@ async def enrich_scope_asset(
     asset_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     version = await scope_versions_collection().find_one({
         "_id": version_id,
         "project_slug": slug,

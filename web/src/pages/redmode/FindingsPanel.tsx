@@ -73,10 +73,12 @@ function formatDate(value: string): string {
 export default function FindingsPanel({
   slug,
   evidenceRefresh,
+  readOnly = false,
   onSaved,
 }: {
   slug: string;
   evidenceRefresh: number;
+  readOnly?: boolean;
   onSaved?: () => void;
 }) {
   const navigate = useNavigate();
@@ -218,7 +220,7 @@ export default function FindingsPanel({
   }, [form.description, slug]);
 
   const saveNow = useCallback(async (description?: string): Promise<FindingDraft | null> => {
-    if (!selectedId || savingRef.current) return null;
+    if (readOnly || !selectedId || savingRef.current) return null;
     const payload = { ...form, description: description ?? form.description, targets: unique(form.targets) };
     if (baseline && formKey(payload) === formKey(baseline)) return null;
     savingRef.current = true;
@@ -265,13 +267,13 @@ export default function FindingsPanel({
       savingRef.current = false;
       setSaving(false);
     }
-  }, [baseRevisionId, baseline, draftVersion, form, selectedId, slug]);
+  }, [baseRevisionId, baseline, draftVersion, form, readOnly, selectedId, slug]);
 
   useEffect(() => {
-    if (!dirty || conflict || publishing) return;
+    if (readOnly || !dirty || conflict || publishing) return;
     const timer = window.setTimeout(() => { void saveNow().catch(() => undefined); }, 750);
     return () => window.clearTimeout(timer);
-  }, [conflict, dirty, publishing, saveNow]);
+  }, [conflict, dirty, publishing, readOnly, saveNow]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -281,6 +283,7 @@ export default function FindingsPanel({
   }, [dirty]);
 
   async function createNew() {
+    if (readOnly) return;
     setError("");
     try {
       const created = await createFindingDraft(slug);
@@ -300,7 +303,7 @@ export default function FindingsPanel({
   }
 
   async function publish() {
-    if (!selectedId) return;
+    if (readOnly || !selectedId) return;
     setPublishing(true);
     setError("");
     try {
@@ -421,7 +424,7 @@ export default function FindingsPanel({
           <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Findings documentais</h2>
           <p className="mt-1 text-sm text-on-surface-variant">Documento Markdown, propriedades estruturadas e revisões publicadas no mesmo instante.</p>
         </div>
-        <button type="button" className="btn btn-primary" onClick={() => void createNew()}><Plus className="h-4 w-4" /> Novo finding</button>
+        {!readOnly && <button type="button" className="btn btn-primary" onClick={() => void createNew()}><Plus className="h-4 w-4" /> Novo finding</button>}
       </header>
 
       {error && <p className="rounded-sm border border-error/30 bg-error/10 p-3 text-sm text-error" role="alert">{error}</p>}
@@ -474,7 +477,7 @@ export default function FindingsPanel({
             <div className="space-y-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <label className="min-w-[16rem] flex-1 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Título
-                  <input className="mt-2 w-full border-0 border-b border-outline-variant/40 bg-transparent px-0 py-2 text-xl font-bold normal-case tracking-normal text-on-surface outline-none focus:border-primary" value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength={200} placeholder="Título do finding" />
+                  <input className="mt-2 w-full border-0 border-b border-outline-variant/40 bg-transparent px-0 py-2 text-xl font-bold normal-case tracking-normal text-on-surface outline-none focus:border-primary" value={form.title} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength={200} placeholder="Título do finding" />
                 </label>
                 <div className="flex items-center gap-2 text-xs text-on-surface-variant">
                   {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando...</>}
@@ -495,13 +498,14 @@ export default function FindingsPanel({
                 maxLength={100000}
                 references={references}
                 onReferenceSearch={referenceSearch}
+                disabled={readOnly}
               />
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-outline-variant/30 pt-4">
                 <div className="flex gap-2">
-                  {hasDraft && <button type="button" className="btn btn-secondary text-error" onClick={() => void discard()}><Trash2 className="h-4 w-4" /> Descartar rascunho</button>}
+                  {hasDraft && !readOnly && <button type="button" className="btn btn-secondary text-error" onClick={() => void discard()}><Trash2 className="h-4 w-4" /> Descartar rascunho</button>}
                   {selectedFinding && <button type="button" className="btn btn-secondary" onClick={closeDocument}>Fechar</button>}
                 </div>
-                <button type="button" className="btn btn-primary" disabled={publishing || saving || Boolean(conflict) || (!hasDraft && !dirty)} onClick={() => void publish()}>{publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{publishing ? "Publicando..." : selectedFinding ? "Publicar revisão" : "Publicar finding"}</button>
+                {!readOnly && <button type="button" className="btn btn-primary" disabled={publishing || saving || Boolean(conflict) || (!hasDraft && !dirty)} onClick={() => void publish()}>{publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{publishing ? "Publicando..." : selectedFinding ? "Publicar revisão" : "Publicar finding"}</button>}
               </div>
 
               {comparison && (
@@ -527,13 +531,13 @@ export default function FindingsPanel({
             <div className="space-y-5">
               <section>
                 <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Propriedades</h3>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Severidade<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.severity} onChange={(event) => setForm((current) => ({ ...current, severity: event.target.value as FindingInput["severity"] }))}>{Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Fase PTES<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.phase} onChange={(event) => setForm((current) => ({ ...current, phase: event.target.value }))}>{ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Alvos afetados<textarea className="mt-1 min-h-20 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={targetsText} onChange={(event) => { setTargetsText(event.target.value); setForm((current) => ({ ...current, targets: unique(event.target.value.split(/\r?\n/)) })); }} placeholder="Um alvo por linha" /></label>
+                <label className="mt-3 block text-xs font-medium text-on-surface">Severidade<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.severity} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, severity: event.target.value as FindingInput["severity"] }))}>{Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+                <label className="mt-3 block text-xs font-medium text-on-surface">Fase PTES<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.phase} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, phase: event.target.value }))}>{ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
+                <label className="mt-3 block text-xs font-medium text-on-surface">Alvos afetados<textarea className="mt-1 min-h-20 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={targetsText} disabled={readOnly} onChange={(event) => { setTargetsText(event.target.value); setForm((current) => ({ ...current, targets: unique(event.target.value.split(/\r?\n/)) })); }} placeholder="Um alvo por linha" /></label>
               </section>
               <section className="border-t border-outline-variant/30 pt-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Evidências associadas</h3>
-                {evidence.length === 0 ? <p className="mt-2 text-xs text-on-surface-variant">Nenhuma evidência disponível.</p> : <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">{evidence.map((proof) => <label key={proof.id} className="flex items-start gap-2 text-xs text-on-surface"><input type="checkbox" checked={form.evidence_ids.includes(proof.id)} onChange={(event) => setForm((current) => ({ ...current, evidence_ids: event.target.checked ? unique([...current.evidence_ids, proof.id]) : current.evidence_ids.filter((id) => id !== proof.id) }))} /><span className="line-clamp-2">{proof.text.slice(0, 90) || proof.file?.filename || proof.id}</span></label>)}</div>}
+                {evidence.length === 0 ? <p className="mt-2 text-xs text-on-surface-variant">Nenhuma evidência disponível.</p> : <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">{evidence.map((proof) => <label key={proof.id} className="flex items-start gap-2 text-xs text-on-surface"><input type="checkbox" checked={form.evidence_ids.includes(proof.id)} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, evidence_ids: event.target.checked ? unique([...current.evidence_ids, proof.id]) : current.evidence_ids.filter((id) => id !== proof.id) }))} /><span className="line-clamp-2">{proof.text.slice(0, 90) || proof.file?.filename || proof.id}</span></label>)}</div>}
               </section>
               <section className="border-t border-outline-variant/30 pt-4">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Referências internas</h3>

@@ -15,7 +15,12 @@ from pymongo.errors import DuplicateKeyError
 from db import db_manager
 from logging_config import get_logger
 from redmode_references import evidence_search_text, extract_internal_references, reference_context
-from routers.redmode import load_project_for_member, projects_collection, require_redmode_access
+from routers.redmode import (
+    load_project_for_member,
+    load_project_for_write,
+    projects_collection,
+    require_redmode_access,
+)
 from routers.redmode_evidence import (
     PTES_PHASES,
     _resolve_references,
@@ -325,7 +330,7 @@ async def _store_revision(
 
 @router.post("/projects/{slug}/findings", status_code=status.HTTP_201_CREATED)
 async def create_finding(slug: str, payload: FindingInput, current_user: dict = Depends(require_redmode_access)):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     await validate_evidence_ids(slug, payload.evidence_ids)
     finding_id = uuid4().hex
     return await finding_detail(await _store_revision(slug, finding_id, payload, current_user, project, None))
@@ -470,7 +475,7 @@ async def get_finding_links(
 
 @router.put("/projects/{slug}/findings/{finding_id}")
 async def update_finding(slug: str, finding_id: str, payload: FindingEdit, current_user: dict = Depends(require_redmode_access)):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     doc = await findings_collection().find_one({"_id": finding_id, "project_slug": slug})
     if doc is None:
         raise HTTPException(status_code=404, detail="finding_not_found")
@@ -483,7 +488,7 @@ async def update_finding(slug: str, finding_id: str, payload: FindingEdit, curre
 
 @router.post("/projects/{slug}/finding-drafts", status_code=status.HTTP_201_CREATED)
 async def create_finding_draft(slug: str, current_user: dict = Depends(require_redmode_access)):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     finding_id = uuid4().hex
     now = datetime.now(timezone.utc)
     draft = {
@@ -516,7 +521,7 @@ async def get_finding_draft(slug: str, finding_id: str, current_user: dict = Dep
 
 @router.put("/projects/{slug}/finding-drafts/{finding_id}")
 async def save_finding_draft(slug: str, finding_id: str, payload: FindingDraftWrite, current_user: dict = Depends(require_redmode_access)):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     finding = await findings_collection().find_one({"_id": finding_id, "project_slug": slug})
     current_revision = await _current_revision(finding) if finding else None
     current_revision_id = current_revision["_id"] if current_revision else None
@@ -556,7 +561,7 @@ async def save_finding_draft(slug: str, finding_id: str, payload: FindingDraftWr
 
 @router.delete("/projects/{slug}/finding-drafts/{finding_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def discard_finding_draft(slug: str, finding_id: str, current_user: dict = Depends(require_redmode_access)):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     draft = await _private_draft(slug, finding_id, current_user["username"])
     if draft is None:
         raise HTTPException(status_code=404, detail="finding_draft_not_found")
@@ -568,6 +573,7 @@ async def discard_finding_draft(slug: str, finding_id: str, current_user: dict =
 
 @router.post("/projects/{slug}/finding-drafts/{finding_id}/rebase")
 async def rebase_finding_draft(slug: str, finding_id: str, payload: FindingDraftRebase, current_user: dict = Depends(require_redmode_access)):
+    await load_project_for_write(slug, current_user)
     finding = await load_finding(slug, finding_id, current_user)
     current = await _current_revision(finding)
     if current["_id"] != payload.current_revision_id:
@@ -586,7 +592,7 @@ async def rebase_finding_draft(slug: str, finding_id: str, payload: FindingDraft
 
 @router.post("/projects/{slug}/finding-drafts/{finding_id}/publish")
 async def publish_finding_draft(slug: str, finding_id: str, payload: FindingDraftPublish, current_user: dict = Depends(require_redmode_access)):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     draft = await _private_draft(slug, finding_id, current_user["username"])
     if draft is None:
         raise HTTPException(status_code=404, detail="finding_draft_not_found")

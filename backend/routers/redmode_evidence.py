@@ -27,6 +27,7 @@ from redmode_references import (
 from routers.redmode import (
     PTES_PHASE_ORDER,
     load_project_for_member,
+    load_project_for_write,
     projects_collection,
     require_redmode_access,
     scope_assets_collection,
@@ -1223,7 +1224,7 @@ async def create_evidence_draft(
     slug: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     note_id = uuid4().hex
     now = datetime.now(timezone.utc)
     draft = {
@@ -1284,7 +1285,7 @@ async def save_evidence_draft(
     payload: EvidenceDraftWrite,
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     note = await evidence_collection().find_one({
         "_id": note_id,
         "project_slug": slug,
@@ -1372,7 +1373,7 @@ async def discard_evidence_draft(
     note_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     draft = await _private_draft(slug, note_id, current_user["username"])
     if draft is None:
         raise HTTPException(status_code=404, detail="evidence_draft_not_found")
@@ -1393,7 +1394,7 @@ async def rebase_evidence_draft(
     payload: EvidenceDraftRebase,
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     note = await evidence_collection().find_one({
         "_id": note_id,
         "project_slug": slug,
@@ -1430,7 +1431,7 @@ async def upload_evidence_draft_attachments(
     files: list[UploadFile] = File(...),
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     author = current_user["username"]
     draft = await _private_draft(slug, note_id, author)
     if draft is None:
@@ -1530,7 +1531,7 @@ async def delete_evidence_draft_attachment(
     attachment_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    await load_project_for_member(slug, current_user)
+    await load_project_for_write(slug, current_user)
     author = current_user["username"]
     draft = await _private_draft(slug, note_id, author)
     if draft is None:
@@ -1578,7 +1579,7 @@ async def publish_evidence_draft(
     payload: EvidenceDraftPublish,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     author = current_user["username"]
     draft = await _private_draft(slug, note_id, author)
     if draft is None:
@@ -1788,7 +1789,7 @@ async def create_evidence_note(
     payload: EvidenceNoteInput,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     await _validate_finding_ids(slug, payload.finding_ids)
     references = await _validated_references(slug, payload.markdown)
     note_id = uuid4().hex
@@ -2014,7 +2015,7 @@ async def update_evidence_note(
     payload: EvidenceNoteEdit,
     current_user: dict = Depends(require_redmode_access),
 ):
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
     if note is None:
         raise HTTPException(status_code=404, detail="evidence_not_found")
@@ -2164,7 +2165,7 @@ async def add_evidence(
     current_user: dict = Depends(require_redmode_access),
 ):
     """Temporary multipart endpoint used by the pre-notebook interface."""
-    project = await load_project_for_member(slug, current_user)
+    project = await load_project_for_write(slug, current_user)
     if phase not in PTES_PHASES:
         raise HTTPException(status_code=422, detail="invalid_ptes_phase")
     if len(text) > MAX_NOTE_MARKDOWN or len(target) > 2_048:

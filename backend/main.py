@@ -281,6 +281,10 @@ async def lifespan(app: FastAPI):
                 [("project_slug", 1), ("attachment_ids", 1)],
                 name="redmode_evidence_revisions_attachments",
             )
+            await db.redmode_evidence_revisions.create_index(
+                [("project_slug", 1), ("reference_keys", 1)],
+                name="redmode_evidence_revisions_references",
+            )
             await db.redmode_evidence_drafts.create_index(
                 [("project_slug", 1), ("note_id", 1), ("author", 1)],
                 unique=True,
@@ -289,6 +293,10 @@ async def lifespan(app: FastAPI):
             await db.redmode_evidence_drafts.create_index(
                 [("updated_at", 1)],
                 name="redmode_evidence_drafts_cleanup",
+            )
+            await db.redmode_evidence_drafts.create_index(
+                [("project_slug", 1), ("author", 1), ("reference_keys", 1)],
+                name="redmode_evidence_drafts_author_references",
             )
             await db.redmode_evidence_attachments.create_index(
                 [("project_slug", 1), ("note_id", 1), ("created_at", -1)],

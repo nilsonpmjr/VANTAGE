@@ -1,11 +1,23 @@
 import DOMPurify from "dompurify";
-import { Marked, Renderer, type Tokens } from "marked";
+import {
+  Marked,
+  Renderer,
+  type TokenizerAndRendererExtension,
+  type Tokens,
+} from "marked";
 
 export type MarkdownUrlKind = "internal" | "external" | "email" | "fragment" | "blocked";
 
 export interface MarkdownUrlPolicy {
   kind: MarkdownUrlKind;
   href: string | null;
+}
+
+export interface MarkdownInternalReference {
+  key: string;
+  label: string;
+  href: string | null;
+  broken: boolean;
 }
 
 const SAFE_TAGS = [
@@ -155,9 +167,53 @@ const markdownParser = new Marked({
   renderer,
 });
 
-export function renderSafeMarkdown(markdown: string): string {
+function parserWithInternalReferences(
+  references: MarkdownInternalReference[],
+): Marked {
+  const byKey = new Map(references.map((item) => [item.key, item]));
+  const extension: TokenizerAndRendererExtension = {
+    name: "vantageInternalReference",
+    level: "inline",
+    start(source) {
+      const index = source.indexOf("[[");
+      return index >= 0 ? index : undefined;
+    },
+    tokenizer(source) {
+      const match = /^\[\[((?:evidence|finding|source|target):[^\]\s]{1,260})\]\]/.exec(source);
+      if (!match) return undefined;
+      return { type: "vantageInternalReference", raw: match[0], key: match[1] };
+    },
+    renderer(token) {
+      const key = String(token.key || "");
+      const reference = byKey.get(key);
+      if (!reference) {
+        return `<span class="markdown-reference-unresolved">${escapeHtml(token.raw)}</span>`;
+      }
+      if (reference.broken || !reference.href) {
+        return `<span class="markdown-reference-broken" title="${escapeHtml(key)}">Referência indisponível</span>`;
+      }
+      return `<a class="markdown-reference" href="${escapeHtml(reference.href)}" data-router-link="true" title="${escapeHtml(key)}">${escapeHtml(reference.label)}</a>`;
+    },
+  };
+  const parser = new Marked({
+    async: false,
+    breaks: true,
+    gfm: true,
+    renderer,
+  });
+  parser.use({ extensions: [extension] });
+  return parser;
+}
+
+export function renderSafeMarkdown(
+  markdown: string,
+  references: MarkdownInternalReference[] = [],
+): string {
   if (!markdown.trim()) return "";
-  const rendered = markdownParser.parse(markdown, { async: false });
+  const parser = markdown.includes("[[")
+    ? parserWithInternalReferences(references)
+    : markdownParser;
+  const rendered = parser.parse(markdown, { async: false });
   return DOMPurify.sanitize(rendered, {
     ALLOWED_TAGS: SAFE_TAGS,
     ALLOWED_ATTR: SAFE_ATTRIBUTES,

@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -120,5 +121,42 @@ describe("MarkdownEditor", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Não foi possível salvar");
     expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: "offline" }));
     expect(screen.getByLabelText("Documento Markdown: texto Markdown")).toHaveValue("rascunho");
+  });
+
+  it("searches and inserts a stable reference after double brackets", async () => {
+    const search = vi.fn().mockResolvedValue([{
+      key: "finding:finding-1",
+      label: "Falha de autorização",
+      reference: "[[finding:finding-1]]",
+      type: "finding",
+      excerpt: "Finding do engagement atual",
+    }]);
+
+    function ReferenceEditor() {
+      const [value, setValue] = useState("");
+      return (
+        <MarkdownEditor
+          value={value}
+          onChange={setValue}
+          onReferenceSearch={search}
+          initialMode="edit"
+        />
+      );
+    }
+
+    const user = userEvent.setup();
+    render(<MemoryRouter><ReferenceEditor /></MemoryRouter>);
+    const textarea = screen.getByLabelText("Documento Markdown: texto Markdown");
+    fireEvent.change(textarea, {
+      target: {
+        value: "Consulte [[finding:autor",
+        selectionStart: "Consulte [[finding:autor".length,
+      },
+    });
+
+    expect(await screen.findByRole("option", { name: /Falha de autorização/ })).toBeInTheDocument();
+    expect(search).toHaveBeenLastCalledWith("finding:autor");
+    await user.click(screen.getByRole("option", { name: /Falha de autorização/ }));
+    expect(textarea).toHaveValue("Consulte [[finding:finding-1]]");
   });
 });

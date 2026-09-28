@@ -1,13 +1,14 @@
 import { useMemo, type MouseEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "../../lib/utils";
-import { renderSafeMarkdown } from "./markdown";
+import { renderSafeMarkdown, type MarkdownInternalReference } from "./markdown";
 
 export interface MarkdownContentProps {
   markdown: string;
   className?: string;
   emptyMessage?: string;
   ariaLabel?: string;
+  references?: MarkdownInternalReference[];
 }
 
 export function MarkdownContent({
@@ -15,9 +16,13 @@ export function MarkdownContent({
   className,
   emptyMessage = "Nenhum conteúdo Markdown.",
   ariaLabel = "Conteúdo Markdown",
+  references = [],
 }: MarkdownContentProps) {
   const navigate = useNavigate();
-  const html = useMemo(() => renderSafeMarkdown(markdown), [markdown]);
+  const html = useMemo(
+    () => renderSafeMarkdown(markdown, references),
+    [markdown, references],
+  );
 
   function handleClick(event: MouseEvent<HTMLDivElement>) {
     if (

@@ -7,7 +7,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   BookOpen,
@@ -40,6 +40,7 @@ import {
   discardEvidenceDraft,
   evidenceAttachmentDownloadUrl,
   getEvidenceDraft,
+  getEvidenceLinks,
   getEvidenceNote,
   listEvidenceDrafts,
   listEvidenceNotes,
@@ -47,16 +48,23 @@ import {
   listFindings,
   publishEvidenceDraft,
   rebaseEvidenceDraft,
+  resolveEvidenceReferences,
   saveEvidenceDraft,
+  searchEvidenceNotebook,
+  suggestEvidenceReferences,
   uploadEvidenceDraftAttachments,
   type EvidenceAttachment,
   type EvidenceDraft,
   type EvidenceDraftSummary,
+  type EvidenceLinks,
   type EvidenceNote,
   type EvidenceNoteInput,
   type EvidenceNoteSummary,
   type EvidenceRevision,
+  type EvidenceReference,
   type Finding,
+  type NotebookSearchResult,
+  type NotebookSearchType,
 } from "./api";
 
 export const ptesPhases = [
@@ -75,6 +83,15 @@ export function phaseLabel(phase: string): string {
 
 const NOTE_PAGE_SIZE = 30;
 const NEW_NOTE_TOKEN = "new";
+
+const searchTypeLabels: Record<NotebookSearchType, string> = {
+  all: "Todos os tipos",
+  evidence: "Evidências",
+  draft: "Meus rascunhos",
+  finding: "Findings",
+  source: "Fontes",
+  target: "Alvos",
+};
 
 type MobilePane = "notes" | "document" | "properties";
 
@@ -231,11 +248,19 @@ export default function EvidencePanel({
   findingRefresh: number;
   onAdded?: () => void;
 }) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const selectedToken = searchParams.get("note") || "";
   const query = searchParams.get("q") || "";
   const phaseFilter = searchParams.get("phase") || "all";
   const tagFilter = searchParams.get("tag") || "all";
+  const requestedResultType = searchParams.get("type") || "all";
+  const resultType: NotebookSearchType = Object.prototype.hasOwnProperty.call(
+    searchTypeLabels,
+    requestedResultType,
+  ) ? requestedResultType as NotebookSearchType : "all";
+  const dateFrom = searchParams.get("from") || "";
+  const dateTo = searchParams.get("to") || "";
 
   const [notes, setNotes] = useState<EvidenceNoteSummary[]>([]);
   const [drafts, setDrafts] = useState<EvidenceDraftSummary[]>([]);
@@ -247,6 +272,10 @@ export default function EvidencePanel({
   const [listReload, setListReload] = useState(0);
   const [findings, setFindings] = useState<Finding[]>([]);
   const [findingsError, setFindingsError] = useState("");
+  const [searchResults, setSearchResults] = useState<NotebookSearchResult[]>([]);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState("");
 
   const [selected, setSelected] = useState<EvidenceNote | null>(null);
   const [draft, setDraft] = useState<EvidenceDraft | null>(null);
@@ -265,6 +294,9 @@ export default function EvidencePanel({
   const [revisions, setRevisions] = useState<EvidenceRevision[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [viewedRevision, setViewedRevision] = useState<EvidenceRevision | null>(null);
+  const [resolvedReferences, setResolvedReferences] = useState<EvidenceReference[]>([]);
+  const [referenceLinks, setReferenceLinks] = useState<EvidenceLinks>({ outgoing: [], backlinks: [] });
+  const [linksLoading, setLinksLoading] = useState(false);
   const [propertiesOpen, setPropertiesOpen] = useState(true);
   const [mobilePane, setMobilePane] = useState<MobilePane>(selectedToken ? "document" : "notes");
 
@@ -274,6 +306,10 @@ export default function EvidencePanel({
   const uploadRef = useRef<HTMLInputElement>(null);
 
   const dirty = baseline !== null && !isFormEqual(baseline, form);
+  const searchActive = Boolean(
+    query.trim() || resultType !== "all" || phaseFilter !== "all" || dateFrom || dateTo,
+  );
+  const displayedMarkdown = viewedRevision?.markdown ?? form.markdown;
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags)))
     .sort((left, right) => left.localeCompare(right, "pt-BR")), [notes]);
   const filteredNotes = useMemo(() => {
@@ -295,7 +331,11 @@ export default function EvidencePanel({
       .some((value) => value.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))))
   )), [drafts, notes, phaseFilter, query, tagFilter]);
 
-  function updateLocation(key: "note" | "q" | "phase" | "tag", value?: string, replace = true) {
+  function updateLocation(
+    key: "note" | "q" | "phase" | "tag" | "type" | "from" | "to",
+    value?: string,
+    replace = true,
+  ) {
     const next = new URLSearchParams(searchParams);
     if (value && value !== "all") next.set(key, value);
     else next.delete(key);
@@ -388,10 +428,94 @@ export default function EvidencePanel({
   }, [findingRefresh, slug]);
 
   useEffect(() => {
+    if (!searchActive) {
+      setSearchResults([]);
+      setSearchTotal(0);
+      setSearchLoading(false);
+      setSearchError("");
+      return;
+    }
+    let active = true;
+    setSearchLoading(true);
+    setSearchError("");
+    const timer = window.setTimeout(() => {
+      void searchEvidenceNotebook(slug, {
+        q: query.trim() || undefined,
+        type: resultType,
+        phase: phaseFilter === "all" ? undefined : phaseFilter,
+        tag: tagFilter === "all" ? undefined : tagFilter,
+        dateFrom: dateFrom ? `${dateFrom}T00:00:00.000Z` : undefined,
+        dateTo: dateTo ? `${dateTo}T23:59:59.999Z` : undefined,
+        limit: 100,
+      })
+        .then((result) => {
+          if (!active) return;
+          setSearchResults(result.items);
+          setSearchTotal(result.total);
+        })
+        .catch(() => {
+          if (active) setSearchError("Não foi possível pesquisar o caderno.");
+        })
+        .finally(() => { if (active) setSearchLoading(false); });
+    }, 250);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [dateFrom, dateTo, phaseFilter, query, resultType, searchActive, slug, tagFilter]);
+
+  useEffect(() => {
+    if (!selectedToken || selectedToken === NEW_NOTE_TOKEN) {
+      setResolvedReferences([]);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(() => {
+      void resolveEvidenceReferences(slug, displayedMarkdown)
+        .then((result) => { if (active) setResolvedReferences(result.items); })
+        .catch(() => { if (active) setResolvedReferences([]); });
+    }, 180);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [displayedMarkdown, selectedToken, slug]);
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setReferenceLinks({ outgoing: [], backlinks: [] });
+      setLinksLoading(false);
+      return;
+    }
+    let active = true;
+    setLinksLoading(true);
+    void getEvidenceLinks(slug, selected.id, viewedRevision?.id)
+      .then((result) => { if (active) setReferenceLinks(result); })
+      .catch(() => { if (active) setReferenceLinks({ outgoing: [], backlinks: [] }); })
+      .finally(() => { if (active) setLinksLoading(false); });
+    return () => { active = false; };
+  }, [selected?.id, selected?.revision.id, slug, viewedRevision?.id]);
+
+  const searchReferences = useCallback(async (referenceQuery: string) => {
+    const result = await suggestEvidenceReferences(slug, referenceQuery);
+    return result.items
+      .filter((item) => item.reference && !item.broken)
+      .map((item) => ({
+        key: item.key,
+        label: item.label,
+        reference: item.reference as string,
+        type: searchTypeLabels[item.type],
+        excerpt: item.excerpt,
+      }));
+  }, [slug]);
+
+  useEffect(() => {
     setSaveError("");
     setDetailError("");
     setRemoteConflict(null);
     setViewedRevision(null);
+    setResolvedReferences([]);
+    setReferenceLinks({ outgoing: [], backlinks: [] });
     if (!selectedToken) {
       setDetailLoading(false);
       setSelected(null);
@@ -611,6 +735,12 @@ export default function EvidencePanel({
         } catch {
           setRemoteConflict(null);
         }
+      } else if (
+        reason.includes("reference_not_in_project")
+        || reason.startsWith("invalid_reference")
+        || reason === "too_many_evidence_references"
+      ) {
+        setSaveError("Revise as referências internas: uma delas não existe neste engagement ou está incompleta.");
       } else if (!saveError) {
         setSaveError("Não foi possível publicar. O rascunho continua privado e preservado.");
       }
@@ -779,6 +909,18 @@ export default function EvidencePanel({
     return () => window.removeEventListener("keydown", handleShortcut);
   }, [dirty, saveDraftNow, selectedToken]);
 
+  function openSearchResult(result: NotebookSearchResult) {
+    if (result.type === "evidence" || result.type === "draft") {
+      chooseNote(result.id);
+      return;
+    }
+    if (result.href && confirmDiscard()) navigate(result.href);
+  }
+
+  function openReference(href: string | null) {
+    if (href && confirmDiscard()) navigate(href);
+  }
+
   const visibleAttachments = draft?.attachments ?? selected?.attachments ?? [];
   const saveStatusText = saveStatus === "saving"
     ? "Salvando rascunho..."
@@ -814,7 +956,7 @@ export default function EvidencePanel({
             type="search"
             value={query}
             onChange={(event) => updateLocation("q", event.target.value)}
-            placeholder="Buscar título, tag ou autor"
+            placeholder="Buscar notas, findings, fontes e alvos"
             className="w-full rounded-sm border border-outline-variant/30 bg-surface py-2 pl-9 pr-3 text-sm text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
           />
         </label>
@@ -831,6 +973,16 @@ export default function EvidencePanel({
             </select>
           </label>
           <label>
+            <span className="sr-only">Filtrar por tipo</span>
+            <select
+              value={resultType}
+              onChange={(event) => updateLocation("type", event.target.value)}
+              className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface"
+            >
+              {Object.entries(searchTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select>
+          </label>
+          <label>
             <span className="sr-only">Filtrar notas por tag</span>
             <select
               value={tagFilter}
@@ -842,11 +994,29 @@ export default function EvidencePanel({
               {allTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
             </select>
           </label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+            Desde
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(event) => updateLocation("from", event.target.value)}
+              className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface"
+            />
+          </label>
+          <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+            Até
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(event) => updateLocation("to", event.target.value)}
+              className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface"
+            />
+          </label>
         </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {unpublishedDrafts.length > 0 && (
+        {!searchActive && unpublishedDrafts.length > 0 && (
           <ul className="mb-2 space-y-2" aria-label="Rascunhos ainda não publicados">
             {unpublishedDrafts.map((item) => (
               <li key={item.note_id}>
@@ -867,7 +1037,45 @@ export default function EvidencePanel({
             ))}
           </ul>
         )}
-        {listLoading ? (
+        {searchActive ? (
+          searchLoading ? (
+            <p className="flex items-center gap-2 p-3 text-sm text-on-surface-variant"><Loader2 className="h-4 w-4 animate-spin" /> Pesquisando o engagement...</p>
+          ) : searchError ? (
+            <p className="p-3 text-sm text-error" role="alert">{searchError}</p>
+          ) : searchResults.length === 0 ? (
+            <div className="p-4 text-center">
+              <Search className="mx-auto h-6 w-6 text-on-surface-variant" />
+              <p className="mt-3 text-sm font-semibold text-on-surface">Nenhum resultado encontrado</p>
+              <p className="mt-1 text-xs text-on-surface-variant">Ajuste o termo, o tipo, a fase ou o período.</p>
+            </div>
+          ) : (
+            <>
+              <p className="px-2 pb-2 text-[11px] text-on-surface-variant">{searchTotal} resultado{searchTotal === 1 ? "" : "s"} no engagement</p>
+              <ul className="space-y-2" aria-label="Resultados da pesquisa">
+                {searchResults.map((result) => (
+                  <li key={`${result.type}-${result.id}`}>
+                    <button
+                      type="button"
+                      className="w-full rounded-sm border border-transparent bg-surface-container p-3 text-left transition hover:border-outline-variant/40 focus-visible:outline-2 focus-visible:outline-primary"
+                      onClick={() => openSearchResult(result)}
+                    >
+                      <span className="flex items-start justify-between gap-2">
+                        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">{result.label}</span>
+                        <span className={`badge shrink-0 ${result.private ? "badge-warning" : "badge-neutral"}`}>
+                          {result.private ? "Rascunho privado" : searchTypeLabels[result.type]}
+                        </span>
+                      </span>
+                      {result.excerpt && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-on-surface-variant">{result.excerpt}</span>}
+                      <span className="mt-2 block text-[11px] text-on-surface-variant">
+                        {result.phase ? `${phaseLabel(result.phase)} · ` : ""}{formatDate(result.updated_at)}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )
+        ) : listLoading ? (
           <p className="flex items-center gap-2 p-3 text-sm text-on-surface-variant"><Loader2 className="h-4 w-4 animate-spin" /> Carregando notas...</p>
         ) : listError && notes.length === 0 ? (
           <div className="p-3 text-sm">
@@ -919,8 +1127,8 @@ export default function EvidencePanel({
             })}
           </ul>
         )}
-        {listError && notes.length > 0 && <p className="p-3 text-xs text-error" role="alert">{listError}</p>}
-        {notes.length < total && (
+        {!searchActive && listError && notes.length > 0 && <p className="p-3 text-xs text-error" role="alert">{listError}</p>}
+        {!searchActive && notes.length < total && (
           <button type="button" className="mt-2 w-full rounded-sm px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10" disabled={listLoadingMore} onClick={() => void loadMore()}>
             {listLoadingMore ? "Carregando..." : `Carregar mais · ${notes.length} de ${total}`}
           </button>
@@ -1024,7 +1232,7 @@ export default function EvidencePanel({
                   </div>
                   <button type="button" className="btn btn-ghost" onClick={() => setViewedRevision(null)}><RotateCcw className="h-4 w-4" /> Voltar ao rascunho</button>
                 </div>
-                <MarkdownContent markdown={viewedRevision.markdown} className="p-5" />
+                <MarkdownContent markdown={viewedRevision.markdown} references={resolvedReferences} className="p-5" />
               </section>
             ) : (
               <MarkdownEditor
@@ -1040,6 +1248,8 @@ export default function EvidencePanel({
                 placeholder="Registre observações, comandos, saídas, tabelas e próximos passos em Markdown..."
                 maxLength={100_000}
                 initialMode="split"
+                references={resolvedReferences}
+                onReferenceSearch={searchReferences}
               />
             )}
             {conflicts.has(selectedToken) && !viewedRevision && (
@@ -1150,6 +1360,54 @@ export default function EvidencePanel({
               </div>
             )}
           </fieldset>
+
+          <section className="border-t border-outline-variant/20 pt-4" aria-label="Referências internas">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant"><Link2 className="h-3.5 w-3.5" /> Referências</p>
+            <p className="mt-1 text-[11px] text-on-surface-variant">Digite <code>[[</code> no editor para ligar uma evidência, finding, fonte ou alvo.</p>
+            {linksLoading && resolvedReferences.length === 0 ? (
+              <p className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Resolvendo links...</p>
+            ) : resolvedReferences.length === 0 ? (
+              <p className="mt-2 text-xs text-on-surface-variant">Nenhuma referência de saída.</p>
+            ) : (
+              <ul className="mt-2 space-y-2" aria-label="Referências de saída">
+                {resolvedReferences.map((reference) => (
+                  <li key={reference.key} className="rounded-sm border border-outline-variant/20 bg-surface p-2">
+                    <button
+                      type="button"
+                      disabled={!reference.href}
+                      onClick={() => openReference(reference.href)}
+                      className={`block w-full text-left text-xs font-semibold ${reference.broken ? "cursor-not-allowed text-error" : "text-primary hover:underline"}`}
+                    >
+                      {reference.label}
+                    </button>
+                    <span className="mt-1 block text-[10px] uppercase tracking-wider text-on-surface-variant">{reference.kind}</span>
+                    {reference.context && <span className="mt-1 line-clamp-2 block text-[11px] text-on-surface-variant">{reference.context}</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {selected && (
+              <div className="mt-4">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-on-surface-variant">Mencionada por</p>
+                {linksLoading ? (
+                  <p className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando backlinks...</p>
+                ) : referenceLinks.backlinks.length === 0 ? (
+                  <p className="mt-2 text-xs text-on-surface-variant">Nenhuma nota publicada aponta para esta evidência.</p>
+                ) : (
+                  <ul className="mt-2 space-y-2" aria-label="Backlinks desta evidência">
+                    {referenceLinks.backlinks.map((backlink) => (
+                      <li key={backlink.id} className="rounded-sm border border-outline-variant/20 bg-surface p-2">
+                        <button type="button" className="text-left text-xs font-semibold text-primary hover:underline" onClick={() => openReference(backlink.href)}>{backlink.label}</button>
+                        {backlink.context && <span className="mt-1 line-clamp-2 block text-[11px] text-on-surface-variant">{backlink.context}</span>}
+                        <span className="mt-1 block text-[10px] text-on-surface-variant">{backlink.author} · {formatDate(backlink.updated_at)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+          </section>
 
           <section className="border-t border-outline-variant/20 pt-4">
             <div className="flex items-center justify-between gap-2">

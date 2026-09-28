@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 import re
+from typing import Literal
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -17,11 +18,20 @@ from config import settings
 from db import db_manager
 from logging_config import get_logger
 from redmode_files import GridFSEvidenceStore, clean_filename
+from redmode_references import (
+    ReferenceSyntaxError,
+    evidence_search_text,
+    extract_internal_references,
+    reference_context,
+)
 from routers.redmode import (
     PTES_PHASE_ORDER,
     load_project_for_member,
     projects_collection,
     require_redmode_access,
+    scope_assets_collection,
+    scope_sources_collection,
+    scope_versions_collection,
 )
 
 
@@ -167,6 +177,11 @@ class EvidenceDraftRebase(EvidenceDraftPublish):
     current_revision_id: str = Field(min_length=1, max_length=128)
 
 
+class EvidenceReferenceResolve(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    markdown: str = Field(default="", max_length=MAX_NOTE_MARKDOWN)
+
+
 def evidence_collection():
     projects_collection()
     return db_manager.db.redmode_evidence
@@ -192,9 +207,206 @@ def findings_collection():
     return db_manager.db.redmode_findings
 
 
+def finding_revisions_collection():
+    projects_collection()
+    return db_manager.db.redmode_finding_revisions
+
+
 def evidence_file_store():
     projects_collection()
     return GridFSEvidenceStore(db_manager.db)
+
+
+def _reference_href(slug: str, section: str, query: dict[str, str]) -> str:
+    encoded_slug = quote(slug, safe="")
+    encoded_query = "&".join(
+        f"{quote(key, safe='')}={quote(value, safe='')}"
+        for key, value in query.items()
+    )
+    return f"/redmode/engagements/{encoded_slug}/{section}?{encoded_query}"
+
+
+def _broken_reference_view(reference: dict) -> dict:
+    return {
+        **reference,
+        "label": "Referência indisponível",
+        "href": None,
+        "broken": True,
+    }
+
+
+async def _source_reference_view(
+    slug: str,
+    reference: dict,
+    version: dict,
+    source_id: str,
+) -> dict:
+    source = await scope_sources_collection().find_one({
+        "project_slug": slug,
+        "version_id": version["_id"],
+        "source_id": source_id,
+    })
+    label = source.get("name") if source else None
+    if label is None:
+        legacy_source = version.get("source", {})
+        if source_id == "text" and legacy_source.get("text"):
+            label = "Texto colado"
+        else:
+            offset = 1 if legacy_source.get("text") else 0
+            for index, file_info in enumerate(
+                legacy_source.get("files", []),
+                start=offset,
+            ):
+                candidate = file_info.get("source_id") or f"legacy-file-{index + 1}"
+                if candidate == source_id:
+                    label = clean_filename(file_info.get("filename", "")) or "Arquivo"
+                    break
+    if label is None:
+        return _broken_reference_view(reference)
+    return {
+        **reference,
+        "label": label,
+        "href": _reference_href(slug, "scope", {
+            "version": version["_id"],
+            "view": "sources",
+            "source": source_id,
+        }),
+        "broken": False,
+    }
+
+
+async def _target_reference_view(
+    slug: str,
+    reference: dict,
+    version: dict,
+    asset_id: str,
+) -> dict:
+    asset = await scope_assets_collection().find_one({
+        "project_slug": slug,
+        "version_id": version["_id"],
+        "asset_id": asset_id,
+    })
+    if asset is None:
+        for item in [
+            *version.get("rules", []),
+            *version.get("context_assets", []),
+        ]:
+            kind = item.get("kind")
+            value = item.get("value")
+            if not kind or not value:
+                continue
+            candidate = sha256(f"{kind}\0{value}".encode("utf-8")).hexdigest()
+            if candidate == asset_id:
+                asset = {"kind": kind, "value": value}
+                break
+    if asset is None:
+        return _broken_reference_view(reference)
+    return {
+        **reference,
+        "label": asset["value"],
+        "href": _reference_href(slug, "scope", {
+            "version": version["_id"],
+            "view": "effective",
+            "target": asset["value"],
+        }),
+        "broken": False,
+    }
+
+
+async def _resolve_reference(slug: str, reference: dict) -> dict:
+    kind = reference["kind"]
+    identifier = reference["id"]
+    if kind == "evidence":
+        note = await evidence_collection().find_one({
+            "_id": identifier,
+            "project_slug": slug,
+        })
+        if note is None:
+            return _broken_reference_view(reference)
+        try:
+            revision = await _current_revision(note)
+        except HTTPException:
+            return _broken_reference_view(reference)
+        return {
+            **reference,
+            "label": revision["title"],
+            "href": _reference_href(slug, "evidence", {"note": identifier}),
+            "broken": False,
+        }
+    if kind == "finding":
+        finding = await findings_collection().find_one({
+            "_id": identifier,
+            "project_slug": slug,
+        })
+        if finding is None:
+            return _broken_reference_view(reference)
+        revision = await finding_revisions_collection().find_one({
+            "_id": finding.get("current_revision_id"),
+            "finding_id": identifier,
+            "project_slug": slug,
+        })
+        if revision is None:
+            return _broken_reference_view(reference)
+        return {
+            **reference,
+            "label": revision["title"],
+            "href": _reference_href(slug, "findings", {"finding": identifier}),
+            "broken": False,
+        }
+    version_id, item_id = identifier.split("/", 1)
+    version = await scope_versions_collection().find_one({
+        "_id": version_id,
+        "project_slug": slug,
+    })
+    if version is None:
+        return _broken_reference_view(reference)
+    if kind == "source":
+        return await _source_reference_view(slug, reference, version, item_id)
+    return await _target_reference_view(slug, reference, version, item_id)
+
+
+async def _resolve_references(
+    slug: str,
+    markdown: str,
+    references: list[dict] | None = None,
+) -> list[dict]:
+    stored = references
+    if stored is None:
+        stored = extract_internal_references(markdown)
+    views = []
+    for reference in stored:
+        view = await _resolve_reference(slug, reference)
+        view["context"] = reference_context(markdown, reference["key"])
+        views.append(view)
+    return views
+
+
+async def _validated_references(slug: str, markdown: str) -> list[dict]:
+    try:
+        references = extract_internal_references(markdown, strict=True)
+    except ReferenceSyntaxError as exc:
+        raise HTTPException(status_code=422, detail=exc.code) from exc
+    for reference in references:
+        resolved = await _resolve_reference(slug, reference)
+        if resolved["broken"]:
+            raise HTTPException(
+                status_code=422,
+                detail=f"{reference['kind']}_reference_not_in_project",
+            )
+    return references
+
+
+def _reference_fields(document: EvidenceNoteInput, references: list[dict]) -> dict:
+    return {
+        "references": references,
+        "reference_keys": [reference["key"] for reference in references],
+        "search_text": evidence_search_text(
+            document.title,
+            document.markdown,
+            document.tags,
+            references,
+        ),
+    }
 
 
 def _legacy_revision_id(note_id: str) -> str:
@@ -248,6 +460,8 @@ def _legacy_revision(doc: dict) -> dict:
     target = doc.get("target")
     finding_id = doc.get("finding_id")
     created_at = doc["created_at"]
+    markdown = doc.get("text", "")
+    references = extract_internal_references(markdown)
     return {
         "_id": _legacy_revision_id(doc["_id"]),
         "note_id": doc["_id"],
@@ -256,18 +470,23 @@ def _legacy_revision(doc: dict) -> dict:
         "previous_revision_id": None,
         "author": doc.get("author", doc.get("created_by", "unknown")),
         "created_at": created_at,
-        "title": _legacy_title(doc.get("text", ""), file_info),
-        "markdown": doc.get("text", ""),
+        "title": _legacy_title(markdown, file_info),
+        "markdown": markdown,
         "phase": doc.get("phase", "pre-engagement"),
         "tags": [],
         "targets": [target] if target else [],
         "finding_ids": [finding_id] if finding_id else [],
         "attachment_ids": [item["id"] for item in attachments],
         "attachments": attachments,
+        "references": references,
+        "reference_keys": [item["key"] for item in references],
     }
 
 
 def evidence_revision_detail(doc: dict) -> dict:
+    references = doc.get("references")
+    if references is None:
+        references = extract_internal_references(doc.get("markdown", ""))
     return {
         "id": doc["_id"],
         "note_id": doc["note_id"],
@@ -287,6 +506,7 @@ def evidence_revision_detail(doc: dict) -> dict:
             [item["id"] for item in doc.get("attachments", [])],
         ),
         "attachments": doc.get("attachments", []),
+        "references": references,
     }
 
 
@@ -307,6 +527,9 @@ async def _current_revision(doc: dict) -> dict:
 async def evidence_note_detail(doc: dict) -> dict:
     revision = await _current_revision(doc)
     created_at = doc["created_at"]
+    references = revision.get("references")
+    if references is None:
+        references = extract_internal_references(revision.get("markdown", ""))
     return {
         "id": doc["_id"],
         "project_slug": doc["project_slug"],
@@ -322,6 +545,7 @@ async def evidence_note_detail(doc: dict) -> dict:
         "finding_ids": revision["finding_ids"],
         "attachment_ids": revision.get("attachment_ids", []),
         "attachments": revision.get("attachments", []),
+        "references": references,
         "revision": {
             "id": revision["_id"],
             "number": revision["number"],
@@ -357,6 +581,10 @@ def _draft_id(slug: str, note_id: str, author: str) -> str:
 
 
 def evidence_draft_detail(doc: dict) -> dict:
+    markdown = doc.get("markdown", "")
+    references = doc.get("references")
+    if references is None:
+        references = extract_internal_references(markdown)
     return {
         "id": doc["_id"],
         "note_id": doc["note_id"],
@@ -367,13 +595,14 @@ def evidence_draft_detail(doc: dict) -> dict:
         "created_at": doc["created_at"],
         "updated_at": doc["updated_at"],
         "title": doc.get("title", ""),
-        "markdown": doc.get("markdown", ""),
+        "markdown": markdown,
         "phase": doc.get("phase", "pre-engagement"),
         "tags": doc.get("tags", []),
         "targets": doc.get("targets", []),
         "finding_ids": doc.get("finding_ids", []),
         "attachment_ids": doc.get("attachment_ids", []),
         "attachments": doc.get("attachments", []),
+        "references": references,
     }
 
 
@@ -597,12 +826,393 @@ async def load_evidence(slug: str, evidence_id: str, current_user: dict) -> dict
     return doc
 
 
+def _within_dates(
+    value: datetime,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> bool:
+    return not (
+        date_from is not None and value < date_from
+        or date_to is not None and value > date_to
+    )
+
+
+def _search_match(query: str, *values: str) -> bool:
+    if not query:
+        return True
+    folded = query.casefold()
+    return any(folded in value.casefold() for value in values)
+
+
+def _reference_result(
+    view: dict,
+    *,
+    entity_type: str,
+    excerpt: str,
+    phase: str | None,
+    updated_at: datetime,
+    private: bool = False,
+) -> dict:
+    return {
+        "type": entity_type,
+        "id": view["id"],
+        "reference": f"[[{view['key']}]]" if not view["broken"] else None,
+        "key": view["key"],
+        "label": view["label"],
+        "excerpt": excerpt,
+        "phase": phase,
+        "updated_at": updated_at,
+        "href": view["href"],
+        "private": private,
+        "broken": view["broken"],
+    }
+
+
+async def _document_search_results(
+    slug: str,
+    username: str,
+    query: str,
+    entity_type: str,
+    phase: str | None,
+    tag: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> list[dict]:
+    results = []
+    if entity_type in {"all", "evidence"}:
+        async for note in evidence_collection().find({"project_slug": slug}):
+            revision = await _current_revision(note)
+            updated_at = note.get("updated_at", note["created_at"])
+            if phase and revision["phase"] != phase:
+                continue
+            if tag and tag not in revision.get("tags", []):
+                continue
+            if not _within_dates(updated_at, date_from, date_to):
+                continue
+            search_text = revision.get("search_text") or evidence_search_text(
+                revision["title"],
+                revision["markdown"],
+                revision["tags"],
+                revision.get("references", []),
+            )
+            if not _search_match(query, search_text):
+                continue
+            view = await _resolve_reference(slug, {
+                "kind": "evidence",
+                "id": note["_id"],
+                "key": f"evidence:{note['_id']}",
+            })
+            results.append(_reference_result(
+                view,
+                entity_type="evidence",
+                excerpt=_markdown_excerpt(revision["markdown"]),
+                phase=revision["phase"],
+                updated_at=updated_at,
+            ))
+    if entity_type in {"all", "draft"}:
+        cursor = evidence_drafts_collection().find({
+            "project_slug": slug,
+            "author": username,
+        })
+        async for draft in cursor:
+            if phase and draft.get("phase") != phase:
+                continue
+            if tag and tag not in draft.get("tags", []):
+                continue
+            if not _within_dates(draft["updated_at"], date_from, date_to):
+                continue
+            search_text = draft.get("search_text") or evidence_search_text(
+                draft.get("title", ""),
+                draft.get("markdown", ""),
+                draft.get("tags", []),
+                draft.get("references", []),
+            )
+            if not _search_match(query, search_text):
+                continue
+            key = f"evidence:{draft['note_id']}"
+            results.append({
+                "type": "draft",
+                "id": draft["note_id"],
+                "reference": None,
+                "key": key,
+                "label": draft.get("title") or "Rascunho sem título",
+                "excerpt": _markdown_excerpt(draft.get("markdown", "")),
+                "phase": draft.get("phase"),
+                "updated_at": draft["updated_at"],
+                "href": _reference_href(slug, "evidence", {"note": draft["note_id"]}),
+                "private": True,
+                "broken": False,
+            })
+    if entity_type in {"all", "finding"}:
+        if tag:
+            return results
+        async for finding in findings_collection().find({"project_slug": slug}):
+            revision = await finding_revisions_collection().find_one({
+                "_id": finding.get("current_revision_id"),
+                "finding_id": finding["_id"],
+                "project_slug": slug,
+            })
+            if revision is None:
+                continue
+            updated_at = finding.get("updated_at", finding.get("created_at"))
+            if phase and revision["phase"] != phase:
+                continue
+            if not _within_dates(updated_at, date_from, date_to):
+                continue
+            if not _search_match(
+                query,
+                revision["title"],
+                revision["description"],
+                *revision.get("targets", []),
+                f"finding:{finding['_id']}",
+            ):
+                continue
+            view = await _resolve_reference(slug, {
+                "kind": "finding",
+                "id": finding["_id"],
+                "key": f"finding:{finding['_id']}",
+            })
+            results.append(_reference_result(
+                view,
+                entity_type="finding",
+                excerpt=_markdown_excerpt(revision["description"]),
+                phase=revision["phase"],
+                updated_at=updated_at,
+            ))
+    return results
+
+
+async def _scope_search_results(
+    slug: str,
+    project: dict,
+    query: str,
+    entity_type: str,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    *,
+    active_only: bool,
+    per_version_limit: int,
+) -> list[dict]:
+    if entity_type not in {"all", "source", "target"}:
+        return []
+    version_ids = (
+        [project.get("active_scope_version")]
+        if active_only
+        else list(reversed(project.get("scope_history", [])))
+    )
+    results = []
+    for version_id in [item for item in version_ids if item]:
+        version = await scope_versions_collection().find_one({
+            "_id": version_id,
+            "project_slug": slug,
+        })
+        if version is None or not _within_dates(
+            version["created_at"],
+            date_from,
+            date_to,
+        ):
+            continue
+        if entity_type in {"all", "source"}:
+            source_query = {"project_slug": slug, "version_id": version_id}
+            if query:
+                pattern = {"$regex": re.escape(query), "$options": "i"}
+                source_query["$or"] = [
+                    {"name": pattern},
+                    {"source_id": pattern},
+                ]
+            source_docs = await scope_sources_collection().find(source_query).limit(
+                per_version_limit
+            ).to_list(length=per_version_limit)
+            source_ids = [item["source_id"] for item in source_docs]
+            if not source_docs and not query:
+                source = version.get("source", {})
+                if source.get("text"):
+                    source_ids.append("text")
+                offset = 1 if source.get("text") else 0
+                for index, file_info in enumerate(source.get("files", []), start=offset):
+                    source_ids.append(
+                        file_info.get("source_id") or f"legacy-file-{index + 1}"
+                    )
+            for source_id in source_ids:
+                reference = {
+                    "kind": "source",
+                    "id": f"{version_id}/{source_id}",
+                    "key": f"source:{version_id}/{source_id}",
+                }
+                view = await _resolve_reference(slug, reference)
+                if view["broken"] or not _search_match(query, view["label"], view["key"]):
+                    continue
+                results.append(_reference_result(
+                    view,
+                    entity_type="source",
+                    excerpt=f"Versão de escopo {version_id[:10]}",
+                    phase=None,
+                    updated_at=version["created_at"],
+                ))
+        if entity_type in {"all", "target"}:
+            asset_query = {"project_slug": slug, "version_id": version_id}
+            if query:
+                pattern = {"$regex": re.escape(query), "$options": "i"}
+                asset_query["$or"] = [
+                    {"search_text": pattern},
+                    {"asset_id": pattern},
+                ]
+            asset_docs = await scope_assets_collection().find(asset_query).limit(
+                per_version_limit
+            ).to_list(length=per_version_limit)
+            asset_ids = [item["asset_id"] for item in asset_docs]
+            if not asset_docs and not query:
+                for item in [
+                    *version.get("rules", []),
+                    *version.get("context_assets", []),
+                ][:per_version_limit]:
+                    if item.get("kind") and item.get("value"):
+                        asset_ids.append(sha256(
+                            f"{item['kind']}\0{item['value']}".encode("utf-8")
+                        ).hexdigest())
+            for asset_id in asset_ids:
+                reference = {
+                    "kind": "target",
+                    "id": f"{version_id}/{asset_id}",
+                    "key": f"target:{version_id}/{asset_id}",
+                }
+                view = await _resolve_reference(slug, reference)
+                if view["broken"] or not _search_match(query, view["label"], view["key"]):
+                    continue
+                results.append(_reference_result(
+                    view,
+                    entity_type="target",
+                    excerpt=f"Alvo canônico da versão {version_id[:10]}",
+                    phase=None,
+                    updated_at=version["created_at"],
+                ))
+    return results
+
+
+async def _search_notebook(
+    slug: str,
+    project: dict,
+    username: str,
+    query: str,
+    entity_type: str,
+    phase: str | None,
+    tag: str | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    *,
+    active_scope_only: bool,
+    per_version_limit: int,
+) -> list[dict]:
+    results = await _document_search_results(
+        slug,
+        username,
+        query,
+        entity_type,
+        phase,
+        tag,
+        date_from,
+        date_to,
+    )
+    if not phase and not tag:
+        results.extend(await _scope_search_results(
+            slug,
+            project,
+            query,
+            entity_type,
+            date_from,
+            date_to,
+            active_only=active_scope_only,
+            per_version_limit=per_version_limit,
+        ))
+    results.sort(key=lambda item: item["updated_at"], reverse=True)
+    return results
+
+
 @router.get("/evidence/limits")
 async def get_evidence_limits(current_user: dict = Depends(require_redmode_access)):
     return {
         "max_text_characters": MAX_NOTE_MARKDOWN,
         "max_file_bytes": settings.redmode_evidence_max_file_bytes,
     }
+
+
+@router.post("/projects/{slug}/references/resolve")
+async def resolve_evidence_references(
+    slug: str,
+    payload: EvidenceReferenceResolve,
+    current_user: dict = Depends(require_redmode_access),
+):
+    await load_project_for_member(slug, current_user)
+    return {"items": await _resolve_references(slug, payload.markdown)}
+
+
+@router.get("/projects/{slug}/references/suggest")
+async def suggest_evidence_references(
+    slug: str,
+    q: str = Query("", max_length=200),
+    limit: int = Query(12, ge=1, le=30),
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    query = q.strip()
+    entity_type = "all"
+    if ":" in query:
+        prefix, remainder = query.split(":", 1)
+        if prefix in {"evidence", "finding", "source", "target"}:
+            entity_type = prefix
+            query = remainder
+    results = await _search_notebook(
+        slug,
+        project,
+        current_user["username"],
+        query,
+        entity_type,
+        None,
+        None,
+        None,
+        None,
+        active_scope_only=True,
+        per_version_limit=limit,
+    )
+    return {
+        "items": [item for item in results if item["reference"]][:limit],
+    }
+
+
+@router.get("/projects/{slug}/notebook/search")
+async def search_evidence_notebook(
+    slug: str,
+    q: str = Query("", max_length=200),
+    entity_type: Literal[
+        "all", "evidence", "draft", "finding", "source", "target"
+    ] = Query("all", alias="type"),
+    phase: str | None = Query(None),
+    tag: str | None = Query(None, max_length=80),
+    date_from: datetime | None = Query(None),
+    date_to: datetime | None = Query(None),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=100),
+    current_user: dict = Depends(require_redmode_access),
+):
+    project = await load_project_for_member(slug, current_user)
+    if phase is not None and phase not in PTES_PHASES:
+        raise HTTPException(status_code=422, detail="invalid_ptes_phase")
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise HTTPException(status_code=422, detail="invalid_search_date_range")
+    results = await _search_notebook(
+        slug,
+        project,
+        current_user["username"],
+        q.strip(),
+        entity_type,
+        phase,
+        tag,
+        date_from,
+        date_to,
+        active_scope_only=False,
+        per_version_limit=max(limit, 50),
+    )
+    return {"items": results[offset:offset + limit], "total": len(results)}
 
 
 @router.post(
@@ -633,6 +1243,9 @@ async def create_evidence_draft(
         "finding_ids": [],
         "attachment_ids": [],
         "attachments": [],
+        "references": [],
+        "reference_keys": [],
+        "search_text": "",
     }
     await evidence_drafts_collection().insert_one(draft)
     return evidence_draft_detail(draft)
@@ -698,7 +1311,18 @@ async def save_evidence_draft(
         payload.attachment_ids,
         current_revision.get("attachments", []) if current_revision else [],
     )
-    fields = payload.model_dump(exclude={"base_revision_id", "expected_version"})
+    references = extract_internal_references(payload.markdown)
+    fields = {
+        **payload.model_dump(exclude={"base_revision_id", "expected_version"}),
+        "references": references,
+        "reference_keys": [reference["key"] for reference in references],
+        "search_text": evidence_search_text(
+            payload.title,
+            payload.markdown,
+            payload.tags,
+            references,
+        ),
+    }
     now = datetime.now(timezone.utc)
     if draft is None:
         draft = {
@@ -993,6 +1617,7 @@ async def publish_evidence_draft(
             detail="evidence_draft_not_publishable",
         ) from exc
     await _validate_finding_ids(slug, document.finding_ids)
+    references = await _validated_references(slug, document.markdown)
     attachments = await _resolve_draft_attachments(
         slug,
         note_id,
@@ -1030,6 +1655,7 @@ async def publish_evidence_draft(
         "created_at": now,
         **document.model_dump(),
         "attachments": attachments,
+        **_reference_fields(document, references),
     }
     draft_attachment_ids = []
     for attachment_id in document.attachment_ids:
@@ -1164,6 +1790,7 @@ async def create_evidence_note(
 ):
     project = await load_project_for_member(slug, current_user)
     await _validate_finding_ids(slug, payload.finding_ids)
+    references = await _validated_references(slug, payload.markdown)
     note_id = uuid4().hex
     attachments = await _resolve_attachments(
         slug,
@@ -1182,6 +1809,7 @@ async def create_evidence_note(
         "created_at": now,
         **payload.model_dump(),
         "attachments": attachments,
+        **_reference_fields(payload, references),
     }
     note = {
         "_id": note_id,
@@ -1285,6 +1913,72 @@ async def get_evidence_note(
     )
 
 
+@router.get("/projects/{slug}/evidence/notes/{note_id}/links")
+async def get_evidence_note_links(
+    slug: str,
+    note_id: str,
+    revision_id: str | None = Query(None),
+    current_user: dict = Depends(require_redmode_access),
+):
+    note = await load_evidence(slug, note_id, current_user)
+    if revision_id is None:
+        revision = await _current_revision(note)
+    elif (
+        revision_id == _legacy_revision_id(note_id)
+        and not note.get("current_revision_id")
+    ):
+        revision = _legacy_revision(note)
+    else:
+        revision = await evidence_revisions_collection().find_one({
+            "_id": revision_id,
+            "project_slug": slug,
+            "note_id": note_id,
+        })
+        if revision is None:
+            raise HTTPException(status_code=404, detail="evidence_revision_not_found")
+
+    outgoing = await _resolve_references(
+        slug,
+        revision.get("markdown", ""),
+        revision.get("references"),
+    )
+    backlink_key = f"evidence:{note_id}"
+    backlinks = []
+    revision_cursor = evidence_revisions_collection().find({
+        "project_slug": slug,
+        "reference_keys": backlink_key,
+    })
+    async for candidate_revision in revision_cursor:
+        candidate = await evidence_collection().find_one({
+            "_id": candidate_revision["note_id"],
+            "project_slug": slug,
+            "current_revision_id": candidate_revision["_id"],
+        })
+        if candidate is None:
+            continue
+        backlinks.append({
+            "type": "evidence",
+            "id": candidate["_id"],
+            "label": candidate_revision["title"],
+            "href": _reference_href(
+                slug,
+                "evidence",
+                {"note": candidate["_id"]},
+            ),
+            "context": reference_context(
+                candidate_revision["markdown"],
+                backlink_key,
+            ),
+            "author": candidate_revision["author"],
+            "updated_at": candidate.get(
+                "updated_at",
+                candidate["created_at"],
+            ),
+        })
+    backlinks.sort(key=lambda item: item["updated_at"], reverse=True)
+    return {"outgoing": outgoing, "backlinks": backlinks}
+
+
 @router.put("/projects/{slug}/evidence/notes/{note_id}")
 async def update_evidence_note(
     slug: str,
@@ -1300,6 +1994,7 @@ async def update_evidence_note(
     if payload.expected_revision_id != previous["_id"]:
         raise HTTPException(status_code=409, detail="evidence_changed_retry")
     await _validate_finding_ids(slug, payload.finding_ids)
+    references = await _validated_references(slug, payload.markdown)
     attachments = await _resolve_attachments(
         slug,
         note_id,
@@ -1331,6 +2026,7 @@ async def update_evidence_note(
         "created_at": now,
         **payload.model_dump(exclude={"expected_revision_id"}),
         "attachments": attachments,
+        **_reference_fields(payload, references),
     }
     try:
         await evidence_revisions_collection().insert_one(revision)
@@ -1463,6 +2159,19 @@ async def add_evidence(
         if not content:
             raise HTTPException(status_code=422, detail="evidence_file_empty")
 
+    document = EvidenceNoteInput(
+        title=_legacy_title(
+            text.strip(),
+            {"filename": filename} if filename else None,
+        ),
+        markdown=text.strip(),
+        phase=phase,
+        tags=[],
+        targets=[target.strip()] if target.strip() else [],
+        finding_ids=[finding_id] if finding_id else [],
+        attachment_ids=[],
+    )
+    references = await _validated_references(slug, document.markdown)
     now = datetime.now(timezone.utc)
     note_id = uuid4().hex
     revision_id = uuid4().hex
@@ -1506,14 +2215,10 @@ async def add_evidence(
             "previous_revision_id": None,
             "author": current_user["username"],
             "created_at": now,
-            "title": _legacy_title(text.strip(), attachment),
-            "markdown": text.strip(),
-            "phase": phase,
-            "tags": [],
-            "targets": [target.strip()] if target.strip() else [],
-            "finding_ids": [finding_id] if finding_id else [],
+            **document.model_dump(exclude={"attachment_ids"}),
             "attachment_ids": [attachment_id] if attachment_id else [],
             "attachments": attachments,
+            **_reference_fields(document, references),
         }
         note = {
             "_id": note_id,

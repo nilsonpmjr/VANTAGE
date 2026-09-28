@@ -298,6 +298,58 @@ export interface EvidenceAttachment {
   created_at?: string | null;
 }
 
+export type EvidenceReferenceKind = "evidence" | "finding" | "source" | "target";
+
+export interface EvidenceStoredReference {
+  kind: EvidenceReferenceKind;
+  id: string;
+  key: string;
+}
+
+export interface EvidenceReference extends EvidenceStoredReference {
+  label: string;
+  href: string | null;
+  broken: boolean;
+  context: string;
+}
+
+export interface EvidenceBacklink {
+  type: "evidence";
+  id: string;
+  label: string;
+  href: string;
+  context: string;
+  author: string;
+  updated_at: string;
+}
+
+export interface EvidenceLinks {
+  outgoing: EvidenceReference[];
+  backlinks: EvidenceBacklink[];
+}
+
+export type NotebookSearchType =
+  | "all"
+  | "evidence"
+  | "draft"
+  | "finding"
+  | "source"
+  | "target";
+
+export interface NotebookSearchResult {
+  type: Exclude<NotebookSearchType, "all">;
+  id: string;
+  reference: string | null;
+  key: string;
+  label: string;
+  excerpt: string;
+  phase: string | null;
+  updated_at: string;
+  href: string | null;
+  private: boolean;
+  broken: boolean;
+}
+
 export interface EvidenceNoteInput {
   title: string;
   markdown: string;
@@ -317,6 +369,7 @@ export interface EvidenceRevision extends EvidenceNoteInput {
   author: string;
   created_at: string;
   attachments: EvidenceAttachment[];
+  references: EvidenceStoredReference[];
 }
 
 export interface EvidenceNote extends EvidenceNoteInput {
@@ -327,6 +380,7 @@ export interface EvidenceNote extends EvidenceNoteInput {
   created_at: string;
   updated_at: string;
   attachments: EvidenceAttachment[];
+  references: EvidenceStoredReference[];
   revision: Pick<
     EvidenceRevision,
     "id" | "number" | "previous_revision_id" | "author" | "created_at"
@@ -360,6 +414,7 @@ export interface EvidenceDraft extends EvidenceNoteInput {
   created_at: string;
   updated_at: string;
   attachments: EvidenceAttachment[];
+  references: EvidenceStoredReference[];
 }
 
 export interface EvidenceDraftSummary {
@@ -663,6 +718,70 @@ export async function getEvidenceNote(slug: string, noteId: string): Promise<Evi
   return readResponse(await fetch(path, { credentials: "include" }));
 }
 
+export async function resolveEvidenceReferences(
+  slug: string,
+  markdown: string,
+): Promise<{ items: EvidenceReference[] }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/references/resolve`;
+  return readResponse(await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markdown }),
+  }));
+}
+
+export async function suggestEvidenceReferences(
+  slug: string,
+  query: string,
+  limit = 12,
+): Promise<{ items: NotebookSearchResult[] }> {
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/references/suggest?${params}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getEvidenceLinks(
+  slug: string,
+  noteId: string,
+  revisionId?: string,
+): Promise<EvidenceLinks> {
+  const query = revisionId
+    ? `?${new URLSearchParams({ revision_id: revisionId })}`
+    : "";
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/evidence/notes/${encodeURIComponent(noteId)}/links${query}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function searchEvidenceNotebook(
+  slug: string,
+  options: {
+    q?: string;
+    type?: NotebookSearchType;
+    phase?: string;
+    tag?: string;
+    dateFrom?: string;
+    dateTo?: string;
+    offset?: number;
+    limit?: number;
+  } = {},
+): Promise<{ items: NotebookSearchResult[]; total: number }> {
+  const params = new URLSearchParams();
+  if (options.q) params.set("q", options.q);
+  if (options.type && options.type !== "all") params.set("type", options.type);
+  if (options.phase) params.set("phase", options.phase);
+  if (options.tag) params.set("tag", options.tag);
+  if (options.dateFrom) params.set("date_from", options.dateFrom);
+  if (options.dateTo) params.set("date_to", options.dateTo);
+  params.set("offset", String(options.offset || 0));
+  params.set("limit", String(options.limit || 50));
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/notebook/search?${params}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
 export async function createEvidenceDraft(slug: string): Promise<EvidenceDraft> {
   const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/drafts`;
   return readResponse(await fetch(path, { method: "POST", credentials: "include" }));
@@ -849,6 +968,10 @@ export function evidenceFileDownloadUrl(slug: string, evidenceId: string): strin
 
 export async function listFindings(slug: string, offset = 0, limit = 50): Promise<{ items: Finding[]; total: number }> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/findings?offset=${offset}&limit=${limit}`, { credentials: "include" }));
+}
+
+export async function getFinding(slug: string, findingId: string): Promise<Finding> {
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/findings/${encodeURIComponent(findingId)}`, { credentials: "include" }));
 }
 
 export async function createFinding(slug: string, payload: FindingInput): Promise<Finding> {

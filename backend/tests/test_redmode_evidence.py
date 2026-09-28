@@ -1,5 +1,8 @@
 """Manual RedMode evidence stays inside the project boundary."""
 
+from datetime import datetime, timezone
+from hashlib import sha256
+
 import pytest
 
 from auth import create_access_token
@@ -667,3 +670,269 @@ async def test_abandoned_draft_cleanup_never_removes_published_files(
     assert await fake_db.redmode_evidence_attachments.find_one({"_id": "draft-file"}) is None
     assert await fake_db.redmode_evidence_attachments.find_one({"_id": "published-file"}) is not None
     assert store.files == {"published-storage": b"published"}
+
+
+@pytest.mark.asyncio
+async def test_internal_references_search_backlinks_and_engagement_isolation(
+    async_client,
+    fake_db,
+):
+    admin = headers_for("admin", "admin")
+    for slug in ("cliente-demo", "outro-cliente"):
+        created = await async_client.post(
+            "/api/redmode/projects",
+            json={"slug": slug, "display_name": slug},
+            headers=admin,
+        )
+        assert created.status_code == 201, created.text
+
+    notes_path = "/api/redmode/projects/cliente-demo/evidence/notes"
+    target_note = (
+        await async_client.post(
+            notes_path,
+            json=note_payload(title="Nota de destino", tags=["destino"]),
+            headers=admin,
+        )
+    ).json()
+    foreign_note = (
+        await async_client.post(
+            "/api/redmode/projects/outro-cliente/evidence/notes",
+            json=note_payload(title="Nota de outro engagement"),
+            headers=admin,
+        )
+    ).json()
+    finding = (
+        await async_client.post(
+            "/api/redmode/projects/cliente-demo/findings",
+            json={
+                "title": "Finding relacionado",
+                "description": "Descrição publicada",
+                "severity": "medium",
+                "phase": "vulnerability-analysis",
+                "targets": ["192.0.2.10"],
+                "evidence_ids": [],
+            },
+            headers=admin,
+        )
+    ).json()
+
+    now = datetime.now(timezone.utc)
+    version_id = "scope-version-1"
+    source_id = "scope-source-1"
+    canonical_target = "192.0.2.10"
+    asset_id = sha256(f"ip\0{canonical_target}".encode()).hexdigest()
+    await fake_db.redmode_scope_versions.insert_one({
+        "_id": version_id,
+        "project_slug": "cliente-demo",
+        "author": "admin",
+        "created_at": now,
+        "source": {"kind": "bundle", "text": "", "files": [], "sha256": "a" * 64},
+        "rules": [],
+        "context_assets": [],
+    })
+    await fake_db.redmode_scope_sources.insert_one({
+        "_id": "source-document-1",
+        "project_slug": "cliente-demo",
+        "version_id": version_id,
+        "source_id": source_id,
+        "name": "Arquivo de escopo",
+        "created_at": now,
+    })
+    await fake_db.redmode_scope_assets.insert_one({
+        "_id": "asset-document-1",
+        "project_slug": "cliente-demo",
+        "version_id": version_id,
+        "asset_id": asset_id,
+        "kind": "ip",
+        "value": canonical_target,
+        "search_text": f"ip client {canonical_target}",
+    })
+    await fake_db.redmode_projects.update_one(
+        {"_id": "cliente-demo"},
+        {"$set": {
+            "active_scope_version": version_id,
+            "scope_history": [version_id],
+        }},
+    )
+
+    markdown = (
+        f"Liga [[evidence:{target_note['id']}]] ao "
+        f"[[finding:{finding['id']}]], à "
+        f"[[source:{version_id}/{source_id}]] e ao "
+        f"[[target:{version_id}/{asset_id}]]."
+    )
+    referencing = await async_client.post(
+        notes_path,
+        json=note_payload(
+            title="Nota referenciadora",
+            markdown=markdown,
+            tags=["ligações"],
+        ),
+        headers=admin,
+    )
+    assert referencing.status_code == 201, referencing.text
+    referencing_note = referencing.json()
+    stored_revision = await fake_db.redmode_evidence_revisions.find_one({
+        "_id": referencing_note["revision"]["id"],
+    })
+    assert stored_revision["reference_keys"] == [
+        f"evidence:{target_note['id']}",
+        f"finding:{finding['id']}",
+        f"source:{version_id}/{source_id}",
+        f"target:{version_id}/{asset_id}",
+    ]
+    assert "nota referenciadora" in stored_revision["search_text"]
+
+    foreign = await async_client.post(
+        notes_path,
+        json=note_payload(markdown=f"[[evidence:{foreign_note['id']}]]"),
+        headers=admin,
+    )
+    assert foreign.status_code == 422
+    assert foreign.json()["detail"] == "evidence_reference_not_in_project"
+    invalid_type = await async_client.post(
+        notes_path,
+        json=note_payload(markdown="[[unknown:item]]"),
+        headers=admin,
+    )
+    assert invalid_type.status_code == 422
+    assert invalid_type.json()["detail"] == "evidence_reference_type_invalid"
+
+    links_path = f"{notes_path}/{referencing_note['id']}/links"
+    links = await async_client.get(links_path, headers=admin)
+    assert links.status_code == 200, links.text
+    assert [item["label"] for item in links.json()["outgoing"]] == [
+        "Nota de destino",
+        "Finding relacionado",
+        "Arquivo de escopo",
+        canonical_target,
+    ]
+    assert all(item["context"] for item in links.json()["outgoing"])
+
+    backlinks = await async_client.get(
+        f"{notes_path}/{target_note['id']}/links",
+        headers=admin,
+    )
+    assert [item["id"] for item in backlinks.json()["backlinks"]] == [
+        referencing_note["id"],
+    ]
+
+    renamed_payload = note_payload(title="Nota renomeada", tags=["destino"])
+    renamed_payload["expected_revision_id"] = target_note["revision"]["id"]
+    renamed = await async_client.put(
+        f"{notes_path}/{target_note['id']}",
+        json=renamed_payload,
+        headers=admin,
+    )
+    assert renamed.status_code == 200, renamed.text
+    renamed_links = await async_client.get(links_path, headers=admin)
+    assert renamed_links.json()["outgoing"][0]["label"] == "Nota renomeada"
+
+    by_title = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": "referenciadora", "type": "evidence"},
+        headers=admin,
+    )
+    assert [item["id"] for item in by_title.json()["items"]] == [
+        referencing_note["id"],
+    ]
+    wrong_phase = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={
+            "q": "referenciadora",
+            "type": "evidence",
+            "phase": "post-exploitation",
+        },
+        headers=admin,
+    )
+    assert wrong_phase.json()["items"] == []
+    old_period = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={
+            "q": "referenciadora",
+            "type": "evidence",
+            "date_to": "2000-01-01T00:00:00Z",
+        },
+        headers=admin,
+    )
+    assert old_period.json()["items"] == []
+    by_reference = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": f"source:{version_id}/{source_id}", "type": "evidence"},
+        headers=admin,
+    )
+    assert by_reference.json()["total"] == 1
+    scope_results = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": "Arquivo", "type": "source"},
+        headers=admin,
+    )
+    assert scope_results.json()["items"][0]["reference"] == (
+        f"[[source:{version_id}/{source_id}]]"
+    )
+    target_results = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": canonical_target, "type": "target"},
+        headers=admin,
+    )
+    assert target_results.json()["items"][0]["label"] == canonical_target
+
+    suggestions = await async_client.get(
+        "/api/redmode/projects/cliente-demo/references/suggest",
+        params={"q": "finding:relacionado"},
+        headers=admin,
+    )
+    assert suggestions.json()["items"][0]["reference"] == (
+        f"[[finding:{finding['id']}]]"
+    )
+
+    await grant_redmode(fake_db, "techuser")
+    denied = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": "referenciadora"},
+        headers=headers_for("techuser"),
+    )
+    assert denied.status_code == 403
+    await async_client.put(
+        "/api/redmode/projects/cliente-demo/members/techuser",
+        headers=admin,
+    )
+    draft = (
+        await async_client.post(
+            "/api/redmode/projects/cliente-demo/evidence/drafts",
+            headers=admin,
+        )
+    ).json()
+    draft_payload = note_payload(title="Segredo do admin", markdown="privado")
+    draft_payload.update({
+        "base_revision_id": None,
+        "expected_version": draft["version"],
+    })
+    await async_client.put(
+        f"/api/redmode/projects/cliente-demo/evidence/drafts/{draft['note_id']}",
+        json=draft_payload,
+        headers=admin,
+    )
+    admin_search = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": "Segredo", "type": "draft"},
+        headers=admin,
+    )
+    assert admin_search.json()["total"] == 1
+    member_search = await async_client.get(
+        "/api/redmode/projects/cliente-demo/notebook/search",
+        params={"q": "Segredo", "type": "draft"},
+        headers=headers_for("techuser"),
+    )
+    assert member_search.json()["items"] == []
+
+    await fake_db.redmode_evidence.delete_one({"_id": target_note["id"]})
+    broken_links = await async_client.get(links_path, headers=admin)
+    broken = broken_links.json()["outgoing"][0]
+    assert broken["kind"] == "evidence"
+    assert broken["id"] == target_note["id"]
+    assert broken["key"] == f"evidence:{target_note['id']}"
+    assert broken["label"] == "Referência indisponível"
+    assert broken["href"] is None
+    assert broken["broken"] is True
+    assert "Nota de destino" not in str(broken)

@@ -1,6 +1,7 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
-  createFinding, listEvidence, listFindingRevisions, listFindings, updateFinding,
+  createFinding, getFinding, listEvidence, listFindingRevisions, listFindings, updateFinding,
   type Evidence, type Finding, type FindingInput, type FindingRevision,
 } from "./api";
 import { phaseLabel, ptesPhases } from "./EvidencePanel";
@@ -10,6 +11,9 @@ const severityLabels: Record<FindingInput["severity"], string> = {
 };
 
 export default function FindingsPanel({ slug, evidenceRefresh, onSaved }: { slug: string; evidenceRefresh: number; onSaved?: () => void }) {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedFinding = searchParams.get("finding");
+  const openedFindingRef = useRef<string | null>(null);
   const [items, setItems] = useState<Finding[]>([]);
   const [total, setTotal] = useState(0);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
@@ -28,7 +32,7 @@ export default function FindingsPanel({ slug, evidenceRefresh, onSaved }: { slug
 
   useEffect(() => {
     let active = true;
-    void Promise.all([listFindings(slug), listEvidence(slug, 0, 100)])
+    void Promise.all([listFindings(slug, 0, 100), listEvidence(slug, 0, 100)])
       .then(([findings, proofs]) => { if (active) { setItems(findings.items); setTotal(findings.total); setEvidence(proofs.items); } })
       .catch(() => { if (active) setError("Não foi possível carregar os findings."); });
     return () => { active = false; };
@@ -37,13 +41,49 @@ export default function FindingsPanel({ slug, evidenceRefresh, onSaved }: { slug
   function resetForm() {
     setEditing(null); setTitle(""); setDescription(""); setSeverity("medium");
     setPhase("pre-engagement"); setTargets(""); setEvidenceIds([]); setError("");
+    const next = new URLSearchParams(searchParams);
+    next.delete("finding");
+    setSearchParams(next, { replace: true });
   }
 
-  function startEdit(item: Finding) {
+  function startEdit(item: Finding, syncLocation = true) {
     setEditing(item); setTitle(item.title); setDescription(item.description);
     setSeverity(item.severity); setPhase(item.phase); setTargets(item.targets.join("\n"));
     setEvidenceIds(item.evidence_ids); setError("");
+    if (syncLocation) {
+      const next = new URLSearchParams(searchParams);
+      next.set("finding", item.id);
+      setSearchParams(next, { replace: true });
+    }
   }
+
+  useEffect(() => {
+    if (!requestedFinding) {
+      openedFindingRef.current = null;
+      return;
+    }
+    if (openedFindingRef.current === requestedFinding) return;
+    let active = true;
+    const loaded = items.find((item) => item.id === requestedFinding);
+    void (loaded ? Promise.resolve(loaded) : getFinding(slug, requestedFinding))
+      .then((item) => {
+        if (!active) return;
+        openedFindingRef.current = requestedFinding;
+        setItems((current) => current.some((candidate) => candidate.id === item.id)
+          ? current
+          : [item, ...current]);
+        startEdit(item, false);
+        window.requestAnimationFrame(() => {
+          document.getElementById("finding-editor")?.scrollIntoView({ block: "start" });
+        });
+      })
+      .catch(() => {
+        if (active) setError("Este finding não existe mais ou não está acessível.");
+      });
+    return () => { active = false; };
+    // startEdit only copies the loaded finding into local form state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, requestedFinding, slug]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -87,7 +127,7 @@ export default function FindingsPanel({ slug, evidenceRefresh, onSaved }: { slug
     } catch { setError("Não foi possível carregar as revisões."); }
   }
 
-  return <section className="card p-6">
+  return <section id="finding-editor" className="card scroll-mt-24 p-6">
     <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Findings manuais</h2>
     <p className="mt-2 text-sm text-on-surface-variant">Achados do operador, com revisões e evidências vinculadas. Nenhuma avaliação por LLM nesta etapa.</p>
     <form className="mt-5 space-y-3" onSubmit={(event) => void submit(event)}>
@@ -125,7 +165,7 @@ export default function FindingsPanel({ slug, evidenceRefresh, onSaved }: { slug
       <button className="btn btn-primary" type="submit" disabled={saving}>{saving ? "Salvando..." : editing ? "Salvar revisão" : "Criar finding"}</button>
     </form>
     <ul className="mt-6 space-y-3">
-      {items.map((item) => <li key={item.id} className="rounded-sm bg-surface-container-low p-4 text-sm text-on-surface">
+      {items.map((item) => <li id={`finding-${item.id}`} key={item.id} className={`rounded-sm border p-4 text-sm text-on-surface ${editing?.id === item.id ? "border-primary/60 bg-primary/10" : "border-transparent bg-surface-container-low"}`}>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div><h3 className="font-bold">{item.title}</h3><p className="mt-1 text-xs text-on-surface-variant">{severityLabels[item.severity]} · {phaseLabel(item.phase)} · origem humana · revisão {item.revision.number} por {item.revision.author}</p><p className="mt-1 text-xs text-on-surface-variant">ID: {item.id}</p></div>
           <div className="flex gap-3"><button type="button" className="font-semibold text-primary hover:underline" onClick={() => startEdit(item)}>Editar</button><button type="button" className="font-semibold text-primary hover:underline" onClick={() => void showHistory(item.id)}>Revisões</button></div>

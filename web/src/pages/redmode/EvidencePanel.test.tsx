@@ -9,6 +9,7 @@ const apiMocks = vi.hoisted(() => ({
   deleteEvidenceDraftAttachment: vi.fn(),
   discardEvidenceDraft: vi.fn(),
   getEvidenceDraft: vi.fn(),
+  getEvidenceLinks: vi.fn(),
   getEvidenceNote: vi.fn(),
   listEvidenceDrafts: vi.fn(),
   listEvidenceNotes: vi.fn(),
@@ -16,7 +17,10 @@ const apiMocks = vi.hoisted(() => ({
   listFindings: vi.fn(),
   publishEvidenceDraft: vi.fn(),
   rebaseEvidenceDraft: vi.fn(),
+  resolveEvidenceReferences: vi.fn(),
   saveEvidenceDraft: vi.fn(),
+  searchEvidenceNotebook: vi.fn(),
+  suggestEvidenceReferences: vi.fn(),
   uploadEvidenceDraftAttachments: vi.fn(),
 }));
 
@@ -65,6 +69,7 @@ const detail = {
   finding_ids: [],
   attachment_ids: [],
   attachments: [],
+  references: [],
   revision: summary.revision,
 };
 
@@ -85,6 +90,7 @@ const privateDraft = {
   finding_ids: [],
   attachment_ids: [],
   attachments: [],
+  references: [],
 };
 
 function LocationProbe() {
@@ -118,6 +124,25 @@ describe("EvidencePanel notebook", () => {
       author: detail.revision.author,
       created_at: detail.revision.created_at,
     }] });
+    apiMocks.getEvidenceLinks.mockResolvedValue({ outgoing: [], backlinks: [] });
+    apiMocks.resolveEvidenceReferences.mockResolvedValue({ items: [] });
+    apiMocks.suggestEvidenceReferences.mockResolvedValue({ items: [] });
+    apiMocks.searchEvidenceNotebook.mockResolvedValue({
+      items: [{
+        type: "evidence",
+        id: summary.id,
+        reference: `[[evidence:${summary.id}]]`,
+        key: `evidence:${summary.id}`,
+        label: summary.title,
+        excerpt: summary.excerpt,
+        phase: summary.phase,
+        updated_at: summary.updated_at,
+        href: `/redmode/engagements/demo/evidence?note=${summary.id}`,
+        private: false,
+        broken: false,
+      }],
+      total: 1,
+    });
     apiMocks.getEvidenceNote.mockImplementation(async (_slug: string, noteId: string) => {
       if (noteId === privateDraft.note_id) throw new Error("evidence_not_found");
       return detail;
@@ -248,6 +273,71 @@ describe("EvidencePanel notebook", () => {
     expect(apiMocks.listEvidenceNotes).toHaveBeenLastCalledWith("demo", 1, 30);
   });
 
+  it("searches findings with URL filters and follows the result", async () => {
+    const user = userEvent.setup();
+    apiMocks.searchEvidenceNotebook.mockResolvedValue({
+      items: [{
+        type: "finding",
+        id: "finding-1",
+        reference: "[[finding:finding-1]]",
+        key: "finding:finding-1",
+        label: "Falha de autorização",
+        excerpt: "Outro usuário consegue abrir o recurso.",
+        phase: "vulnerability-analysis",
+        updated_at: "2026-09-26T15:00:00Z",
+        href: "/redmode/engagements/demo/findings?finding=finding-1",
+        private: false,
+        broken: false,
+      }],
+      total: 1,
+    });
+    renderPanel("/redmode/engagements/demo/evidence?q=autoriza%C3%A7%C3%A3o&type=finding&from=2026-09-01&to=2026-09-30");
+
+    await user.click(await screen.findByRole("button", { name: /Falha de autorização/ }));
+    expect(apiMocks.searchEvidenceNotebook).toHaveBeenCalledWith("demo", expect.objectContaining({
+      q: "autorização",
+      type: "finding",
+      dateFrom: "2026-09-01T00:00:00.000Z",
+      dateTo: "2026-09-30T23:59:59.999Z",
+    }));
+    expect(screen.getByLabelText("location")).toHaveTextContent(
+      "/redmode/engagements/demo/findings?finding=finding-1",
+    );
+  });
+
+  it("shows dynamically resolved outgoing links and published backlinks", async () => {
+    apiMocks.getEvidenceNote.mockResolvedValue({
+      ...detail,
+      markdown: "Consulte [[finding:finding-1]].",
+      references: [{ kind: "finding", id: "finding-1", key: "finding:finding-1" }],
+    });
+    apiMocks.resolveEvidenceReferences.mockResolvedValue({ items: [{
+      kind: "finding",
+      id: "finding-1",
+      key: "finding:finding-1",
+      label: "Falha de autorização renomeada",
+      href: "/redmode/engagements/demo/findings?finding=finding-1",
+      broken: false,
+      context: "Consulte finding:finding-1.",
+    }] });
+    apiMocks.getEvidenceLinks.mockResolvedValue({
+      outgoing: [],
+      backlinks: [{
+        type: "evidence",
+        id: "note-2",
+        label: "Nota que aponta para cá",
+        href: "/redmode/engagements/demo/evidence?note=note-2",
+        context: "Ligação com evidence:note-1.",
+        author: "bob",
+        updated_at: "2026-09-26T16:00:00Z",
+      }],
+    });
+    renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+
+    expect((await screen.findAllByText("Falha de autorização renomeada")).length).toBeGreaterThan(0);
+    expect(await screen.findByRole("button", { name: "Nota que aponta para cá" })).toBeInTheDocument();
+  });
+
   it("recovers the last server-confirmed private draft on reload", async () => {
     apiMocks.getEvidenceDraft.mockResolvedValue({
       ...privateDraft,
@@ -348,7 +438,7 @@ describe("EvidencePanel notebook", () => {
     await waitFor(() => expect(apiMocks.saveEvidenceDraft).toHaveBeenCalledTimes(1));
 
     fireEvent.keyDown(window, { key: "k", ctrlKey: true });
-    await waitFor(() => expect(screen.getByPlaceholderText("Buscar título, tag ou autor")).toHaveFocus());
+    await waitFor(() => expect(screen.getByPlaceholderText("Buscar notas, findings, fontes e alvos")).toHaveFocus());
 
     fireEvent.keyDown(window, { key: "p", ctrlKey: true, shiftKey: true });
     expect(screen.getAllByRole("button", { name: "Abrir propriedades" }).length).toBeGreaterThan(0);

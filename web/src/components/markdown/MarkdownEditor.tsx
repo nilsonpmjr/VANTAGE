@@ -26,8 +26,17 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { MarkdownPreview } from "./MarkdownContent";
+import type { MarkdownInternalReference } from "./markdown";
 
 export type MarkdownEditorMode = "edit" | "preview" | "split";
+
+export interface MarkdownReferenceSuggestion {
+  key: string;
+  label: string;
+  reference: string;
+  type: string;
+  excerpt?: string;
+}
 
 export interface MarkdownEditorProps {
   value: string;
@@ -46,9 +55,12 @@ export interface MarkdownEditorProps {
   onModeChange?: (mode: MarkdownEditorMode) => void;
   disabled?: boolean;
   className?: string;
+  references?: MarkdownInternalReference[];
+  onReferenceSearch?: (query: string) => Promise<MarkdownReferenceSuggestion[]>;
 }
 
 type Selection = { start: number; end: number; direction: "forward" | "backward" | "none" };
+type ReferenceToken = { start: number; end: number; query: string };
 
 const MODE_OPTIONS: Array<{ mode: MarkdownEditorMode; label: string; icon: ReactNode }> = [
   { mode: "edit", label: "Editar", icon: <Pencil className="h-3.5 w-3.5" /> },
@@ -101,6 +113,8 @@ export function MarkdownEditor({
   onModeChange,
   disabled = false,
   className,
+  references = [],
+  onReferenceSearch,
 }: MarkdownEditorProps) {
   const sourceId = useId();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -112,6 +126,11 @@ export function MarkdownEditor({
   const [persistedSnapshot, setPersistedSnapshot] = useState(persistedValue ?? value);
   const [saving, setSaving] = useState(false);
   const [persistError, setPersistError] = useState("");
+  const [referenceToken, setReferenceToken] = useState<ReferenceToken | null>(null);
+  const [referenceSuggestions, setReferenceSuggestions] = useState<MarkdownReferenceSuggestion[]>([]);
+  const [referenceLoading, setReferenceLoading] = useState(false);
+  const [activeReferenceIndex, setActiveReferenceIndex] = useState(0);
+  const referenceRequest = useRef(0);
   const dirty = value !== persistedSnapshot || additionalDirty;
   const visibleError = error || persistError;
 
@@ -122,6 +141,32 @@ export function MarkdownEditor({
   useEffect(() => {
     onDirtyChange?.(dirty);
   }, [dirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!referenceToken || !onReferenceSearch || disabled) {
+      setReferenceSuggestions([]);
+      setReferenceLoading(false);
+      return;
+    }
+    const request = referenceRequest.current + 1;
+    referenceRequest.current = request;
+    setReferenceLoading(true);
+    const timer = window.setTimeout(() => {
+      void onReferenceSearch(referenceToken.query)
+        .then((items) => {
+          if (referenceRequest.current !== request) return;
+          setReferenceSuggestions(items);
+          setActiveReferenceIndex(0);
+        })
+        .catch(() => {
+          if (referenceRequest.current === request) setReferenceSuggestions([]);
+        })
+        .finally(() => {
+          if (referenceRequest.current === request) setReferenceLoading(false);
+        });
+    }, 150);
+    return () => window.clearTimeout(timer);
+  }, [disabled, onReferenceSearch, referenceToken]);
 
   function captureSelection() {
     const textarea = textareaRef.current;
@@ -200,6 +245,31 @@ export function MarkdownEditor({
     );
   }
 
+  function detectReferenceToken(nextValue: string, caret: number) {
+    if (!onReferenceSearch) return;
+    const beforeCaret = nextValue.slice(0, caret);
+    const start = beforeCaret.lastIndexOf("[[");
+    if (start < 0) {
+      setReferenceToken(null);
+      return;
+    }
+    const query = beforeCaret.slice(start + 2);
+    if (/\]\]|[\[\]\n]/.test(query) || query.length > 200) {
+      setReferenceToken(null);
+      return;
+    }
+    setReferenceToken({ start, end: caret, query });
+  }
+
+  function chooseReference(item: MarkdownReferenceSuggestion) {
+    if (!referenceToken) return;
+    const replacement = `${value.slice(0, referenceToken.start)}${item.reference}${value.slice(referenceToken.end)}`;
+    const caret = referenceToken.start + item.reference.length;
+    setReferenceToken(null);
+    setReferenceSuggestions([]);
+    applyReplacement(replacement, caret, caret);
+  }
+
   async function persist() {
     if (!onPersist || !dirty || saving) return;
     setSaving(true);
@@ -218,6 +288,31 @@ export function MarkdownEditor({
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (referenceToken && (referenceSuggestions.length || referenceLoading)) {
+      if (event.key === "ArrowDown" && referenceSuggestions.length) {
+        event.preventDefault();
+        setActiveReferenceIndex((current) => (current + 1) % referenceSuggestions.length);
+        return;
+      }
+      if (event.key === "ArrowUp" && referenceSuggestions.length) {
+        event.preventDefault();
+        setActiveReferenceIndex((current) => (
+          current - 1 + referenceSuggestions.length
+        ) % referenceSuggestions.length);
+        return;
+      }
+      if (event.key === "Enter" && referenceSuggestions[activeReferenceIndex]) {
+        event.preventDefault();
+        chooseReference(referenceSuggestions[activeReferenceIndex]);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setReferenceToken(null);
+        setReferenceSuggestions([]);
+        return;
+      }
+    }
     const modifier = event.metaKey || event.ctrlKey;
     if (!modifier) return;
     const key = event.key.toLowerCase();
@@ -296,7 +391,7 @@ export function MarkdownEditor({
       )}
 
       <div className={cn("grid min-w-0", panelGridClass)}>
-        <div className={cn(editorPanelClass, "min-w-0")}>
+        <div className={cn(editorPanelClass, "relative min-w-0")}>
           <label htmlFor={sourceId} className="sr-only">{label}: texto Markdown</label>
           <textarea
             ref={textareaRef}
@@ -307,19 +402,54 @@ export function MarkdownEditor({
             maxLength={maxLength}
             spellCheck
             className="markdown-editor-textarea"
-            onChange={(event) => onChange(event.target.value)}
+            onChange={(event) => {
+              const nextValue = event.target.value;
+              const caret = event.target.selectionStart > 0
+                ? event.target.selectionStart
+                : nextValue.length;
+              onChange(nextValue);
+              detectReferenceToken(nextValue, caret);
+            }}
             onKeyDown={handleKeyDown}
             onSelect={captureSelection}
             onBlur={captureSelection}
             onScroll={(event) => { editorScrollRef.current = event.currentTarget.scrollTop; }}
           />
+          {referenceToken && onReferenceSearch && (
+            <div className="absolute inset-x-3 top-3 z-30 max-h-72 overflow-y-auto rounded-sm border border-outline-variant/40 bg-surface-container-lowest p-1 shadow-xl" role="listbox" aria-label="Referências internas">
+              {referenceLoading ? (
+                <p className="flex items-center gap-2 px-3 py-2 text-xs text-on-surface-variant"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Buscando no engagement...</p>
+              ) : referenceSuggestions.length ? referenceSuggestions.map((item, index) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  role="option"
+                  aria-selected={index === activeReferenceIndex}
+                  className={cn(
+                    "block w-full rounded-sm px-3 py-2 text-left",
+                    index === activeReferenceIndex
+                      ? "bg-primary/10 text-primary"
+                      : "text-on-surface hover:bg-surface-container-high",
+                  )}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => chooseReference(item)}
+                >
+                  <span className="block text-xs font-bold">{item.label}</span>
+                  <span className="mt-0.5 block truncate font-mono text-[10px] text-on-surface-variant">{item.type} · {item.key}</span>
+                  {item.excerpt && <span className="mt-1 block truncate text-[11px] text-on-surface-variant">{item.excerpt}</span>}
+                </button>
+              )) : (
+                <p className="px-3 py-2 text-xs text-on-surface-variant">Nenhuma referência encontrada neste engagement.</p>
+              )}
+            </div>
+          )}
         </div>
         <div
           ref={previewRef}
           className={cn(previewPanelClass, "markdown-preview-panel min-w-0")}
           onScroll={(event) => { previewScrollRef.current = event.currentTarget.scrollTop; }}
         >
-          <MarkdownPreview markdown={value} />
+          <MarkdownPreview markdown={value} references={references} />
         </div>
       </div>
       {visibleError && <p className="border-t border-error/20 bg-error/5 px-4 py-2 text-xs text-error" role="alert">{visibleError}</p>}

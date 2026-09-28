@@ -208,7 +208,8 @@ export default function ScopePanel({
 }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSourceRef = useRef(searchParams.get("source"));
-  const initialView = searchParams.get("view") === "effective" ? "effective" : "sources";
+  const requestedTarget = searchParams.get("target") || "";
+  const initialView = searchParams.get("view") === "effective" || requestedTarget ? "effective" : "sources";
   const [view, setView] = useState<ScopeView>(initialView);
   const [text, setText] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -233,7 +234,7 @@ export default function ScopePanel({
   const [sourceAssetOffset, setSourceAssetOffset] = useState(0);
   const [mobileStep, setMobileStep] = useState<MobileSourceStep>("list");
 
-  const [assetQuery, setAssetQuery] = useState("");
+  const [assetQuery, setAssetQuery] = useState(requestedTarget);
   const deferredAssetQuery = useDeferredValue(assetQuery);
   const [assetCategory, setAssetCategory] = useState<"all" | ScopeRule["category"]>("all");
   const [assetKind, setAssetKind] = useState<"all" | ScopeAsset["kind"]>("all");
@@ -271,6 +272,8 @@ export default function ScopePanel({
     next.set("view", nextView);
     if (nextView === "sources" && sourceId) next.set("source", sourceId);
     else next.delete("source");
+    if (nextView === "effective" && assetQuery.trim()) next.set("target", assetQuery.trim());
+    else next.delete("target");
     setSearchParams(next, { replace: true });
   }
 
@@ -288,6 +291,15 @@ export default function ScopePanel({
     setView("sources");
     updateLocation("sources", selectedScope?.id, sourceId);
   }
+
+  useEffect(() => {
+    if (!requestedTarget) return;
+    setView("effective");
+    setAssetQuery(requestedTarget);
+    window.requestAnimationFrame(() => {
+      document.getElementById("scope")?.scrollIntoView({ block: "start" });
+    });
+  }, [requestedTarget]);
 
   useEffect(() => {
     let mounted = true;

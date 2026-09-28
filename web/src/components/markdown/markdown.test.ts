@@ -79,6 +79,41 @@ describe("renderSafeMarkdown", () => {
     expect(images[0]).toHaveAttribute("referrerpolicy", "no-referrer");
     expect(root.querySelectorAll(".markdown-image-blocked")).toHaveLength(2);
   });
+
+  it("resolves stable internal references and keeps code examples inert", () => {
+    const markdown = [
+      "Veja [[evidence:note-1]].",
+      "",
+      "`[[evidence:note-1]]`",
+      "",
+      "[[finding:missing]]",
+    ].join("\n");
+    const root = document.createElement("div");
+    root.innerHTML = renderSafeMarkdown(markdown, [
+      {
+        key: "evidence:note-1",
+        label: "Nota renomeada",
+        href: "/redmode/engagements/demo/evidence?note=note-1",
+        broken: false,
+      },
+      {
+        key: "finding:missing",
+        label: "Referência indisponível",
+        href: null,
+        broken: true,
+      },
+    ]);
+
+    expect(root.querySelector("a.markdown-reference")).toHaveTextContent("Nota renomeada");
+    expect(root.querySelector("a.markdown-reference")).toHaveAttribute(
+      "href",
+      "/redmode/engagements/demo/evidence?note=note-1",
+    );
+    expect(root.querySelector("code")).toHaveTextContent("[[evidence:note-1]]");
+    expect(root.querySelector(".markdown-reference-broken")).toHaveTextContent(
+      "Referência indisponível",
+    );
+  });
 });
 
 describe("Markdown URL policy", () => {

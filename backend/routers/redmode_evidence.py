@@ -1975,6 +1975,34 @@ async def get_evidence_note_links(
                 candidate["created_at"],
             ),
         })
+    finding_cursor = finding_revisions_collection().find({
+        "project_slug": slug,
+        "reference_keys": backlink_key,
+    })
+    async for candidate_revision in finding_cursor:
+        finding = await findings_collection().find_one({
+            "_id": candidate_revision["finding_id"],
+            "project_slug": slug,
+            "current_revision_id": candidate_revision["_id"],
+        })
+        if finding is None:
+            continue
+        backlinks.append({
+            "type": "finding",
+            "id": finding["_id"],
+            "label": candidate_revision["title"],
+            "href": _reference_href(
+                slug,
+                "findings",
+                {"finding": finding["_id"]},
+            ),
+            "context": reference_context(
+                candidate_revision.get("description", ""),
+                backlink_key,
+            ),
+            "author": candidate_revision["author"],
+            "updated_at": finding["updated_at"],
+        })
     backlinks.sort(key=lambda item: item["updated_at"], reverse=True)
     return {"outgoing": outgoing, "backlinks": backlinks}
 

@@ -379,6 +379,7 @@ class FakeDB:
         self.redmode_evidence_attachments = FakeCollection()
         self.redmode_findings = FakeCollection()
         self.redmode_finding_revisions = FakeCollection()
+        self.redmode_finding_drafts = FakeCollection()
         self.hunting_results = FakeCollection()
         self.exposure_monitored_assets = FakeCollection()
         self.exposure_asset_groups = FakeCollection()

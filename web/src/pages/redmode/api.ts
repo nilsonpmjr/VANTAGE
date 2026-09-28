@@ -314,7 +314,7 @@ export interface EvidenceReference extends EvidenceStoredReference {
 }
 
 export interface EvidenceBacklink {
-  type: "evidence";
+  type: "evidence" | "finding";
   id: string;
   label: string;
   href: string;
@@ -446,6 +446,7 @@ export interface Finding extends FindingInput {
   origin: "human";
   created_at: string;
   updated_at: string;
+  references: EvidenceStoredReference[];
   revision: { id: string; number: number; previous_revision_id: string | null; author: string; created_at: string };
 }
 
@@ -457,6 +458,38 @@ export interface FindingRevision extends FindingInput {
   previous_revision_id: string | null;
   author: string;
   created_at: string;
+  references: EvidenceStoredReference[];
+}
+
+export interface FindingDraft extends FindingInput {
+  id: string;
+  finding_id: string;
+  project_slug: string;
+  author: string;
+  version: number;
+  base_revision_id: string | null;
+  created_at: string;
+  updated_at: string;
+  references: EvidenceStoredReference[];
+}
+
+export interface FindingDraftSummary {
+  finding_id: string;
+  project_slug: string;
+  version: number;
+  base_revision_id: string | null;
+  updated_at: string;
+  title: string;
+  severity: FindingInput["severity"];
+  phase: string;
+  is_new: boolean;
+}
+
+export interface FindingRevisionComparison {
+  base_revision_id: string;
+  revision_id: string;
+  document_diff: string;
+  property_changes: Record<string, { before: unknown; after: unknown }>;
 }
 
 async function readResponse<T>(response: Response): Promise<T> {
@@ -966,8 +999,17 @@ export function evidenceFileDownloadUrl(slug: string, evidenceId: string): strin
   return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/${encodeURIComponent(evidenceId)}/file`;
 }
 
-export async function listFindings(slug: string, offset = 0, limit = 50): Promise<{ items: Finding[]; total: number }> {
-  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/findings?offset=${offset}&limit=${limit}`, { credentials: "include" }));
+export async function listFindings(
+  slug: string,
+  offset = 0,
+  limit = 50,
+  filters: { q?: string; severity?: string; phase?: string } = {},
+): Promise<{ items: Finding[]; total: number }> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (filters.q) params.set("q", filters.q);
+  if (filters.severity) params.set("severity", filters.severity);
+  if (filters.phase) params.set("phase", filters.phase);
+  return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/findings?${params}`, { credentials: "include" }));
 }
 
 export async function getFinding(slug: string, findingId: string): Promise<Finding> {
@@ -989,4 +1031,96 @@ export async function updateFinding(slug: string, findingId: string, expectedRev
 
 export async function listFindingRevisions(slug: string, findingId: string): Promise<{ items: FindingRevision[] }> {
   return readResponse(await fetch(`${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/findings/${encodeURIComponent(findingId)}/revisions`, { credentials: "include" }));
+}
+
+export async function compareFindingRevisions(
+  slug: string,
+  findingId: string,
+  baseRevisionId: string,
+  revisionId: string,
+): Promise<FindingRevisionComparison> {
+  const query = new URLSearchParams({ base_revision_id: baseRevisionId, revision_id: revisionId });
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/findings/${encodeURIComponent(findingId)}/revisions/compare?${query}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getFindingLinks(
+  slug: string,
+  findingId: string,
+  revisionId?: string,
+): Promise<EvidenceLinks> {
+  const query = revisionId ? `?${new URLSearchParams({ revision_id: revisionId })}` : "";
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/findings/${encodeURIComponent(findingId)}/links${query}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getReferenceBacklinks(slug: string, key: string): Promise<{ items: EvidenceBacklink[] }> {
+  const query = new URLSearchParams({ key });
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/references/backlinks?${query}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function createFindingDraft(slug: string): Promise<FindingDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/finding-drafts`;
+  return readResponse(await fetch(path, { method: "POST", credentials: "include" }));
+}
+
+export async function listFindingDrafts(slug: string): Promise<{ items: FindingDraftSummary[] }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/finding-drafts`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function getFindingDraft(slug: string, findingId: string): Promise<FindingDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/finding-drafts/${encodeURIComponent(findingId)}`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function saveFindingDraft(
+  slug: string,
+  findingId: string,
+  baseRevisionId: string | null,
+  expectedVersion: number,
+  payload: FindingInput,
+): Promise<FindingDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/finding-drafts/${encodeURIComponent(findingId)}`;
+  return readResponse(await fetch(path, {
+    method: "PUT",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...payload, base_revision_id: baseRevisionId, expected_version: expectedVersion }),
+  }));
+}
+
+export async function discardFindingDraft(slug: string, findingId: string): Promise<void> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/finding-drafts/${encodeURIComponent(findingId)}`;
+  const response = await fetch(path, { method: "DELETE", credentials: "include" });
+  if (!response.ok) await readResponse(response);
+}
+
+export async function publishFindingDraft(slug: string, findingId: string, expectedVersion: number): Promise<Finding> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/finding-drafts/${encodeURIComponent(findingId)}/publish`;
+  return readResponse(await fetch(path, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expected_version: expectedVersion }),
+  }));
+}
+
+export async function rebaseFindingDraft(
+  slug: string,
+  findingId: string,
+  expectedVersion: number,
+  currentRevisionId: string,
+): Promise<FindingDraft> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}`
+    + `/finding-drafts/${encodeURIComponent(findingId)}/rebase`;
+  return readResponse(await fetch(path, {
+    method: "POST", credentials: "include", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expected_version: expectedVersion, current_revision_id: currentRevisionId }),
+  }));
 }

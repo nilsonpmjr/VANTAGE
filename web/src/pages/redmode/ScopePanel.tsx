@@ -8,7 +8,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -27,6 +27,7 @@ import {
   enrichScopeAsset,
   getActiveScope,
   getEnrichmentPolicy,
+  getReferenceBacklinks,
   getScopeLimits,
   getScopeSource,
   getScopeVersion,
@@ -38,6 +39,7 @@ import {
   updateEnrichmentPolicy,
   type EnrichmentPolicy,
   type EnrichmentPolicyMode,
+  type EvidenceBacklink,
   type ScopeAsset,
   type ScopeAssetPage,
   type ScopeLimits,
@@ -206,6 +208,7 @@ export default function ScopePanel({
   onPublished?: () => void;
   onEnriched?: () => void;
 }) {
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedSourceRef = useRef(searchParams.get("source"));
   const requestedTarget = searchParams.get("target") || "";
@@ -230,6 +233,7 @@ export default function ScopePanel({
   const [sourceDetail, setSourceDetail] = useState<ScopeSourceDetail | null>(null);
   const [sourceDetailLoading, setSourceDetailLoading] = useState(false);
   const [sourceDetailError, setSourceDetailError] = useState("");
+  const [sourceBacklinks, setSourceBacklinks] = useState<EvidenceBacklink[]>([]);
   const [sourceContentOffset, setSourceContentOffset] = useState(0);
   const [sourceAssetOffset, setSourceAssetOffset] = useState(0);
   const [mobileStep, setMobileStep] = useState<MobileSourceStep>("list");
@@ -410,6 +414,18 @@ export default function ScopePanel({
       .finally(() => { if (mounted) setSourceDetailLoading(false); });
     return () => { mounted = false; };
   }, [selectedScope, selectedSourceId, slug, sourceAssetOffset, sourceContentOffset]);
+
+  useEffect(() => {
+    if (!selectedScope || !selectedSourceId) {
+      setSourceBacklinks([]);
+      return;
+    }
+    let mounted = true;
+    getReferenceBacklinks(slug, `source:${selectedScope.id}/${selectedSourceId}`)
+      .then((result) => { if (mounted) setSourceBacklinks(result.items); })
+      .catch(() => { if (mounted) setSourceBacklinks([]); });
+    return () => { mounted = false; };
+  }, [selectedScope, selectedSourceId, slug]);
 
   useEffect(() => {
     if (!selectedScope || view !== "effective") return;
@@ -722,6 +738,19 @@ export default function ScopePanel({
         </p>
       </div>
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-3">
+        {sourceBacklinks.length > 0 && (
+          <section className="rounded-sm border border-outline-variant/20 bg-surface p-3" aria-label="Backlinks desta fonte">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">Backlinks</h3>
+            <ul className="mt-2 space-y-2">
+              {sourceBacklinks.map((backlink) => (
+                <li key={`${backlink.type}:${backlink.id}`}>
+                  <button type="button" className="text-left text-xs font-semibold text-primary hover:underline" onClick={() => navigate(backlink.href)}>{backlink.label}</button>
+                  {backlink.context && <span className="mt-0.5 line-clamp-2 block text-[10px] text-on-surface-variant">{backlink.context}</span>}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
         {sourceDetailLoading && !sourceDetail ? (
           <p className="text-sm text-on-surface-variant">Carregando contexto...</p>
         ) : sourceDetail && sourceDetail.assets.total === 0 ? (

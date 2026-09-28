@@ -310,6 +310,23 @@ async def lifespan(app: FastAPI):
                 [("project_slug", 1), ("finding_id", 1), ("number", -1)],
                 name="redmode_finding_revisions_history",
             )
+            await db.redmode_finding_revisions.create_index(
+                [("project_slug", 1), ("reference_keys", 1)],
+                name="redmode_finding_revisions_references",
+            )
+            await db.redmode_finding_revisions.create_index(
+                [("project_slug", 1), ("severity", 1), ("phase", 1)],
+                name="redmode_finding_revisions_filters",
+            )
+            await db.redmode_finding_drafts.create_index(
+                [("project_slug", 1), ("finding_id", 1), ("author", 1)],
+                unique=True,
+                name="redmode_finding_drafts_author_finding",
+            )
+            await db.redmode_finding_drafts.create_index(
+                [("project_slug", 1), ("author", 1), ("updated_at", -1)],
+                name="redmode_finding_drafts_author_updated",
+            )
             await db.threat_sync_status.create_index(
                 [("source_id", 1)],
                 unique=True,

@@ -17,6 +17,7 @@ node_modules/
 dist/
 build/
 coverage/
+.vite/
 
 # Logs and temporary outputs
 *.log

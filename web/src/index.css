@@ -452,6 +452,10 @@
     @apply flex flex-wrap items-center gap-2 justify-start lg:justify-end;
   }
 
+  .page-header-utilities {
+    @apply flex min-w-0 flex-wrap items-center justify-between gap-2;
+  }
+
   .page-eyebrow {
     @apply inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-on-surface-variant/90;
   }

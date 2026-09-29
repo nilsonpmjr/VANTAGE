@@ -13,13 +13,9 @@ export default function HelpLayout() {
 
   return (
     <div className="page-frame help-page-frame">
-      <div className="page-header">
-        <div className="page-header-copy">
-          <h1 className="page-heading">{t("help.title", "Help Center")}</h1>
-          <p className="page-subheading">
-            {t("help.subtitle", "Guides, keyboard shortcuts, API documentation, and support channels for the VANTAGE platform.")}
-          </p>
-        </div>
+      <div className="sr-only">
+        <h1>{t("help.title", "Help Center")}</h1>
+        <p>{t("help.subtitle", "Guides, keyboard shortcuts, API documentation, and support channels for the VANTAGE platform.")}</p>
       </div>
 
       <div className="nav-internal">

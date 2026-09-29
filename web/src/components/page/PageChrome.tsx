@@ -54,22 +54,23 @@ export function PageHeader({
   titleAs,
 }: PageHeaderProps) {
   const TitleTag = titleAs || "h1";
+  const hasUtilities = Boolean(metrics || actions);
 
   return (
-    <div className={cn("page-header page-header-compact", className)}>
-      <div className={cn("page-header-copy", copyClassName)}>
+    <>
+      <div className={cn("sr-only", copyClassName)}>
         {eyebrow ? <p className="page-eyebrow">{eyebrow}</p> : null}
-        <TitleTag className="page-heading">{title}</TitleTag>
+        <TitleTag>{title}</TitleTag>
         {description ? <p className="page-subheading">{description}</p> : null}
       </div>
 
-      {metrics || actions ? (
-        <div className={cn("page-header-aside", asideClassName)}>
+      {hasUtilities ? (
+        <div className={cn("page-header-utilities", className, asideClassName)}>
           {metrics ? <div className="page-header-metrics">{metrics}</div> : null}
           {actions ? <div className="page-header-actions">{actions}</div> : null}
         </div>
       ) : null}
-    </div>
+    </>
   );
 }
 

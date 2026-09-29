@@ -112,6 +112,7 @@ function renderPanel(initialEntry = "/redmode/engagements/demo/evidence", onAdde
 
 describe("EvidencePanel notebook", () => {
   beforeEach(() => {
+    window.localStorage.clear();
     apiMocks.listEvidenceNotes.mockResolvedValue({ items: [summary], total: 1 });
     apiMocks.listEvidenceDrafts.mockResolvedValue({ items: [] });
     apiMocks.listFindings.mockResolvedValue({ items: [], total: 0 });
@@ -335,6 +336,7 @@ describe("EvidencePanel notebook", () => {
     renderPanel("/redmode/engagements/demo/evidence?note=note-1");
 
     expect((await screen.findAllByText("Falha de autorização renomeada")).length).toBeGreaterThan(0);
+    await userEvent.setup().click(screen.getByRole("tab", { name: "Links" }));
     expect(await screen.findByRole("button", { name: "Nota que aponta para cá" })).toBeInTheDocument();
   });
 
@@ -373,6 +375,7 @@ describe("EvidencePanel notebook", () => {
     renderPanel("/redmode/engagements/demo/evidence?note=note-1");
 
     await screen.findByDisplayValue("Meu rascunho");
+    await user.click(screen.getByRole("tab", { name: "Histórico" }));
     await user.click(await screen.findByRole("button", { name: /Revisão 1/ }));
     expect(screen.getByLabelText("Revisão 1")).toHaveTextContent("A rota administrativa respondeu.");
     expect(screen.getByDisplayValue("Validação do portal")).toBeDisabled();
@@ -411,6 +414,7 @@ describe("EvidencePanel notebook", () => {
     }));
     renderPanel("/redmode/engagements/demo/evidence?note=note-1");
     await screen.findByDisplayValue("Validação do portal");
+    await user.click(screen.getByRole("tab", { name: "Anexos" }));
 
     await user.upload(
       screen.getByLabelText("Selecionar anexos"),
@@ -445,5 +449,81 @@ describe("EvidencePanel notebook", () => {
 
     fireEvent.keyDown(window, { key: "n", ctrlKey: true });
     await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-draft"));
+  });
+
+  it("resizes desktop panels by keyboard and restores their persisted widths", async () => {
+    const firstRender = renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+    await screen.findByDisplayValue("Validação do portal");
+
+    const explorerSeparator = screen.getByRole("separator", { name: "Redimensionar explorador" });
+    const propertiesSeparator = screen.getByRole("separator", { name: "Redimensionar propriedades" });
+    expect(explorerSeparator).toHaveAttribute("aria-valuenow", "300");
+    expect(propertiesSeparator).toHaveAttribute("aria-valuenow", "320");
+
+    fireEvent.keyDown(explorerSeparator, { key: "ArrowRight" });
+    fireEvent.keyDown(propertiesSeparator, { key: "ArrowLeft" });
+    expect(explorerSeparator).toHaveAttribute("aria-valuenow", "316");
+    expect(propertiesSeparator).toHaveAttribute("aria-valuenow", "304");
+    await waitFor(() => expect(window.localStorage.getItem(
+      "vantage:redmode:evidence-panel-preferences",
+    )).toContain('"explorerWidth":316'));
+
+    firstRender.unmount();
+    renderPanel("/redmode/engagements/demo/evidence?note=note-1");
+    expect(screen.getByRole("separator", { name: "Redimensionar explorador" }))
+      .toHaveAttribute("aria-valuenow", "316");
+    expect(screen.getByRole("separator", { name: "Redimensionar propriedades" }))
+      .toHaveAttribute("aria-valuenow", "304");
+  });
+
+  it("separates exploration from typed search and persists pinned notes", async () => {
+    const user = userEvent.setup();
+    const firstRender = renderPanel();
+    await screen.findByRole("button", { name: /Validação do portal/ });
+    expect(screen.queryByPlaceholderText("Buscar notas, findings, fontes e alvos")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("tab", { name: "Buscar" }));
+    await waitFor(() => expect(
+      screen.getByPlaceholderText("Buscar notas, findings, fontes e alvos"),
+    ).toHaveFocus());
+
+    await user.click(screen.getByRole("tab", { name: "Explorar" }));
+    await user.click(screen.getByRole("button", { name: "Fixar nota" }));
+    expect(screen.getByText("Fixadas · 1")).toBeInTheDocument();
+    expect(window.localStorage.getItem("vantage:redmode:evidence-pinned:demo"))
+      .toContain("note-1");
+
+    firstRender.unmount();
+    renderPanel();
+    await screen.findByRole("button", { name: "Desafixar nota" });
+    expect(screen.getByText("Fixadas · 1")).toBeInTheDocument();
+  });
+
+  it("opens notes through the quick switcher and manages persisted document tabs", async () => {
+    const user = userEvent.setup();
+    const second = { ...summary, id: "note-2", title: "Outra nota", tags: ["api"] };
+    apiMocks.listEvidenceNotes.mockResolvedValue({ items: [summary, second], total: 2 });
+    apiMocks.getEvidenceNote.mockImplementation(async (_slug: string, noteId: string) => ({
+      ...detail,
+      id: noteId,
+      title: noteId === "note-2" ? "Outra nota" : detail.title,
+      tags: noteId === "note-2" ? ["api"] : detail.tags,
+    }));
+    renderPanel();
+    await screen.findByRole("button", { name: /Outra nota/ });
+
+    fireEvent.keyDown(window, { key: "o", ctrlKey: true });
+    const quickInput = await screen.findByPlaceholderText("Abrir nota por título, fase ou tag");
+    await waitFor(() => expect(quickInput).toHaveFocus());
+    await user.type(quickInput, "Outra");
+    fireEvent.keyDown(quickInput, { key: "Enter" });
+
+    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("?note=note-2"));
+    expect(await screen.findByRole("tab", { name: "Outra nota" })).toHaveAttribute("aria-selected", "true");
+    expect(window.localStorage.getItem("vantage:redmode:evidence-open-tabs:demo"))
+      .toContain("note-2");
+
+    await user.click(screen.getByRole("button", { name: "Fechar aba Outra nota" }));
+    expect(screen.getByLabelText("location")).toHaveTextContent("/redmode/engagements/demo/evidence");
   });
 });

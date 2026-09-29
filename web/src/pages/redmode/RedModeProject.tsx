@@ -569,45 +569,50 @@ export default function RedModeProject() {
     activity: "Atividade",
     team: "Equipe e acesso",
   }[activeSection]), [activeSection]);
+  const isEvidenceWorkspace = activeSection === "evidence";
 
   return (
-    <div className="page-frame">
-      <Link
-        to="/redmode/engagements"
-        className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline"
-      >
-        <ArrowLeft className="h-4 w-4" /> Todos os engagements
-      </Link>
+    <div className={isEvidenceWorkspace ? "h-[calc(100vh-3.5rem)] min-h-[40rem]" : "page-frame"}>
+      {!isEvidenceWorkspace && (
+        <Link
+          to="/redmode/engagements"
+          className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" /> Todos os engagements
+        </Link>
+      )}
 
       {loading ? (
-        <div className="card p-6 text-sm text-on-surface-variant">Carregando engagement...</div>
+        <div className={isEvidenceWorkspace ? "p-6 text-sm text-on-surface-variant" : "card p-6 text-sm text-on-surface-variant"}>Carregando engagement...</div>
       ) : error ? (
-        <div className="card p-6" role="alert"><p className="text-on-surface">{error}</p></div>
+        <div className={isEvidenceWorkspace ? "p-6" : "card p-6"} role="alert"><p className="text-on-surface">{error}</p></div>
       ) : project ? (
         <>
-          <PageHeader
-            eyebrow="RED TEAM / OFFENSIVE MODE"
-            title={project.display_name}
-            description={`${sectionLabel || "Área desconhecida"} · ${phaseLabel(project.phase)}`}
-            metrics={(
-              <>
-                <PageMetricPill label={statusLabels[project.status]} tone={project.status === "active" ? "primary" : "muted"} />
-                <PageMetricPill label={`${project.members.length} membro${project.members.length === 1 ? "" : "s"}`} icon={<Users className="h-3.5 w-3.5" />} />
-                <PageMetricPill label={new Date(project.last_activity_at).toLocaleDateString("pt-BR")} icon={<CalendarDays className="h-3.5 w-3.5" />} />
-              </>
-            )}
-          />
+          {!isEvidenceWorkspace && (
+            <>
+              <PageHeader
+                eyebrow="RED TEAM / OFFENSIVE MODE"
+                title={project.display_name}
+                description={`${sectionLabel || "Área desconhecida"} · ${phaseLabel(project.phase)}`}
+                metrics={(
+                  <>
+                    <PageMetricPill label={statusLabels[project.status]} tone={project.status === "active" ? "primary" : "muted"} />
+                    <PageMetricPill label={`${project.members.length} membro${project.members.length === 1 ? "" : "s"}`} icon={<Users className="h-3.5 w-3.5" />} />
+                    <PageMetricPill label={new Date(project.last_activity_at).toLocaleDateString("pt-BR")} icon={<CalendarDays className="h-3.5 w-3.5" />} />
+                  </>
+                )}
+              />
 
-          <section
-            className={`mb-6 flex flex-col gap-4 rounded-sm border p-4 sm:flex-row sm:items-center sm:justify-between ${
-              project.status === "archived"
-                ? "border-warning/40 bg-warning/10"
-                : project.status === "completed"
-                  ? "border-primary/30 bg-primary/5"
-                  : "border-outline-variant/20 bg-surface-container-low"
-            }`}
-            aria-label="Ciclo de vida do engagement"
-          >
+              <section
+                className={`mb-6 flex flex-col gap-4 rounded-sm border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                  project.status === "archived"
+                    ? "border-warning/40 bg-warning/10"
+                    : project.status === "completed"
+                      ? "border-primary/30 bg-primary/5"
+                      : "border-outline-variant/20 bg-surface-container-low"
+                }`}
+                aria-label="Ciclo de vida do engagement"
+              >
             <div className="flex items-start gap-3">
               {project.status === "active"
                 ? <CheckCircle2 className="mt-0.5 h-5 w-5 text-primary" />
@@ -655,7 +660,9 @@ export default function RedModeProject() {
                 )}
               </div>
             )}
-          </section>
+              </section>
+            </>
+          )}
           {statusError && <p className="mb-6 text-sm text-error" role="alert">{statusError}</p>}
 
           {!validSection ? (

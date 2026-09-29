@@ -7,7 +7,9 @@ from pathlib import Path
 from time import sleep
 
 from selenium import webdriver
+from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 
 
@@ -45,10 +47,65 @@ def main() -> None:
         sleep(0.3)
         driver.save_screenshot(str(output / "desktop-light.png"))
 
+        driver.find_element(By.XPATH, "//button[@role='tab' and normalize-space()='Buscar']").click()
+        search_input = WebDriverWait(driver, 5).until(
+            lambda current: current.find_element(
+                By.CSS_SELECTOR,
+                "input[placeholder='Buscar notas, findings, fontes e alvos']",
+            )
+        )
+        search_input.send_keys("portal")
+        wait_for_text(driver, "3 resultados no engagement")
+        driver.save_screenshot(str(output / "desktop-search.png"))
+
+        driver.find_element(By.XPATH, "//button[@role='tab' and normalize-space()='Explorar']").click()
+        driver.find_element(By.CSS_SELECTOR, "button[aria-label='Fixar nota']").click()
+        wait_for_text(driver, "FIXADAS · 1")
+        driver.save_screenshot(str(output / "desktop-pinned.png"))
+
+        ActionChains(driver).key_down(Keys.CONTROL).send_keys("o").key_up(Keys.CONTROL).perform()
+        quick_switcher = WebDriverWait(driver, 5).until(
+            lambda current: current.find_element(
+                By.CSS_SELECTOR,
+                "input[placeholder='Abrir nota por título, fase ou tag']",
+            )
+        )
+        quick_switcher.send_keys("Cabeçalhos")
+        wait_for_text(driver, "Cabeçalhos observados")
+        driver.save_screenshot(str(output / "desktop-quick-switcher.png"))
+        quick_switcher.send_keys(Keys.ENTER)
+        WebDriverWait(driver, 5).until(
+            lambda current: len(current.find_elements(By.CSS_SELECTOR, "[role='tablist'][aria-label='Documentos abertos'] [role='tab']")) == 2
+        )
+        driver.save_screenshot(str(output / "desktop-tabs.png"))
+        driver.find_element(
+            By.XPATH,
+            "//div[@role='tablist' and @aria-label='Documentos abertos']//button[@role='tab' and contains(normalize-space(), 'Validação completa do portal administrativo')]",
+        ).click()
+        wait_for_text(driver, "Validação completa do portal administrativo — rascunho")
+
         driver.execute_script("document.documentElement.dataset.theme = 'dark'")
         sleep(0.3)
         driver.save_screenshot(str(output / "desktop-dark.png"))
 
+        explorer_separator = driver.find_element(
+            By.CSS_SELECTOR,
+            "[role='separator'][aria-label='Redimensionar explorador']",
+        )
+        explorer_width = int(explorer_separator.get_attribute("aria-valuenow"))
+        ActionChains(driver).click_and_hold(explorer_separator).move_by_offset(48, 0).release().perform()
+        WebDriverWait(driver, 5).until(
+            lambda current: int(current.find_element(
+                By.CSS_SELECTOR,
+                "[role='separator'][aria-label='Redimensionar explorador']",
+            ).get_attribute("aria-valuenow")) > explorer_width
+        )
+        driver.save_screenshot(str(output / "desktop-resized.png"))
+
+        driver.find_element(By.XPATH, "//button[@role='tab' and normalize-space()='Anexos']").click()
+        wait_for_text(driver, "captura-privada.png")
+        driver.save_screenshot(str(output / "desktop-attachments.png"))
+        driver.find_element(By.XPATH, "//button[@role='tab' and normalize-space()='Histórico']").click()
         revision_button = driver.find_element(
             By.XPATH,
             "//button[contains(normalize-space(), 'Revisão 2')]",
@@ -61,6 +118,7 @@ def main() -> None:
         wait_for_text(driver, "Revisão imutável 2")
         driver.save_screenshot(str(output / "desktop-history.png"))
         driver.find_element(By.XPATH, "//button[contains(normalize-space(), 'Voltar ao rascunho')]").click()
+        driver.find_element(By.XPATH, "//button[@role='tab' and normalize-space()='Dados']").click()
 
         driver.set_window_size(390, 844)
         for label, filename in (

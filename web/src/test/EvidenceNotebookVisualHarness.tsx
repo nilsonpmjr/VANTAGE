@@ -136,6 +136,38 @@ export default function EvidenceNotebookVisualHarness() {
           is_new: false,
         }] });
       }
+      if (path.endsWith("/notebook/search")) {
+        const query = (url.searchParams.get("q") || "").toLocaleLowerCase("pt-BR");
+        const requestedType = url.searchParams.get("type") || "all";
+        const items = [
+          {
+            type: "evidence", id: "note-long", reference: "[[evidence:note-long]]",
+            key: "evidence:note-long", label: notes[0].title, excerpt: notes[0].excerpt,
+            phase: notes[0].phase, updated_at: notes[0].updated_at,
+            href: "/redmode/engagements/cliente-demo/evidence?note=note-long",
+            private: false, broken: false,
+          },
+          {
+            type: "finding", id: "finding-1", reference: "[[finding:finding-1]]",
+            key: "finding:finding-1", label: "Controle de sessão insuficiente",
+            excerpt: "Finding relacionado ao portal administrativo.", phase: "exploitation",
+            updated_at: updatedAt,
+            href: "/redmode/engagements/cliente-demo/findings?finding=finding-1",
+            private: false, broken: false,
+          },
+          {
+            type: "target", id: "portal.example.test", reference: "[[target:portal.example.test]]",
+            key: "target:portal.example.test", label: "portal.example.test",
+            excerpt: "Alvo confirmado no engagement.", phase: null, updated_at: updatedAt,
+            href: "/redmode/engagements/cliente-demo/scope?target=portal.example.test",
+            private: false, broken: false,
+          },
+        ].filter((item) => (
+          (requestedType === "all" || item.type === requestedType)
+          && (!query || `${item.label} ${item.excerpt}`.toLocaleLowerCase("pt-BR").includes(query))
+        ));
+        return Response.json({ items, total: items.length });
+      }
       if (path.endsWith("/findings")) {
         return Response.json({
           items: [{
@@ -151,6 +183,9 @@ export default function EvidenceNotebookVisualHarness() {
       if (path.includes(marker)) {
         const noteId = path.split(marker, 2)[1].split("/", 1)[0];
         const note = notes.find((item) => item.id === noteId);
+        if (path.endsWith("/links") && note) {
+          return Response.json({ outgoing: [], backlinks: [] });
+        }
         if (path.endsWith("/revisions") && note) {
           const current = detail(note);
           return Response.json({ items: [
@@ -186,17 +221,9 @@ export default function EvidenceNotebookVisualHarness() {
   }, []);
 
   return (
-    <main data-workspace="redmode" className="min-h-screen bg-background p-4 text-on-surface sm:p-6">
-      <div className="mx-auto max-w-[96rem] space-y-5">
-        <header>
-          <p className="text-xs font-bold uppercase tracking-widest text-primary">Roteiro visual OM3-04</p>
-          <h1 className="mt-2 text-2xl font-bold">Caderno operacional de evidências</h1>
-          <p className="mt-2 text-sm text-on-surface-variant">
-            Valide rascunho privado, autosave, publicação, histórico e anexos em claro, escuro e tela estreita.
-          </p>
-        </header>
-        {ready ? <EvidencePanel slug="cliente-demo" findingRefresh={0} /> : <p>Preparando dados sintéticos...</p>}
-      </div>
+    <main data-workspace="redmode" className="h-screen overflow-hidden bg-background text-on-surface">
+      <h1 className="sr-only">Caderno operacional de evidências</h1>
+      {ready ? <EvidencePanel slug="cliente-demo" findingRefresh={0} /> : <p>Preparando dados sintéticos...</p>}
     </main>
   );
 }

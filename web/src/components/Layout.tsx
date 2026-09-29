@@ -115,6 +115,7 @@ export default function Layout() {
   const offensiveEngagementSlug = offensiveEngagementMatch?.[1] || null;
   const offensiveEngagementSection = offensiveEngagementMatch?.[2] || "overview";
   const isOffensiveEngagementContext = Boolean(offensiveEngagementSlug);
+  const isEvidenceWorkspace = isOffensiveEngagementContext && offensiveEngagementSection === "evidence";
   const profileTab = useMemo(() => {
     const currentTab = new URLSearchParams(location.search).get("tab");
     if (
@@ -951,7 +952,7 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 p-8 overflow-x-hidden">
+        <main className={cn("flex-1 overflow-x-hidden", isEvidenceWorkspace ? "p-0" : "p-8")}>
           {workspaceSwitchFailed && (
             <div role="alert" className="mb-6 rounded-sm border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
               {t("layout.topbar.workspaceSwitchFailed", "Could not switch workspaces. Try again.")}

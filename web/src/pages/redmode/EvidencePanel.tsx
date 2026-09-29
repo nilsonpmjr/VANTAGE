@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -12,6 +13,7 @@ import {
   AlertTriangle,
   BookOpen,
   Check,
+  ChevronsUpDown,
   Clock3,
   Copy,
   FileText,
@@ -22,12 +24,16 @@ import {
   Link2,
   Loader2,
   Paperclip,
+  PanelLeftClose,
+  PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
   Plus,
   RotateCcw,
   Search,
   Send,
+  SlidersHorizontal,
+  Star,
   Tag,
   Trash2,
   Upload,
@@ -83,6 +89,16 @@ export function phaseLabel(phase: string): string {
 
 const NOTE_PAGE_SIZE = 30;
 const NEW_NOTE_TOKEN = "new";
+const PANEL_PREFERENCES_KEY = "vantage:redmode:evidence-panel-preferences";
+const PINNED_NOTES_KEY_PREFIX = "vantage:redmode:evidence-pinned";
+const OPEN_TABS_KEY_PREFIX = "vantage:redmode:evidence-open-tabs";
+const EXPLORER_MIN_WIDTH = 240;
+const EXPLORER_MAX_WIDTH = 440;
+const EXPLORER_DEFAULT_WIDTH = 300;
+const PROPERTIES_MIN_WIDTH = 256;
+const PROPERTIES_MAX_WIDTH = 480;
+const PROPERTIES_DEFAULT_WIDTH = 320;
+const PANEL_KEYBOARD_STEP = 16;
 
 const searchTypeLabels: Record<NotebookSearchType, string> = {
   all: "Todos os tipos",
@@ -94,6 +110,8 @@ const searchTypeLabels: Record<NotebookSearchType, string> = {
 };
 
 type MobilePane = "notes" | "document" | "properties";
+type LeftPanelView = "explorer" | "search";
+type RightPanelView = "properties" | "links" | "attachments" | "history";
 
 interface EvidenceForm {
   title: string;
@@ -103,6 +121,11 @@ interface EvidenceForm {
   targets: string;
   findingIds: string[];
   attachmentIds: string[];
+}
+
+interface OpenNoteTab {
+  id: string;
+  title: string;
 }
 
 function emptyForm(): EvidenceForm {
@@ -235,6 +258,97 @@ function isFormEqual(left: EvidenceForm | null, right: EvidenceForm): boolean {
   return Boolean(left) && JSON.stringify(left) === JSON.stringify(right);
 }
 
+interface PanelPreferences {
+  explorerOpen: boolean;
+  propertiesOpen: boolean;
+  explorerWidth: number;
+  propertiesWidth: number;
+  leftPanelView: LeftPanelView;
+  rightPanelView: RightPanelView;
+}
+
+type ResizingPanel = "explorer" | "properties";
+
+function clampPanelWidth(value: unknown, minimum: number, maximum: number, fallback: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(maximum, Math.max(minimum, value))
+    : fallback;
+}
+
+function readPanelPreferences(): PanelPreferences {
+  const defaults: PanelPreferences = {
+    explorerOpen: true,
+    propertiesOpen: true,
+    explorerWidth: EXPLORER_DEFAULT_WIDTH,
+    propertiesWidth: PROPERTIES_DEFAULT_WIDTH,
+    leftPanelView: "explorer",
+    rightPanelView: "properties",
+  };
+  try {
+    const stored = window.localStorage.getItem(PANEL_PREFERENCES_KEY);
+    if (!stored) return defaults;
+    const parsed = JSON.parse(stored) as Partial<PanelPreferences>;
+    return {
+      explorerOpen: parsed.explorerOpen !== false,
+      propertiesOpen: parsed.propertiesOpen !== false,
+      explorerWidth: clampPanelWidth(
+        parsed.explorerWidth,
+        EXPLORER_MIN_WIDTH,
+        EXPLORER_MAX_WIDTH,
+        EXPLORER_DEFAULT_WIDTH,
+      ),
+      propertiesWidth: clampPanelWidth(
+        parsed.propertiesWidth,
+        PROPERTIES_MIN_WIDTH,
+        PROPERTIES_MAX_WIDTH,
+        PROPERTIES_DEFAULT_WIDTH,
+      ),
+      leftPanelView: parsed.leftPanelView === "search" ? "search" : "explorer",
+      rightPanelView: (
+        parsed.rightPanelView === "links"
+        || parsed.rightPanelView === "attachments"
+        || parsed.rightPanelView === "history"
+      ) ? parsed.rightPanelView : "properties",
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function readPinnedNoteIds(slug: string): string[] {
+  try {
+    const stored = window.localStorage.getItem(`${PINNED_NOTES_KEY_PREFIX}:${slug}`);
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed)
+      ? uniqueList(parsed.filter((value): value is string => typeof value === "string"))
+      : [];
+  } catch {
+    return [];
+  }
+}
+
+function readOpenNoteTabs(slug: string): OpenNoteTab[] {
+  try {
+    const stored = window.localStorage.getItem(`${OPEN_TABS_KEY_PREFIX}:${slug}`);
+    const parsed = stored ? JSON.parse(stored) : [];
+    if (!Array.isArray(parsed)) return [];
+    const seen = new Set<string>();
+    return parsed.flatMap((item): OpenNoteTab[] => {
+      if (
+        !item
+        || typeof item !== "object"
+        || typeof item.id !== "string"
+        || typeof item.title !== "string"
+        || seen.has(item.id)
+      ) return [];
+      seen.add(item.id);
+      return [{ id: item.id, title: item.title || "Nota sem título" }];
+    }).slice(0, 12);
+  } catch {
+    return [];
+  }
+}
+
 function ShortcutHint({ children }: { children: ReactNode }) {
   return <kbd className="rounded-sm border border-outline-variant/30 bg-surface px-1.5 py-0.5 font-mono text-[10px] text-on-surface-variant">{children}</kbd>;
 }
@@ -263,6 +377,14 @@ export default function EvidencePanel({
   ) ? requestedResultType as NotebookSearchType : "all";
   const dateFrom = searchParams.get("from") || "";
   const dateTo = searchParams.get("to") || "";
+  const searchActive = Boolean(
+    query.trim()
+    || resultType !== "all"
+    || phaseFilter !== "all"
+    || tagFilter !== "all"
+    || dateFrom
+    || dateTo,
+  );
 
   const [notes, setNotes] = useState<EvidenceNoteSummary[]>([]);
   const [drafts, setDrafts] = useState<EvidenceDraftSummary[]>([]);
@@ -299,39 +421,263 @@ export default function EvidencePanel({
   const [resolvedReferences, setResolvedReferences] = useState<EvidenceReference[]>([]);
   const [referenceLinks, setReferenceLinks] = useState<EvidenceLinks>({ outgoing: [], backlinks: [] });
   const [linksLoading, setLinksLoading] = useState(false);
-  const [propertiesOpen, setPropertiesOpen] = useState(true);
+  const initialPanelPreferences = useMemo(readPanelPreferences, []);
+  const [explorerOpen, setExplorerOpen] = useState(initialPanelPreferences.explorerOpen);
+  const [propertiesOpen, setPropertiesOpen] = useState(initialPanelPreferences.propertiesOpen);
+  const [explorerWidth, setExplorerWidth] = useState(initialPanelPreferences.explorerWidth);
+  const [propertiesWidth, setPropertiesWidth] = useState(initialPanelPreferences.propertiesWidth);
+  const [leftPanelView, setLeftPanelView] = useState<LeftPanelView>(
+    searchActive ? "search" : initialPanelPreferences.leftPanelView,
+  );
+  const [rightPanelView, setRightPanelView] = useState<RightPanelView>(initialPanelPreferences.rightPanelView);
+  const [pinnedNoteIds, setPinnedNoteIds] = useState<string[]>(() => readPinnedNoteIds(slug));
+  const [openNoteTabs, setOpenNoteTabs] = useState<OpenNoteTab[]>(() => readOpenNoteTabs(slug));
+  const [quickSwitcherOpen, setQuickSwitcherOpen] = useState(false);
+  const [quickSwitcherQuery, setQuickSwitcherQuery] = useState("");
+  const [quickSwitcherIndex, setQuickSwitcherIndex] = useState(0);
+  const [resizingPanel, setResizingPanel] = useState<ResizingPanel | null>(null);
   const [mobilePane, setMobilePane] = useState<MobilePane>(selectedToken ? "document" : "notes");
 
   const searchRef = useRef<HTMLInputElement>(null);
+  const quickSwitcherRef = useRef<HTMLInputElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const documentRef = useRef<HTMLDivElement>(null);
   const uploadRef = useRef<HTMLInputElement>(null);
+  const resizeStartRef = useRef({ clientX: 0, width: 0 });
+  const pinnedSlugRef = useRef(slug);
+  const tabsSlugRef = useRef(slug);
 
   const dirty = baseline !== null && !isFormEqual(baseline, form);
-  const searchActive = Boolean(
-    query.trim() || resultType !== "all" || phaseFilter !== "all" || dateFrom || dateTo,
-  );
   const displayedMarkdown = viewedRevision?.markdown ?? form.markdown;
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags)))
     .sort((left, right) => left.localeCompare(right, "pt-BR")), [notes]);
-  const filteredNotes = useMemo(() => {
-    const needle = query.trim().toLocaleLowerCase("pt-BR");
-    return notes.filter((note) => {
-      if (phaseFilter !== "all" && note.phase !== phaseFilter) return false;
-      if (tagFilter !== "all" && !note.tags.includes(tagFilter)) return false;
-      if (!needle) return true;
-      return [note.title, note.excerpt, note.created_by, note.revision.author, phaseLabel(note.phase), ...note.tags]
-        .some((value) => value.toLocaleLowerCase("pt-BR").includes(needle));
-    });
-  }, [notes, phaseFilter, query, tagFilter]);
   const unpublishedDrafts = useMemo(() => drafts.filter((item) => (
     item.is_new
     && !notes.some((note) => note.id === item.note_id)
-    && (phaseFilter === "all" || item.phase === phaseFilter)
-    && (tagFilter === "all" || item.tags.includes(tagFilter))
-    && (!query.trim() || [item.title, item.excerpt, item.phase, ...item.tags]
-      .some((value) => value.toLocaleLowerCase("pt-BR").includes(query.trim().toLocaleLowerCase("pt-BR"))))
-  )), [drafts, notes, phaseFilter, query, tagFilter]);
+  )), [drafts, notes]);
+  const pinnedNotes = useMemo(() => notes.filter((note) => pinnedNoteIds.includes(note.id)), [notes, pinnedNoteIds]);
+  const recentNotes = useMemo(() => notes.filter((note) => !pinnedNoteIds.includes(note.id)), [notes, pinnedNoteIds]);
+  const quickSwitcherItems = useMemo(() => {
+    const byId = new Map<string, { id: string; title: string; context: string }>();
+    notes.forEach((note) => byId.set(note.id, {
+      id: note.id,
+      title: note.title,
+      context: `${phaseLabel(note.phase)} · ${note.tags.map((tag) => `#${tag}`).join(" ")}`,
+    }));
+    drafts.forEach((item) => byId.set(item.note_id, {
+      id: item.note_id,
+      title: item.title || "Nota sem título",
+      context: `${item.is_new ? "Rascunho privado" : "Rascunho"} · ${phaseLabel(item.phase)}`,
+    }));
+    const needle = quickSwitcherQuery.trim().toLocaleLowerCase("pt-BR");
+    return Array.from(byId.values())
+      .filter((item) => !needle || `${item.title} ${item.context}`.toLocaleLowerCase("pt-BR").includes(needle))
+      .slice(0, 12);
+  }, [drafts, notes, quickSwitcherQuery]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(PANEL_PREFERENCES_KEY, JSON.stringify({
+        explorerOpen,
+        propertiesOpen,
+        explorerWidth,
+        propertiesWidth,
+        leftPanelView,
+        rightPanelView,
+      }));
+    } catch {
+      // The workspace remains usable when browser storage is unavailable.
+    }
+  }, [explorerOpen, explorerWidth, leftPanelView, propertiesOpen, propertiesWidth, rightPanelView]);
+
+  useEffect(() => {
+    if (pinnedSlugRef.current !== slug) {
+      pinnedSlugRef.current = slug;
+      setPinnedNoteIds(readPinnedNoteIds(slug));
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        `${PINNED_NOTES_KEY_PREFIX}:${slug}`,
+        JSON.stringify(pinnedNoteIds),
+      );
+    } catch {
+      // Pinning is an optional local convenience.
+    }
+  }, [pinnedNoteIds, slug]);
+
+  useEffect(() => {
+    if (tabsSlugRef.current !== slug) {
+      tabsSlugRef.current = slug;
+      setOpenNoteTabs(readOpenNoteTabs(slug));
+      return;
+    }
+    try {
+      window.localStorage.setItem(
+        `${OPEN_TABS_KEY_PREFIX}:${slug}`,
+        JSON.stringify(openNoteTabs),
+      );
+    } catch {
+      // Open tabs remain available for the current session when storage is unavailable.
+    }
+  }, [openNoteTabs, slug]);
+
+  useEffect(() => {
+    if (!selectedToken || selectedToken === NEW_NOTE_TOKEN) return;
+    const loadedDraft = draft?.note_id === selectedToken ? draft : null;
+    const loadedNote = selected?.id === selectedToken ? selected : null;
+    const draftItem = drafts.find((item) => item.note_id === selectedToken);
+    const noteItem = notes.find((item) => item.id === selectedToken);
+    const title = loadedDraft?.title
+      || loadedNote?.title
+      || draftItem?.title
+      || noteItem?.title
+      || "Nota sem título";
+    setOpenNoteTabs((current) => {
+      const existing = current.find((item) => item.id === selectedToken);
+      if (existing?.title === title) return current;
+      if (existing) return current.map((item) => item.id === selectedToken ? { ...item, title } : item);
+      return [...current, { id: selectedToken, title }].slice(-12);
+    });
+  }, [draft, drafts, notes, selected, selectedToken]);
+
+  useEffect(() => {
+    if (!quickSwitcherOpen) return;
+    setQuickSwitcherIndex(0);
+    window.requestAnimationFrame(() => quickSwitcherRef.current?.focus());
+  }, [quickSwitcherOpen, quickSwitcherQuery]);
+
+  useEffect(() => {
+    if (searchActive) setLeftPanelView("search");
+  }, [searchActive]);
+
+  useEffect(() => {
+    if (!resizingPanel) return undefined;
+
+    const previousCursor = document.body.style.cursor;
+    const previousUserSelect = document.body.style.userSelect;
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function handlePointerMove(event: PointerEvent) {
+      const delta = event.clientX - resizeStartRef.current.clientX;
+      if (resizingPanel === "explorer") {
+        setExplorerWidth(clampPanelWidth(
+          resizeStartRef.current.width + delta,
+          EXPLORER_MIN_WIDTH,
+          EXPLORER_MAX_WIDTH,
+          EXPLORER_DEFAULT_WIDTH,
+        ));
+      } else {
+        setPropertiesWidth(clampPanelWidth(
+          resizeStartRef.current.width - delta,
+          PROPERTIES_MIN_WIDTH,
+          PROPERTIES_MAX_WIDTH,
+          PROPERTIES_DEFAULT_WIDTH,
+        ));
+      }
+    }
+
+    function stopResizing() {
+      setResizingPanel(null);
+    }
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", stopResizing);
+    window.addEventListener("pointercancel", stopResizing);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", stopResizing);
+      window.removeEventListener("pointercancel", stopResizing);
+      document.body.style.cursor = previousCursor;
+      document.body.style.userSelect = previousUserSelect;
+    };
+  }, [resizingPanel]);
+
+  function startPanelResize(event: ReactPointerEvent<HTMLDivElement>, panel: ResizingPanel) {
+    event.preventDefault();
+    resizeStartRef.current = {
+      clientX: event.clientX,
+      width: panel === "explorer" ? explorerWidth : propertiesWidth,
+    };
+    setResizingPanel(panel);
+  }
+
+  function resizePanelWithKeyboard(
+    event: ReactKeyboardEvent<HTMLDivElement>,
+    panel: ResizingPanel,
+  ) {
+    if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+    event.preventDefault();
+    const change = event.key === "ArrowRight" ? PANEL_KEYBOARD_STEP : -PANEL_KEYBOARD_STEP;
+    if (panel === "explorer") {
+      setExplorerWidth((current) => clampPanelWidth(
+        current + change,
+        EXPLORER_MIN_WIDTH,
+        EXPLORER_MAX_WIDTH,
+        EXPLORER_DEFAULT_WIDTH,
+      ));
+    } else {
+      setPropertiesWidth((current) => clampPanelWidth(
+        current + change,
+        PROPERTIES_MIN_WIDTH,
+        PROPERTIES_MAX_WIDTH,
+        PROPERTIES_DEFAULT_WIDTH,
+      ));
+    }
+  }
+
+  function togglePinnedNote(noteId: string) {
+    setPinnedNoteIds((current) => current.includes(noteId)
+      ? current.filter((id) => id !== noteId)
+      : [...current, noteId]);
+  }
+
+  function openQuickSwitcher() {
+    setQuickSwitcherQuery("");
+    setQuickSwitcherIndex(0);
+    setQuickSwitcherOpen(true);
+  }
+
+  function chooseQuickSwitcherItem(noteId: string) {
+    if (noteId !== selectedToken && !confirmDiscard()) return;
+    setQuickSwitcherOpen(false);
+    setMobilePane("document");
+    if (noteId !== selectedToken) updateLocation("note", noteId, false);
+    else focusDocument();
+  }
+
+  function closeNoteTab(noteId: string) {
+    const index = openNoteTabs.findIndex((item) => item.id === noteId);
+    if (index < 0 || (noteId === selectedToken && !confirmDiscard())) return;
+    const nextTabs = openNoteTabs.filter((item) => item.id !== noteId);
+    setOpenNoteTabs(nextTabs);
+    if (noteId !== selectedToken) return;
+    const fallback = nextTabs[Math.min(index, nextTabs.length - 1)];
+    updateLocation("note", fallback?.id, false);
+    if (!fallback) setMobilePane("notes");
+  }
+
+  function quickSwitcherKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      setQuickSwitcherOpen(false);
+      return;
+    }
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (quickSwitcherItems.length === 0) return;
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      setQuickSwitcherIndex((current) => (
+        current + direction + quickSwitcherItems.length
+      ) % quickSwitcherItems.length);
+      return;
+    }
+    if (event.key === "Enter" && quickSwitcherItems[quickSwitcherIndex]) {
+      event.preventDefault();
+      chooseQuickSwitcherItem(quickSwitcherItems[quickSwitcherIndex].id);
+    }
+  }
 
   function updateLocation(
     key: "note" | "q" | "phase" | "tag" | "type" | "from" | "to",
@@ -342,6 +688,13 @@ export default function EvidencePanel({
     if (value && value !== "all") next.set(key, value);
     else next.delete(key);
     setSearchParams(next, { replace });
+  }
+
+  function clearSearchFilters() {
+    const next = new URLSearchParams(searchParams);
+    ["q", "phase", "tag", "type", "from", "to"].forEach((key) => next.delete(key));
+    setSearchParams(next, { replace: true });
+    window.requestAnimationFrame(() => searchRef.current?.focus());
   }
 
   function confirmDiscard(): boolean {
@@ -894,8 +1247,12 @@ export default function EvidencePanel({
         void startNewNote();
       } else if (key === "k") {
         event.preventDefault();
+        setLeftPanelView("search");
         setMobilePane("notes");
         window.requestAnimationFrame(() => searchRef.current?.focus());
+      } else if (key === "o") {
+        event.preventDefault();
+        openQuickSwitcher();
       } else if (key === "p" && event.shiftKey) {
         event.preventDefault();
         setPropertiesOpen((current) => {
@@ -938,8 +1295,85 @@ export default function EvidencePanel({
             ? "Rascunho privado"
             : "Sem rascunho";
 
+  function renderDraftRows(items: EvidenceDraftSummary[]) {
+    return (
+      <ul className="divide-y divide-outline-variant/20" aria-label="Rascunhos ainda não publicados">
+        {items.map((item) => (
+          <li key={item.note_id}>
+            <button
+              type="button"
+              aria-current={selectedToken === item.note_id ? "page" : undefined}
+              className={`w-full border-l-2 p-3 text-left transition focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary ${selectedToken === item.note_id ? "border-l-primary bg-primary/10" : "border-l-warning bg-warning/5 hover:bg-warning/10"}`}
+              onClick={() => chooseNote(item.note_id)}
+            >
+              <span className="flex items-center justify-between gap-2">
+                <span className="truncate text-sm font-semibold text-on-surface">{item.title || "Nota sem título"}</span>
+                <span className="badge badge-warning">Rascunho privado</span>
+              </span>
+              {item.excerpt && <span className="mt-1 line-clamp-2 block text-xs text-on-surface-variant">{item.excerpt}</span>}
+              <span className="mt-2 block text-[11px] text-on-surface-variant">Ainda não publicado · salvo em {formatDate(item.updated_at)}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  function renderNoteRows(items: EvidenceNoteSummary[], label: string) {
+    return (
+      <ul className="divide-y divide-outline-variant/20" aria-label={label}>
+        {items.map((note) => {
+          const active = selectedToken === note.id;
+          const conflicted = conflicts.has(note.id);
+          const hasDraft = drafts.some((item) => item.note_id === note.id);
+          const pinned = pinnedNoteIds.includes(note.id);
+          const titleId = `evidence-note-title-${note.id}`;
+          return (
+            <li key={note.id} className="relative">
+              <button
+                type="button"
+                aria-current={active ? "page" : undefined}
+                onClick={() => chooseNote(note.id)}
+                className={`w-full border-l-2 p-3 pr-10 text-left transition focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary ${active ? "border-l-primary bg-primary/10" : "border-l-transparent bg-transparent hover:bg-surface-container"}`}
+              >
+                <span className="flex items-start justify-between gap-2">
+                  <span id={titleId} className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">{note.title}</span>
+                  {(conflicted || hasDraft) && (
+                    <span className="badge badge-warning shrink-0">{conflicted ? "Conflito" : "Rascunho privado"}</span>
+                  )}
+                </span>
+                {note.excerpt && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-on-surface-variant">{note.excerpt}</span>}
+                <span className="mt-2 block text-[11px] text-on-surface-variant">
+                  {phaseLabel(note.phase)} · {note.revision.author} · rev. {note.revision.number}
+                </span>
+                <span className="mt-1 block text-[11px] text-on-surface-variant">Atualizada em {formatDate(note.updated_at)}</span>
+                {note.tags.length > 0 && (
+                  <span className="mt-2 flex flex-wrap gap-1">
+                    {note.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-sm bg-surface-container-high px-1.5 py-0.5 text-[10px] text-on-surface-variant">#{tag}</span>)}
+                    {note.tags.length > 4 && <span className="text-[10px] text-on-surface-variant">+{note.tags.length - 4}</span>}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                aria-label={pinned ? "Desafixar nota" : "Fixar nota"}
+                aria-describedby={titleId}
+                aria-pressed={pinned}
+                title={pinned ? "Remover dos fixados" : "Adicionar aos fixados"}
+                className={`absolute bottom-2 right-2 rounded-sm p-1.5 focus-visible:outline-2 focus-visible:outline-primary ${pinned ? "text-primary" : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"}`}
+                onClick={() => togglePinnedNote(note.id)}
+              >
+                <Star className={`h-3.5 w-3.5 ${pinned ? "fill-current" : ""}`} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
   const noteList = (
-    <aside className={`${mobilePane === "notes" ? "flex" : "hidden"} min-h-[34rem] flex-col border-r border-outline-variant/20 bg-surface-container-low/60 lg:flex lg:min-h-0`} aria-label="Navegação das notas">
+    <aside className={`${mobilePane === "notes" ? "flex" : "hidden"} relative min-h-[34rem] flex-col border-r border-outline-variant/20 bg-surface-container-low/60 ${explorerOpen ? "lg:flex" : "lg:hidden"} lg:min-h-0`} aria-label="Navegação das notas">
       <div className="space-y-3 border-b border-outline-variant/20 p-3">
         <div className="flex items-center justify-between gap-2">
           <div>
@@ -953,98 +1387,105 @@ export default function EvidencePanel({
               {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova
             </button>
           )}
+          <button
+            type="button"
+            className="hidden rounded-sm p-2 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary lg:inline-flex"
+            aria-label="Fechar explorador"
+            title="Fechar explorador"
+            onClick={() => {
+              setExplorerOpen(false);
+              focusDocument();
+            }}
+          >
+            <PanelLeftClose className="h-4 w-4" />
+          </button>
         </div>
-        <label className="relative block">
-          <span className="sr-only">Buscar notas</span>
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
-          <input
-            ref={searchRef}
-            type="search"
-            value={query}
-            onChange={(event) => updateLocation("q", event.target.value)}
-            placeholder="Buscar notas, findings, fontes e alvos"
-            className="w-full rounded-sm border border-outline-variant/30 bg-surface py-2 pl-9 pr-3 text-sm text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
-          />
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          <label>
-            <span className="sr-only">Filtrar notas por fase</span>
-            <select
-              value={phaseFilter}
-              onChange={(event) => updateLocation("phase", event.target.value)}
-              className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface"
-            >
-              <option value="all">Todas as fases</option>
-              {ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Filtrar por tipo</span>
-            <select
-              value={resultType}
-              onChange={(event) => updateLocation("type", event.target.value)}
-              className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface"
-            >
-              {Object.entries(searchTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-            </select>
-          </label>
-          <label>
-            <span className="sr-only">Filtrar notas por tag</span>
-            <select
-              value={tagFilter}
-              onChange={(event) => updateLocation("tag", event.target.value)}
-              className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface"
-            >
-              <option value="all">Todas as tags</option>
-              {tagFilter !== "all" && !allTags.includes(tagFilter) && <option value={tagFilter}>{tagFilter}</option>}
-              {allTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
-            </select>
-          </label>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-            Desde
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(event) => updateLocation("from", event.target.value)}
-              className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface"
-            />
-          </label>
-          <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
-            Até
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(event) => updateLocation("to", event.target.value)}
-              className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface"
-            />
-          </label>
+
+        <div className="grid grid-cols-2 rounded-sm bg-surface p-1" role="tablist" aria-label="Modo do painel esquerdo">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={leftPanelView === "explorer"}
+            className={`inline-flex items-center justify-center gap-2 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "explorer" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            onClick={() => setLeftPanelView("explorer")}
+          >
+            <BookOpen className="h-3.5 w-3.5" /> Explorar
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={leftPanelView === "search"}
+            className={`inline-flex items-center justify-center gap-2 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "search" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            onClick={() => {
+              setLeftPanelView("search");
+              window.requestAnimationFrame(() => searchRef.current?.focus());
+            }}
+          >
+            <Search className="h-3.5 w-3.5" /> Buscar
+          </button>
         </div>
+
+        {leftPanelView === "search" && (
+          <>
+            <label className="relative block">
+              <span className="sr-only">Buscar notas</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-on-surface-variant" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={query}
+                onChange={(event) => updateLocation("q", event.target.value)}
+                placeholder="Buscar notas, findings, fontes e alvos"
+                className="w-full rounded-sm border border-outline-variant/30 bg-surface py-2 pl-9 pr-3 text-sm text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <label>
+                <span className="sr-only">Filtrar notas por fase</span>
+                <select value={phaseFilter} onChange={(event) => updateLocation("phase", event.target.value)} className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface">
+                  <option value="all">Todas as fases</option>
+                  {ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Filtrar por tipo</span>
+                <select value={resultType} onChange={(event) => updateLocation("type", event.target.value)} className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface">
+                  {Object.entries(searchTypeLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+                </select>
+              </label>
+              <label>
+                <span className="sr-only">Filtrar notas por tag</span>
+                <select value={tagFilter} onChange={(event) => updateLocation("tag", event.target.value)} className="w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-2 text-xs text-on-surface">
+                  <option value="all">Todas as tags</option>
+                  {tagFilter !== "all" && !allTags.includes(tagFilter) && <option value={tagFilter}>{tagFilter}</option>}
+                  {allTags.map((tag) => <option key={tag} value={tag}>{tag}</option>)}
+                </select>
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Desde
+                <input type="date" value={dateFrom} onChange={(event) => updateLocation("from", event.target.value)} className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface" />
+              </label>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-on-surface-variant">
+                Até
+                <input type="date" value={dateTo} onChange={(event) => updateLocation("to", event.target.value)} className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface px-2 py-1.5 text-xs font-normal normal-case tracking-normal text-on-surface" />
+              </label>
+              {searchActive && (
+                <button type="button" className="rounded-sm px-2 py-1.5 text-xs font-bold text-primary hover:bg-primary/10" onClick={clearSearchFilters}>Limpar filtros</button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-2">
-        {!searchActive && unpublishedDrafts.length > 0 && (
-          <ul className="mb-2 space-y-2" aria-label="Rascunhos ainda não publicados">
-            {unpublishedDrafts.map((item) => (
-              <li key={item.note_id}>
-                <button
-                  type="button"
-                  aria-current={selectedToken === item.note_id ? "page" : undefined}
-                  className={`w-full rounded-sm border p-3 text-left ${selectedToken === item.note_id ? "border-primary/60 bg-primary/10" : "border-warning/30 bg-warning/5"}`}
-                  onClick={() => chooseNote(item.note_id)}
-                >
-                  <span className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold text-on-surface">{item.title || "Nota sem título"}</span>
-                    <span className="badge badge-warning">Rascunho privado</span>
-                  </span>
-                  {item.excerpt && <span className="mt-1 line-clamp-2 block text-xs text-on-surface-variant">{item.excerpt}</span>}
-                  <span className="mt-2 block text-[11px] text-on-surface-variant">Ainda não publicado · salvo em {formatDate(item.updated_at)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-        {searchActive ? (
-          searchLoading ? (
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {leftPanelView === "search" ? (
+          !searchActive ? (
+            <div className="p-5 text-center">
+              <Search className="mx-auto h-6 w-6 text-on-surface-variant" />
+              <p className="mt-3 text-sm font-semibold text-on-surface">Busque no engagement</p>
+              <p className="mt-1 text-xs leading-5 text-on-surface-variant">Notas, rascunhos, findings, fontes e alvos aparecem juntos, identificados pelo tipo.</p>
+            </div>
+          ) : searchLoading ? (
             <p className="flex items-center gap-2 p-3 text-sm text-on-surface-variant"><Loader2 className="h-4 w-4 animate-spin" /> Pesquisando o engagement...</p>
           ) : searchError ? (
             <p className="p-3 text-sm text-error" role="alert">{searchError}</p>
@@ -1056,25 +1497,17 @@ export default function EvidencePanel({
             </div>
           ) : (
             <>
-              <p className="px-2 pb-2 text-[11px] text-on-surface-variant">{searchTotal} resultado{searchTotal === 1 ? "" : "s"} no engagement</p>
-              <ul className="space-y-2" aria-label="Resultados da pesquisa">
+              <p className="border-b border-outline-variant/20 px-3 py-2 text-[11px] text-on-surface-variant">{searchTotal} resultado{searchTotal === 1 ? "" : "s"} no engagement</p>
+              <ul className="divide-y divide-outline-variant/20" aria-label="Resultados da pesquisa">
                 {searchResults.map((result) => (
                   <li key={`${result.type}-${result.id}`}>
-                    <button
-                      type="button"
-                      className="w-full rounded-sm border border-transparent bg-surface-container p-3 text-left transition hover:border-outline-variant/40 focus-visible:outline-2 focus-visible:outline-primary"
-                      onClick={() => openSearchResult(result)}
-                    >
+                    <button type="button" className="w-full border-l-2 border-l-transparent bg-transparent p-3 text-left transition hover:bg-surface-container focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary" onClick={() => openSearchResult(result)}>
                       <span className="flex items-start justify-between gap-2">
                         <span className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">{result.label}</span>
-                        <span className={`badge shrink-0 ${result.private ? "badge-warning" : "badge-neutral"}`}>
-                          {result.private ? "Rascunho privado" : searchTypeLabels[result.type]}
-                        </span>
+                        <span className={`badge shrink-0 ${result.private ? "badge-warning" : "badge-neutral"}`}>{result.private ? "Rascunho privado" : searchTypeLabels[result.type]}</span>
                       </span>
                       {result.excerpt && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-on-surface-variant">{result.excerpt}</span>}
-                      <span className="mt-2 block text-[11px] text-on-surface-variant">
-                        {result.phase ? `${phaseLabel(result.phase)} · ` : ""}{formatDate(result.updated_at)}
-                      </span>
+                      <span className="mt-2 block text-[11px] text-on-surface-variant">{result.phase ? `${phaseLabel(result.phase)} · ` : ""}{formatDate(result.updated_at)}</span>
                     </button>
                   </li>
                 ))}
@@ -1088,66 +1521,116 @@ export default function EvidencePanel({
             <p className="text-error" role="alert">{listError}</p>
             <button type="button" className="mt-3 font-semibold text-primary hover:underline" onClick={() => setListReload((value) => value + 1)}>Tentar novamente</button>
           </div>
-        ) : filteredNotes.length === 0 && unpublishedDrafts.length === 0 ? (
+        ) : notes.length === 0 && unpublishedDrafts.length === 0 ? (
           <div className="p-4 text-center">
             <BookOpen className="mx-auto h-6 w-6 text-on-surface-variant" />
-            <p className="mt-3 text-sm font-semibold text-on-surface">
-              {total === 0 ? "Nenhuma nota publicada" : "Nenhuma nota encontrada"}
-            </p>
-            <p className="mt-1 text-xs text-on-surface-variant">
-              {total === 0 ? "Crie a primeira nota do engagement." : "Ajuste a busca ou os filtros."}
-            </p>
+            <p className="mt-3 text-sm font-semibold text-on-surface">Nenhuma nota publicada</p>
+            <p className="mt-1 text-xs text-on-surface-variant">Crie a primeira nota do engagement.</p>
           </div>
         ) : (
-          <ul className="space-y-2">
-            {filteredNotes.map((note) => {
-              const active = selectedToken === note.id;
-              const conflicted = conflicts.has(note.id);
-              const hasDraft = drafts.some((item) => item.note_id === note.id);
-              return (
-                <li key={note.id}>
-                  <button
-                    type="button"
-                    aria-current={active ? "page" : undefined}
-                    onClick={() => chooseNote(note.id)}
-                    className={`w-full rounded-sm border p-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary ${active ? "border-primary/60 bg-primary/10" : "border-transparent bg-surface-container hover:border-outline-variant/40"}`}
-                  >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="min-w-0 flex-1 truncate text-sm font-semibold text-on-surface">{note.title}</span>
-                      <span className={`badge shrink-0 ${conflicted || hasDraft ? "badge-warning" : "badge-neutral"}`}>{conflicted ? "Conflito" : hasDraft ? "Rascunho privado" : "Publicada"}</span>
-                    </span>
-                    {note.excerpt && <span className="mt-1 line-clamp-2 block text-xs leading-5 text-on-surface-variant">{note.excerpt}</span>}
-                    <span className="mt-2 block text-[11px] text-on-surface-variant">
-                      {phaseLabel(note.phase)} · {note.revision.author} · rev. {note.revision.number}
-                    </span>
-                    <span className="mt-1 block text-[11px] text-on-surface-variant">Atualizada em {formatDate(note.updated_at)}</span>
-                    {note.tags.length > 0 && (
-                      <span className="mt-2 flex flex-wrap gap-1">
-                        {note.tags.slice(0, 4).map((tag) => <span key={tag} className="rounded-sm bg-surface-container-high px-1.5 py-0.5 text-[10px] text-on-surface-variant">#{tag}</span>)}
-                        {note.tags.length > 4 && <span className="text-[10px] text-on-surface-variant">+{note.tags.length - 4}</span>}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {!searchActive && listError && notes.length > 0 && <p className="p-3 text-xs text-error" role="alert">{listError}</p>}
-        {!searchActive && notes.length < total && (
-          <button type="button" className="mt-2 w-full rounded-sm px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10" disabled={listLoadingMore} onClick={() => void loadMore()}>
-            {listLoadingMore ? "Carregando..." : `Carregar mais · ${notes.length} de ${total}`}
-          </button>
+          <>
+            {unpublishedDrafts.length > 0 && (
+              <section className="border-b border-outline-variant/20" aria-labelledby="evidence-private-drafts">
+                <p id="evidence-private-drafts" className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Rascunhos privados · {unpublishedDrafts.length}</p>
+                {renderDraftRows(unpublishedDrafts)}
+              </section>
+            )}
+            {pinnedNotes.length > 0 && (
+              <section className="border-b border-outline-variant/20" aria-labelledby="evidence-pinned-notes">
+                <p id="evidence-pinned-notes" className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Fixadas · {pinnedNotes.length}</p>
+                {renderNoteRows(pinnedNotes, "Notas fixadas")}
+              </section>
+            )}
+            {recentNotes.length > 0 && (
+              <section aria-labelledby="evidence-recent-notes">
+                <p id="evidence-recent-notes" className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Recentes</p>
+                {renderNoteRows(recentNotes, "Notas recentes")}
+              </section>
+            )}
+            {listError && notes.length > 0 && <p className="p-3 text-xs text-error" role="alert">{listError}</p>}
+            {notes.length < total && (
+              <button type="button" className="w-full rounded-sm px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10" disabled={listLoadingMore} onClick={() => void loadMore()}>
+                {listLoadingMore ? "Carregando..." : `Carregar mais · ${notes.length} de ${total}`}
+              </button>
+            )}
+          </>
         )}
       </div>
       <div className="hidden border-t border-outline-variant/20 px-3 py-2 text-[10px] text-on-surface-variant xl:flex xl:flex-wrap xl:gap-2">
-        <ShortcutHint>Ctrl+N</ShortcutHint> nova <ShortcutHint>Ctrl+K</ShortcutHint> busca
+        <ShortcutHint>Ctrl+N</ShortcutHint> nova <ShortcutHint>Ctrl+K</ShortcutHint> busca <ShortcutHint>Ctrl+O</ShortcutHint> abrir
+      </div>
+      <div
+        role="separator"
+        aria-label="Redimensionar explorador"
+        aria-orientation="vertical"
+        aria-valuemin={EXPLORER_MIN_WIDTH}
+        aria-valuemax={EXPLORER_MAX_WIDTH}
+        aria-valuenow={Math.round(explorerWidth)}
+        aria-valuetext={`${Math.round(explorerWidth)} pixels de largura`}
+        tabIndex={0}
+        className={`group absolute inset-y-0 -right-1 z-20 hidden w-2 cursor-col-resize touch-none focus-visible:outline-2 focus-visible:outline-primary lg:block ${resizingPanel === "explorer" ? "bg-primary/10" : ""}`}
+        onPointerDown={(event) => startPanelResize(event, "explorer")}
+        onKeyDown={(event) => resizePanelWithKeyboard(event, "explorer")}
+      >
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition group-hover:bg-primary/50 group-focus-visible:bg-primary" />
       </div>
     </aside>
   );
 
+  const documentTabs = openNoteTabs.length > 0 && (
+    <div className="hidden min-w-0 items-stretch border-b border-outline-variant/20 bg-surface-container-low lg:flex">
+      <div className="flex min-w-0 flex-1 overflow-x-auto" role="tablist" aria-label="Documentos abertos">
+        {openNoteTabs.map((tab) => {
+          const active = tab.id === selectedToken;
+          return (
+            <div key={tab.id} className={`flex max-w-60 shrink-0 items-center border-r border-outline-variant/20 ${active ? "bg-surface" : "bg-transparent"}`}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={active}
+                className={`flex min-w-0 items-center gap-2 px-3 py-2 text-xs focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary ${active ? "font-bold text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+                onClick={() => chooseNote(tab.id)}
+              >
+                {active && dirty && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-warning" title="Alterações locais" />}
+                <span className="truncate">{tab.title}</span>
+              </button>
+              <button
+                type="button"
+                className="mr-1 rounded-sm p-1 text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
+                aria-label={`Fechar aba ${tab.title}`}
+                onClick={() => closeNoteTab(tab.id)}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        className="inline-flex shrink-0 items-center gap-1.5 border-l border-outline-variant/20 px-3 text-xs font-semibold text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface focus-visible:outline-2 focus-visible:outline-primary"
+        onClick={openQuickSwitcher}
+        title="Alternador rápido (Ctrl+O)"
+      >
+        <ChevronsUpDown className="h-3.5 w-3.5" /> Abrir
+      </button>
+    </div>
+  );
+
   const documentPanel = (
-    <main ref={documentRef} className={`${mobilePane === "document" ? "flex" : "hidden"} min-w-0 flex-col bg-surface lg:flex`} aria-label="Documento da evidência">
+    <main ref={documentRef} className={`${mobilePane === "document" ? "flex" : "hidden"} relative min-w-0 flex-col bg-surface lg:flex`} aria-label="Documento da evidência">
+      {documentTabs}
+      {!explorerOpen && (!selectedToken || detailLoading || detailError) && (
+        <button
+          type="button"
+          className="btn btn-ghost absolute left-3 top-3 z-10 hidden px-2 lg:inline-flex"
+          aria-label="Abrir explorador"
+          title="Abrir explorador"
+          onClick={() => setExplorerOpen(true)}
+        >
+          <PanelLeftOpen className="h-4 w-4" />
+        </button>
+      )}
       {!selectedToken ? (
         <div className="grid min-h-[34rem] flex-1 place-items-center p-8 text-center lg:min-h-0">
           <div>
@@ -1170,7 +1653,7 @@ export default function EvidencePanel({
       ) : (
         <>
           <div className="border-b border-outline-variant/20 bg-surface-container-lowest px-4 py-3 sm:px-5">
-            <div className="flex items-start gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
               <label className="min-w-0 flex-1">
                 <span className="sr-only">Título da nota</span>
                 <input
@@ -1183,7 +1666,18 @@ export default function EvidencePanel({
                   className="w-full border-0 bg-transparent text-xl font-bold tracking-tight text-on-surface outline-none placeholder:text-on-surface-variant/50 focus-visible:ring-2 focus-visible:ring-primary"
                 />
               </label>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
+                {!explorerOpen && (
+                  <button
+                    type="button"
+                    className="btn btn-ghost hidden px-2 lg:inline-flex"
+                    aria-label="Abrir explorador"
+                    title="Abrir explorador"
+                    onClick={() => setExplorerOpen(true)}
+                  >
+                    <PanelLeftOpen className="h-4 w-4" />
+                  </button>
+                )}
                 {!readOnly && (
                   <button
                     type="button"
@@ -1282,11 +1776,11 @@ export default function EvidencePanel({
   );
 
   const propertiesPanel = (
-    <aside className={`${propertiesOpen && mobilePane === "properties" ? "flex" : "hidden"} min-h-[34rem] flex-col border-l border-outline-variant/20 bg-surface-container-low/60 ${propertiesOpen ? "lg:flex lg:min-h-0" : "lg:hidden"}`} aria-label="Propriedades da nota">
+    <aside className={`${propertiesOpen && mobilePane === "properties" ? "flex" : "hidden"} relative min-h-[34rem] flex-col border-l border-outline-variant/20 bg-surface-container-low/60 ${propertiesOpen ? "lg:flex lg:min-h-0" : "lg:hidden"}`} aria-label="Contexto da nota">
       <div className="flex items-center justify-between border-b border-outline-variant/20 px-4 py-3">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Propriedades</p>
-          <p className="mt-1 text-xs text-on-surface-variant">Contexto estruturado da nota</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-on-surface-variant">Contexto</p>
+          <p className="mt-1 text-xs text-on-surface-variant">Dados e relações da nota</p>
         </div>
         <button
           type="button"
@@ -1301,11 +1795,32 @@ export default function EvidencePanel({
           <X className="h-4 w-4" />
         </button>
       </div>
+      <div className="grid grid-cols-4 gap-1 border-b border-outline-variant/20 bg-surface p-1" role="tablist" aria-label="Seções do contexto">
+        {([
+          ["properties", "Dados", SlidersHorizontal],
+          ["links", "Links", Link2],
+          ["attachments", "Anexos", Paperclip],
+          ["history", "Histórico", History],
+        ] as Array<[RightPanelView, string, typeof SlidersHorizontal]>).map(([view, label, Icon]) => (
+          <button
+            key={view}
+            type="button"
+            role="tab"
+            aria-selected={rightPanelView === view}
+            className={`inline-flex min-w-0 flex-col items-center gap-1 rounded-sm px-1 py-1.5 text-[10px] font-bold focus-visible:outline-2 focus-visible:outline-primary ${rightPanelView === view ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            onClick={() => setRightPanelView(view)}
+          >
+            <Icon className="h-3.5 w-3.5" />
+            <span className="truncate">{label}</span>
+          </button>
+        ))}
+      </div>
       {!selectedToken || detailLoading || detailError ? (
         <p className="p-4 text-sm text-on-surface-variant">Abra uma nota para consultar e editar suas propriedades.</p>
       ) : (
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-4">
-          <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+          {rightPanelView === "properties" && (<>
+            <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">
             Fase PTES
             <select
               value={form.phase}
@@ -1367,9 +1882,25 @@ export default function EvidencePanel({
                 ))}
               </div>
             )}
-          </fieldset>
+            </fieldset>
 
-          <section className="border-t border-outline-variant/20 pt-4" aria-label="Referências internas">
+            {draft && !readOnly && !viewedRevision && (
+              <button type="button" className="inline-flex items-center gap-2 text-xs font-bold text-error hover:underline" onClick={() => void discardDraftAndReload()}>
+                <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho privado
+              </button>
+            )}
+
+            <dl className="space-y-3 border-t border-outline-variant/20 pt-4 text-xs">
+              <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Autoria</dt><dd className="mt-1 text-on-surface">{draft?.author || selected?.created_by || "Você"}{draft ? " · rascunho privado" : ""}</dd></div>
+              {selected && <>
+                <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Criada</dt><dd className="mt-1 text-on-surface">{formatDate(selected.created_at)}</dd></div>
+                <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Atualizada</dt><dd className="mt-1 text-on-surface">{formatDate(selected.updated_at)}</dd></div>
+                <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Identificador</dt><dd className="mt-1 break-all font-mono text-on-surface">{selected.id}</dd></div>
+              </>}
+            </dl>
+          </>)}
+
+          {rightPanelView === "links" && <section aria-label="Referências internas">
             <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant"><Link2 className="h-3.5 w-3.5" /> Referências</p>
             <p className="mt-1 text-[11px] text-on-surface-variant">Digite <code>[[</code> no editor para ligar uma evidência, finding, fonte ou alvo.</p>
             {linksLoading && resolvedReferences.length === 0 ? (
@@ -1415,9 +1946,9 @@ export default function EvidencePanel({
                 )}
               </div>
             )}
-          </section>
+          </section>}
 
-          <section className="border-t border-outline-variant/20 pt-4">
+          {rightPanelView === "attachments" && <section>
             <div className="flex items-center justify-between gap-2">
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant"><Paperclip className="h-3.5 w-3.5" /> Anexos</p>
               {!readOnly && (
@@ -1469,10 +2000,10 @@ export default function EvidencePanel({
                 })}
               </ul>
             )}
-          </section>
+          </section>}
 
-          {selected && (
-            <section className="border-t border-outline-variant/20 pt-4">
+          {rightPanelView === "history" && selected && (
+            <section>
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-on-surface-variant"><History className="h-3.5 w-3.5" /> Histórico da equipe</p>
               {historyLoading ? (
                 <p className="mt-2 flex items-center gap-2 text-xs text-on-surface-variant"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Carregando revisões...</p>
@@ -1496,22 +2027,23 @@ export default function EvidencePanel({
             </section>
           )}
 
-          {draft && !readOnly && !viewedRevision && (
-            <button type="button" className="inline-flex items-center gap-2 text-xs font-bold text-error hover:underline" onClick={() => void discardDraftAndReload()}>
-              <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho privado
-            </button>
-          )}
-
-          <dl className="space-y-3 border-t border-outline-variant/20 pt-4 text-xs">
-            <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Autoria</dt><dd className="mt-1 text-on-surface">{draft?.author || selected?.created_by || "Você"}{draft ? " · rascunho privado" : ""}</dd></div>
-            {selected && <>
-              <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Criada</dt><dd className="mt-1 text-on-surface">{formatDate(selected.created_at)}</dd></div>
-              <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Atualizada</dt><dd className="mt-1 text-on-surface">{formatDate(selected.updated_at)}</dd></div>
-              <div><dt className="font-bold uppercase tracking-wider text-on-surface-variant">Identificador</dt><dd className="mt-1 break-all font-mono text-on-surface">{selected.id}</dd></div>
-            </>}
-          </dl>
         </div>
       )}
+      <div
+        role="separator"
+        aria-label="Redimensionar propriedades"
+        aria-orientation="vertical"
+        aria-valuemin={PROPERTIES_MIN_WIDTH}
+        aria-valuemax={PROPERTIES_MAX_WIDTH}
+        aria-valuenow={Math.round(propertiesWidth)}
+        aria-valuetext={`${Math.round(propertiesWidth)} pixels de largura`}
+        tabIndex={0}
+        className={`group absolute inset-y-0 -left-1 z-20 hidden w-2 cursor-col-resize touch-none focus-visible:outline-2 focus-visible:outline-primary lg:block ${resizingPanel === "properties" ? "bg-primary/10" : ""}`}
+        onPointerDown={(event) => startPanelResize(event, "properties")}
+        onKeyDown={(event) => resizePanelWithKeyboard(event, "properties")}
+      >
+        <span className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-transparent transition group-hover:bg-primary/50 group-focus-visible:bg-primary" />
+      </div>
     </aside>
   );
 
@@ -1526,7 +2058,65 @@ export default function EvidencePanel({
   }
 
   return (
-    <section className="card overflow-hidden" aria-label="Caderno operacional de evidências">
+    <section className="flex h-full min-h-0 flex-col overflow-hidden bg-background" aria-label="Caderno operacional de evidências">
+      {quickSwitcherOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-background/70 px-4 pt-[12vh] backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) setQuickSwitcherOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="evidence-quick-switcher-title"
+            className="w-full max-w-xl overflow-hidden rounded-sm border border-outline-variant/30 bg-surface shadow-2xl"
+          >
+            <div className="flex items-center gap-3 border-b border-outline-variant/20 px-4 py-3">
+              <Search className="h-4 w-4 shrink-0 text-on-surface-variant" />
+              <div className="min-w-0 flex-1">
+                <h2 id="evidence-quick-switcher-title" className="sr-only">Abrir nota rapidamente</h2>
+                <input
+                  ref={quickSwitcherRef}
+                  value={quickSwitcherQuery}
+                  onChange={(event) => setQuickSwitcherQuery(event.target.value)}
+                  onKeyDown={quickSwitcherKeyDown}
+                  aria-controls="evidence-quick-switcher-results"
+                  aria-activedescendant={quickSwitcherItems[quickSwitcherIndex]
+                    ? `evidence-quick-switcher-${quickSwitcherItems[quickSwitcherIndex].id}`
+                    : undefined}
+                  placeholder="Abrir nota por título, fase ou tag"
+                  className="w-full border-0 bg-transparent text-sm text-on-surface outline-none placeholder:text-on-surface-variant"
+                />
+              </div>
+              <ShortcutHint>Esc</ShortcutHint>
+            </div>
+            <div id="evidence-quick-switcher-results" role="listbox" className="max-h-80 overflow-y-auto p-2">
+              {quickSwitcherItems.length === 0 ? (
+                <p className="px-3 py-8 text-center text-sm text-on-surface-variant">Nenhuma nota corresponde à busca.</p>
+              ) : quickSwitcherItems.map((item, index) => (
+                <button
+                  id={`evidence-quick-switcher-${item.id}`}
+                  key={item.id}
+                  type="button"
+                  role="option"
+                  aria-selected={index === quickSwitcherIndex}
+                  className={`block w-full rounded-sm px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-primary ${index === quickSwitcherIndex ? "bg-primary/10" : "hover:bg-surface-container-low"}`}
+                  onMouseEnter={() => setQuickSwitcherIndex(index)}
+                  onClick={() => chooseQuickSwitcherItem(item.id)}
+                >
+                  <span className="block truncate text-sm font-semibold text-on-surface">{item.title}</span>
+                  <span className="mt-1 block truncate text-xs text-on-surface-variant">{item.context}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 border-t border-outline-variant/20 px-4 py-2 text-[11px] text-on-surface-variant">
+              <span><ShortcutHint>↑↓</ShortcutHint> navegar</span>
+              <span><ShortcutHint>Enter</ShortcutHint> abrir</span>
+            </div>
+          </section>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-3 border-b border-outline-variant/20 bg-surface-container-high p-2 lg:hidden" role="tablist" aria-label="Áreas do caderno">
         {([
           ["notes", "1. Notas"],
@@ -1551,7 +2141,18 @@ export default function EvidencePanel({
           </button>
         )}
       </div>
-      <div className={`min-w-0 lg:grid lg:h-[44rem] ${propertiesOpen ? "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(28rem,2fr)_minmax(16rem,0.9fr)]" : "lg:grid-cols-[minmax(15rem,0.8fr)_minmax(28rem,2.9fr)]"}`}>
+      <div
+        className="min-h-0 min-w-0 flex-1 lg:grid"
+        style={{
+          gridTemplateColumns: explorerOpen && propertiesOpen
+            ? `${explorerWidth}px minmax(0, 1fr) ${propertiesWidth}px`
+            : explorerOpen
+              ? `${explorerWidth}px minmax(0, 1fr)`
+              : propertiesOpen
+                ? `minmax(0, 1fr) ${propertiesWidth}px`
+                : "minmax(0, 1fr)",
+        }}
+      >
         {noteList}
         {documentPanel}
         {propertiesPanel}

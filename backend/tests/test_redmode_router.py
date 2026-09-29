@@ -97,8 +97,18 @@ async def test_creator_is_member_and_feed_is_summary_only(async_client, fake_db)
     assert feed.status_code == 200
     assert feed.json()["total"] == 1
     item = feed.json()["items"][0]
-    assert set(item) == {"slug", "display_name", "phase", "status", "responsible", "last_activity_at"}
+    assert set(item) == {
+        "slug",
+        "display_name",
+        "phase",
+        "status",
+        "responsible",
+        "created_at",
+        "last_activity_at",
+        "can_open",
+    }
     assert item["slug"] == "cliente-demo"
+    assert item["can_open"] is True
     assert "members" not in item
 
 

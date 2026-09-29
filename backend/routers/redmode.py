@@ -152,14 +152,19 @@ def project_status(doc: dict) -> ProjectStatus:
     return "active"
 
 
-def project_summary(doc: dict) -> dict:
+def project_summary(doc: dict, current_user: dict | None = None) -> dict:
+    username = current_user.get("username") if current_user else None
+    members = doc.get("members") or []
+    can_open = username in members if username else True
     summary = {
         "slug": doc["_id"],
         "display_name": doc["display_name"],
         "phase": doc["phase"],
         "status": project_status(doc),
         "responsible": doc["responsible"],
+        "created_at": doc.get("created_at"),
         "last_activity_at": doc["last_activity_at"],
+        "can_open": can_open,
     }
     if doc.get("completed_at") is not None:
         summary["completed_at"] = doc["completed_at"]
@@ -168,8 +173,8 @@ def project_summary(doc: dict) -> dict:
     return summary
 
 
-def project_detail(doc: dict) -> dict:
-    return {**project_summary(doc), "members": doc["members"], "created_at": doc["created_at"]}
+def project_detail(doc: dict, current_user: dict | None = None) -> dict:
+    return {**project_summary(doc, current_user), "members": doc["members"]}
 
 
 HOME_ACTIVITY_TYPES = frozenset({
@@ -439,12 +444,69 @@ async def load_project_for_write(slug: str, current_user: dict) -> dict:
 async def list_projects(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    search: str | None = Query(None, max_length=100),
+    access: Literal["mine", "discoverable", "all"] = Query("all"),
+    status: ProjectStatus | None = Query(None),
+    phase: ProjectPhase | None = Query(None),
+    responsible: str | None = Query(None, max_length=64),
+    sort_by: Literal["last_activity_at", "created_at", "display_name", "name", "slug"] = Query("last_activity_at"),
+    order: Literal["asc", "desc"] = Query("desc"),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
     current_user: dict = Depends(require_redmode_access),
 ):
     collection = projects_collection()
-    total = await collection.count_documents({})
-    cursor = collection.find({}).sort("last_activity_at", -1).skip(offset).limit(limit)
-    items = [project_summary(doc) async for doc in cursor]
+    and_clauses: list[dict] = []
+
+    if search is not None and search.strip():
+        escaped = re.escape(search.strip())
+        and_clauses.append({
+            "$or": [
+                {"display_name": {"$regex": escaped, "$options": "i"}},
+                {"_id": {"$regex": escaped, "$options": "i"}},
+            ]
+        })
+
+    username = current_user["username"]
+    if access == "mine":
+        and_clauses.append({"members": username})
+    elif access == "discoverable":
+        and_clauses.append({"members": {"$ne": username}})
+
+    if status:
+        and_clauses.append({"status": status})
+
+    if phase:
+        and_clauses.append({"phase": phase})
+
+    if responsible is not None and responsible.strip():
+        and_clauses.append({"responsible": responsible.strip()})
+
+    if created_from is not None or created_to is not None:
+        created_range = {}
+        if created_from is not None:
+            created_range["$gte"] = created_from
+        if created_to is not None:
+            created_range["$lte"] = created_to
+        and_clauses.append({"created_at": created_range})
+
+    query: dict = {}
+    if len(and_clauses) == 1:
+        query = and_clauses[0]
+    elif len(and_clauses) > 1:
+        query = {"$and": and_clauses}
+
+    total = await collection.count_documents(query)
+
+    sort_field = "display_name" if sort_by in {"display_name", "name"} else ("_id" if sort_by == "slug" else sort_by)
+    direction = 1 if order == "asc" else -1
+
+    sort_criteria = [(sort_field, direction)]
+    if sort_field != "_id":
+        sort_criteria.append(("_id", direction))
+
+    cursor = collection.find(query).sort(sort_criteria).skip(offset).limit(limit)
+    items = [project_summary(doc, current_user) async for doc in cursor]
     return {"items": items, "total": total}
 
 

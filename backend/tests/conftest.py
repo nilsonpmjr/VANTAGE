@@ -111,7 +111,12 @@ def _match_field(doc_val, spec):
             if doc_val is None or doc_val >= operand:
                 return False
         elif op == "$ne":
-            if doc_val == operand:
+            matches = (
+                operand in doc_val
+                if isinstance(doc_val, list)
+                else doc_val == operand
+            )
+            if matches:
                 return False
         elif op == "$regex":
             flags = 0

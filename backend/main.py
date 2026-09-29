@@ -201,8 +201,16 @@ async def lifespan(app: FastAPI):
                 name="redmode_projects_last_activity",
             )
             await db.redmode_projects.create_index(
+                [("created_at", -1)],
+                name="redmode_projects_created_at",
+            )
+            await db.redmode_projects.create_index(
                 [("members", 1), ("status", 1), ("last_activity_at", -1)],
                 name="redmode_projects_member_status_activity",
+            )
+            await db.redmode_projects.create_index(
+                [("status", 1), ("phase", 1), ("last_activity_at", -1)],
+                name="redmode_projects_status_phase_activity",
             )
             await db.redmode_scope_versions.create_index(
                 [("project_slug", 1), ("created_at", -1)],

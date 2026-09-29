@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, FileDiff, Loader2, Plus, Search, Trash2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ChevronRight,
+  FileDiff,
+  History,
+  Layers,
+  Link2,
+  Loader2,
+  Plus,
+  Search,
+  ShieldAlert,
+  Tag,
+  Trash2,
+} from "lucide-react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { MarkdownContent, MarkdownEditor } from "../../components/markdown";
 import {
@@ -157,7 +171,7 @@ export default function FindingsPanel({
       let privateDraft: FindingDraft | null = null;
       try { privateDraft = await getFindingDraft(slug, findingId); } catch { privateDraft = null; }
       if (!published && !privateDraft) throw new Error("finding_not_found");
-      const nextForm = findingForm(privateDraft || published as Finding);
+      const nextForm = findingForm(privateDraft || (published as Finding));
       setSelectedId(findingId);
       setSelectedFinding(published);
       setForm(nextForm);
@@ -370,6 +384,7 @@ export default function FindingsPanel({
   }
 
   function closeDocument() {
+    if (dirty && !window.confirm("Descartar as alterações ainda não salvas?")) return;
     setSelectedId(null);
     setSelectedFinding(null);
     setForm(emptyForm);
@@ -379,6 +394,7 @@ export default function FindingsPanel({
     setHasDraft(false);
     setTargetsText("");
     setConflict(null);
+    openedRequestRef.current = null;
     const next = new URLSearchParams(searchParams);
     next.delete("finding");
     setSearchParams(next, { replace: true });
@@ -407,148 +423,486 @@ export default function FindingsPanel({
 
   const listRows = useMemo(() => {
     const published = items.map((item) => ({
-      id: item.id, title: item.title, severity: item.severity, phase: item.phase,
-      updatedAt: item.updated_at, draft: drafts.some((draft) => draft.finding_id === item.id), isNew: false,
+      id: item.id,
+      title: item.title,
+      severity: item.severity,
+      phase: item.phase,
+      targets: item.targets || [],
+      evidenceIds: item.evidence_ids || [],
+      updatedAt: item.updated_at,
+      draft: drafts.some((draft) => draft.finding_id === item.id),
+      isNew: false,
     }));
     const unpublished = drafts.filter((draft) => !items.some((item) => item.id === draft.finding_id)).map((draft) => ({
-      id: draft.finding_id, title: draft.title || "Finding sem título", severity: draft.severity,
-      phase: draft.phase, updatedAt: draft.updated_at, draft: true, isNew: true,
+      id: draft.finding_id,
+      title: draft.title || "Finding sem título",
+      severity: draft.severity,
+      phase: draft.phase,
+      targets: [],
+      evidenceIds: [],
+      updatedAt: draft.updated_at,
+      draft: true,
+      isNew: true,
     }));
     return [...unpublished, ...published];
   }, [drafts, items]);
 
   return (
     <section id="finding-editor" className="scroll-mt-24 space-y-4">
-      <header className="card flex flex-wrap items-center justify-between gap-4 p-5">
-        <div>
-          <h2 className="text-sm font-bold uppercase tracking-wider text-on-surface">Findings documentais</h2>
-          <p className="mt-1 text-sm text-on-surface-variant">Documento Markdown, propriedades estruturadas e revisões publicadas no mesmo instante.</p>
-        </div>
-        {!readOnly && <button type="button" className="btn btn-primary" onClick={() => void createNew()}><Plus className="h-4 w-4" /> Novo finding</button>}
-      </header>
+      {error && (
+        <p className="rounded-sm border border-error/30 bg-error/10 p-3 text-sm text-error" role="alert">
+          {error}
+        </p>
+      )}
 
-      {error && <p className="rounded-sm border border-error/30 bg-error/10 p-3 text-sm text-error" role="alert">{error}</p>}
       {conflict && (
         <div className="rounded-sm border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-on-surface" role="alert">
-          <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" /><div><strong>O finding publicado mudou.</strong><p className="mt-1 text-on-surface-variant">Seu texto local foi preservado. Atualize a base antes de salvar novamente.</p></div></div>
-          <button type="button" className="btn btn-secondary mt-3" onClick={() => void acceptRemoteBase()}>Usar revisão {conflict.revision.number} como base</button>
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 text-amber-600" />
+            <div>
+              <strong>O finding publicado mudou.</strong>
+              <p className="mt-1 text-on-surface-variant">Seu texto local foi preservado. Atualize a base antes de salvar novamente.</p>
+            </div>
+          </div>
+          <button type="button" className="btn btn-secondary mt-3" onClick={() => void acceptRemoteBase()}>
+            Usar revisão {conflict.revision.number} como base
+          </button>
         </div>
       )}
 
-      <div className="grid min-h-[680px] gap-4 xl:grid-cols-[18rem_minmax(0,1fr)_20rem]">
-        <aside className="card overflow-hidden p-0" aria-label="Lista de findings">
-          <div className="space-y-2 border-b border-outline-variant/30 p-3">
-            <label className="relative block">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-on-surface-variant" />
-              <input className="w-full rounded-sm border border-outline-variant/30 bg-surface-container-low py-2 pl-8 pr-2 text-sm text-on-surface" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar título e conteúdo" aria-label="Buscar findings" />
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              <select className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-xs text-on-surface" value={severityFilter} onChange={(event) => setSeverityFilter(event.target.value)} aria-label="Filtrar por severidade">
-                <option value="">Severidades</option>{Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+      {/* Visualização de Lista Contínua (OM6-01) */}
+      {!selectedId ? (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-sm border border-outline-variant/20 bg-surface-container-low p-3">
+            <div className="flex flex-1 flex-wrap items-center gap-3 min-w-[18rem]">
+              <label className="relative min-w-[14rem] flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-on-surface-variant" />
+                <input
+                  className="w-full rounded-sm border border-outline-variant/30 bg-surface py-1.5 pl-8 pr-3 text-sm text-on-surface placeholder:text-on-surface-variant/60"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder="Buscar título e conteúdo"
+                  aria-label="Buscar findings"
+                />
+              </label>
+              <select
+                className="rounded-sm border border-outline-variant/30 bg-surface py-1.5 px-3 text-xs text-on-surface"
+                value={severityFilter}
+                onChange={(event) => setSeverityFilter(event.target.value)}
+                aria-label="Filtrar por severidade"
+              >
+                <option value="">Todas severidades</option>
+                {Object.entries(severityLabels).map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
               </select>
-              <select className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-xs text-on-surface" value={phaseFilter} onChange={(event) => setPhaseFilter(event.target.value)} aria-label="Filtrar por fase">
-                <option value="">Fases</option>{ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+              <select
+                className="rounded-sm border border-outline-variant/30 bg-surface py-1.5 px-3 text-xs text-on-surface"
+                value={phaseFilter}
+                onChange={(event) => setPhaseFilter(event.target.value)}
+                aria-label="Filtrar por fase"
+              >
+                <option value="">Todas as fases</option>
+                {ptesPhases.map(([key, label]) => (
+                  <option key={key} value={key}>{label}</option>
+                ))}
               </select>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-on-surface-variant">
+                {total} publicado{total === 1 ? "" : "s"} · {drafts.length} rascunho{drafts.length === 1 ? "" : "s"}
+              </span>
+              {!readOnly && (
+                <button
+                  type="button"
+                  className="btn btn-primary inline-flex items-center gap-1.5 py-1.5 px-3 text-xs"
+                  onClick={() => void createNew()}
+                >
+                  <Plus className="h-4 w-4" /> Novo finding
+                </button>
+              )}
             </div>
           </div>
-          {loading ? <p className="flex items-center gap-2 p-4 text-sm text-on-surface-variant"><Loader2 className="h-4 w-4 animate-spin" /> Carregando...</p> : (
-            <ul className="max-h-[610px] overflow-y-auto p-2">
-              {listRows.map((row) => (
-                <li key={row.id}>
-                  <button type="button" onClick={() => void openFinding(row.id)} className={`w-full rounded-sm p-3 text-left ${selectedId === row.id ? "bg-primary/10 ring-1 ring-primary/40" : "hover:bg-surface-container-low"}`}>
-                    <span className="line-clamp-2 text-sm font-semibold text-on-surface">{row.title}</span>
-                    <span className="mt-1 block text-[11px] text-on-surface-variant">{severityLabels[row.severity]} · {phaseLabel(row.phase)}</span>
-                    <span className="mt-1 flex gap-2 text-[10px] text-on-surface-variant">{row.draft && <strong className="text-amber-600">Rascunho privado</strong>}{row.isNew && <span>Novo</span>}</span>
-                  </button>
-                </li>
-              ))}
-              {listRows.length === 0 && <li className="p-4 text-sm text-on-surface-variant">Nenhum finding encontrado.</li>}
-            </ul>
-          )}
-          <p className="border-t border-outline-variant/30 p-3 text-xs text-on-surface-variant">{total} publicado(s) · {drafts.length} rascunho(s) seu(s)</p>
-        </aside>
 
-        <main className="card min-w-0 p-5">
-          {!selectedId ? (
-            <div className="flex min-h-[580px] items-center justify-center text-center"><div><h3 className="font-semibold text-on-surface">Selecione ou crie um finding</h3><p className="mt-2 text-sm text-on-surface-variant">O documento será aberto aqui, sem sair do engagement.</p></div></div>
-          ) : opening ? (
-            <p className="flex items-center gap-2 text-sm text-on-surface-variant"><Loader2 className="h-4 w-4 animate-spin" /> Abrindo documento...</p>
+          <div className="card overflow-x-auto p-0" aria-label="Lista de findings">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr className="border-b border-outline-variant/20 bg-surface-container-low text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  <th className="py-3 px-4">Finding</th>
+                  <th className="py-3 px-4">Severidade</th>
+                  <th className="py-3 px-4">Fase PTES</th>
+                  <th className="py-3 px-4">Alvos</th>
+                  <th className="py-3 px-4">Evidências</th>
+                  <th className="py-3 px-4">Atualização</th>
+                  <th className="py-3 px-4 text-right">Ação</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/10">
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-sm text-on-surface-variant">
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin text-primary" /> Carregando findings...
+                      </span>
+                    </td>
+                  </tr>
+                ) : listRows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="transition hover:bg-surface-container-low/60 cursor-pointer"
+                    onClick={() => void openFinding(row.id)}
+                  >
+                    <td className="py-3 px-4 font-semibold text-on-surface">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          className="text-left font-semibold text-on-surface hover:text-primary hover:underline"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void openFinding(row.id);
+                          }}
+                        >
+                          {row.title}
+                        </button>
+                        {row.draft && (
+                          <span className="badge badge-warning text-[10px]">Rascunho</span>
+                        )}
+                        {row.isNew && (
+                          <span className="badge badge-neutral text-[10px]">Novo</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="badge badge-neutral text-xs">{severityLabels[row.severity]}</span>
+                    </td>
+                    <td className="py-3 px-4 text-xs text-on-surface-variant">
+                      {phaseLabel(row.phase)}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-on-surface-variant">
+                      {row.targets.length > 0 ? `${row.targets.length} alvo${row.targets.length === 1 ? "" : "s"}` : "—"}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-on-surface-variant">
+                      {row.evidenceIds.length > 0 ? `${row.evidenceIds.length} evidência${row.evidenceIds.length === 1 ? "" : "s"}` : "—"}
+                    </td>
+                    <td className="py-3 px-4 text-xs text-on-surface-variant">
+                      {formatDate(row.updatedAt)}
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        type="button"
+                        className="btn btn-secondary py-1 px-2.5 text-xs"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void openFinding(row.id);
+                        }}
+                      >
+                        Abrir
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!loading && listRows.length === 0 && (
+              <div className="p-8 text-center text-sm text-on-surface-variant">
+                Nenhum finding encontrado.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Visualização de Detalhe do Finding (OM6-01) */
+        <div className="space-y-4" aria-label="Detalhe do finding">
+          {opening ? (
+            <div className="card p-12 text-center text-sm text-on-surface-variant">
+              <span className="inline-flex items-center gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" /> Abrindo finding...
+              </span>
+            </div>
           ) : (
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <label className="min-w-[16rem] flex-1 text-xs font-bold uppercase tracking-wider text-on-surface-variant">Título
-                  <input className="mt-2 w-full border-0 border-b border-outline-variant/40 bg-transparent px-0 py-2 text-xl font-bold normal-case tracking-normal text-on-surface outline-none focus:border-primary" value={form.title} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} maxLength={200} placeholder="Título do finding" />
+            <>
+              {/* Barra Superior de Ações e Retorno */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-outline-variant/20 pb-3">
+                <button
+                  type="button"
+                  onClick={closeDocument}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary hover:underline"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Voltar para lista de findings
+                </button>
+
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 text-xs text-on-surface-variant">
+                    {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando rascunho...</>}
+                    {!saving && dirty && "Alterações locais"}
+                    {!saving && !dirty && hasDraft && "Rascunho salvo"}
+                    {!saving && !dirty && !hasDraft && selectedFinding && `Revisão ${selectedFinding.revision.number}`}
+                  </div>
+                  {hasDraft && !readOnly && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary text-error py-1.5 px-3 text-xs inline-flex items-center gap-1"
+                      onClick={() => void discard()}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Descartar rascunho
+                    </button>
+                  )}
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      className="btn btn-primary py-1.5 px-4 text-xs inline-flex items-center gap-1.5"
+                      disabled={publishing || saving || Boolean(conflict) || (!hasDraft && !dirty)}
+                      onClick={() => void publish()}
+                    >
+                      {publishing && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {publishing ? "Publicando..." : selectedFinding ? "Publicar revisão" : "Publicar finding"}
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Identidade Compacta do Finding */}
+              <div className="card space-y-3 p-4">
+                <label className="block text-xs font-bold uppercase tracking-wider text-on-surface-variant">
+                  Título do finding
+                  <input
+                    className="mt-1 w-full border-0 border-b border-outline-variant/40 bg-transparent px-0 py-1.5 text-xl font-bold normal-case tracking-normal text-on-surface outline-none focus:border-primary placeholder:text-on-surface-variant/40"
+                    value={form.title}
+                    disabled={readOnly}
+                    onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+                    maxLength={200}
+                    placeholder="Título do finding"
+                  />
                 </label>
-                <div className="flex items-center gap-2 text-xs text-on-surface-variant">
-                  {saving && <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Salvando...</>}
-                  {!saving && dirty && "Alterações locais"}
-                  {!saving && !dirty && hasDraft && "Rascunho salvo"}
-                  {!saving && !dirty && !hasDraft && selectedFinding && `Revisão ${selectedFinding.revision.number}`}
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <span className="badge badge-neutral">{severityLabels[form.severity]}</span>
+                  <span className="badge badge-neutral">{phaseLabel(form.phase)}</span>
+                  {selectedFinding && (
+                    <span className="text-on-surface-variant">
+                      Revisão {selectedFinding.revision.number} por <strong>{selectedFinding.revision.author}</strong> · Atualizado em {formatDate(selectedFinding.updated_at)}
+                    </span>
+                  )}
                 </div>
               </div>
-              <MarkdownEditor
-                value={form.description}
-                onChange={(description) => setForm((current) => ({ ...current, description }))}
-                persistedValue={baseline?.description || ""}
-                additionalDirty={dirty && form.description === baseline?.description}
-                onPersist={(description) => saveNow(description).then(() => undefined)}
-                persistLabel="Salvar rascunho"
-                label="Documento do finding"
-                placeholder="Descreva o finding em Markdown..."
-                maxLength={100000}
-                references={references}
-                onReferenceSearch={referenceSearch}
-                disabled={readOnly}
-              />
-              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-outline-variant/30 pt-4">
-                <div className="flex gap-2">
-                  {hasDraft && !readOnly && <button type="button" className="btn btn-secondary text-error" onClick={() => void discard()}><Trash2 className="h-4 w-4" /> Descartar rascunho</button>}
-                  {selectedFinding && <button type="button" className="btn btn-secondary" onClick={closeDocument}>Fechar</button>}
+
+              {/* Grid Principal: Documento à esquerda, Propriedades e Vínculos à direita */}
+              <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_22rem]">
+                <div className="space-y-4 min-w-0">
+                  <MarkdownEditor
+                    value={form.description}
+                    onChange={(description) => setForm((current) => ({ ...current, description }))}
+                    persistedValue={baseline?.description || ""}
+                    additionalDirty={dirty && form.description === baseline?.description}
+                    onPersist={(description) => saveNow(description).then(() => undefined)}
+                    persistLabel="Salvar rascunho"
+                    label="Documento do finding"
+                    placeholder="Descreva o finding em Markdown..."
+                    maxLength={100000}
+                    references={references}
+                    onReferenceSearch={referenceSearch}
+                    disabled={readOnly}
+                  />
+
+                  {comparison && (
+                    <section className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-4" aria-label="Comparação de revisões">
+                      <div className="flex items-center justify-between">
+                        <h3 className="flex items-center gap-2 text-sm font-bold text-on-surface">
+                          <FileDiff className="h-4 w-4" /> Diferenças entre revisões
+                        </h3>
+                        <button className="text-xs font-semibold text-primary hover:underline" type="button" onClick={() => setComparison(null)}>
+                          Fechar
+                        </button>
+                      </div>
+                      {Object.keys(comparison.property_changes).length > 0 && (
+                        <dl className="mt-3 space-y-2 text-xs">
+                          {Object.entries(comparison.property_changes).map(([field, change]) => (
+                            <div key={field}>
+                              <dt className="font-bold text-on-surface">{field}</dt>
+                              <dd className="text-on-surface-variant">Antes: {JSON.stringify(change.before)} · Depois: {JSON.stringify(change.after)}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                      <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-3 text-xs text-on-surface">
+                        {comparison.document_diff || "O documento Markdown não mudou."}
+                      </pre>
+                    </section>
+                  )}
+
+                  {inspectedRevision && (
+                    <section className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-sm font-bold text-on-surface">Revisão {inspectedRevision.number}</h3>
+                        <button className="text-xs font-semibold text-primary hover:underline" type="button" onClick={() => setInspectedRevision(null)}>
+                          Fechar
+                        </button>
+                      </div>
+                      <p className="mt-1 text-xs text-on-surface-variant">
+                        {severityLabels[inspectedRevision.severity]} · {phaseLabel(inspectedRevision.phase)} · {inspectedRevision.author}
+                      </p>
+                      <MarkdownContent markdown={inspectedRevision.description} references={[]} className="mt-4" />
+                    </section>
+                  )}
                 </div>
-                {!readOnly && <button type="button" className="btn btn-primary" disabled={publishing || saving || Boolean(conflict) || (!hasDraft && !dirty)} onClick={() => void publish()}>{publishing ? <Loader2 className="h-4 w-4 animate-spin" /> : null}{publishing ? "Publicando..." : selectedFinding ? "Publicar revisão" : "Publicar finding"}</button>}
+
+                {/* Coluna de Propriedades Estruturadas e Contexto */}
+                <aside className="card space-y-5 p-4" aria-label="Propriedades do finding">
+                  <section>
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Propriedades</h3>
+                    <label className="mt-3 block text-xs font-medium text-on-surface">
+                      Severidade
+                      <select
+                        className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm text-on-surface"
+                        value={form.severity}
+                        disabled={readOnly}
+                        onChange={(event) => setForm((current) => ({ ...current, severity: event.target.value as FindingInput["severity"] }))}
+                      >
+                        {Object.entries(severityLabels).map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="mt-3 block text-xs font-medium text-on-surface">
+                      Fase PTES
+                      <select
+                        className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm text-on-surface"
+                        value={form.phase}
+                        disabled={readOnly}
+                        onChange={(event) => setForm((current) => ({ ...current, phase: event.target.value }))}
+                      >
+                        {ptesPhases.map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="mt-3 block text-xs font-medium text-on-surface">
+                      Alvos afetados
+                      <textarea
+                        className="mt-1 min-h-20 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm font-mono text-on-surface"
+                        value={targetsText}
+                        disabled={readOnly}
+                        onChange={(event) => {
+                          setTargetsText(event.target.value);
+                          setForm((current) => ({ ...current, targets: unique(event.target.value.split(/\r?\n/)) }));
+                        }}
+                        placeholder="Um alvo por linha"
+                      />
+                    </label>
+                  </section>
+
+                  <section className="border-t border-outline-variant/20 pt-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Evidências associadas</h3>
+                    {evidence.length === 0 ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">Nenhuma evidência disponível.</p>
+                    ) : (
+                      <div className="mt-2 max-h-48 space-y-2 overflow-y-auto">
+                        {evidence.map((proof) => (
+                          <label key={proof.id} className="flex items-start gap-2 text-xs text-on-surface hover:bg-surface-container-low p-1 rounded-sm">
+                            <input
+                              type="checkbox"
+                              checked={form.evidence_ids.includes(proof.id)}
+                              disabled={readOnly}
+                              className="mt-0.5 accent-primary"
+                              onChange={(event) => setForm((current) => ({
+                                ...current,
+                                evidence_ids: event.target.checked
+                                  ? unique([...current.evidence_ids, proof.id])
+                                  : current.evidence_ids.filter((id) => id !== proof.id),
+                              }))}
+                            />
+                            <span className="line-clamp-2">{proof.text.slice(0, 90) || proof.file?.filename || proof.id}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="border-t border-outline-variant/20 pt-4">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Referências internas</h3>
+                    {references.length === 0 ? (
+                      <p className="mt-2 text-xs text-on-surface-variant">Digite <code>[[</code> no documento para ligar entidades.</p>
+                    ) : (
+                      <ul className="mt-2 space-y-2">
+                        {references.map((reference) => (
+                          <li key={reference.key}>
+                            <button
+                              type="button"
+                              disabled={!reference.href}
+                              onClick={() => reference.href && navigate(reference.href)}
+                              className={`text-left text-xs font-semibold ${reference.broken ? "text-error" : "text-primary hover:underline"}`}
+                            >
+                              {reference.label}
+                            </button>
+                            {reference.context && (
+                              <span className="mt-0.5 line-clamp-2 block text-[10px] text-on-surface-variant">{reference.context}</span>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {selectedFinding && links.backlinks.length > 0 && (
+                      <>
+                        <h4 className="mt-4 text-xs font-semibold text-on-surface">Backlinks</h4>
+                        <ul className="mt-2 space-y-2">
+                          {links.backlinks.map((backlink) => (
+                            <li key={`${backlink.type}:${backlink.id}`}>
+                              <button
+                                type="button"
+                                className="text-left text-xs font-semibold text-primary hover:underline"
+                                onClick={() => navigate(backlink.href)}
+                              >
+                                {backlink.label}
+                              </button>
+                              {backlink.context && (
+                                <span className="mt-0.5 line-clamp-2 block text-[10px] text-on-surface-variant">{backlink.context}</span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                  </section>
+
+                  {history.length > 0 && (
+                    <section className="border-t border-outline-variant/20 pt-4">
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Histórico de revisões</h3>
+                      <ul className="mt-2 space-y-2">
+                        {history.map((revision, index) => (
+                          <li key={revision.id} className="rounded-sm bg-surface-container-low p-2 text-xs">
+                            <strong className="text-on-surface">Revisão {revision.number}</strong>
+                            <span className="mt-0.5 block text-[10px] text-on-surface-variant">
+                              {revision.author} · {formatDate(revision.created_at)}
+                            </span>
+                            <div className="mt-2 flex gap-3">
+                              <button
+                                type="button"
+                                className="font-semibold text-primary hover:underline"
+                                onClick={() => { setInspectedRevision(revision); setComparison(null); }}
+                              >
+                                Ver
+                              </button>
+                              {index < history.length - 1 && (
+                                <button
+                                  type="button"
+                                  className="font-semibold text-primary hover:underline"
+                                  onClick={() => void compareWithPrevious(revision)}
+                                >
+                                  Comparar
+                                </button>
+                              )}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+                </aside>
               </div>
-
-              {comparison && (
-                <section className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-4" aria-label="Comparação de revisões">
-                  <div className="flex items-center justify-between"><h3 className="flex items-center gap-2 text-sm font-bold text-on-surface"><FileDiff className="h-4 w-4" /> Diferenças entre revisões</h3><button className="text-xs font-semibold text-primary" type="button" onClick={() => setComparison(null)}>Fechar</button></div>
-                  {Object.keys(comparison.property_changes).length > 0 && <dl className="mt-3 space-y-2 text-xs">{Object.entries(comparison.property_changes).map(([field, change]) => <div key={field}><dt className="font-bold text-on-surface">{field}</dt><dd className="text-on-surface-variant">Antes: {JSON.stringify(change.before)} · Depois: {JSON.stringify(change.after)}</dd></div>)}</dl>}
-                  <pre className="mt-3 max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-surface p-3 text-xs text-on-surface">{comparison.document_diff || "O documento Markdown não mudou."}</pre>
-                </section>
-              )}
-              {inspectedRevision && (
-                <section className="rounded-sm border border-outline-variant/30 bg-surface-container-low p-4">
-                  <div className="flex items-center justify-between"><h3 className="text-sm font-bold text-on-surface">Revisão {inspectedRevision.number}</h3><button className="text-xs font-semibold text-primary" type="button" onClick={() => setInspectedRevision(null)}>Fechar</button></div>
-                  <p className="mt-1 text-xs text-on-surface-variant">{severityLabels[inspectedRevision.severity]} · {phaseLabel(inspectedRevision.phase)} · {inspectedRevision.author}</p>
-                  <MarkdownContent markdown={inspectedRevision.description} references={[]} className="mt-4" />
-                </section>
-              )}
-            </div>
+            </>
           )}
-        </main>
-
-        <aside className="card overflow-y-auto p-4" aria-label="Propriedades do finding">
-          {!selectedId ? <p className="text-sm text-on-surface-variant">As propriedades aparecem ao abrir um finding.</p> : (
-            <div className="space-y-5">
-              <section>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Propriedades</h3>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Severidade<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.severity} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, severity: event.target.value as FindingInput["severity"] }))}>{Object.entries(severityLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Fase PTES<select className="mt-1 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={form.phase} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, phase: event.target.value }))}>{ptesPhases.map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label>
-                <label className="mt-3 block text-xs font-medium text-on-surface">Alvos afetados<textarea className="mt-1 min-h-20 w-full rounded-sm border border-outline-variant/30 bg-surface-container-low p-2 text-sm" value={targetsText} disabled={readOnly} onChange={(event) => { setTargetsText(event.target.value); setForm((current) => ({ ...current, targets: unique(event.target.value.split(/\r?\n/)) })); }} placeholder="Um alvo por linha" /></label>
-              </section>
-              <section className="border-t border-outline-variant/30 pt-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Evidências associadas</h3>
-                {evidence.length === 0 ? <p className="mt-2 text-xs text-on-surface-variant">Nenhuma evidência disponível.</p> : <div className="mt-2 max-h-40 space-y-2 overflow-y-auto">{evidence.map((proof) => <label key={proof.id} className="flex items-start gap-2 text-xs text-on-surface"><input type="checkbox" checked={form.evidence_ids.includes(proof.id)} disabled={readOnly} onChange={(event) => setForm((current) => ({ ...current, evidence_ids: event.target.checked ? unique([...current.evidence_ids, proof.id]) : current.evidence_ids.filter((id) => id !== proof.id) }))} /><span className="line-clamp-2">{proof.text.slice(0, 90) || proof.file?.filename || proof.id}</span></label>)}</div>}
-              </section>
-              <section className="border-t border-outline-variant/30 pt-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Referências internas</h3>
-                {references.length === 0 ? <p className="mt-2 text-xs text-on-surface-variant">Digite <code>[[</code> no documento para ligar entidades.</p> : <ul className="mt-2 space-y-2">{references.map((reference) => <li key={reference.key}><button type="button" disabled={!reference.href} onClick={() => reference.href && navigate(reference.href)} className={`text-left text-xs font-semibold ${reference.broken ? "text-error" : "text-primary hover:underline"}`}>{reference.label}</button>{reference.context && <span className="mt-0.5 line-clamp-2 block text-[10px] text-on-surface-variant">{reference.context}</span>}</li>)}</ul>}
-                {selectedFinding && links.backlinks.length > 0 && <><h4 className="mt-4 text-xs font-semibold text-on-surface">Backlinks</h4><ul className="mt-2 space-y-2">{links.backlinks.map((backlink) => <li key={`${backlink.type}:${backlink.id}`}><button type="button" className="text-left text-xs font-semibold text-primary hover:underline" onClick={() => navigate(backlink.href)}>{backlink.label}</button>{backlink.context && <span className="mt-0.5 line-clamp-2 block text-[10px] text-on-surface-variant">{backlink.context}</span>}</li>)}</ul></>}
-              </section>
-              {history.length > 0 && <section className="border-t border-outline-variant/30 pt-4"><h3 className="text-xs font-bold uppercase tracking-wider text-on-surface-variant">Histórico</h3><ul className="mt-2 space-y-2">{history.map((revision, index) => <li key={revision.id} className="rounded-sm bg-surface-container-low p-2 text-xs"><strong className="text-on-surface">Revisão {revision.number}</strong><span className="mt-0.5 block text-[10px] text-on-surface-variant">{revision.author} · {formatDate(revision.created_at)}</span><div className="mt-2 flex gap-3"><button type="button" className="font-semibold text-primary hover:underline" onClick={() => { setInspectedRevision(revision); setComparison(null); }}>Ver</button>{index < history.length - 1 && <button type="button" className="font-semibold text-primary hover:underline" onClick={() => void compareWithPrevious(revision)}>Comparar</button>}</div></li>)}</ul></section>}
-            </div>
-          )}
-        </aside>
-      </div>
+        </div>
+      )}
     </section>
   );
 }

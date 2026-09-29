@@ -89,7 +89,7 @@ function renderPanel(initialEntry = "/offensive/projects/demo/findings", onSaved
   );
 }
 
-describe("FindingsPanel documental", () => {
+describe("FindingsPanel documental (OM6-01)", () => {
   beforeEach(() => {
     apiMocks.listFindings.mockResolvedValue({ items: [finding], total: 1 });
     apiMocks.listFindingDrafts.mockResolvedValue({ items: [] });
@@ -127,22 +127,35 @@ describe("FindingsPanel documental", () => {
 
   afterEach(() => vi.clearAllMocks());
 
-  it("opens a legacy plain-text description in the three-area workspace and preserves the route", async () => {
+  it("renders a continuous table with search and filters, opens finding in detail view, and returns to list", async () => {
     const user = userEvent.setup();
     renderPanel();
 
-    await user.click(await screen.findByRole("button", { name: /Controle de acesso ausente/ }));
-    expect(await screen.findByDisplayValue("Controle de acesso ausente")).toBeInTheDocument();
-    expect(screen.getByLabelText("Lista de findings")).toBeInTheDocument();
-    expect(screen.getByLabelText("Propriedades do finding")).toBeInTheDocument();
-    expect(screen.getByLabelText("Documento do finding: texto Markdown")).toHaveValue(finding.description);
-    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("/offensive/projects/demo/findings?finding=finding-1"));
+    // Verify continuous table is in list view
+    expect(await screen.findByLabelText("Lista de findings")).toBeInTheDocument();
+    expect(await screen.findByText("Controle de acesso ausente")).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "Alto" })).toBeInTheDocument();
+    expect(screen.getByText("1 alvo")).toBeInTheDocument();
 
+    // Search and filter in the list view
     await user.type(screen.getByLabelText("Buscar findings"), "painel");
     await user.selectOptions(screen.getByLabelText("Filtrar por severidade"), "high");
     await waitFor(() => expect(apiMocks.listFindings).toHaveBeenLastCalledWith(
       "demo", 0, 100, { q: "painel", severity: "high", phase: "" },
     ));
+
+    // Open the finding into detail view
+    await user.click(screen.getByRole("button", { name: "Controle de acesso ausente" }));
+    expect(await screen.findByDisplayValue("Controle de acesso ausente")).toBeInTheDocument();
+    expect(screen.getByLabelText("Detalhe do finding")).toBeInTheDocument();
+    expect(screen.getByLabelText("Propriedades do finding")).toBeInTheDocument();
+    expect(screen.getByLabelText("Documento do finding: texto Markdown")).toHaveValue(finding.description);
+    await waitFor(() => expect(screen.getByLabelText("location")).toHaveTextContent("/offensive/projects/demo/findings?finding=finding-1"));
+
+    // Return back to list view
+    await user.click(screen.getByRole("button", { name: /Voltar para lista de findings/ }));
+    expect(await screen.findByLabelText("Lista de findings")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("location")).not.toHaveTextContent("finding=finding-1"));
   });
 
   it("starts with the five-section template, autosaves privately and publishes explicitly", async () => {

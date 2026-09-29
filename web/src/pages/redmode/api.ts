@@ -8,7 +8,9 @@ export interface ProjectSummary {
   phase: string;
   status: ProjectStatus;
   responsible: string;
+  created_at?: string;
   last_activity_at: string;
+  can_open?: boolean;
   completed_at?: string;
   archived_at?: string;
 }
@@ -504,8 +506,36 @@ async function readResponse<T>(response: Response): Promise<T> {
   throw new Error(payload.detail || `HTTP ${response.status}`);
 }
 
-export async function listProjects(offset = 0, limit = 20): Promise<{ items: ProjectSummary[]; total: number }> {
-  return readResponse(await fetch(`${API_URL}/api/redmode/projects?limit=${limit}&offset=${offset}`, { credentials: "include" }));
+export interface ProjectFilters {
+  search?: string;
+  access?: "mine" | "discoverable" | "all";
+  status?: ProjectStatus;
+  phase?: string;
+  responsible?: string;
+  sort_by?: "last_activity_at" | "created_at" | "display_name" | "slug";
+  order?: "asc" | "desc";
+}
+
+export async function listProjects(
+  offset = 0,
+  limit = 20,
+  filters?: ProjectFilters,
+): Promise<{ items: ProjectSummary[]; total: number }> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (filters?.search?.trim()) params.set("search", filters.search.trim());
+  if (filters?.access && filters.access !== "all") params.set("access", filters.access);
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.phase) params.set("phase", filters.phase);
+  if (filters?.responsible?.trim()) params.set("responsible", filters.responsible.trim());
+  if (filters?.sort_by) params.set("sort_by", filters.sort_by);
+  if (filters?.order) params.set("order", filters.order);
+
+  return readResponse(
+    await fetch(`${API_URL}/api/redmode/projects?${params.toString()}`, { credentials: "include" }),
+  );
 }
 
 export async function getOffensiveHome(): Promise<OffensiveHomeSummary> {

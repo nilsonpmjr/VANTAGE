@@ -288,7 +288,7 @@ curl -s http://example.test
 
       expect(screen.getByText("Reconnaissance Folder")).toBeInTheDocument();
       expect(screen.getByText("Root Note")).toBeInTheDocument();
-      expect(screen.getByText("Nmap Scans")).toBeInTheDocument();
+      expect(screen.getAllByText("Nmap Scans").length).toBeGreaterThanOrEqual(1);
 
       // Click on Root Note
       await userEvent.click(screen.getByText("Root Note"));

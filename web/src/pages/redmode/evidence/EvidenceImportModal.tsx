@@ -48,10 +48,10 @@ export const EvidenceImportModal: React.FC<EvidenceImportModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-full max-w-xl overflow-hidden text-slate-200">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/60">
+      <div className="w-full max-w-xl overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-outline-variant/20 bg-surface-container-high px-4 py-3 text-on-surface">
           <div className="flex items-center gap-2">
-            <Upload className="w-4 h-4 text-red-400" />
+            <Upload className="w-4 h-4 text-primary" />
             <span className="font-semibold text-sm">
               Importar Nota Markdown (LeafWiki / Frontmatter)
             </span>
@@ -59,7 +59,8 @@ export const EvidenceImportModal: React.FC<EvidenceImportModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200"
+            className="p-1 rounded-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+            aria-label="Fechar"
           >
             <X className="w-4 h-4" />
           </button>
@@ -67,23 +68,23 @@ export const EvidenceImportModal: React.FC<EvidenceImportModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
+            <label className="block text-xs font-medium text-on-surface-variant mb-1">
               Selecionar arquivo (.md)
             </label>
             <input
               type="file"
               accept=".md,.markdown,.txt"
               onChange={handleFileUpload}
-              className="text-xs text-slate-400 file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 cursor-pointer"
+              className="text-xs text-on-surface-variant file:mr-2 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-xs file:bg-surface-container-high file:text-on-surface hover:file:bg-surface-container-highest cursor-pointer"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label className="text-xs font-medium text-slate-300">
+              <label className="text-xs font-medium text-on-surface-variant">
                 Conteúdo Markdown (com ou sem Frontmatter YAML)
               </label>
-              <span className="text-[10px] text-slate-500">
+              <span className="text-[10px] text-on-surface-variant/70">
                 Suporta metadados no formato &lsquo;--- title: ... ---&rsquo;
               </span>
             </div>
@@ -92,22 +93,22 @@ export const EvidenceImportModal: React.FC<EvidenceImportModalProps> = ({
               value={content}
               onChange={(e) => setContent(e.target.value)}
               placeholder="---\ntitle: Reconhecimento Web\nphase: reconnaissance\ntags:\n  - osint\n  - dns\n---\n\n# Resultados\nDescobertos subdomínios..."
-              className="w-full bg-slate-950 border border-slate-800 rounded p-2.5 font-mono text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-red-500"
+              className="w-full bg-surface border border-outline-variant/30 rounded-sm p-2.5 font-mono text-xs text-on-surface placeholder:text-on-surface-variant/50 focus-visible:outline-2 focus-visible:outline-primary transition-colors"
             />
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-outline-variant/20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded"
+              className="btn btn-ghost px-3 py-1.5 text-xs text-on-surface-variant hover:text-on-surface"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={!content.trim() || isSubmitting}
-              className="px-4 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded disabled:opacity-50 flex items-center gap-1.5"
+              className="btn btn-primary px-4 py-1.5 text-xs font-medium flex items-center gap-1.5"
             >
               <FileText className="w-3.5 h-3.5" />
               {isSubmitting ? "Importando..." : "Importar Nota"}

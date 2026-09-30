@@ -14,6 +14,7 @@ import {
   AlignLeft,
   BookOpen,
   Check,
+  ChevronRight,
   ChevronsUpDown,
   Clock3,
   Copy,
@@ -980,6 +981,60 @@ export default function EvidencePanel({
     window.open(url, "_blank");
   };
 
+  const currentNode = useMemo(() => {
+    if (!selectedToken) return null;
+    function dfs(nodes: EvidenceTreeNode[]): EvidenceTreeNode | null {
+      for (const n of nodes) {
+        if (n.id === selectedToken) return n;
+        if (n.children?.length) {
+          const found = dfs(n.children);
+          if (found) return found;
+        }
+      }
+      return null;
+    }
+    return dfs(treeData);
+  }, [treeData, selectedToken]);
+
+  const breadcrumbs = useMemo(() => {
+    if (!selectedToken) return [];
+    const trail: Array<{ id: string; title: string }> = [];
+    function dfs(nodes: EvidenceTreeNode[], curr: Array<{ id: string; title: string }>): boolean {
+      for (const n of nodes) {
+        if (n.id === selectedToken) {
+          trail.push(...curr);
+          return true;
+        }
+        if (n.children?.length) {
+          if (dfs(n.children, [...curr, { id: n.id, title: n.title }])) {
+            return true;
+          }
+        }
+      }
+      return false;
+    }
+    dfs(treeData, []);
+    return trail;
+  }, [treeData, selectedToken]);
+
+  const wordCount = useMemo(() => {
+    const text = viewedRevision?.markdown ?? form.markdown ?? "";
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    return words.length;
+  }, [viewedRevision, form.markdown]);
+
+  const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 200));
+
+  const isCurrentPinned = useMemo(() => {
+    if (!selectedToken) return false;
+    return pinnedNoteIds.includes(selectedToken) || Boolean(currentNode?.pinned);
+  }, [pinnedNoteIds, selectedToken, currentNode]);
+
+  const isCurrentFavorite = useMemo(() => {
+    if (!selectedToken) return false;
+    return Boolean(currentNode?.favorite);
+  }, [selectedToken, currentNode]);
+
   useEffect(() => {
     if (!searchActive) {
       setSearchResults([]);
@@ -1936,6 +1991,36 @@ export default function EvidencePanel({
       ) : (
         <>
           <div className="border-b border-outline-variant/20 bg-surface-container-lowest px-4 py-3 sm:px-5">
+            {/* Breadcrumb Trail LeafWiki */}
+            <nav aria-label="Navegação estrutural" className="mb-2 flex items-center gap-1.5 text-xs text-on-surface-variant flex-wrap">
+              <button
+                type="button"
+                onClick={() => setLeftPanelView("tree")}
+                className="flex items-center gap-1 text-on-surface-variant hover:text-primary transition-colors font-medium"
+                title="Caderno de evidências"
+              >
+                <Folder className="h-3.5 w-3.5 text-amber-500" />
+                <span>Caderno</span>
+              </button>
+              {breadcrumbs.map((b) => (
+                <span key={b.id} className="flex items-center gap-1.5">
+                  <ChevronRight className="h-3 w-3 text-outline-variant/60" />
+                  <button
+                    type="button"
+                    onClick={() => chooseNote(b.id)}
+                    className="hover:text-primary transition-colors truncate max-w-[140px]"
+                    title={b.title}
+                  >
+                    {b.title}
+                  </button>
+                </span>
+              ))}
+              <ChevronRight className="h-3 w-3 text-outline-variant/60" />
+              <span className="font-semibold text-on-surface truncate max-w-[220px]">
+                {viewedRevision?.title ?? form.title ?? "Sem título"}
+              </span>
+            </nav>
+
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
               <label className="min-w-0 flex-1">
                 <span className="sr-only">Título da nota</span>
@@ -1986,25 +2071,83 @@ export default function EvidencePanel({
                 </button>
               </div>
             </div>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-on-surface-variant">
-              <span className={`badge ${draft || conflicts.has(selectedToken) ? "badge-warning" : "badge-neutral"}`}>
-                {viewedRevision
-                  ? `Histórico · revisão ${viewedRevision.number}`
-                  : conflicts.has(selectedToken)
-                    ? "Conflito de edição"
-                    : draft
-                      ? selected ? `Rascunho sobre revisão ${selected.revision.number}` : "Rascunho ainda não publicado"
-                      : `Publicada · revisão ${selected?.revision.number || 1}`}
-              </span>
-              {!viewedRevision && (
-                <span className={`inline-flex items-center gap-1 ${saveStatus === "error" || saveStatus === "conflict" ? "text-error" : ""}`} aria-live="polite">
-                  {saveStatus === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveStatus === "saved" ? <Check className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
-                  {saveStatusText}
+            <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-on-surface-variant">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`badge ${draft || conflicts.has(selectedToken) ? "badge-warning" : "badge-neutral"}`}>
+                  {viewedRevision
+                    ? `Histórico · revisão ${viewedRevision.number}`
+                    : conflicts.has(selectedToken)
+                      ? "Conflito de edição"
+                      : draft
+                        ? selected ? `Rascunho sobre revisão ${selected.revision.number}` : "Rascunho ainda não publicado"
+                        : `Publicada · revisão ${selected?.revision.number || 1}`}
                 </span>
-              )}
-              {viewedRevision
-                ? <span>por {viewedRevision.author} em {formatDate(viewedRevision.created_at)}</span>
-                : selected && <span>· última publicação por {selected.revision.author}</span>}
+                <span className="badge badge-neutral bg-surface-container-high text-on-surface text-[11px]">
+                  {phaseLabel(form.phase)}
+                </span>
+                {!viewedRevision && (
+                  <span className={`inline-flex items-center gap-1 ${saveStatus === "error" || saveStatus === "conflict" ? "text-error" : ""}`} aria-live="polite">
+                    {saveStatus === "saving" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : saveStatus === "saved" ? <Check className="h-3.5 w-3.5" /> : <Clock3 className="h-3.5 w-3.5" />}
+                    {saveStatusText}
+                  </span>
+                )}
+                <span className="text-on-surface-variant/80 text-[11px]">
+                  {readingTimeMinutes} min ({wordCount} palavras)
+                </span>
+              </div>
+
+              {/* LeafWiki Document Action Buttons */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => handleToggleFavorite(selectedToken, !isCurrentFavorite)}
+                  className={`p-1.5 rounded-sm transition-colors ${isCurrentFavorite ? "text-amber-400 bg-amber-500/10" : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"}`}
+                  title={isCurrentFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                  aria-label={isCurrentFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+                >
+                  <Star className={`h-3.5 w-3.5 ${isCurrentFavorite ? "fill-amber-400" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTogglePin(selectedToken, !isCurrentPinned)}
+                  className={`p-1.5 rounded-sm transition-colors ${isCurrentPinned ? "text-primary bg-primary/10" : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface"}`}
+                  title={isCurrentPinned ? "Desafixar nota" : "Fixar nota"}
+                  aria-label={isCurrentPinned ? "Desafixar nota" : "Fixar nota"}
+                >
+                  <Pin className={`h-3.5 w-3.5 ${isCurrentPinned ? "fill-primary" : ""}`} />
+                </button>
+                {currentNode && (
+                  <button
+                    type="button"
+                    onClick={() => setMovingNode(currentNode)}
+                    className="p-1.5 rounded-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Mover nota de pasta"
+                    aria-label="Mover nota"
+                  >
+                    <Move className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {currentNode && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCopyNote(currentNode)}
+                    className="p-1.5 rounded-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                    title="Duplicar nota"
+                    aria-label="Duplicar nota"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => handleExportSingleNote(selectedToken)}
+                  className="p-1.5 rounded-sm text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors"
+                  title="Exportar esta nota (.md)"
+                  aria-label="Exportar nota em Markdown"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Barra de Ações Rápidas LeafWiki */}
@@ -2067,6 +2210,65 @@ export default function EvidencePanel({
               </button>
             </div>
           </div>
+
+          {/* LeafWiki Empty Section / Folder View */}
+          {currentNode?.kind === "section" && (
+            <div className="mx-4 mt-3 mb-1 p-3.5 rounded-sm bg-surface-container-low/70 border border-outline-variant/20 sm:mx-5">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <FolderOpen className="h-5 w-5 text-amber-500" />
+                  <div>
+                    <h4 className="text-xs font-bold text-on-surface uppercase tracking-wide">
+                      Notas desta Seção ({currentNode.children?.length ?? 0})
+                    </h4>
+                    <p className="text-[11px] text-on-surface-variant">
+                      Esta pasta agrupa evidências e documentações relativas à fase {phaseLabel(form.phase)}.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSectionParentId(currentNode.id);
+                    void startNewNote();
+                  }}
+                  className="btn btn-outline py-1 px-2.5 text-xs flex items-center gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Nova Nota aqui
+                </button>
+              </div>
+              {currentNode.children && currentNode.children.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 mt-2">
+                  {currentNode.children.map((child) => (
+                    <div
+                      key={child.id}
+                      onClick={() => chooseNote(child.id)}
+                      className="p-2.5 rounded-sm bg-surface-container-lowest border border-outline-variant/20 hover:border-primary/50 transition cursor-pointer flex flex-col justify-between gap-1.5"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <span className="text-xs font-medium text-on-surface truncate flex items-center gap-1.5">
+                          {child.kind === "section" ? (
+                            <Folder className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                          ) : (
+                            <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
+                          )}
+                          <span className="truncate">{child.title}</span>
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-on-surface-variant">
+                        <span className="font-mono">#{child.slug}</span>
+                        {child.children?.length ? <span>{child.children.length} itens</span> : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-on-surface-variant/70 italic mt-1">
+                  Nenhuma nota criada dentro desta pasta ainda.
+                </p>
+              )}
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
             {viewedRevision ? (
               <section className="rounded-sm border border-outline-variant/30 bg-surface-container-lowest" aria-label={`Revisão ${viewedRevision.number}`}>

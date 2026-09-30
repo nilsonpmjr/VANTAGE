@@ -59,10 +59,10 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-slate-900 border border-slate-700 rounded-lg shadow-2xl w-full max-w-md overflow-hidden text-slate-200">
-        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/60">
+      <div className="w-full max-w-md overflow-hidden rounded-lg border border-outline-variant/30 bg-surface-container-lowest text-on-surface shadow-2xl">
+        <div className="flex items-center justify-between border-b border-outline-variant/20 bg-surface-container-high px-4 py-3 text-on-surface">
           <div className="flex items-center gap-2">
-            <Move className="w-4 h-4 text-red-400" />
+            <Move className="w-4 h-4 text-primary" />
             <span className="font-semibold text-sm">
               Mover &ldquo;{movingNode.title}&rdquo;
             </span>
@@ -70,7 +70,8 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-200"
+            className="p-1 rounded-sm text-on-surface-variant hover:text-on-surface hover:bg-surface-container transition-colors"
+            aria-label="Fechar"
           >
             <X className="w-4 h-4" />
           </button>
@@ -78,15 +79,15 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
 
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">
+            <label className="block text-xs font-medium text-on-surface-variant mb-1">
               Destino
             </label>
-            <div className="space-y-1 max-h-60 overflow-y-auto bg-slate-950 border border-slate-800 rounded p-2 text-xs">
+            <div className="space-y-1 max-h-60 overflow-y-auto bg-surface-container-low border border-outline-variant/20 rounded p-2 text-xs">
               <label
                 className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
                   targetParentId === null
-                    ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                    : "hover:bg-slate-800/60 text-slate-300"
+                    ? "bg-primary/10 text-primary border border-primary/30 font-medium"
+                    : "text-on-surface hover:bg-surface-container-high"
                 }`}
               >
                 <input
@@ -96,7 +97,7 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
                   onChange={() => setTargetParentId(null)}
                   className="hidden"
                 />
-                <Folder className="w-3.5 h-3.5 text-slate-400" />
+                <Folder className="w-3.5 h-3.5 text-on-surface-variant" />
                 <span className="font-medium">Raiz (Sem pasta pai)</span>
               </label>
 
@@ -105,8 +106,8 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
                   key={folder.id}
                   className={`flex items-center gap-2 p-2 rounded cursor-pointer transition-colors ${
                     targetParentId === folder.id
-                      ? "bg-red-500/20 text-red-300 border border-red-500/40"
-                      : "hover:bg-slate-800/60 text-slate-300"
+                      ? "bg-primary/10 text-primary border border-primary/30 font-medium"
+                      : "text-on-surface hover:bg-surface-container-high"
                   }`}
                 >
                   <input
@@ -116,25 +117,25 @@ export const EvidenceMoveModal: React.FC<EvidenceMoveModalProps> = ({
                     onChange={() => setTargetParentId(folder.id)}
                     className="hidden"
                   />
-                  <Folder className="w-3.5 h-3.5 text-amber-400" />
+                  <Folder className="w-3.5 h-3.5 text-amber-500" />
                   <span className="truncate">{folder.path}</span>
                 </label>
               ))}
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+          <div className="flex justify-end gap-2 pt-3 border-t border-outline-variant/20">
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-800 rounded"
+              className="btn btn-ghost px-3 py-1.5 text-xs text-on-surface-variant hover:text-on-surface"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-4 py-1.5 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded disabled:opacity-50"
+              className="btn btn-primary px-4 py-1.5 text-xs font-medium"
             >
               {isSubmitting ? "Movendo..." : "Confirmar Movimento"}
             </button>

@@ -11,6 +11,7 @@ import {
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   AlertTriangle,
+  AlignLeft,
   BookOpen,
   Check,
   ChevronsUpDown,
@@ -21,6 +22,7 @@ import {
   GitCompare,
   History,
   Image,
+  Keyboard,
   Link2,
   Loader2,
   Paperclip,
@@ -34,12 +36,26 @@ import {
   Send,
   SlidersHorizontal,
   Star,
+  Table2,
   Tag,
   Trash2,
   Upload,
   X,
 } from "lucide-react";
 import { MarkdownContent, MarkdownEditor } from "../../components/markdown";
+import {
+  extractTocEntries,
+  EvidenceTocPanel,
+  EvidenceQuickSwitcher,
+  EvidenceShortcutsModal,
+  EvidenceTableDialog,
+  EvidenceLinkDialog,
+  EvidenceRevisionDiffModal,
+  EvidenceAssetManagerModal,
+  type TocEntry,
+  type QuickSwitcherItem,
+  type LinkTargetSuggestion,
+} from "./evidence";
 import {
   createEvidenceDraft,
   deleteEvidenceDraftAttachment,
@@ -111,7 +127,7 @@ const searchTypeLabels: Record<NotebookSearchType, string> = {
 
 type MobilePane = "notes" | "document" | "properties";
 type LeftPanelView = "explorer" | "search";
-type RightPanelView = "properties" | "links" | "attachments" | "history";
+type RightPanelView = "properties" | "links" | "attachments" | "history" | "toc";
 
 interface EvidenceForm {
   title: string;
@@ -308,6 +324,7 @@ function readPanelPreferences(): PanelPreferences {
         parsed.rightPanelView === "links"
         || parsed.rightPanelView === "attachments"
         || parsed.rightPanelView === "history"
+        || parsed.rightPanelView === "toc"
       ) ? parsed.rightPanelView : "properties",
     };
   } catch {
@@ -437,6 +454,11 @@ export default function EvidencePanel({
   const [quickSwitcherIndex, setQuickSwitcherIndex] = useState(0);
   const [resizingPanel, setResizingPanel] = useState<ResizingPanel | null>(null);
   const [mobilePane, setMobilePane] = useState<MobilePane>(selectedToken ? "document" : "notes");
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [tableDialogOpen, setTableDialogOpen] = useState(false);
+  const [linkDialogOpen, setLinkDialogOpen] = useState(false);
+  const [diffRevision, setDiffRevision] = useState<EvidenceRevision | null>(null);
+  const [assetManagerOpen, setAssetManagerOpen] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const quickSwitcherRef = useRef<HTMLInputElement>(null);
@@ -449,6 +471,53 @@ export default function EvidencePanel({
 
   const dirty = baseline !== null && !isFormEqual(baseline, form);
   const displayedMarkdown = viewedRevision?.markdown ?? form.markdown;
+  const tocEntries = useMemo(
+    () => extractTocEntries(displayedMarkdown),
+    [displayedMarkdown],
+  );
+
+  function handleSelectTocEntry(entry: TocEntry) {
+    if (documentRef.current) {
+      const headings = Array.from(documentRef.current.querySelectorAll("h1, h2, h3"));
+      const match = headings.find((h) => (h.textContent || "").toLowerCase().includes(entry.text.toLowerCase()));
+      if (match) {
+        match.scrollIntoView({ behavior: "smooth", block: "start" });
+        match.classList.add("ring-2", "ring-primary", "ring-offset-2");
+        setTimeout(() => match.classList.remove("ring-2", "ring-primary", "ring-offset-2"), 1500);
+      }
+    }
+  }
+
+  function insertTextAtCaret(snippet: string) {
+    setForm((current) => {
+      const md = current.markdown;
+      const separator = md.length > 0 && !md.endsWith("\n") ? "\n\n" : "";
+      return {
+        ...current,
+        markdown: `${md}${separator}${snippet}`,
+      };
+    });
+  }
+
+  function handleRestoreRevisionToDraft(rev: EvidenceRevision) {
+    setForm((current) => ({
+      ...current,
+      markdown: rev.markdown,
+    }));
+    setViewedRevision(null);
+  }
+
+  async function handleSearchLinkSuggestions(q: string): Promise<LinkTargetSuggestion[]> {
+    const results = await suggestEvidenceReferences(slug, q);
+    return results.items.map((item) => ({
+      key: item.key,
+      label: item.label,
+      type: (item.type === "evidence" || item.type === "finding" || item.type === "target" || item.type === "source")
+        ? item.type
+        : "evidence",
+      reference: item.key,
+    }));
+  }
   const allTags = useMemo(() => Array.from(new Set(notes.flatMap((note) => note.tags)))
     .sort((left, right) => left.localeCompare(right, "pt-BR")), [notes]);
   const unpublishedDrafts = useMemo(() => drafts.filter((item) => (
@@ -1264,11 +1333,31 @@ export default function EvidencePanel({
       } else if (key === "s" && !readOnly && selectedToken && dirty) {
         event.preventDefault();
         void saveDraftNow().catch(() => undefined);
+      } else if (key === "/" || event.key === "?") {
+        event.preventDefault();
+        setShortcutsOpen((current) => !current);
+      }
+    }
+    function handleAltShortcut(event: KeyboardEvent) {
+      if (event.defaultPrevented || !event.altKey || event.ctrlKey || event.metaKey) return;
+      if (/^[1-9]$/.test(event.key)) {
+        const tabIndex = parseInt(event.key, 10) - 1;
+        if (tabIndex < openNoteTabs.length) {
+          event.preventDefault();
+          chooseNote(openNoteTabs[tabIndex].id);
+        }
+      } else if (event.key.toLowerCase() === "w" && selectedToken) {
+        event.preventDefault();
+        closeNoteTab(selectedToken);
       }
     }
     window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [dirty, readOnly, saveDraftNow, selectedToken]);
+    window.addEventListener("keydown", handleAltShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleShortcut);
+      window.removeEventListener("keydown", handleAltShortcut);
+    };
+  }, [closeNoteTab, dirty, openNoteTabs, readOnly, saveDraftNow, selectedToken]);
 
   function openSearchResult(result: NotebookSearchResult) {
     if (result.type === "evidence" || result.type === "draft") {
@@ -1723,6 +1812,66 @@ export default function EvidencePanel({
                 ? <span>por {viewedRevision.author} em {formatDate(viewedRevision.created_at)}</span>
                 : selected && <span>· última publicação por {selected.revision.author}</span>}
             </div>
+
+            {/* Barra de Ações Rápidas LeafWiki */}
+            <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-outline-variant/15 pt-2">
+              <div className="flex flex-wrap items-center gap-1">
+                <button
+                  type="button"
+                  className="btn btn-outline py-1 px-2.5 text-xs flex items-center gap-1.5"
+                  onClick={() => setTableDialogOpen(true)}
+                  title="Inserir tabela Markdown"
+                  disabled={readOnly || Boolean(viewedRevision)}
+                >
+                  <Table2 className="h-3.5 w-3.5 text-primary" />
+                  <span>Tabela</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline py-1 px-2.5 text-xs flex items-center gap-1.5"
+                  onClick={() => setLinkDialogOpen(true)}
+                  title="Inserir link interno ou externo"
+                  disabled={readOnly || Boolean(viewedRevision)}
+                >
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  <span>Link</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline py-1 px-2.5 text-xs flex items-center gap-1.5"
+                  onClick={() => setAssetManagerOpen(true)}
+                  title="Gerenciar e inserir anexos"
+                >
+                  <Image className="h-3.5 w-3.5 text-primary" />
+                  <span>Anexos ({visibleAttachments.length})</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline py-1 px-2.5 text-xs flex items-center gap-1.5"
+                  onClick={() => {
+                    setRightPanelView("toc");
+                    setPropertiesOpen(true);
+                  }}
+                  title="Exibir sumário no painel de contexto"
+                >
+                  <AlignLeft className="h-3.5 w-3.5 text-primary" />
+                  <span>Sumário</span>
+                  {tocEntries.length > 0 && (
+                    <span className="badge badge-neutral text-[9px] py-0 px-1">{tocEntries.length}</span>
+                  )}
+                </button>
+              </div>
+
+              <button
+                type="button"
+                className="btn btn-ghost py-1 px-2 text-xs text-on-surface-variant hover:text-on-surface flex items-center gap-1.5"
+                onClick={() => setShortcutsOpen(true)}
+                title="Atalhos de teclado (Ctrl+/ ou ?)"
+              >
+                <Keyboard className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Atalhos (?)</span>
+              </button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
             {viewedRevision ? (
@@ -1795,12 +1944,13 @@ export default function EvidencePanel({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-4 gap-1 border-b border-outline-variant/20 bg-surface p-1" role="tablist" aria-label="Seções do contexto">
+      <div className="grid grid-cols-5 gap-1 border-b border-outline-variant/20 bg-surface p-1" role="tablist" aria-label="Seções do contexto">
         {([
           ["properties", "Dados", SlidersHorizontal],
           ["links", "Links", Link2],
           ["attachments", "Anexos", Paperclip],
           ["history", "Histórico", History],
+          ["toc", "Sumário", AlignLeft],
         ] as Array<[RightPanelView, string, typeof SlidersHorizontal]>).map(([view, label, Icon]) => (
           <button
             key={view}
@@ -2010,20 +2160,34 @@ export default function EvidencePanel({
               ) : (
                 <ul className="mt-2 space-y-1">
                   {revisions.map((revision) => (
-                    <li key={revision.id}>
+                    <li key={revision.id} className="flex items-center gap-1 rounded-sm hover:bg-surface-container-high pr-1">
                       <button
                         type="button"
-                        className={`w-full rounded-sm px-2 py-2 text-left text-xs hover:bg-surface-container-high ${viewedRevision?.id === revision.id ? "bg-primary/10 text-primary" : "text-on-surface"}`}
+                        className={`flex-1 px-2 py-2 text-left text-xs ${viewedRevision?.id === revision.id ? "bg-primary/10 text-primary" : "text-on-surface"}`}
                         onClick={() => { setViewedRevision(revision); setMobilePane("document"); }}
                       >
                         <span className="font-bold">Revisão {revision.number}</span>
                         <span className="mt-0.5 block text-[11px] text-on-surface-variant">{revision.author} · {formatDate(revision.created_at)}</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-outline py-0.5 px-2 text-[10px] flex items-center gap-1 shrink-0"
+                        title="Comparar diff com o rascunho atual"
+                        onClick={() => setDiffRevision(revision)}
+                      >
+                        <GitCompare className="h-3 w-3" /> Diff
                       </button>
                     </li>
                   ))}
                 </ul>
               )}
               {draft && <p className="mt-2 text-[11px] text-on-surface-variant">Seu rascunho privado não aparece neste histórico até ser publicado.</p>}
+            </section>
+          )}
+
+          {rightPanelView === "toc" && (
+            <section aria-label="Sumário da nota de evidência">
+              <EvidenceTocPanel entries={tocEntries} onSelectEntry={handleSelectTocEntry} />
             </section>
           )}
 
@@ -2157,6 +2321,44 @@ export default function EvidencePanel({
         {documentPanel}
         {propertiesPanel}
       </div>
+
+      {/* Modais LeafWiki Documentais */}
+      <EvidenceShortcutsModal
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
+
+      <EvidenceTableDialog
+        isOpen={tableDialogOpen}
+        onClose={() => setTableDialogOpen(false)}
+        onInsertTable={insertTextAtCaret}
+      />
+
+      <EvidenceLinkDialog
+        isOpen={linkDialogOpen}
+        onClose={() => setLinkDialogOpen(false)}
+        initialText=""
+        onInsertLink={insertTextAtCaret}
+        onSearchSuggestions={handleSearchLinkSuggestions}
+      />
+
+      <EvidenceRevisionDiffModal
+        isOpen={Boolean(diffRevision)}
+        onClose={() => setDiffRevision(null)}
+        revision={diffRevision}
+        currentContent={form.markdown}
+        onRestoreRevision={handleRestoreRevisionToDraft}
+      />
+
+      <EvidenceAssetManagerModal
+        isOpen={assetManagerOpen}
+        onClose={() => setAssetManagerOpen(false)}
+        attachments={visibleAttachments}
+        getDownloadUrl={(attId, inline) => evidenceAttachmentDownloadUrl(slug, selectedToken, attId, inline)}
+        onInsertSnippet={insertTextAtCaret}
+        onDeleteAttachment={removeDraftAttachment}
+        readOnly={readOnly}
+      />
     </section>
   );
 }

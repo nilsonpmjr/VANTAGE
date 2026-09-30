@@ -68,8 +68,12 @@ def extract_internal_references(
                         )
                     break
                 cursor = end + 2
+                raw_ref = text[start + 2:end]
+                if ":" not in raw_ref:
+                    # Plain LeafWiki page reference (e.g. [[Target Bastion]]), not a typed entity reference
+                    continue
                 try:
-                    reference = parse_reference_key(text[start + 2:end])
+                    reference = parse_reference_key(raw_ref)
                 except ReferenceSyntaxError:
                     if strict:
                         raise

@@ -18,6 +18,19 @@ from config import settings
 from db import db_manager
 from logging_config import get_logger
 from redmode_files import GridFSEvidenceStore, clean_filename
+from redmode_leafwiki import (
+    aggregate_tags,
+    build_tree_hierarchy,
+    calculate_node_path,
+    calculate_reordered_positions,
+    detect_broken_links,
+    dump_markdown_frontmatter,
+    export_bundle_as_zip,
+    parse_markdown_frontmatter,
+    refactor_markdown_links,
+    slugify,
+    validate_node_move,
+)
 from redmode_references import (
     ReferenceSyntaxError,
     evidence_search_text,
@@ -56,6 +69,11 @@ class EvidenceNoteInput(BaseModel):
     targets: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
     finding_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
     attachment_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
+    parent_id: str | None = Field(default=None, max_length=128)
+    slug: str | None = Field(default=None, max_length=200)
+    kind: Literal["page", "section"] = Field(default="page")
+    position: int = Field(default=0, ge=0)
+    pinned: bool = Field(default=False)
 
     @field_validator("title")
     @classmethod
@@ -120,6 +138,11 @@ class EvidenceDraftWrite(BaseModel):
     targets: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
     finding_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
     attachment_ids: list[str] = Field(default_factory=list, max_length=MAX_NOTE_RELATIONS)
+    parent_id: str | None = Field(default=None, max_length=128)
+    slug: str | None = Field(default=None, max_length=200)
+    kind: Literal["page", "section"] = Field(default="page")
+    position: int = Field(default=0, ge=0)
+    pinned: bool = Field(default=False)
     base_revision_id: str | None = Field(default=None, max_length=128)
     expected_version: int = Field(ge=0)
 
@@ -183,6 +206,67 @@ class EvidenceReferenceResolve(BaseModel):
     markdown: str = Field(default="", max_length=MAX_NOTE_MARKDOWN)
 
 
+class EvidenceSectionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=MAX_NOTE_TITLE)
+    parent_id: str | None = Field(default=None, max_length=128)
+    phase: str = Field(default="pre-engagement")
+    markdown: str = Field(default="", max_length=MAX_NOTE_MARKDOWN)
+
+    @field_validator("title")
+    @classmethod
+    def valid_title(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("field_must_not_be_blank")
+        return value
+
+    @field_validator("phase")
+    @classmethod
+    def valid_phase(cls, value: str) -> str:
+        if value not in PTES_PHASES:
+            raise ValueError("invalid_ptes_phase")
+        return value
+
+
+class EvidenceNodeMove(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    parent_id: str | None = Field(default=None, max_length=128)
+    position: int | None = Field(default=None, ge=0)
+
+
+class EvidenceNodeCopy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target_parent_id: str | None = Field(default=None, max_length=128)
+    new_title: str | None = Field(default=None, max_length=MAX_NOTE_TITLE)
+
+
+class EvidenceNodePin(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    pinned: bool
+
+
+class EvidenceTreeSort(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    parent_id: str | None = Field(default=None, max_length=128)
+    ordered_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+class EvidenceLinkRefactor(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    old_title: str = Field(min_length=1, max_length=MAX_NOTE_TITLE)
+    new_title: str = Field(min_length=1, max_length=MAX_NOTE_TITLE)
+    old_slug: str = Field(default="", max_length=200)
+    new_slug: str = Field(default="", max_length=200)
+
+
+class EvidenceImportInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    filename: str = Field(default="", max_length=200)
+    content: str = Field(min_length=1, max_length=MAX_NOTE_MARKDOWN)
+    parent_id: str | None = Field(default=None, max_length=128)
+
+
 def evidence_collection():
     projects_collection()
     return db_manager.db.redmode_evidence
@@ -191,6 +275,11 @@ def evidence_collection():
 def evidence_revisions_collection():
     projects_collection()
     return db_manager.db.redmode_evidence_revisions
+
+
+def evidence_favorites_collection():
+    projects_collection()
+    return db_manager.db.redmode_evidence_favorites
 
 
 def evidence_drafts_collection():
@@ -547,6 +636,11 @@ async def evidence_note_detail(doc: dict) -> dict:
         "attachment_ids": revision.get("attachment_ids", []),
         "attachments": revision.get("attachments", []),
         "references": references,
+        "slug": doc.get("slug") or slugify(revision["title"]),
+        "parent_id": doc.get("parent_id"),
+        "kind": doc.get("kind", "page"),
+        "position": doc.get("position", 0),
+        "pinned": bool(doc.get("pinned", False)),
         "revision": {
             "id": revision["_id"],
             "number": revision["number"],
@@ -573,6 +667,11 @@ async def evidence_note_summary(doc: dict) -> dict:
         "target_count": len(detail["targets"]),
         "finding_count": len(detail["finding_ids"]),
         "attachment_count": len(detail["attachment_ids"]),
+        "slug": detail["slug"],
+        "parent_id": detail["parent_id"],
+        "kind": detail["kind"],
+        "position": detail["position"],
+        "pinned": detail["pinned"],
         "revision": detail["revision"],
     }
 
@@ -604,6 +703,11 @@ def evidence_draft_detail(doc: dict) -> dict:
         "attachment_ids": doc.get("attachment_ids", []),
         "attachments": doc.get("attachments", []),
         "references": references,
+        "slug": doc.get("slug"),
+        "parent_id": doc.get("parent_id"),
+        "kind": doc.get("kind", "page"),
+        "position": doc.get("position", 0),
+        "pinned": bool(doc.get("pinned", False)),
     }
 
 
@@ -1692,6 +1796,11 @@ async def publish_evidence_draft(
                 "created_at": now,
                 "updated_at": now,
                 "origin": "human",
+                "parent_id": document.parent_id,
+                "slug": document.slug or slugify(document.title),
+                "kind": document.kind,
+                "position": document.position,
+                "pinned": document.pinned,
             }
             await evidence_collection().insert_one(note)
             note_inserted = True
@@ -1820,6 +1929,11 @@ async def create_evidence_note(
         "created_at": now,
         "updated_at": now,
         "origin": "human",
+        "parent_id": payload.parent_id,
+        "slug": payload.slug or slugify(payload.title),
+        "kind": payload.kind,
+        "position": payload.position,
+        "pinned": payload.pinned,
     }
     inserted_note = False
     try:
@@ -2308,13 +2422,559 @@ async def list_evidence(
     }
 
 
-@router.get("/projects/{slug}/evidence/{evidence_id}")
-async def get_evidence(
+@router.get("/projects/{slug}/evidence/tree")
+async def get_evidence_tree(
     slug: str,
-    evidence_id: str,
     current_user: dict = Depends(require_redmode_access),
 ):
-    return await evidence_detail(await load_evidence(slug, evidence_id, current_user))
+    """Hierarchical PageNode tree translated from LeafWiki internal/core/tree."""
+    await load_project_for_member(slug, current_user)
+    cursor = evidence_collection().find({"project_slug": slug})
+    notes_list = []
+    async for note in cursor:
+        summary = await evidence_note_summary(note)
+        notes_list.append(summary)
+
+    fav_cursor = evidence_favorites_collection().find({
+        "project_slug": slug,
+        "username": current_user["username"],
+    })
+    user_favorites = {doc["note_id"] async for doc in fav_cursor}
+
+    tree = build_tree_hierarchy(notes_list, user_favorites)
+    return {"tree": tree, "total": len(notes_list)}
+
+
+@router.post("/projects/{slug}/evidence/sections", status_code=status.HTTP_201_CREATED)
+async def create_evidence_section(
+    slug: str,
+    payload: EvidenceSectionCreate,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Create a section folder translated from LeafWiki internal/wiki/pages."""
+    project = await load_project_for_write(slug, current_user)
+    if payload.parent_id:
+        parent = await evidence_collection().find_one({
+            "_id": payload.parent_id,
+            "project_slug": slug,
+        })
+        if not parent:
+            raise HTTPException(status_code=404, detail="parent_section_not_found")
+
+    note_id = uuid4().hex
+    now = datetime.now(timezone.utc)
+    revision_id = uuid4().hex
+    revision = {
+        "_id": revision_id,
+        "note_id": note_id,
+        "project_slug": slug,
+        "number": 1,
+        "previous_revision_id": None,
+        "author": current_user["username"],
+        "created_at": now,
+        "title": payload.title,
+        "markdown": payload.markdown,
+        "phase": payload.phase,
+        "tags": [],
+        "targets": [],
+        "finding_ids": [],
+        "attachments": [],
+        "attachment_ids": [],
+        "references": [],
+        "search_text": f"{payload.title} {payload.markdown}",
+    }
+    note = {
+        "_id": note_id,
+        "project_slug": slug,
+        "current_revision_id": revision_id,
+        "created_by": current_user["username"],
+        "created_at": now,
+        "updated_at": now,
+        "origin": "human",
+        "parent_id": payload.parent_id,
+        "slug": slugify(payload.title),
+        "kind": "section",
+        "position": 0,
+        "pinned": False,
+    }
+    await evidence_revisions_collection().insert_one(revision)
+    await evidence_collection().insert_one(note)
+    await _record_activity(
+        project,
+        "evidence_section_created",
+        note_id,
+        now,
+        current_user["username"],
+    )
+    return await evidence_note_detail(note)
+
+
+@router.post("/projects/{slug}/evidence/notes/{note_id}/move")
+async def move_evidence_note(
+    slug: str,
+    note_id: str,
+    payload: EvidenceNodeMove,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Move note/section with cycle prevention and sibling reordering translated from move_page.go."""
+    project = await load_project_for_write(slug, current_user)
+    note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    if not note:
+        raise HTTPException(status_code=404, detail="evidence_not_found")
+
+    all_notes = {
+        doc["_id"]: doc
+        async for doc in evidence_collection().find({"project_slug": slug})
+    }
+    try:
+        validate_node_move(all_notes, note_id, payload.parent_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+    now = datetime.now(timezone.utc)
+    target_parent_id = payload.parent_id
+    siblings = [
+        {"id": doc["_id"], "position": doc.get("position", 0)}
+        for doc in all_notes.values()
+        if doc.get("parent_id") == target_parent_id and doc["_id"] != note_id
+    ]
+    siblings.sort(key=lambda s: s["position"])
+    reordered = calculate_reordered_positions(siblings, note_id, payload.position)
+
+    for nid, pos in reordered.items():
+        update_fields = {"position": pos}
+        if nid == note_id:
+            update_fields["parent_id"] = target_parent_id
+            update_fields["updated_at"] = now
+        await evidence_collection().update_one(
+            {"_id": nid, "project_slug": slug},
+            {"$set": update_fields},
+        )
+
+    await _record_activity(project, "evidence_moved", note_id, now, current_user["username"])
+    updated_note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    return await evidence_note_detail(updated_note)
+
+
+@router.post("/projects/{slug}/evidence/notes/{note_id}/copy", status_code=status.HTTP_201_CREATED)
+async def copy_evidence_note(
+    slug: str,
+    note_id: str,
+    payload: EvidenceNodeCopy,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Duplicate note, content, and attachments translated from copy_page.go."""
+    project = await load_project_for_write(slug, current_user)
+    source_note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    if not source_note:
+        raise HTTPException(status_code=404, detail="evidence_not_found")
+    source_rev = await _current_revision(source_note)
+
+    new_note_id = uuid4().hex
+    new_rev_id = uuid4().hex
+    now = datetime.now(timezone.utc)
+    new_title = payload.new_title.strip() if payload.new_title else f"{source_rev['title']} (Cópia)"
+
+    new_attachments = []
+    new_attachment_ids = []
+    if source_rev.get("attachments"):
+        store = evidence_file_store()
+        for att in source_rev.get("attachments", []):
+            try:
+                original_data = await store.read(att.get("storage_id", str(att["id"])))
+                new_storage_id = await store.save(
+                    att["filename"],
+                    original_data,
+                    {"project_slug": slug, "note_id": new_note_id},
+                )
+                new_att_id = uuid4().hex
+                att_doc = {
+                    "_id": new_att_id,
+                    "project_slug": slug,
+                    "note_id": new_note_id,
+                    "storage_id": new_storage_id,
+                    "filename": att["filename"],
+                    "content_type": att.get("content_type", "application/octet-stream"),
+                    "size_bytes": len(original_data),
+                    "hash_sha256": att.get("hash_sha256", ""),
+                    "state": "published",
+                    "published_revision_id": new_rev_id,
+                    "created_by": current_user["username"],
+                    "created_at": now,
+                }
+                await evidence_attachments_collection().insert_one(att_doc)
+                new_attachments.append(_attachment_view(att_doc))
+                new_attachment_ids.append(new_att_id)
+            except Exception:
+                logger.warning("Could not duplicate attachment for copied evidence note")
+
+    updated_markdown = source_rev.get("markdown", "")
+    for old_att, new_att in zip(source_rev.get("attachments", []), new_attachments):
+        old_href = f"/projects/{slug}/evidence/attachments/{old_att['id']}"
+        new_href = f"/projects/{slug}/evidence/attachments/{new_att['id']}"
+        updated_markdown = updated_markdown.replace(old_href, new_href)
+
+    references = extract_internal_references(updated_markdown)
+    new_rev = {
+        "_id": new_rev_id,
+        "note_id": new_note_id,
+        "project_slug": slug,
+        "number": 1,
+        "previous_revision_id": None,
+        "author": current_user["username"],
+        "created_at": now,
+        "title": new_title,
+        "markdown": updated_markdown,
+        "phase": source_rev.get("phase", "pre-engagement"),
+        "tags": list(source_rev.get("tags", [])),
+        "targets": list(source_rev.get("targets", [])),
+        "finding_ids": list(source_rev.get("finding_ids", [])),
+        "attachments": new_attachments,
+        "attachment_ids": new_attachment_ids,
+        "references": references,
+        "search_text": f"{new_title} {updated_markdown}",
+    }
+    target_parent_id = (
+        payload.target_parent_id
+        if payload.target_parent_id is not None
+        else source_note.get("parent_id")
+    )
+    new_note = {
+        "_id": new_note_id,
+        "project_slug": slug,
+        "current_revision_id": new_rev_id,
+        "created_by": current_user["username"],
+        "created_at": now,
+        "updated_at": now,
+        "origin": "human",
+        "parent_id": target_parent_id,
+        "slug": slugify(new_title),
+        "kind": source_note.get("kind", "page"),
+        "position": source_note.get("position", 0) + 1,
+        "pinned": False,
+    }
+    await evidence_revisions_collection().insert_one(new_rev)
+    await evidence_collection().insert_one(new_note)
+    await _record_activity(project, "evidence_copied", new_note_id, now, current_user["username"])
+    return await evidence_note_detail(new_note)
+
+
+@router.post("/projects/{slug}/evidence/notes/{note_id}/pin")
+async def pin_evidence_note(
+    slug: str,
+    note_id: str,
+    payload: EvidenceNodePin,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Toggle note pinned status translated from pin_page.go."""
+    project = await load_project_for_write(slug, current_user)
+    note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    if not note:
+        raise HTTPException(status_code=404, detail="evidence_not_found")
+    now = datetime.now(timezone.utc)
+    await evidence_collection().update_one(
+        {"_id": note_id, "project_slug": slug},
+        {"$set": {"pinned": payload.pinned, "updated_at": now}},
+    )
+    await _record_activity(
+        project,
+        "evidence_pinned" if payload.pinned else "evidence_unpinned",
+        note_id,
+        now,
+        current_user["username"],
+    )
+    updated = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    return await evidence_note_detail(updated)
+
+
+@router.post("/projects/{slug}/evidence/tree/sort")
+async def sort_evidence_tree(
+    slug: str,
+    payload: EvidenceTreeSort,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Reorder siblings inside a section folder translated from sort_pages.go."""
+    await load_project_for_write(slug, current_user)
+    now = datetime.now(timezone.utc)
+    for idx, nid in enumerate(payload.ordered_ids):
+        await evidence_collection().update_one(
+            {"_id": nid, "project_slug": slug},
+            {"$set": {"position": idx, "updated_at": now}},
+        )
+    return {"status": "ok", "reordered": len(payload.ordered_ids)}
+
+
+@router.get("/projects/{slug}/evidence/favorites")
+async def list_evidence_favorites(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """List personal user favorites translated from list_favorites.go."""
+    await load_project_for_member(slug, current_user)
+    cursor = evidence_favorites_collection().find({
+        "project_slug": slug,
+        "username": current_user["username"],
+    })
+    favorite_ids = [doc["note_id"] async for doc in cursor]
+    items = []
+    for nid in favorite_ids:
+        note = await evidence_collection().find_one({"_id": nid, "project_slug": slug})
+        if note:
+            items.append(await evidence_note_summary(note))
+    return {"favorites": items, "total": len(items)}
+
+
+@router.post("/projects/{slug}/evidence/notes/{note_id}/favorite")
+async def add_evidence_favorite(
+    slug: str,
+    note_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Add note to user favorites translated from add_favorite.go."""
+    await load_project_for_member(slug, current_user)
+    note = await evidence_collection().find_one({"_id": note_id, "project_slug": slug})
+    if not note:
+        raise HTTPException(status_code=404, detail="evidence_not_found")
+    now = datetime.now(timezone.utc)
+    doc_id = f"{slug}:{current_user['username']}:{note_id}"
+    await evidence_favorites_collection().update_one(
+        {"_id": doc_id},
+        {"$set": {
+            "_id": doc_id,
+            "project_slug": slug,
+            "username": current_user["username"],
+            "note_id": note_id,
+            "created_at": now,
+        }},
+        upsert=True,
+    )
+    return {"status": "ok", "favorited": True, "note_id": note_id}
+
+
+@router.delete("/projects/{slug}/evidence/notes/{note_id}/favorite")
+async def remove_evidence_favorite(
+    slug: str,
+    note_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Remove note from user favorites translated from remove_favorite.go."""
+    await load_project_for_member(slug, current_user)
+    doc_id = f"{slug}:{current_user['username']}:{note_id}"
+    await evidence_favorites_collection().delete_one({"_id": doc_id})
+    return {"status": "ok", "favorited": False, "note_id": note_id}
+
+
+@router.get("/projects/{slug}/evidence/links/broken")
+async def get_broken_evidence_links(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Detect broken wikilinks translated from internal/links/outgoing.go."""
+    await load_project_for_member(slug, current_user)
+    notes_cursor = evidence_collection().find({"project_slug": slug})
+    notes_with_rev = []
+    async for note in notes_cursor:
+        rev = await _current_revision(note)
+        notes_with_rev.append({
+            "id": note["_id"],
+            "title": rev.get("title", ""),
+            "slug": note.get("slug") or slugify(rev.get("title", "")),
+            "markdown": rev.get("markdown", ""),
+        })
+
+    findings_cursor = findings_collection().find({"project_slug": slug})
+    known_findings = {f["_id"] async for f in findings_cursor}
+
+    broken = detect_broken_links(notes_with_rev, known_findings)
+    return {"broken_links": broken, "total": len(broken)}
+
+
+@router.post("/projects/{slug}/evidence/links/refactor")
+async def refactor_evidence_links(
+    slug: str,
+    payload: EvidenceLinkRefactor,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Refactor wikilinks across notebook notes translated from internal/links/link_refactor.go."""
+    await load_project_for_write(slug, current_user)
+    notes_cursor = evidence_collection().find({"project_slug": slug})
+    now = datetime.now(timezone.utc)
+    total_rewritten_notes = 0
+    total_rewritten_links = 0
+
+    async for note in notes_cursor:
+        rev = await _current_revision(note)
+        old_md = rev.get("markdown", "")
+        new_md, count = refactor_markdown_links(
+            old_md,
+            payload.old_title,
+            payload.new_title,
+            payload.old_slug,
+            payload.new_slug,
+        )
+        if count > 0:
+            total_rewritten_notes += 1
+            total_rewritten_links += count
+            new_rev_id = uuid4().hex
+            new_references = extract_internal_references(new_md)
+            new_rev = {
+                "_id": new_rev_id,
+                "note_id": note["_id"],
+                "project_slug": slug,
+                "number": rev["number"] + 1,
+                "previous_revision_id": rev["_id"],
+                "author": current_user["username"],
+                "created_at": now,
+                "title": rev["title"],
+                "markdown": new_md,
+                "phase": rev["phase"],
+                "tags": rev["tags"],
+                "targets": rev["targets"],
+                "finding_ids": rev["finding_ids"],
+                "attachments": rev.get("attachments", []),
+                "attachment_ids": rev.get("attachment_ids", []),
+                "references": new_references,
+                "search_text": f"{rev['title']} {new_md}",
+            }
+            await evidence_revisions_collection().insert_one(new_rev)
+            await evidence_collection().update_one(
+                {"_id": note["_id"], "project_slug": slug},
+                {"$set": {"current_revision_id": new_rev_id, "updated_at": now}},
+            )
+
+    return {
+        "status": "ok",
+        "notes_updated": total_rewritten_notes,
+        "links_refactored": total_rewritten_links,
+    }
+
+
+@router.get("/projects/{slug}/evidence/tags")
+async def get_evidence_tags_index(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Aggregate tags and note counts translated from internal/tags/tags_service.go."""
+    await load_project_for_member(slug, current_user)
+    notes_cursor = evidence_collection().find({"project_slug": slug})
+    notes_list = []
+    async for note in notes_cursor:
+        rev = await _current_revision(note)
+        notes_list.append({
+            "id": note["_id"],
+            "title": rev.get("title", ""),
+            "tags": rev.get("tags", []),
+            "phase": rev.get("phase", "pre-engagement"),
+        })
+    tags = aggregate_tags(notes_list)
+    return {"tags": tags, "total": len(tags)}
+
+
+@router.get("/projects/{slug}/evidence/export/bundle")
+async def export_evidence_bundle(
+    slug: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Export whole notebook as zip bundle with frontmatter translated from LeafWiki export."""
+    await load_project_for_member(slug, current_user)
+    notes_cursor = evidence_collection().find({"project_slug": slug})
+    notes_with_rev = []
+    async for note in notes_cursor:
+        rev = await _current_revision(note)
+        notes_with_rev.append({
+            "id": note["_id"],
+            "title": rev.get("title", ""),
+            "slug": note.get("slug") or slugify(rev.get("title", "")),
+            "parent_id": note.get("parent_id"),
+            "kind": note.get("kind", "page"),
+            "pinned": bool(note.get("pinned", False)),
+            "markdown": rev.get("markdown", ""),
+            "phase": rev.get("phase", "pre-engagement"),
+            "tags": rev.get("tags", []),
+            "targets": rev.get("targets", []),
+            "finding_ids": rev.get("finding_ids", []),
+            "created_at": note.get("created_at"),
+            "updated_at": note.get("updated_at"),
+        })
+
+    zip_bytes = export_bundle_as_zip(slug, notes_with_rev)
+    return Response(
+        content=zip_bytes,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(f'{slug}-evidence-notebook.zip')}",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.get("/projects/{slug}/evidence/notes/{note_id}/export")
+async def export_single_evidence_note(
+    slug: str,
+    note_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Export single note as markdown with YAML frontmatter."""
+    note = await load_evidence(slug, note_id, current_user)
+    rev = await _current_revision(note)
+    meta = {
+        "id": note["_id"],
+        "title": rev.get("title", ""),
+        "slug": note.get("slug") or slugify(rev.get("title", "")),
+        "phase": rev.get("phase", "pre-engagement"),
+        "kind": note.get("kind", "page"),
+        "pinned": note.get("pinned", False),
+        "tags": rev.get("tags", []),
+        "targets": rev.get("targets", []),
+        "finding_ids": rev.get("finding_ids", []),
+    }
+    content = dump_markdown_frontmatter(meta, rev.get("markdown", ""))
+    filename = f"{note.get('slug') or slugify(rev.get('title', 'note'))}.md"
+    return Response(
+        content=content.encode("utf-8"),
+        media_type="text/markdown",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{quote(filename)}",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.post("/projects/{slug}/evidence/import", status_code=status.HTTP_201_CREATED)
+async def import_evidence_note(
+    slug: str,
+    payload: EvidenceImportInput,
+    current_user: dict = Depends(require_redmode_access),
+):
+    """Import Markdown document with frontmatter parsing translated from internal/wiki/importer."""
+    meta, body = parse_markdown_frontmatter(payload.content)
+
+    title = meta.get("title") or payload.filename.removesuffix(".md").replace("-", " ").title() or "Nota Importada"
+    phase = meta.get("phase", "pre-engagement")
+    if phase not in PTES_PHASES:
+        phase = "pre-engagement"
+    tags = meta.get("tags", [])
+    if not isinstance(tags, list):
+        tags = []
+    targets = meta.get("targets", [])
+    if not isinstance(targets, list):
+        targets = []
+    finding_ids = meta.get("finding_ids", [])
+    if not isinstance(finding_ids, list):
+        finding_ids = []
+
+    note_input = EvidenceNoteInput(
+        title=title[:MAX_NOTE_TITLE],
+        markdown=body,
+        phase=phase,
+        tags=[str(t).strip() for t in tags if str(t).strip()][:MAX_NOTE_TAGS],
+        targets=[str(t).strip() for t in targets if str(t).strip()][:MAX_NOTE_RELATIONS],
+        finding_ids=[str(f).strip() for f in finding_ids if str(f).strip()][:MAX_NOTE_RELATIONS],
+        parent_id=payload.parent_id,
+        slug=slugify(title),
+        kind="page",
+    )
+    return await create_evidence_note(slug, note_input, current_user)
 
 
 async def _evidence_file_response(
@@ -2351,6 +3011,15 @@ async def _attachment_storage_id(slug: str, note_id: str, info: dict) -> str:
     return attachment.get("storage_id", str(info["id"]))
 
 
+@router.get("/projects/{slug}/evidence/{evidence_id}")
+async def get_evidence(
+    slug: str,
+    evidence_id: str,
+    current_user: dict = Depends(require_redmode_access),
+):
+    return await evidence_detail(await load_evidence(slug, evidence_id, current_user))
+
+
 @router.get("/projects/{slug}/evidence/{evidence_id}/file")
 async def download_evidence_file(
     slug: str,
@@ -2365,3 +3034,4 @@ async def download_evidence_file(
     info = attachments[0]
     storage_id = await _attachment_storage_id(slug, evidence_id, info)
     return await _evidence_file_response(storage_id, info)
+

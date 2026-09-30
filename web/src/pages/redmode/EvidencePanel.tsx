@@ -17,19 +17,24 @@ import {
   ChevronsUpDown,
   Clock3,
   Copy,
+  Download,
   FileText,
   Filter,
+  Folder,
+  FolderOpen,
   GitCompare,
   History,
   Image,
   Keyboard,
   Link2,
   Loader2,
+  Move,
   Paperclip,
   PanelLeftClose,
   PanelLeftOpen,
   PanelRightClose,
   PanelRightOpen,
+  Pin,
   Plus,
   RotateCcw,
   Search,
@@ -52,30 +57,49 @@ import {
   EvidenceLinkDialog,
   EvidenceRevisionDiffModal,
   EvidenceAssetManagerModal,
+  EvidenceTreeView,
+  EvidenceSectionModal,
+  EvidenceMoveModal,
+  EvidenceImportModal,
+  EvidenceBrokenLinksPanel,
   type TocEntry,
   type QuickSwitcherItem,
   type LinkTargetSuggestion,
 } from "./evidence";
 import {
+  addEvidenceFavorite,
+  copyEvidenceNote,
   createEvidenceDraft,
+  createEvidenceSection,
   deleteEvidenceDraftAttachment,
   discardEvidenceDraft,
   evidenceAttachmentDownloadUrl,
+  getBrokenEvidenceLinks,
+  getEvidenceBundleExportUrl,
   getEvidenceDraft,
   getEvidenceLinks,
   getEvidenceNote,
+  getEvidenceNoteExportUrl,
+  getEvidenceTags,
+  getEvidenceTree,
+  importEvidenceNote,
   listEvidenceDrafts,
+  listEvidenceFavorites,
   listEvidenceNotes,
   listEvidenceRevisions,
   listFindings,
+  moveEvidenceNote,
+  pinEvidenceNote,
   publishEvidenceDraft,
   rebaseEvidenceDraft,
+  removeEvidenceFavorite,
   resolveEvidenceReferences,
   saveEvidenceDraft,
   searchEvidenceNotebook,
   suggestEvidenceReferences,
   uploadEvidenceDraftAttachments,
   type EvidenceAttachment,
+  type EvidenceBrokenLink,
   type EvidenceDraft,
   type EvidenceDraftSummary,
   type EvidenceLinks,
@@ -84,6 +108,7 @@ import {
   type EvidenceNoteSummary,
   type EvidenceRevision,
   type EvidenceReference,
+  type EvidenceTreeNode,
   type Finding,
   type NotebookSearchResult,
   type NotebookSearchType,
@@ -126,8 +151,8 @@ const searchTypeLabels: Record<NotebookSearchType, string> = {
 };
 
 type MobilePane = "notes" | "document" | "properties";
-type LeftPanelView = "explorer" | "search";
-type RightPanelView = "properties" | "links" | "attachments" | "history" | "toc";
+type LeftPanelView = "explorer" | "tree" | "search";
+type RightPanelView = "properties" | "links" | "attachments" | "history" | "toc" | "broken_links";
 
 interface EvidenceForm {
   title: string;
@@ -319,12 +344,13 @@ function readPanelPreferences(): PanelPreferences {
         PROPERTIES_MAX_WIDTH,
         PROPERTIES_DEFAULT_WIDTH,
       ),
-      leftPanelView: parsed.leftPanelView === "search" ? "search" : "explorer",
+      leftPanelView: (parsed.leftPanelView === "search" || parsed.leftPanelView === "tree") ? parsed.leftPanelView : "explorer",
       rightPanelView: (
         parsed.rightPanelView === "links"
         || parsed.rightPanelView === "attachments"
         || parsed.rightPanelView === "history"
         || parsed.rightPanelView === "toc"
+        || parsed.rightPanelView === "broken_links"
       ) ? parsed.rightPanelView : "properties",
     };
   } catch {
@@ -459,6 +485,15 @@ export default function EvidencePanel({
   const [linkDialogOpen, setLinkDialogOpen] = useState(false);
   const [diffRevision, setDiffRevision] = useState<EvidenceRevision | null>(null);
   const [assetManagerOpen, setAssetManagerOpen] = useState(false);
+  const [treeData, setTreeData] = useState<EvidenceTreeNode[]>([]);
+  const [treeLoading, setTreeLoading] = useState(false);
+  const [brokenLinks, setBrokenLinks] = useState<EvidenceBrokenLink[]>([]);
+  const [brokenLinksLoading, setBrokenLinksLoading] = useState(false);
+  const [isSectionModalOpen, setIsSectionModalOpen] = useState(false);
+  const [sectionParentId, setSectionParentId] = useState<string | null>(null);
+  const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
+  const [movingNode, setMovingNode] = useState<EvidenceTreeNode | null>(null);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const quickSwitcherRef = useRef<HTMLInputElement>(null);
@@ -851,6 +886,99 @@ export default function EvidencePanel({
       .catch(() => { if (active) setFindingsError("Não foi possível carregar os findings relacionados."); });
     return () => { active = false; };
   }, [findingRefresh, slug]);
+
+  const loadTree = useCallback(async () => {
+    setTreeLoading(true);
+    try {
+      const res = await getEvidenceTree(slug);
+      setTreeData(res.tree);
+    } catch {
+      // ignore
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [slug]);
+
+  const loadBrokenLinks = useCallback(async () => {
+    setBrokenLinksLoading(true);
+    try {
+      const res = await getBrokenEvidenceLinks(slug);
+      setBrokenLinks(res.broken_links);
+    } catch {
+      // ignore
+    } finally {
+      setBrokenLinksLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    void loadTree();
+    void loadBrokenLinks();
+  }, [listReload, loadTree, loadBrokenLinks]);
+
+  const handleTogglePin = async (noteId: string, pinned: boolean) => {
+    try {
+      await pinEvidenceNote(slug, noteId, pinned);
+      setListReload((c) => c + 1);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleToggleFavorite = async (noteId: string, favorited: boolean) => {
+    try {
+      if (favorited) {
+        await addEvidenceFavorite(slug, noteId);
+      } else {
+        await removeEvidenceFavorite(slug, noteId);
+      }
+      void loadTree();
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleCreateSectionSubmit = async (title: string, phase: string, parentId?: string | null) => {
+    await createEvidenceSection(slug, { title, phase, parent_id: parentId });
+    setListReload((c) => c + 1);
+  };
+
+  const handleMoveSubmit = async (nodeId: string, targetParentId: string | null) => {
+    await moveEvidenceNote(slug, nodeId, { parent_id: targetParentId });
+    setListReload((c) => c + 1);
+  };
+
+  const handleCopyNote = async (node: EvidenceTreeNode) => {
+    try {
+      const copied = await copyEvidenceNote(slug, node.id, {
+        new_title: `${node.title} (Cópia)`,
+      });
+      setListReload((c) => c + 1);
+      chooseNote(copied.id);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleImportSubmit = async (filename: string, content: string) => {
+    const imported = await importEvidenceNote(slug, {
+      filename,
+      content,
+      parent_id: sectionParentId,
+    });
+    setListReload((c) => c + 1);
+    chooseNote(imported.id);
+  };
+
+  const handleExportSingleNote = (noteId: string) => {
+    const url = getEvidenceNoteExportUrl(slug, noteId);
+    window.open(url, "_blank");
+  };
+
+  const handleExportBundle = () => {
+    const url = getEvidenceBundleExportUrl(slug);
+    window.open(url, "_blank");
+  };
 
   useEffect(() => {
     if (!searchActive) {
@@ -1472,9 +1600,44 @@ export default function EvidencePanel({
             </p>
           </div>
           {!readOnly && (
-            <button type="button" className="btn btn-primary px-3" disabled={creating} onClick={() => void startNewNote()} title="Nova nota (Ctrl+N)">
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Nova
-            </button>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="btn btn-primary px-2.5 py-1 text-xs"
+                disabled={creating}
+                onClick={() => void startNewNote()}
+                title="Nova nota (Ctrl+N)"
+              >
+                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />} Nova
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline px-2 py-1 text-xs"
+                onClick={() => {
+                  setSectionParentId(null);
+                  setIsSectionModalOpen(true);
+                }}
+                title="Nova pasta / seção"
+              >
+                <Folder className="h-3.5 w-3.5 text-amber-400" />
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline px-2 py-1 text-xs"
+                onClick={() => setIsImportModalOpen(true)}
+                title="Importar Markdown (.md)"
+              >
+                <Upload className="h-3.5 w-3.5 text-primary" />
+              </button>
+              <button
+                type="button"
+                className="btn btn-outline px-2 py-1 text-xs"
+                onClick={handleExportBundle}
+                title="Exportar Caderno completo (.zip)"
+              >
+                <Download className="h-3.5 w-3.5 text-slate-300" />
+              </button>
+            </div>
           )}
           <button
             type="button"
@@ -1490,12 +1653,21 @@ export default function EvidencePanel({
           </button>
         </div>
 
-        <div className="grid grid-cols-2 rounded-sm bg-surface p-1" role="tablist" aria-label="Modo do painel esquerdo">
+        <div className="grid grid-cols-3 rounded-sm bg-surface p-1" role="tablist" aria-label="Modo do painel esquerdo">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={leftPanelView === "tree"}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "tree" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            onClick={() => setLeftPanelView("tree")}
+          >
+            <Folder className="h-3.5 w-3.5 text-amber-400" /> Árvore
+          </button>
           <button
             type="button"
             role="tab"
             aria-selected={leftPanelView === "explorer"}
-            className={`inline-flex items-center justify-center gap-2 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "explorer" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "explorer" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
             onClick={() => setLeftPanelView("explorer")}
           >
             <BookOpen className="h-3.5 w-3.5" /> Explorar
@@ -1504,7 +1676,7 @@ export default function EvidencePanel({
             type="button"
             role="tab"
             aria-selected={leftPanelView === "search"}
-            className={`inline-flex items-center justify-center gap-2 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "search" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
+            className={`inline-flex items-center justify-center gap-1.5 rounded-sm px-2 py-1.5 text-xs font-bold focus-visible:outline-2 focus-visible:outline-primary ${leftPanelView === "search" ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
             onClick={() => {
               setLeftPanelView("search");
               window.requestAnimationFrame(() => searchRef.current?.focus());
@@ -1567,7 +1739,29 @@ export default function EvidencePanel({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {leftPanelView === "search" ? (
+        {leftPanelView === "tree" ? (
+          <EvidenceTreeView
+            tree={treeData}
+            selectedNoteId={selectedToken}
+            onSelectNote={(noteId) => chooseNote(noteId)}
+            onCreateNote={(parentId) => {
+              setSectionParentId(parentId ?? null);
+              void startNewNote();
+            }}
+            onCreateSection={(parentId) => {
+              setSectionParentId(parentId ?? null);
+              setIsSectionModalOpen(true);
+            }}
+            onTogglePin={handleTogglePin}
+            onToggleFavorite={handleToggleFavorite}
+            onMoveNote={(node) => {
+              setMovingNode(node);
+              setIsMoveModalOpen(true);
+            }}
+            onCopyNote={handleCopyNote}
+            onExportNote={handleExportSingleNote}
+          />
+        ) : leftPanelView === "search" ? (
           !searchActive ? (
             <div className="p-5 text-center">
               <Search className="mx-auto h-6 w-6 text-on-surface-variant" />
@@ -1944,13 +2138,14 @@ export default function EvidencePanel({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="grid grid-cols-5 gap-1 border-b border-outline-variant/20 bg-surface p-1" role="tablist" aria-label="Seções do contexto">
+      <div className="grid grid-cols-6 gap-1 border-b border-outline-variant/20 bg-surface p-1" role="tablist" aria-label="Seções do contexto">
         {([
           ["properties", "Dados", SlidersHorizontal],
           ["links", "Links", Link2],
           ["attachments", "Anexos", Paperclip],
           ["history", "Histórico", History],
           ["toc", "Sumário", AlignLeft],
+          ["broken_links", "Quebrados", AlertTriangle],
         ] as Array<[RightPanelView, string, typeof SlidersHorizontal]>).map(([view, label, Icon]) => (
           <button
             key={view}
@@ -1960,7 +2155,14 @@ export default function EvidencePanel({
             className={`inline-flex min-w-0 flex-col items-center gap-1 rounded-sm px-1 py-1.5 text-[10px] font-bold focus-visible:outline-2 focus-visible:outline-primary ${rightPanelView === view ? "bg-surface-container-high text-on-surface" : "text-on-surface-variant hover:text-on-surface"}`}
             onClick={() => setRightPanelView(view)}
           >
-            <Icon className="h-3.5 w-3.5" />
+            <div className="relative">
+              <Icon className="h-3.5 w-3.5" />
+              {view === "broken_links" && brokenLinks.length > 0 && (
+                <span className="absolute -top-1.5 -right-2.5 bg-amber-500 text-slate-950 font-extrabold text-[8px] px-1 rounded-full">
+                  {brokenLinks.length}
+                </span>
+              )}
+            </div>
             <span className="truncate">{label}</span>
           </button>
         ))}
@@ -2191,6 +2393,17 @@ export default function EvidencePanel({
             </section>
           )}
 
+          {rightPanelView === "broken_links" && (
+            <section aria-label="Verificação de links quebrados">
+              <EvidenceBrokenLinksPanel
+                brokenLinks={brokenLinks}
+                isLoading={brokenLinksLoading}
+                onRefresh={loadBrokenLinks}
+                onSelectNote={(noteId) => chooseNote(noteId)}
+              />
+            </section>
+          )}
+
         </div>
       )}
       <div
@@ -2358,6 +2571,30 @@ export default function EvidencePanel({
         onInsertSnippet={insertTextAtCaret}
         onDeleteAttachment={removeDraftAttachment}
         readOnly={readOnly}
+      />
+
+      <EvidenceSectionModal
+        isOpen={isSectionModalOpen}
+        parentId={sectionParentId}
+        onClose={() => setIsSectionModalOpen(false)}
+        onSubmit={handleCreateSectionSubmit}
+      />
+
+      <EvidenceMoveModal
+        isOpen={isMoveModalOpen}
+        movingNode={movingNode}
+        tree={treeData}
+        onClose={() => {
+          setIsMoveModalOpen(false);
+          setMovingNode(null);
+        }}
+        onSubmit={handleMoveSubmit}
+      />
+
+      <EvidenceImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onImport={handleImportSubmit}
       />
     </section>
   );

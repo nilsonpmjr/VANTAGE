@@ -366,6 +366,11 @@ export interface EvidenceNoteInput {
   targets: string[];
   finding_ids: string[];
   attachment_ids: string[];
+  parent_id?: string | null;
+  slug?: string;
+  kind?: "page" | "section";
+  position?: number;
+  pinned?: boolean;
 }
 
 export interface EvidenceRevision extends EvidenceNoteInput {
@@ -389,6 +394,11 @@ export interface EvidenceNote extends EvidenceNoteInput {
   updated_at: string;
   attachments: EvidenceAttachment[];
   references: EvidenceStoredReference[];
+  parent_id?: string | null;
+  slug?: string;
+  kind?: "page" | "section";
+  position?: number;
+  pinned?: boolean;
   revision: Pick<
     EvidenceRevision,
     "id" | "number" | "previous_revision_id" | "author" | "created_at"
@@ -409,7 +419,47 @@ export interface EvidenceNoteSummary {
   target_count: number;
   finding_count: number;
   attachment_count: number;
+  parent_id?: string | null;
+  slug?: string;
+  kind?: "page" | "section";
+  position?: number;
+  pinned?: boolean;
   revision: EvidenceNote["revision"];
+}
+
+export interface EvidenceTreeNode {
+  id: string;
+  title: string;
+  slug: string;
+  path: string;
+  parent_id: string | null;
+  kind: "page" | "section";
+  position: number;
+  pinned: boolean;
+  favorite: boolean;
+  phase: string;
+  tags: string[];
+  target_count: number;
+  finding_count: number;
+  attachment_count: number;
+  updated_at: string;
+  created_at: string;
+  children: EvidenceTreeNode[];
+}
+
+export interface EvidenceBrokenLink {
+  from_note_id: string;
+  from_title: string;
+  target: string;
+  raw_target?: string;
+  snippet: string;
+  line: number;
+}
+
+export interface EvidenceTagCount {
+  tag: string;
+  count: number;
+  notes: Array<{ id: string; title: string; phase: string }>;
 }
 
 export interface EvidenceDraft extends EvidenceNoteInput {
@@ -423,6 +473,11 @@ export interface EvidenceDraft extends EvidenceNoteInput {
   updated_at: string;
   attachments: EvidenceAttachment[];
   references: EvidenceStoredReference[];
+  parent_id?: string | null;
+  slug?: string;
+  kind?: "page" | "section";
+  position?: number;
+  pinned?: boolean;
 }
 
 export interface EvidenceDraftSummary {
@@ -1030,6 +1085,176 @@ export function evidenceAttachmentDownloadUrl(
     + `/evidence/notes/${encodeURIComponent(noteId)}`
     + `/attachments/${encodeURIComponent(attachmentId)}`;
   return inline ? `${path}?inline=true` : path;
+}
+
+export async function getEvidenceTree(
+  slug: string,
+): Promise<{ tree: EvidenceTreeNode[]; total: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/tree`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function createEvidenceSection(
+  slug: string,
+  payload: { title: string; parent_id?: string | null; phase?: string; markdown?: string },
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/sections`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function moveEvidenceNote(
+  slug: string,
+  noteId: string,
+  payload: { parent_id?: string | null; position?: number | null },
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/move`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function copyEvidenceNote(
+  slug: string,
+  noteId: string,
+  payload: { target_parent_id?: string | null; new_title?: string | null },
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/copy`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function pinEvidenceNote(
+  slug: string,
+  noteId: string,
+  pinned: boolean,
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/pin`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pinned }),
+    }),
+  );
+}
+
+export async function sortEvidenceTree(
+  slug: string,
+  payload: { parent_id?: string | null; ordered_ids: string[] },
+): Promise<{ status: string; reordered: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/tree/sort`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function listEvidenceFavorites(
+  slug: string,
+): Promise<{ favorites: EvidenceNoteSummary[]; total: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/favorites`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function addEvidenceFavorite(
+  slug: string,
+  noteId: string,
+): Promise<{ status: string; favorited: boolean }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/favorite`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+    }),
+  );
+}
+
+export async function removeEvidenceFavorite(
+  slug: string,
+  noteId: string,
+): Promise<{ status: string; favorited: boolean }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/favorite`;
+  return readResponse(
+    await fetch(path, {
+      method: "DELETE",
+      credentials: "include",
+    }),
+  );
+}
+
+export async function getBrokenEvidenceLinks(
+  slug: string,
+): Promise<{ broken_links: EvidenceBrokenLink[]; total: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/links/broken`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function refactorEvidenceLinks(
+  slug: string,
+  payload: { old_title: string; new_title: string; old_slug?: string; new_slug?: string },
+): Promise<{ status: string; notes_updated: number; links_refactored: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/links/refactor`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export async function getEvidenceTags(
+  slug: string,
+): Promise<{ tags: EvidenceTagCount[]; total: number }> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/tags`;
+  return readResponse(await fetch(path, { credentials: "include" }));
+}
+
+export async function importEvidenceNote(
+  slug: string,
+  payload: { filename: string; content: string; parent_id?: string | null },
+): Promise<EvidenceNote> {
+  const path = `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/import`;
+  return readResponse(
+    await fetch(path, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }),
+  );
+}
+
+export function getEvidenceBundleExportUrl(slug: string): string {
+  return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/export/bundle`;
+}
+
+export function getEvidenceNoteExportUrl(slug: string, noteId: string): string {
+  return `${API_URL}/api/redmode/projects/${encodeURIComponent(slug)}/evidence/notes/${encodeURIComponent(noteId)}/export`;
 }
 
 export async function addEvidence(slug: string, fields: { text: string; phase: string; target: string; finding_id: string; file: File | null }): Promise<Evidence> {

@@ -6,3 +6,8 @@ export { EvidenceTableDialog } from "./EvidenceTableDialog";
 export { EvidenceLinkDialog, type LinkTargetSuggestion } from "./EvidenceLinkDialog";
 export { EvidenceRevisionDiffModal } from "./EvidenceRevisionDiffModal";
 export { EvidenceAssetManagerModal } from "./EvidenceAssetManagerModal";
+export { EvidenceTreeView } from "./EvidenceTreeView";
+export { EvidenceSectionModal } from "./EvidenceSectionModal";
+export { EvidenceMoveModal } from "./EvidenceMoveModal";
+export { EvidenceImportModal } from "./EvidenceImportModal";
+export { EvidenceBrokenLinksPanel } from "./EvidenceBrokenLinksPanel";
